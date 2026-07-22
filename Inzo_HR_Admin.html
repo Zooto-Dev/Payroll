@@ -676,6 +676,14 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <div class="col-span-2"><button id="mwApplyBtn" class="btn btn-ghost btn-sm mt-1"><i class="fa-solid fa-rotate"></i> Apply Rates to All Category Workers</button>
         <p class="text-[10px] m-0 mt-1" style="color:var(--muted)">Updates the salary of every employee on "Category — Minimum Wage" type from the rates above. Use after each wage revision (save the new rates first).</p></div>
       </div>
+      <h3 class="display font-bold mt-6 mb-3">Units / Locations <span class="text-[10px] font-normal" style="color:var(--muted)">employee code prefixes — e.g. ZM01 = Zooto Manesar Unit 1</span></h3>
+      <div id="unitList" class="space-y-1 mb-2"></div>
+      <div class="flex gap-2 mb-2 flex-wrap">
+        <input id="unitCode" class="inp" style="max-width:110px;text-transform:uppercase" placeholder="ZM01">
+        <input id="unitName" class="inp" style="max-width:220px" placeholder="Unit name (e.g. Manesar Unit 1)">
+        <input id="unitAddr" class="inp" style="flex:1;min-width:220px" placeholder="Unit address (prints on that unit's payslips)">
+        <button id="unitAddBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-plus"></i></button>
+      </div>
       <h3 class="display font-bold mt-6 mb-3">Production Lines <span class="text-[10px] font-normal" style="color:var(--muted)">manpower capacity per line — enforced at the attendance device</span></h3>
       <div id="plList" class="space-y-1 mb-2"></div>
       <div class="flex gap-2 mb-4 flex-wrap">
@@ -771,6 +779,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     </div>
     <h4 class="display font-bold mt-4 mb-2">Statutory Deductions & Tax</h4>
     <div class="grid grid-cols-2 gap-3 mb-2">
+      <div class="col-span-2"><label class="flex items-center gap-2 text-sm"><input type="checkbox" id="epOT"> Overtime allowed for this employee</label></div>
       <div><label class="lbl">TDS Regime</label>
         <select id="epRegime" class="inp"><option value="none">No TDS</option><option value="new">New Regime</option><option value="old">Old Regime</option></select></div>
       <div><label class="lbl">80C etc. Declarations ₹/yr (old regime)</label><input id="epDecl" type="number" class="inp" value="0"></div>
@@ -851,7 +860,10 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <button class="btn btn-ghost btn-sm" data-close="addEmpModal"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <label class="lbl">Full Name</label><input id="aeName" class="inp mb-3" placeholder="Full name">
-    <label class="lbl">Employee Code</label><input id="aeCode" class="inp mb-3">
+    <label class="lbl">Unit / Location</label>
+    <select id="aeUnit" class="inp mb-3"></select>
+    <label class="lbl">Employee Code <span class="text-[10px]" style="color:var(--muted)">(auto from unit — editable)</span></label>
+    <input id="aeCode" class="inp mb-3" style="text-transform:uppercase">
     <div class="grid grid-cols-2 gap-3">
       <div><label class="lbl">Department</label><input id="aeDept" class="inp" placeholder="Production"></div>
       <div><label class="lbl">Designation</label><input id="aeDesig" class="inp" placeholder="Operator"></div>
@@ -860,7 +872,21 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div><label class="lbl">Date of Joining</label><input id="aeDOJ" type="date" class="inp"></div>
       <div><label class="lbl">Date of Birth</label><input id="aeDOB" type="date" class="inp"></div>
       <div><label class="lbl">Production Line</label><select id="aeLine" class="inp"></select></div>
+      <div><label class="lbl">Employee Category</label>
+        <select id="aeCat" class="inp">
+          <option value="worker">Worker — minimum wage</option>
+          <option value="mgmt">Management / Staff — CTC</option>
+        </select></div>
+      <div id="aeSkillWrap"><label class="lbl">Skill Level</label>
+        <select id="aeSkill" class="inp">
+          <option value="mw1">Unskilled</option><option value="mw2">Semi-Skilled</option>
+          <option value="mw3" selected>Skilled</option><option value="mw4">Highly Skilled</option>
+        </select></div>
+      <div id="aeCTCWrap" class="hidden"><label class="lbl">Monthly CTC (₹)</label>
+        <input id="aeCTC" type="number" class="inp" placeholder="45000"></div>
     </div>
+    <div id="aeSalPreview" class="text-[11px] mb-2 p-2 rounded-lg" style="background:var(--brand-soft)"></div>
+    <label class="flex items-center gap-2 text-sm mb-3"><input type="checkbox" id="aeOT" checked> Overtime allowed for this employee</label>
     <p class="text-[11px] mb-3" style="color:var(--muted)"><i class="fa-solid fa-circle-info"></i> Employees added here can use every HR feature (payroll, leaves, ESS, ID card). For face-recognition punching, their face must also be registered from the Attendance app's admin panel using this same code.</p>
     <button id="aeSaveBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-user-plus"></i> Add Employee</button>
   </div>
@@ -1054,6 +1080,7 @@ function getSettings(){
     otMult:1, otAfter:30, cl:7, sl:7, el:15,
     leaveMode:'annual', accrual:1, sandwich:false, otDepts:'PLANNING,PRODUCTION',
     lwfE:35, lwfR:70, mw1:15220.71, mw2:16780.74, mw3:18500.81, mw4:19425.85,
+    units:[],
     earnComps:[{k:'basic',name:'Basic',pf:true},{k:'hra',name:'HRA',pf:false},{k:'conveyance',name:'Conveyance',pf:false},{k:'special_allowance',name:'Special Allowance',pf:false}],
     dedComps:[]
   }, SETTINGS || {});
@@ -1310,8 +1337,36 @@ function renderEmployees(filter){
   }).join('') : '<tr><td colspan="8" class="text-center py-8" style="color:var(--muted)">No employees found.</td></tr>';
 }
 $('empSearch').addEventListener('input', e => renderEmployees(e.target.value));
+function updateAePreview(){
+  const mgmt = $('aeCat').value === 'mgmt';
+  $('aeSkillWrap').classList.toggle('hidden', mgmt);
+  $('aeCTCWrap').classList.toggle('hidden', !mgmt);
+  const S = getSettings();
+  if(mgmt){
+    const ctc = Number($('aeCTC').value) || 0;
+    $('aeSalPreview').innerHTML = ctc
+      ? `CTC ₹${ctc.toLocaleString('en-IN')} → Gross ≈ <b>₹${ctcToGross(ctc).toLocaleString('en-IN')}</b>/month (employer PF/ESI/LWF adjusted per rules). Fine-tune later in the profile.`
+      : 'Enter the monthly CTC — the salary structure is built automatically.';
+  } else {
+    const rate = Math.round(Number(S[$('aeSkill').value]) || 0);
+    $('aeSalPreview').innerHTML = `<b>${$('aeSkill').selectedOptions[0].text}</b> — salary auto-set to ₹${rate.toLocaleString('en-IN')}/month (current Haryana minimum wage from Settings). Rate revisions apply via Settings → Apply Rates.`;
+  }
+}
+function ctcToGross(ctc){
+  let g = ctc;
+  for(let i = 0; i < 30; i++){
+    const er = employerSides(g, g * 0.5, true, true, true);
+    const next = ctc - er.total;
+    if(Math.abs(next - g) < 1){ g = next; break; }
+    g = next;
+  }
+  return Math.max(0, Math.round(g));
+}
 $('empAddBtn').addEventListener('click', () => {
-  renderLines();
+  renderLines(); renderUnits();
+  $('aeUnit').value = '';
+  $('aeCat').value = 'worker'; $('aeSkill').value = 'mw3'; $('aeCTC').value = ''; $('aeOT').checked = true;
+  updateAePreview();
   $('aeName').value = ''; $('aeDept').value = ''; $('aeDesig').value = '';
   $('aeDOJ').value = todayISO(); $('aeDOB').value = '';
   let code;
@@ -1331,11 +1386,24 @@ $('aeSaveBtn').addEventListener('click', async () => {
       DEPARTMENT: $('aeDept').value, DESIGNATION: $('aeDesig').value, DOJ: $('aeDOJ').value,
       LINE: $('aeLine').value || null
     }]);
-    if($('aeDOB').value){
-      await sb.from('hr_profiles').upsert({ employee_code: code, dob: $('aeDOB').value }, { onConflict: 'employee_code' });
-      PROFILES[code] = Object.assign(PROFILES[code] || { employee_code: code }, { dob: $('aeDOB').value });
-    }
     if(error) throw error;
+    // salary from category (worker = min wage level, management = CTC)
+    const S2 = getSettings();
+    const mgmt = $('aeCat').value === 'mgmt';
+    let earn = {}, skill = '';
+    if(mgmt){
+      const ctc = Number($('aeCTC').value) || 0;
+      if(ctc) earn = splitGross(ctcToGross(ctc));
+    } else {
+      skill = $('aeSkill').value;
+      earn = splitGross(Math.round(Number(S2[skill]) || 0));
+    }
+    const prof = { employee_code: code, dob: $('aeDOB').value || null,
+      pf_applicable: true, esi_applicable: true, lwf_applicable: true,
+      salary: { earn, ded: {}, wageType: mgmt ? 'custom' : 'category', skill, otAllowed: $('aeOT').checked },
+      basic: earn.basic || 0, hra: earn.hra || 0, conveyance: earn.conveyance || 0, special_allowance: earn.special_allowance || 0 };
+    await sb.from('hr_profiles').upsert(prof, { onConflict: 'employee_code' });
+    PROFILES[code] = Object.assign(PROFILES[code] || {}, prof);
     notify(`${name} added — now open Profile to set phone, salary and shift`, 'success');
     $('addEmpModal').classList.remove('show');
     await loadCore();
@@ -1358,6 +1426,7 @@ function openEmpModal(code){
   $('epPF').checked = p.pf_applicable !== false; $('epESI').checked = p.esi_applicable !== false; $('epPT').checked = p.pt_applicable !== false;
   $('epLWF').checked = p.lwf_applicable !== false;
   $('epRegime').value = p.tax_regime || 'none'; $('epDecl').value = p.tax_declarations || 0;
+  $('epOT').checked = (p.salary && p.salary.otAllowed) !== false;
   loadRevisions(code);
   checkFaceStatus(code);
   $('epBank').value = p.bank_name || ''; $('epAcc').value = p.account_no || ''; $('epIFSC').value = p.ifsc || '';
@@ -1427,6 +1496,14 @@ document.addEventListener('change', async e => {
     const l = LINES.find(x => String(x.id) === String(id)); if(l) l.supervisor_code = sup;
     notify('Supervisor updated', 'success');
     renderLines();
+    return;
+  }
+  if(e.target && (e.target.id === 'aeCat' || e.target.id === 'aeSkill' || e.target.id === 'aeCTC')){
+    updateAePreview();
+    return;
+  }
+  if(e.target && e.target.id === 'aeUnit'){
+    if(e.target.value) $('aeCode').value = nextCodeFor(e.target.value);
     return;
   }
   if(e.target && e.target.id === 'epSkill'){ if($('epWageType').value === 'category') applyCategorySalary(); else updateGrossPreview(); }
@@ -1521,7 +1598,7 @@ $('epSaveBtn').addEventListener('click', async () => {
       employee_code: $('epCode').value,
       phone: $('epPhone').value, email: $('epEmail').value, father_name: $('epFather').value,
       dob: $('epDOB').value || null, address: $('epAddr').value,
-      salary: { earn, ded, wageType: $('epWageType').value, skill: $('epSkill').value, payMode: 'bank', pendingArrear: Number(((PROFILES[$('epCode').value]||{}).salary||{}).pendingArrear)||0 },
+      salary: { earn, ded, wageType: $('epWageType').value, skill: $('epSkill').value, otAllowed: $('epOT').checked, payMode: 'bank', pendingArrear: Number(((PROFILES[$('epCode').value]||{}).salary||{}).pendingArrear)||0 },
       basic: Number(earn.basic)||0, hra: Number(earn.hra)||0,
       conveyance: Number(earn.conveyance)||0, special_allowance: Number(earn.special_allowance)||0,
       pf_applicable: $('epPF').checked, esi_applicable: $('epESI').checked, pt_applicable: $('epPT').checked,
@@ -1739,6 +1816,7 @@ async function runPayroll(){
       });
       // OT approval override: approved requests win over auto-calculation
       if(otApproved[code] !== undefined) otHours = otApproved[code];
+      if((p.salary || {}).otAllowed === false) otHours = 0; // OT not allowed for this employee
       // leaves this month (skip punched days)
       const myLeaves = yearLeaves.filter(L => L.employee_code === code && PAID_LEAVES.includes(L.leave_type));
       let leaveDaysRaw = 0;
@@ -1949,6 +2027,11 @@ function slipVC(code, month, net){ // tamper-evident verification code (djb2, sa
   for(let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
   return h.toString(16).toUpperCase().padStart(8, '0');
 }
+function unitAddrFor(code){
+  const units = (SETTINGS && SETTINGS.units) || [];
+  const u = units.find(x => String(code).toUpperCase().startsWith(x.code));
+  return (u && u.addr) ? u.addr : null;
+}
 function slipHTML(r){
   const S = getSettings();
   const p = PROFILES[r.code] || {};
@@ -1987,7 +2070,7 @@ function slipHTML(r){
     <div style="background:#0f172a;color:#fff;margin:0 -16mm;padding:8mm 16mm 6mm;display:flex;justify-content:space-between;align-items:flex-end">
       <div>
         <h1 style="margin:0;font-size:19px;letter-spacing:.02em">${esc(S.name)}</h1>
-        <p style="margin:3px 0 0;font-size:10px;color:#94a3b8">${esc(S.addr)}${S.phone ? ' • ' + esc(S.phone) : ''}${S.cin ? ' • ' + esc(S.cin) : ''}</p>
+        <p style="margin:3px 0 0;font-size:10px;color:#94a3b8">${esc(unitAddrFor(r.code) || S.addr)}${S.phone ? ' • ' + esc(S.phone) : ''}${S.cin ? ' • ' + esc(S.cin) : ''}</p>
       </div>
       <div style="text-align:right">
         <div style="font-size:13px;font-weight:700;letter-spacing:.14em;border:1px solid #475569;border-radius:6px;padding:4px 12px">PAYSLIP</div>
@@ -2224,6 +2307,11 @@ document.body.addEventListener('click', async e => {
     EARN_EDIT.splice(Number(el.dataset.i), 1); renderCompMgr();
   }
   if(act === 'dc-del'){ DED_EDIT.splice(Number(el.dataset.i), 1); renderCompMgr(); }
+  if(act === 'unit-del'){
+    SETTINGS.units.splice(Number(el.dataset.i), 1);
+    await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
+    renderUnits();
+  }
   if(act === 'pl-del'){
     if(!confirm('Delete this line? Assigned employees will keep punching but without a capacity limit.')) return;
     await sb.from('production_lines').delete().eq('id', el.dataset.id);
@@ -2577,6 +2665,7 @@ function fillSettingsForm(){
   $('setCL').value = S.cl; $('setSL').value = S.sl; $('setEL').value = S.el;
   $('setLWFE').value = S.lwfE; $('setLWFR').value = S.lwfR;
   $('setMW1').value = S.mw1; $('setMW2').value = S.mw2; $('setMW3').value = S.mw3; $('setMW4').value = S.mw4;
+  renderUnits();
   $('setLeaveMode').value = S.leaveMode; $('setAccrual').value = S.accrual;
   $('setSandwich').checked = !!S.sandwich; $('setOTDepts').value = S.otDepts;
   EARN_EDIT = null; DED_EDIT = null;
@@ -2598,6 +2687,7 @@ $('setSaveBtn').addEventListener('click', async () => {
       lwfE: Number($('setLWFE').value)||0, lwfR: Number($('setLWFR').value)||0,
       mw1: Number($('setMW1').value)||0, mw2: Number($('setMW2').value)||0,
       mw3: Number($('setMW3').value)||0, mw4: Number($('setMW4').value)||0,
+      units: (SETTINGS.units || []),
       leaveMode: $('setLeaveMode').value, accrual: Number($('setAccrual').value)||1,
       sandwich: $('setSandwich').checked, otDepts: $('setOTDepts').value,
       earnComps: EARN_EDIT || getSettings().earnComps,
@@ -2736,6 +2826,41 @@ $('impGoBtn').addEventListener('click', async () => {
   }catch(err){ notify('Import stopped: ' + err.message + ' — already-imported rows are saved; fix the file and import the rest.', 'error'); }
   finally{ btn.innerHTML = '<i class="fa-solid fa-file-import"></i> Import'; btn.disabled = false; }
 });
+
+/* ---------------- Units / Locations & auto employee codes ---------------- */
+function renderUnits(){
+  const units = (SETTINGS && SETTINGS.units) || [];
+  $('unitList').innerHTML = units.length ? units.map((u, i) => {
+    const count = EMP.filter(e => String(e['Employee code']).toUpperCase().startsWith(u.code)).length;
+    return `<div class="flex items-center justify-between p-2 rounded-lg text-sm" style="background:#f8fafc">
+      <span><b>${esc(u.code)}</b> — ${esc(u.name)} <span class="chip chip-gray">${count} employees</span>${u.addr ? `<br><span class="text-[10px]" style="color:var(--muted)"><i class="fa-solid fa-location-dot"></i> ${esc(u.addr)}</span>` : ''}</span>
+      <button class="btn btn-danger btn-sm" data-act="unit-del" data-i="${i}"><i class="fa-solid fa-trash"></i></button>
+    </div>`;
+  }).join('') : '<p class="text-xs m-0" style="color:var(--muted)">No units defined. e.g. ZM01 — Manesar Unit 1, ZM02 — Manesar Unit 2, ZD03 — Delhi.</p>';
+  if($('aeUnit')) $('aeUnit').innerHTML = '<option value="">Manual code</option>' + units.map(u => `<option value="${esc(u.code)}">${esc(u.code)} — ${esc(u.name)}</option>`).join('');
+}
+$('unitAddBtn').addEventListener('click', async () => {
+  const code = $('unitCode').value.trim().toUpperCase(), name = $('unitName').value.trim();
+  if(!code || !name) return notify('Unit code and name are required', 'error');
+  if(!/^[A-Z]{2}\d{2}$/.test(code)) return notify('Unit code format: 2 letters + 2 digits (e.g. ZM01, ZD03)', 'error');
+  SETTINGS.units = SETTINGS.units || [];
+  if(SETTINGS.units.find(u => u.code === code)) return notify('This unit code already exists', 'error');
+  SETTINGS.units.push({ code, name, addr: $('unitAddr').value.trim() });
+  await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
+  $('unitCode').value = ''; $('unitName').value = ''; $('unitAddr').value = '';
+  renderUnits(); notify('Unit added', 'success');
+});
+function nextCodeFor(prefix){
+  let max = 0;
+  EMP.forEach(e => {
+    const c = String(e['Employee code']).toUpperCase();
+    if(c.startsWith(prefix)){
+      const n = parseInt(c.slice(prefix.length), 10);
+      if(!isNaN(n) && n > max) max = n;
+    }
+  });
+  return prefix + String(max + 1).padStart(3, '0');
+}
 
 /* ---------------- Minimum wage bulk apply ---------------- */
 $('mwApplyBtn').addEventListener('click', async () => {
