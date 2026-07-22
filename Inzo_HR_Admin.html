@@ -40,14 +40,15 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .money{font-family:'Space Grotesk',sans-serif;font-variant-numeric:tabular-nums}
 
 /* ---------- Shell ---------- */
-.sidebar{width:230px;min-height:100vh;background:var(--ink);position:fixed;left:0;top:0;display:flex;flex-direction:column;z-index:40}
+.sidebar{width:230px;min-height:100vh;background:#ffffff;border-right:1px solid var(--line);position:fixed;left:0;top:0;display:flex;flex-direction:column;z-index:40}
 .main{margin-left:230px;min-height:100vh;display:flex;flex-direction:column}
-.nav-item{display:flex;align-items:center;gap:12px;padding:11px 18px;margin:2px 10px;border-radius:10px;color:#94a3b8;cursor:pointer;font-weight:500;transition:all .15s;border:none;background:transparent;width:calc(100% - 20px);text-align:left;font-size:13.5px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:11px 18px;margin:2px 10px;border-radius:10px;color:#64748b;cursor:pointer;font-weight:500;transition:all .15s;border:none;background:transparent;width:calc(100% - 20px);text-align:left;font-size:13.5px}
 .nav-item i{width:18px;text-align:center}
-.nav-item:hover{color:#fff;background:rgba(255,255,255,.06)}
+.nav-item:hover{color:var(--ink);background:#f1f5f9}
 .nav-item.active{color:#fff;background:var(--brand)}
-.nav-sec{display:flex;align-items:center;justify-content:space-between;width:calc(100% - 20px);margin:8px 10px 0;padding:9px 10px;border:none;background:transparent;font-size:9.5px;font-weight:700;letter-spacing:.12em;color:#64748b;cursor:pointer;border-radius:8px;font-family:'Inter',sans-serif}
-.nav-sec:hover{color:#cbd5e1;background:rgba(255,255,255,.04)}
+.nav-item.active:hover{color:#fff;background:var(--brand)}
+.nav-sec{display:flex;align-items:center;justify-content:space-between;width:calc(100% - 20px);margin:8px 10px 0;padding:9px 10px;border:none;background:transparent;font-size:9.5px;font-weight:700;letter-spacing:.12em;color:#94a3b8;cursor:pointer;border-radius:8px;font-family:'Inter',sans-serif}
+.nav-sec:hover{background:#f8fafc;color:#475569}
 .nav-sec i{transition:transform .2s;font-size:10px}
 .nav-group{overflow:hidden;max-height:400px;transition:max-height .25s ease}
 .nav-group.collapsed{max-height:0}
@@ -167,8 +168,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 <aside class="sidebar">
   <div class="px-5 py-5 text-center">
     <div>
-      <div class="leading-none text-white" style="font-family:'Syncopate',sans-serif;font-weight:700;letter-spacing:.2em;font-size:16px">N<span style="color:#22d3ee">E</span>X<span style="color:#22d3ee">U</span>S</div>
-      <div class="text-[9px] mt-1.5" style="color:#64748b;letter-spacing:.18em">PAYROLL CONSOLE
+      <div class="leading-none" style="font-family:'Syncopate',sans-serif;font-weight:700;letter-spacing:.2em;font-size:16px;color:#0f172a">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</div>
+      <div class="text-[9px] mt-1.5" style="color:#94a3b8;letter-spacing:.18em">PAYROLL CONSOLE
     </div>
   </div>
   <nav class="mt-2 flex-1" style="overflow-y:auto">
@@ -205,7 +206,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <button class="nav-item" data-page="settings"><i class="fa-solid fa-gear"></i> Settings</button>
     </div>
   </nav>
-  <button id="logoutBtn" class="nav-item mb-4" style="color:#f87171"><i class="fa-solid fa-power-off"></i> Logout</button>
+  <button id="logoutBtn" class="nav-item mb-4" style="color:#dc2626"><i class="fa-solid fa-power-off"></i> Logout</button>
 </aside>
 
 <div class="main">
@@ -750,7 +751,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <select id="epType" class="inp"><option>Permanent</option><option>Contract</option><option>Probation</option><option>Trainee</option><option>Piece Rate</option></select></div>
       <div><label class="lbl">Skill Category (min wage)</label>
         <select id="epSkill" class="inp"><option value="">Not applicable</option><option value="mw1">Unskilled</option><option value="mw2">Semi-Skilled</option><option value="mw3">Skilled</option><option value="mw4">Highly Skilled</option></select></div>
-      <div><label class="lbl">Production Line</label><select id="epLine" class="inp"></select></div>
+      <div id="epLineWrap"><label class="lbl">Production Line</label><select id="epLine" class="inp"></select></div>
       <div><label class="lbl">Reporting Manager</label><input id="epManager" class="inp"></div>
       <div><label class="lbl">Work Location / Unit</label><input id="epLocation" class="inp" placeholder="IMT Manesar - Unit 1"></div>
       <div><label class="lbl">Emergency Contact</label><input id="epEmName" class="inp" placeholder="Name"></div>
@@ -871,7 +872,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div class="grid grid-cols-2 gap-3" style="margin-top:12px;margin-bottom:8px">
       <div><label class="lbl">Date of Joining</label><input id="aeDOJ" type="date" class="inp"></div>
       <div><label class="lbl">Date of Birth</label><input id="aeDOB" type="date" class="inp"></div>
-      <div><label class="lbl">Production Line</label><select id="aeLine" class="inp"></select></div>
+      <div id="aeLineWrap"><label class="lbl">Production Line</label><select id="aeLine" class="inp"></select></div>
       <div><label class="lbl">Employee Category</label>
         <select id="aeCat" class="inp">
           <option value="worker">Worker — minimum wage</option>
@@ -1341,6 +1342,8 @@ function updateAePreview(){
   const mgmt = $('aeCat').value === 'mgmt';
   $('aeSkillWrap').classList.toggle('hidden', mgmt);
   $('aeCTCWrap').classList.toggle('hidden', !mgmt);
+  $('aeLineWrap').classList.toggle('hidden', mgmt);
+  if(mgmt) $('aeLine').value = '';
   const S = getSettings();
   if(mgmt){
     const ctc = Number($('aeCTC').value) || 0;
@@ -1384,7 +1387,7 @@ $('aeSaveBtn').addEventListener('click', async () => {
     const { error } = await sb.from('employees').insert([{
       Name: name, 'Employee code': code, Status: 'Active',
       DEPARTMENT: $('aeDept').value, DESIGNATION: $('aeDesig').value, DOJ: $('aeDOJ').value,
-      LINE: $('aeLine').value || null
+      LINE: ($('aeCat').value === 'mgmt') ? null : ($('aeLine').value || null)
     }]);
     if(error) throw error;
     // salary from category (worker = min wage level, management = CTC)
@@ -1470,6 +1473,13 @@ function setWageTypeUI(){
   const cat = $('epWageType').value === 'category';
   $('epCTCWrap').classList.toggle('hidden', cat);
   $('epCatInfo').classList.toggle('hidden', !cat);
+  const lineSel = $('epLine');
+  if(lineSel && lineSel.parentElement){
+    lineSel.parentElement.classList.toggle('hidden', !cat);
+    if(!cat) lineSel.value = '';
+  }
+  $('epLineWrap').classList.toggle('hidden', !cat); // management/CTC = no production line
+  if(!cat) $('epLine').value = '';
   document.querySelectorAll('#epSalWrap .sal-part').forEach(i => { i.readOnly = cat; i.style.background = cat ? '#f8fafc' : ''; });
   if(cat) applyCategorySalary();
 }
@@ -1615,7 +1625,7 @@ $('epSaveBtn').addEventListener('click', async () => {
     const { error } = await sb.from('hr_profiles').upsert(row, { onConflict: 'employee_code' });
     if(error) throw error;
     PROFILES[row.employee_code] = row;
-    const newLine = $('epLine').value || null;
+    const newLine = ($('epWageType').value === 'custom') ? null : ($('epLine').value || null);
     const empRec = EMP.find(x => x['Employee code'] === row.employee_code);
     if(empRec && (empRec.LINE || null) !== newLine){
       await sb.from('employees').update({ LINE: newLine }).eq('"Employee code"', row.employee_code);
