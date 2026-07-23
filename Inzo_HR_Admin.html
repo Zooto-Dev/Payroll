@@ -1262,6 +1262,7 @@ document.querySelectorAll('.nav-sec[data-group]').forEach(h => h.addEventListene
 async function loadDashboard(){
   loadEngagement();
   renderSetupChecklist();
+  renderLeaveDecisions();
   const today = todayISO();
   $('dToday').innerText = fmtDate(today);
   try{
@@ -1781,10 +1782,12 @@ async function runPayroll(){
     const hCount = dayMeta.filter(x => x.isH && !x.isWO).length;
 
     // year leaves (for accrual balance) + approved OT for the month
-    const [yearLvRes, otRes] = await Promise.all([
+    const [yearLvRes, otRes, ldRes] = await Promise.all([
       sb.from('leaves').select('employee_code, leave_type, from_date, to_date, days, status').eq('status','APPROVED').gte('from_date', ym.slice(0,4) + '-01-01').lte('from_date', ym + '-31'),
-      sb.from('ot_requests').select('employee_code, ot_date, hours').eq('status','APPROVED').gte('ot_date', ym + '-01').lte('ot_date', ym + '-31')
+      sb.from('ot_requests').select('employee_code, ot_date, hours').eq('status','APPROVED').gte('ot_date', ym + '-01').lte('ot_date', ym + '-31'),
+      sb.from('leave_decisions').select('*')
     ]);
+    const LDEC = ldRes.data || [];
     const yearLeaves = yearLvRes.data || [];
     const otApproved = {};
     (otRes.data || []).forEach(o => { otApproved[o.employee_code] = (otApproved[o.employee_code]||0) + Number(o.hours); });
@@ -1837,17 +1840,22 @@ async function runPayroll(){
       // balance enforcement (monthly accrual mode): beyond balance -> LOP
       let leaveDays = leaveDaysRaw, lopLeave = 0;
       if(S.leaveMode === 'monthly'){
-        const [py, pm] = ym.split('-').map(Number);
-        let startM = 1;
-        if(e.DOJ){ const dj = new Date(e.DOJ); if(!isNaN(dj) && dj.getFullYear() === py) startM = dj.getMonth() + 1; }
-        const accrued = Math.max(0, (pm - startM + 1)) * Number(S.accrual);
-        let usedBefore = 0;
+        // No auto carry-forward: each month's unused leave lapses UNLESS the
+        // admin chose Rollover (dashboard prompt). Balance for this month =
+        // this month's own accrual + rolled-over months − past over-use.
+        const rollovers = LDEC.filter(d => d.employee_code === code && d.action === 'ROLLOVER' && d.month < ym).length;
+        let overusedBefore = 0;
+        const byMonth = {};
         yearLeaves.filter(L => L.employee_code === code && PAID_LEAVES.includes(L.leave_type) && L.from_date < ym + '-01')
-          .forEach(L => { usedBefore += Number(L.days); });
-        const balAvail = Math.max(0, accrued - usedBefore);
+          .forEach(L => { const m = L.from_date.slice(0,7); byMonth[m] = (byMonth[m]||0) + Number(L.days); });
+        Object.values(byMonth).forEach(u => { overusedBefore += Math.max(0, u - Number(S.accrual)); });
+        const balAvail = Math.max(0, Number(S.accrual) + rollovers * Number(S.accrual) - overusedBefore);
         leaveDays = Math.min(leaveDaysRaw, balAvail);
         lopLeave = +(leaveDaysRaw - leaveDays).toFixed(1);
       }
+      // Leave encashment: admin chose Encash for an unused month -> pay 1 day
+      const encashRows = LDEC.filter(d => d.employee_code === code && d.action === 'ENCASH' && !d.paid);
+      const encashDays = encashRows.length * Number(S.accrual);
       otHours = Math.round(otHours * 2) / 2; // nearest 0.5
       const lateLOP = Math.floor(lates / Math.max(1, Number(S.latesHalf))) * 0.5;
       let sandwichCut = 0;
@@ -1857,7 +1865,11 @@ async function runPayroll(){
           Object.keys(exp).forEach(iso => { const m = dayMetaMap[iso]; if(m && (m.isWO || m.isH) && !days[iso]) sandwichCut++; });
         });
       }
-      let paidDays = Math.min(dim, present + leaveDays + woCount + hCount - sandwichCut) - lateLOP;
+      // Week-offs/holidays are paid only when the employee actually worked or
+      // was on paid leave this month — a fully absent month earns nothing.
+      let paidDays = (present + leaveDays) > 0
+        ? Math.min(dim, present + leaveDays + woCount + hCount - sandwichCut) - lateLOP
+        : 0;
       paidDays = Math.max(0, paidDays);
       const lop = +(dim - paidDays).toFixed(1);
       const ratio = paidDays / dim;
@@ -1876,6 +1888,7 @@ async function runPayroll(){
       const dedMap = empDeductions(code);
       const dedBreak = S.dedComps.map(c => ({ name: c.name, amt: (paidDays > 0 ? (dedMap[c.k]||0) : 0) })).filter(d => d.amt > 0);
       const customDed = dedBreak.reduce((a,d) => a + d.amt, 0);
+      const encash = Math.round(perDay * encashDays);
       const tds = calcTDS(fullGross, p.tax_regime, Number(p.tax_declarations)||0);
       const erPF = pf > 0 ? pf : 0; // employer PF mirrors capped 12%
       const erESI = esi > 0 ? Math.ceil(earnedGross * 3.25 / 100) : 0;
@@ -1894,7 +1907,7 @@ async function runPayroll(){
         basic: Math.round(basic), comps, dedBreak, customDed,
         earnedGross: Math.round(earnedGross), pf, esi, pt, lwf,
         otHours, otPay: Math.round(perHour * otHours * Number(S.otMult)),
-        tds, arrears, reward, lopLeave, otApprovedMode: otApproved[code] !== undefined,
+        tds, arrears, reward, encash, encashDays, lopLeave, otApprovedMode: otApproved[code] !== undefined,
         erPF, erESI, erLWF,
         advDed: Math.round(advDed), advRefs: advs.map(a => a.id),
         otherDed: 0, bonus: 0, hasSalary: fullGross > 0 };
@@ -1907,7 +1920,7 @@ async function runPayroll(){
   finally{ btn.innerHTML = '<i class="fa-solid fa-calculator"></i> Calculate Payroll'; btn.disabled = false; }
 }
 
-function netOf(r){ return Math.max(0, Math.round(r.earnedGross + r.bonus + (r.otPay||0) + (r.arrears||0) + (r.reward||0) - r.pf - r.esi - r.pt - (r.lwf||0) - (r.customDed||0) - (r.tds||0) - r.advDed - r.otherDed)); }
+function netOf(r){ return Math.max(0, Math.round(r.earnedGross + r.bonus + (r.otPay||0) + (r.arrears||0) + (r.reward||0) + (r.encash||0) - r.pf - r.esi - r.pt - (r.lwf||0) - (r.customDed||0) - (r.tds||0) - r.advDed - r.otherDed)); }
 /* Monthly TDS estimate — FY 2025-26 slabs, 4% cess, 87A rebate */
 function calcTDS(monthlyGross, regime, declarations){
   if(!regime || regime === 'none' || !monthlyGross) return 0;
@@ -2018,6 +2031,10 @@ $('payFinalizeBtn').addEventListener('click', async () => {
     }
     // clear consumed arrears
     for(const r of PAY_ROWS){
+      if(r.encash > 0){
+        await sb.from('leave_decisions').update({ paid: true })
+          .eq('employee_code', r.code).eq('action', 'ENCASH').eq('paid', false);
+      }
       if(r.arrears > 0 || r.reward > 0){
         const p = PROFILES[r.code] || {};
         const sal = Object.assign({}, p.salary || {}, { pendingArrear: 0, pendingReward: 0 });
@@ -2056,6 +2073,7 @@ function slipHTML(r){
   earnRows.push(['Overtime (' + (r.otHours||0) + ' hrs)', r.otPay||0]);
   if(r.arrears) earnRows.push(['Arrears', r.arrears]);
   if(r.reward) earnRows.push(['Kaizen Reward', r.reward]);
+  if(r.encash) earnRows.push(['Leave Encashment (' + r.encashDays + ' day' + (r.encashDays > 1 ? 's' : '') + ')', r.encash]);
   earnRows.push(['Bonus / Incentive', r.bonus||0]);
   const dedRows = [['Provident Fund', r.pf], ['ESI', r.esi], ['Professional Tax', r.pt], ['LWF', r.lwf||0]];
   if(r.tds) dedRows.push(['TDS (Income Tax)', r.tds]);
@@ -2091,21 +2109,22 @@ function slipHTML(r){
     <table class="ann"><tbody>
       <tr><th style="width:22%">Employee</th><td style="width:28%">${esc(r.name)}</td><th style="width:22%">Employee Code</th><td>${esc(r.code)}</td></tr>
       <tr><th>Department</th><td>${esc(r.dept || '—')}</td><th>Designation</th><td>${esc(r.desig || '—')}</td></tr>
-      <tr><th>Bank / A/c</th><td>${esc(p.bank_name || '—')} ${p.account_no ? '/ ' + esc(p.account_no) : ''}</td><th>PAN / UAN</th><td>${esc(p.pan || '—')} / ${esc(p.uan || '—')}</td></tr>
-      <tr><th>Days in Month</th><td>${r.dim}</td><th>Paid Days</th><td><b>${r.paidDays}</b> (Leave ${r.leaveDays||0}, LOP ${r.lop}${r.lateLOP ? ', incl. ' + r.lateLOP + ' late-cut' : ''})</td></tr>
+      <tr><th>Bank</th><td>${esc(p.bank_name || '—')}</td><th>Account No</th><td>${esc(p.account_no || '—')}</td></tr>
+      <tr><th>PAN</th><td>${esc(p.pan || '—')}</td><th>UAN</th><td>${esc(p.uan || '—')}</td></tr>
+      <tr><th>Days in Month</th><td>${r.dim}</td><th>Paid Days</th><td><b>${r.paidDays}</b></td></tr>
+      <tr><th>Leave</th><td>${r.leaveDays||0}</td><th>LOP</th><td>${r.lop}${r.lateLOP ? ' (incl. ' + r.lateLOP + ' late-cut)' : ''}</td></tr>
     </tbody></table>
     <table class="ann">
       <thead><tr><th style="width:35%">Earnings</th><th style="width:15%;text-align:right">Amount (₹)</th><th style="width:35%">Deductions</th><th style="width:15%;text-align:right">Amount (₹)</th></tr></thead>
       <tbody>
         ${bodyRows}
-        <tr><th>Gross Earnings</th><th style="text-align:right">${(r.earnedGross + r.bonus + (r.otPay||0) + (r.arrears||0) + (r.reward||0)).toLocaleString('en-IN')}</th><th>Total Deductions</th><th style="text-align:right">${totalDed.toLocaleString('en-IN')}</th></tr>
+        <tr><th>Gross Earnings</th><th style="text-align:right">${(r.earnedGross + r.bonus + (r.otPay||0) + (r.arrears||0) + (r.reward||0) + (r.encash||0)).toLocaleString('en-IN')}</th><th>Total Deductions</th><th style="text-align:right">${totalDed.toLocaleString('en-IN')}</th></tr>
       </tbody>
     </table>
     <div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;color:#fff;border-radius:10px;padding:12px 16px;margin-top:10px">
       <div><b style="letter-spacing:.05em">NET PAY</b><br><span style="font-size:10.5px;color:#94a3b8">Rupees ${esc(numToWords(net))} Only • Bank Transfer</span></div>
       <div class="money" style="font-size:24px;font-weight:700">₹ ${net.toLocaleString('en-IN')}</div>
     </div>
-    ${(r.erPF || r.erESI || r.erLWF) ? `<p style="font-size:10px;color:#64748b;margin-top:10px">Employer contributions (part of CTC, not deducted from salary): PF ₹${(r.erPF||0).toLocaleString('en-IN')} • ESI ₹${(r.erESI||0).toLocaleString('en-IN')} • LWF ₹${(r.erLWF||0).toLocaleString('en-IN')}</p>` : ''}
     <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e8f0;margin-top:16px;padding-top:10px">
       <div style="font-size:9.5px;color:#64748b">
         <b style="color:#0f172a">Verification Code: ${vc}</b><br>
@@ -2256,6 +2275,15 @@ document.body.addEventListener('click', async e => {
     const ids = el.dataset.ids.split(',').map(Number);
     await sb.from('ot_requests').update({ status: 'REJECTED' }).in('id', ids);
     loadApprovals();
+  }
+  if(act === 'lv-roll' || act === 'lv-encash'){
+    const { error } = await sb.from('leave_decisions').insert([{
+      employee_code: el.dataset.code, month: el.dataset.ym,
+      action: act === 'lv-roll' ? 'ROLLOVER' : 'ENCASH'
+    }]);
+    if(error) return notify(error.message + ' — have you run the V13 migration SQL?', 'error');
+    notify(act === 'lv-roll' ? 'Rolled over — 1 leave added to the balance' : 'Marked for encashment — one day\'s pay will be added in the next payroll', 'success');
+    renderLeaveDecisions();
   }
   if(act === 'vb-review'){ await sb.from('feedback').update({ status:'IN_REVIEW' }).eq('id', el.dataset.id); loadVoice(); }
   if(act === 'vb-resolve'){
@@ -3752,6 +3780,43 @@ $('idGenBtn').addEventListener('click', async () => {
   }
 });
 $('idPrintBtn').addEventListener('click', () => printHTML('<div style="display:flex;flex-wrap:wrap;gap:6mm;padding:6mm">' + $('idWrap').innerHTML + '</div>'));
+
+/* ================= UNUSED LEAVE DECISIONS (month-end prompt) ================= */
+async function renderLeaveDecisions(){
+  const S = getSettings();
+  let card = document.getElementById('lvDecCard');
+  if(S.leaveMode !== 'monthly'){ if(card) card.remove(); return; }
+  const now = new Date();
+  const dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  if(dim - now.getDate() > 2){ if(card) card.remove(); return; } // only in the last 2 days
+  const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const [lvRes, ldRes] = await Promise.all([
+    sb.from('leaves').select('employee_code, leave_type, days').eq('status','APPROVED').gte('from_date', ym + '-01').lte('from_date', ym + '-31'),
+    sb.from('leave_decisions').select('employee_code').eq('month', ym)
+  ]);
+  if(ldRes.error) return; // V13 not run yet
+  const used = {};
+  (lvRes.data || []).forEach(L => { if(PAID_LEAVES.includes(L.leave_type)) used[L.employee_code] = (used[L.employee_code]||0) + Number(L.days); });
+  const decided = new Set((ldRes.data || []).map(d => d.employee_code));
+  const pending = activeEmps().filter(e => !(used[e['Employee code']] > 0) && !decided.has(e['Employee code']));
+  if(!pending.length){ if(card) card.remove(); return; }
+  if(!card){
+    card = document.createElement('div');
+    card.id = 'lvDecCard';
+    card.className = 'card mt-4';
+    $('page-dashboard').appendChild(card);
+  }
+  card.innerHTML = `<h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-hourglass-half" style="color:var(--warn)"></i> Unused Leave — decide before month end</h3>
+    <p class="text-xs mb-3" style="color:var(--muted)">These employees have not taken their leave this month. Unused leave does NOT carry forward on its own — choose <b>Rollover</b> (adds to balance) or <b>Encash</b> (one day's pay in the next payroll).</p>
+    <div class="grid lg:grid-cols-2 gap-2">` + pending.map(e => `
+      <div class="flex items-center justify-between p-2 rounded-lg" style="background:#fffbeb;border:1px solid #fde68a">
+        <span class="text-sm"><b>${esc(e.Name)}</b> <span style="color:var(--muted)">(${esc(e['Employee code'])})</span></span>
+        <span style="white-space:nowrap">
+          <button class="btn btn-ghost btn-sm" data-act="lv-roll" data-code="${esc(e['Employee code'])}" data-ym="${ym}"><i class="fa-solid fa-rotate-right" style="color:var(--brand)"></i> Rollover</button>
+          <button class="btn btn-ghost btn-sm" data-act="lv-encash" data-code="${esc(e['Employee code'])}" data-ym="${ym}"><i class="fa-solid fa-indian-rupee-sign" style="color:var(--ok)"></i> Encash</button>
+        </span>
+      </div>`).join('') + '</div>';
+}
 
 /* ================= HELP SYSTEM ================= */
 const HELP = {
