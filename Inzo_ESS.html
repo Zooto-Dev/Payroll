@@ -710,6 +710,7 @@ function printSlip(s){
   earnRows.push(['Overtime (' + (r.otHours||0) + ' hrs)', r.otPay||0]);
   if(r.arrears) earnRows.push(['Arrears', r.arrears]);
   if(r.reward) earnRows.push(['Kaizen Reward', r.reward]);
+  if(r.encash) earnRows.push(['Leave Encashment (' + (r.encashDays||1) + ' day' + ((r.encashDays||1) > 1 ? 's' : '') + ')', r.encash]);
   earnRows.push(['Bonus / Incentive', r.bonus||0]);
   const dedRows = [['Provident Fund', r.pf||0], ['ESI', r.esi||0], ['Professional Tax', r.pt||0], ['LWF', r.lwf||0]];
   if(r.tds) dedRows.push(['TDS (Income Tax)', r.tds]);
@@ -742,7 +743,9 @@ function printSlip(s){
     <table style="width:100%;border-collapse:collapse;margin-bottom:8px">
       <tr><th style="${cell};background:#f8fafc;text-align:left;width:22%">Employee</th><td style="${cell};width:28%">${esc(e.Name || '')}</td><th style="${cell};background:#f8fafc;text-align:left;width:22%">Employee Code</th><td style="${cell}">${esc(code)}</td></tr>
       <tr><th style="${cell};background:#f8fafc;text-align:left">Department</th><td style="${cell}">${esc(e.DEPARTMENT || '—')}</td><th style="${cell};background:#f8fafc;text-align:left">Designation</th><td style="${cell}">${esc(e.DESIGNATION || '—')}</td></tr>
-      <tr><th style="${cell};background:#f8fafc;text-align:left">Bank / A/c</th><td style="${cell}">${esc(p.bank_name || '—')}${p.account_no ? ' / ' + esc(p.account_no) : ''}</td><th style="${cell};background:#f8fafc;text-align:left">Paid Days</th><td style="${cell}"><b>${r.paidDays||0}</b> / ${r.dim||''} (Leave ${r.leaveDays||0}, LOP ${r.lop||0})</td></tr>
+      <tr><th style="${cell};background:#f8fafc;text-align:left">Bank</th><td style="${cell}">${esc(p.bank_name || '—')}</td><th style="${cell};background:#f8fafc;text-align:left">Account No</th><td style="${cell}">${esc(p.account_no || '—')}</td></tr>
+      <tr><th style="${cell};background:#f8fafc;text-align:left">PAN</th><td style="${cell}">${esc(p.pan || '—')}</td><th style="${cell};background:#f8fafc;text-align:left">UAN</th><td style="${cell}">${esc(p.uan || '—')}</td></tr>
+      <tr><th style="${cell};background:#f8fafc;text-align:left">Paid Days</th><td style="${cell}"><b>${r.paidDays||0}</b> / ${r.dim||''}</td></tr><tr><th style="${cell};background:#f8fafc;text-align:left">Leave</th><td style="${cell}">${r.leaveDays||0}</td><th style="${cell};background:#f8fafc;text-align:left">LOP</th><td style="${cell}">${r.lop||0}</td></tr>
     </table>
     <table style="width:100%;border-collapse:collapse">
       <thead><tr><th style="${cell};background:#f8fafc;text-align:left;width:35%">Earnings</th><th style="${cell};background:#f8fafc;text-align:right;width:15%">Amount (₹)</th><th style="${cell};background:#f8fafc;text-align:left;width:35%">Deductions</th><th style="${cell};background:#f8fafc;text-align:right;width:15%">Amount (₹)</th></tr></thead>
@@ -753,7 +756,6 @@ function printSlip(s){
       <div><b style="letter-spacing:.05em;font-size:12px">NET PAY</b><br><span style="font-size:10px;color:#94a3b8">Rupees ${esc(numToWords(net))} Only • Bank Transfer</span></div>
       <div style="font-size:22px;font-weight:700">₹ ${net.toLocaleString('en-IN')}</div>
     </div>
-    ${(r.erPF || r.erESI || r.erLWF) ? `<p style="font-size:10px;color:#64748b;margin-top:10px">Employer contributions (part of CTC, not deducted from salary): PF ₹${(r.erPF||0).toLocaleString('en-IN')} • ESI ₹${(r.erESI||0).toLocaleString('en-IN')} • LWF ₹${(r.erLWF||0).toLocaleString('en-IN')}</p>` : ''}
     <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e8f0;margin-top:14px;padding-top:10px">
       <div style="font-size:9.5px;color:#64748b">
         <b style="color:#0f172a">Verification Code: ${vc}</b><br>
