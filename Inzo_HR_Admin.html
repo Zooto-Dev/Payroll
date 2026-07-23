@@ -677,6 +677,12 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <div class="col-span-2"><button id="mwApplyBtn" class="btn btn-ghost btn-sm mt-1"><i class="fa-solid fa-rotate"></i> Apply Rates to All Category Workers</button>
         <p class="text-[10px] m-0 mt-1" style="color:var(--muted)">Updates the salary of every employee on "Category — Minimum Wage" type from the rates above. Use after each wage revision (save the new rates first).</p></div>
       </div>
+      <div class="grid grid-cols-2 gap-3 mt-6">
+        <div><h3 class="display font-bold mb-2">Departments <span class="text-[10px] font-normal" style="color:var(--muted)">one per line</span></h3>
+          <textarea id="setDepts" class="inp" rows="6" style="font-size:12px"></textarea></div>
+        <div><h3 class="display font-bold mb-2">Designations <span class="text-[10px] font-normal" style="color:var(--muted)">one per line</span></h3>
+          <textarea id="setDesigs" class="inp" rows="6" style="font-size:12px"></textarea></div>
+      </div>
       <h3 class="display font-bold mt-6 mb-3">Units / Locations <span class="text-[10px] font-normal" style="color:var(--muted)">employee code prefixes — e.g. ZM01 = Zooto Manesar Unit 1</span></h3>
       <div id="unitList" class="space-y-1 mb-2"></div>
       <div class="flex gap-2 mb-2 flex-wrap">
@@ -866,8 +872,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <label class="lbl">Employee Code <span class="text-[10px]" style="color:var(--muted)">(auto from unit — editable)</span></label>
     <input id="aeCode" class="inp mb-3" style="text-transform:uppercase">
     <div class="grid grid-cols-2 gap-3">
-      <div><label class="lbl">Department</label><input id="aeDept" class="inp" placeholder="Production"></div>
-      <div><label class="lbl">Designation</label><input id="aeDesig" class="inp" placeholder="Operator"></div>
+      <div><label class="lbl">Department</label><input id="aeDept" class="inp" list="deptDL" placeholder="Production"></div>
+      <div><label class="lbl">Designation</label><input id="aeDesig" class="inp" list="desigDL" placeholder="Operator"></div>
     </div>
     <div class="grid grid-cols-2 gap-3" style="margin-top:12px;margin-bottom:8px">
       <div><label class="lbl">Date of Joining</label><input id="aeDOJ" type="date" class="inp"></div>
@@ -894,6 +900,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 </div>
 
 <!-- ================= EMPLOYEE IMPORT MODAL ================= -->
+<datalist id="deptDL"></datalist>
+<datalist id="desigDL"></datalist>
 <div class="modal" id="impModal">
   <div class="modal-box" style="max-width:860px">
     <div class="flex items-center justify-between mb-3">
@@ -1082,6 +1090,8 @@ function getSettings(){
     leaveMode:'annual', accrual:1, sandwich:false, otDepts:'PLANNING,PRODUCTION',
     lwfE:35, lwfR:70, mw1:15220.71, mw2:16780.74, mw3:18500.81, mw4:19425.85,
     units:[],
+    depts:["Production", "Cutting", "Stitching", "Lasting", "Quality", "Store", "Purchase", "Planning", "Maintenance", "Dispatch", "Admin", "Accounts", "Merchandising", "Development", "Security", "IT", "Management"],
+    desigs:["Managing Director", "Chief Executive Officer", "Manager", "Executive", "Incharge", "Supervisor", "Operator", "Designer", "Data Entry Operator", "Guard", "Helper", "Apprentice", "Intern"],
     earnComps:[{k:'basic',name:'Basic',pf:true},{k:'hra',name:'HRA',pf:false},{k:'conveyance',name:'Conveyance',pf:false},{k:'special_allowance',name:'Special Allowance',pf:false}],
     dedComps:[]
   }, SETTINGS || {});
@@ -1367,7 +1377,7 @@ function ctcToGross(ctc){
   return Math.max(0, Math.round(g));
 }
 $('empAddBtn').addEventListener('click', () => {
-  renderLines(); renderUnits();
+  renderLines(); renderUnits(); populateDLs();
   $('aeUnit').value = '';
   $('aeCat').value = 'worker'; $('aeSkill').value = 'mw3'; $('aeCTC').value = ''; $('aeOT').checked = true;
   updateAePreview();
@@ -2703,7 +2713,9 @@ function fillSettingsForm(){
   $('setCL').value = S.cl; $('setSL').value = S.sl; $('setEL').value = S.el;
   $('setLWFE').value = S.lwfE; $('setLWFR').value = S.lwfR;
   $('setMW1').value = S.mw1; $('setMW2').value = S.mw2; $('setMW3').value = S.mw3; $('setMW4').value = S.mw4;
-  renderUnits();
+  $('setDepts').value = (S.depts || []).join('\n');
+  $('setDesigs').value = (S.desigs || []).join('\n');
+  renderUnits(); populateDLs();
   $('setLeaveMode').value = S.leaveMode; $('setAccrual').value = S.accrual;
   $('setSandwich').checked = !!S.sandwich; $('setOTDepts').value = S.otDepts;
   EARN_EDIT = null; DED_EDIT = null;
@@ -2726,6 +2738,8 @@ $('setSaveBtn').addEventListener('click', async () => {
       mw1: Number($('setMW1').value)||0, mw2: Number($('setMW2').value)||0,
       mw3: Number($('setMW3').value)||0, mw4: Number($('setMW4').value)||0,
       units: (SETTINGS.units || []),
+      depts: $('setDepts').value.split('\n').map(s => s.trim()).filter(Boolean),
+      desigs: $('setDesigs').value.split('\n').map(s => s.trim()).filter(Boolean),
       leaveMode: $('setLeaveMode').value, accrual: Number($('setAccrual').value)||1,
       sandwich: $('setSandwich').checked, otDepts: $('setOTDepts').value,
       earnComps: EARN_EDIT || getSettings().earnComps,
@@ -2866,6 +2880,11 @@ $('impGoBtn').addEventListener('click', async () => {
 });
 
 /* ---------------- Units / Locations & auto employee codes ---------------- */
+function populateDLs(){
+  const S = getSettings();
+  $('deptDL').innerHTML = (S.depts || []).map(d => `<option value="${esc(d)}">`).join('');
+  $('desigDL').innerHTML = (S.desigs || []).map(d => `<option value="${esc(d)}">`).join('');
+}
 function renderUnits(){
   const units = (SETTINGS && SETTINGS.units) || [];
   $('unitList').innerHTML = units.length ? units.map((u, i) => {
