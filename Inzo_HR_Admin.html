@@ -42,6 +42,24 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 /* ---------- Shell ---------- */
 .sidebar{width:230px;min-height:100vh;background:#ffffff;border-right:1px solid var(--line);position:fixed;left:0;top:0;display:flex;flex-direction:column;z-index:40}
 .main{margin-left:230px;min-height:100vh;display:flex;flex-direction:column}
+/* switches */
+.sw{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0}
+.sw input{opacity:0;width:0;height:0}
+.sw i{position:absolute;inset:0;background:#e2e8f0;border-radius:999px;transition:.18s;cursor:pointer}
+.sw i:before{content:'';position:absolute;width:16px;height:16px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.18s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.sw input:checked + i{background:var(--brand)}
+.sw input:checked + i:before{transform:translateX(16px)}
+/* pagination */
+.nx-pager{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);flex-wrap:wrap}
+.nx-pager .pg-btn{min-width:30px;height:30px;padding:0 8px;border-radius:8px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:600;color:#475569;cursor:pointer;transition:all .12s}
+.nx-pager .pg-btn:hover:not(:disabled){border-color:var(--brand);color:var(--brand)}
+.nx-pager .pg-btn.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.nx-pager .pg-btn:disabled{opacity:.4;cursor:default}
+/* table & card polish */
+.tbl td{transition:background .1s}
+.tbl tbody tr:hover td{background:#f8fafc}
+.card{box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.inp:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12);outline:none}
 .ac-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-size:12px;font-weight:500;color:#475569;cursor:pointer;user-select:none;transition:all .12s}
 .ac-chip:hover{border-color:#94a3b8}
 .ac-chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
@@ -672,11 +690,11 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <button id="acSaveSupers" class="btn btn-primary btn-sm w-full justify-center"><i class="fa-solid fa-floppy-disk"></i> Save Super Admins</button>
     </div>
     <div class="card lg:col-span-2">
-      <h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-key" style="color:var(--brand)"></i> Per-Admin Page Access</h3>
-      <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Type the admin's login email, pick their pages, save. Admins not listed here see everything except Settings.</p>
+      <h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-key" style="color:var(--brand)"></i> Admin Permissions</h3>
+      <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Each row is one admin: which pages they can open, and what they can approve. Changes save instantly. Admins not listed see all pages (except Settings) with full approvals.</p>
       <div class="flex gap-2 mb-3 flex-wrap">
         <input id="acEmail" class="inp" style="flex:1;min-width:220px" placeholder="admin email (as created in Supabase)">
-        <button id="acAddBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-sliders"></i> Set Access</button>
+        <button id="acAddBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i> Add Admin</button>
       </div>
       <div id="acPagesWrap" class="hidden mb-3 p-4 rounded-xl" style="background:#f8fafc;border:1px solid var(--line)">
         <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -1231,11 +1249,18 @@ function isSuper(){
   const sup = (SETTINGS.superAdmins || []).map(s => s.toLowerCase());
   return !sup.length || sup.includes(ME_EMAIL);
 }
+function normPerm(v){
+  if(Array.isArray(v)) return { pages: v, approve: { leave:true, ot:true, expense:true, advance:true }, finalize: false };
+  return Object.assign({ pages: ALL_PAGES.filter(x => x !== 'settings'), approve: { leave:true, ot:true, expense:true, advance:true }, finalize: false }, v || {});
+}
+function myPerm(){ return normPerm((SETTINGS.adminPerms || {})[ME_EMAIL]); }
 function allowedPages(){
   if(isSuper()) return null;
-  const p = (SETTINGS.adminPerms || {})[ME_EMAIL];
-  return p && p.length ? p : ALL_PAGES.filter(x => x !== 'settings');
+  if(!(SETTINGS.adminPerms || {})[ME_EMAIL]) return ALL_PAGES.filter(x => x !== 'settings');
+  return myPerm().pages;
 }
+function canApprove(kind){ return isSuper() || !(SETTINGS.adminPerms || {})[ME_EMAIL] || myPerm().approve[kind] !== false; }
+function canFinalize(){ return isSuper() || ((SETTINGS.adminPerms || {})[ME_EMAIL] ? myPerm().finalize === true : true); }
 function applyPerms(){
   const allowed = allowedPages();
   document.querySelectorAll('.nav-item[data-page]').forEach(b => {
@@ -1251,19 +1276,39 @@ function renderAdminCtl(){
   $('acSuperChips').innerHTML = (SETTINGS.superAdmins || []).map(s =>
     `<span class="ac-mini" style="background:#fef3c7;color:#92400e"><i class="fa-solid fa-crown"></i> ${esc(s)}</span>`).join(' ') || '<span class="text-[11px]" style="color:var(--muted)">None saved yet — save your own email first.</span>';
   const perms = SETTINGS.adminPerms || {};
-  $('acList').innerHTML = Object.keys(perms).length ? Object.entries(perms).map(([em, pages]) =>
-    `<div class="ac-row">
-      <div class="ac-avatar">${initials(em)}</div>
-      <div style="flex:1;min-width:0">
-        <div class="text-sm font-semibold" style="overflow:hidden;text-overflow:ellipsis">${esc(em)}</div>
-        <div class="mt-1">${pages.slice(0, 6).map(p => `<span class="ac-mini">${TITLES[p] || p}</span>`).join('')}${pages.length > 6 ? `<span class="ac-mini" style="background:var(--brand-soft);color:var(--brand)">+${pages.length - 6} more</span>` : ''}</div>
-      </div>
-      <div style="white-space:nowrap">
-        <button class="btn btn-ghost btn-sm" data-act="ac-edit" data-em="${esc(em)}" title="Edit access"><i class="fa-solid fa-pen"></i></button>
-        <button class="btn btn-danger btn-sm" data-act="ac-del" data-em="${esc(em)}" title="Remove restrictions"><i class="fa-solid fa-trash"></i></button>
-      </div>
-    </div>`).join('') : '<div class="p-4 rounded-xl text-center text-xs" style="background:#f8fafc;color:var(--muted)"><i class="fa-solid fa-users-viewfinder mb-1" style="font-size:18px"></i><br>No restricted admins yet — everyone (except supers) currently sees all pages except Settings.</div>';
+  const sw = (em, k, on) => `<label class="sw"><input type="checkbox" class="ac-sw" data-em="${esc(em)}" data-k="${k}" ${on ? 'checked' : ''}><i></i></label>`;
+  $('acList').innerHTML = Object.keys(perms).length ? `
+  <div style="overflow-x:auto"><table class="tbl" style="min-width:760px">
+    <thead><tr>
+      <th>Admin</th><th>Pages</th>
+      <th style="text-align:center">Leave<br>Approve</th><th style="text-align:center">OT<br>Approve</th>
+      <th style="text-align:center">Expense<br>Approve</th><th style="text-align:center">Advance<br>Add</th>
+      <th style="text-align:center">Payroll<br>Finalize</th><th></th>
+    </tr></thead>
+    <tbody>${Object.keys(perms).map(em => { const p = normPerm(perms[em]); return `
+      <tr>
+        <td><div class="flex items-center gap-2"><div class="ac-avatar" style="width:30px;height:30px;font-size:11px;border-radius:9px">${initials(em)}</div><span class="text-xs font-semibold">${esc(em)}</span></div></td>
+        <td><button class="btn btn-ghost btn-sm" data-act="ac-edit" data-em="${esc(em)}">${p.pages.length}/${ALL_PAGES.length} <i class="fa-solid fa-pen text-[10px]"></i></button></td>
+        <td style="text-align:center">${sw(em, 'leave', p.approve.leave !== false)}</td>
+        <td style="text-align:center">${sw(em, 'ot', p.approve.ot !== false)}</td>
+        <td style="text-align:center">${sw(em, 'expense', p.approve.expense !== false)}</td>
+        <td style="text-align:center">${sw(em, 'advance', p.approve.advance !== false)}</td>
+        <td style="text-align:center">${sw(em, 'finalize', p.finalize === true)}</td>
+        <td><button class="btn btn-danger btn-sm" data-act="ac-del" data-em="${esc(em)}" title="Remove — full default access"><i class="fa-solid fa-trash"></i></button></td>
+      </tr>`; }).join('')}</tbody>
+  </table></div>` : '<div class="p-4 rounded-xl text-center text-xs" style="background:#f8fafc;color:var(--muted)"><i class="fa-solid fa-users-viewfinder mb-1" style="font-size:18px"></i><br>No admins added yet — type an email above. Unlisted admins see all pages (except Settings) with full approvals.</div>';
 }
+document.addEventListener('change', async e => {
+  if(!e.target.classList || !e.target.classList.contains('ac-sw')) return;
+  const em = e.target.dataset.em, k = e.target.dataset.k, on = e.target.checked;
+  SETTINGS.adminPerms = SETTINGS.adminPerms || {};
+  const p = normPerm(SETTINGS.adminPerms[em]);
+  if(k === 'finalize') p.finalize = on; else p.approve[k] = on;
+  SETTINGS.adminPerms[em] = p;
+  const { error } = await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
+  if(error) return notify(error.message, 'error');
+  notify((k === 'finalize' ? 'Payroll finalize' : k + ' approval') + (on ? ' allowed' : ' blocked') + ' for ' + em, 'success');
+});
 function acShowPages(email, selected){
   $('acWho').innerText = email;
   $('acPages').innerHTML = ALL_PAGES.map(p =>
@@ -1293,7 +1338,9 @@ $('acSavePerms').addEventListener('click', async () => {
   const pages = [...document.querySelectorAll('#acPages .ac-chip.on')].map(c => c.dataset.pg);
   if(!pages.length) return notify('Select at least one page', 'error');
   SETTINGS.adminPerms = SETTINGS.adminPerms || {};
-  SETTINGS.adminPerms[em] = pages;
+  const cur = normPerm(SETTINGS.adminPerms[em]);
+  cur.pages = pages;
+  SETTINGS.adminPerms[em] = cur;
   await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
   $('acPagesWrap').classList.add('hidden'); $('acEmail').value = '';
   notify('Access saved for ' + em, 'success'); renderAdminCtl(); applyPerms();
@@ -1416,6 +1463,43 @@ document.querySelectorAll('.nav-sec[data-group]').forEach(h => h.addEventListene
   h.classList.toggle('collapsed');
   $(h.dataset.group).classList.toggle('collapsed');
 }));
+
+/* ---------------- Universal table pagination ---------------- */
+const NX_PER_PAGE = 15;
+function nxPaginate(tbody){
+  const rows = [...tbody.rows];
+  const table = tbody.closest('table');
+  if(!table) return;
+  let pager = table.parentElement.querySelector(':scope > .nx-pager');
+  if(rows.length <= NX_PER_PAGE){ if(pager) pager.remove(); rows.forEach(r => r.style.display = ''); return; }
+  const state = { page: 1, per: NX_PER_PAGE, total: Math.ceil(rows.length / NX_PER_PAGE) };
+  if(!pager){ pager = document.createElement('div'); pager.className = 'nx-pager'; table.insertAdjacentElement('afterend', pager); }
+  function draw(){
+    rows.forEach((r, i) => { r.style.display = (i >= (state.page - 1) * state.per && i < state.page * state.per) ? '' : 'none'; });
+    const from = (state.page - 1) * state.per + 1, to = Math.min(rows.length, state.page * state.per);
+    let nums = ''; 
+    const around = [1, state.page - 1, state.page, state.page + 1, state.total].filter((v, i, a) => v >= 1 && v <= state.total && a.indexOf(v) === i).sort((a, b) => a - b);
+    let prev = 0;
+    around.forEach(n => { if(n - prev > 1) nums += '<span style="padding:0 2px">…</span>'; nums += `<button class="pg-btn ${n === state.page ? 'on' : ''}" data-pg="${n}">${n}</button>`; prev = n; });
+    pager.innerHTML = `<span>Showing <b>${from}–${to}</b> of <b>${rows.length}</b></span>
+      <span class="flex items-center gap-1">
+        <button class="pg-btn" data-pg="${state.page - 1}" ${state.page === 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-left"></i></button>
+        ${nums}
+        <button class="pg-btn" data-pg="${state.page + 1}" ${state.page === state.total ? 'disabled' : ''}><i class="fa-solid fa-chevron-right"></i></button>
+      </span>`;
+    pager.querySelectorAll('.pg-btn').forEach(b => b.addEventListener('click', () => { const p = Number(b.dataset.pg); if(p >= 1 && p <= state.total){ state.page = p; draw(); } }));
+  }
+  draw();
+}
+new MutationObserver(muts => {
+  const seen = new Set();
+  muts.forEach(m => {
+    const tb = m.target.closest && m.target.closest('.tbl tbody, table.tbl > tbody');
+    if(tb && !seen.has(tb)){ seen.add(tb); }
+    if(m.target.tagName === 'TBODY' && m.target.closest('.tbl') && !seen.has(m.target)) seen.add(m.target);
+  });
+  seen.forEach(tb => { try { nxPaginate(tb); } catch(e){} });
+}).observe(document.body, { childList: true, subtree: true });
 
 /* ---------------- Dashboard ---------------- */
 async function loadDashboard(){
@@ -2153,6 +2237,7 @@ $('payTable').addEventListener('input', e => {
 });
 
 $('payFinalizeBtn').addEventListener('click', async () => {
+  if(!canFinalize()) return notify('You are not allowed to finalize payroll — ask a super admin', 'error');
   if(!PAY_ROWS.length) return;
   if(!confirm(`Finalize payroll for ${monthLabel(PAY_MONTH)}? Payslips will be saved and advance balances updated.`)) return;
   const btn = $('payFinalizeBtn');
@@ -2346,6 +2431,7 @@ async function loadAdvances(){
   }catch(err){ notify(err.message, 'error'); }
 }
 $('advSaveBtn').addEventListener('click', async () => {
+  if(!canApprove('advance')) return notify('You are not allowed to add advances', 'error');
   const amount = Number($('advAmount').value), emi = Number($('advEmi').value);
   const code = $('advEmp').value;
   if(!code || !amount || !emi) return notify('Employee, amount and EMI are required', 'error');
@@ -2399,6 +2485,9 @@ document.body.addEventListener('click', async e => {
     await sb.from('leaves').update({ status: 'CANCELLED' }).eq('id', el.dataset.id);
     loadLeaves();
   }
+  if((act === 'appr-leave' || act === 'rej-leave') && !canApprove('leave')) return notify('You are not allowed to approve leaves', 'error');
+  if((act === 'ot-appr-grp' || act === 'ot-rej-grp') && !canApprove('ot')) return notify('You are not allowed to approve overtime', 'error');
+  if((act === 'appr-exp' || act === 'rej-exp' || act === 'appr-ex' || act === 'rej-ex') && !canApprove('expense')) return notify('You are not allowed to approve expenses', 'error');
   if(act === 'appr-leave'){
     await sb.from('leaves').update({ status: 'APPROVED' }).eq('id', el.dataset.id);
     notify('Leave approved', 'success');
@@ -2409,6 +2498,7 @@ document.body.addEventListener('click', async e => {
     loadApprovals();
   }
   if(act === 'ot-approve-all'){
+    if(!canApprove('ot')) return notify('You are not allowed to approve overtime', 'error');
     if(!confirm('Approve ALL pending overtime requests?')) return;
     const { error } = await sb.from('ot_requests').update({ status: 'APPROVED' }).eq('status', 'PENDING');
     if(error) return notify(error.message, 'error');
@@ -2504,7 +2594,7 @@ document.body.addEventListener('click', async e => {
     EARN_EDIT.splice(Number(el.dataset.i), 1); renderCompMgr();
   }
   if(act === 'dc-del'){ DED_EDIT.splice(Number(el.dataset.i), 1); renderCompMgr(); }
-  if(act === 'ac-edit'){ $('acEmail').value = el.dataset.em; acShowPages(el.dataset.em, (SETTINGS.adminPerms || {})[el.dataset.em]); }
+  if(act === 'ac-edit'){ $('acEmail').value = el.dataset.em; acShowPages(el.dataset.em, normPerm((SETTINGS.adminPerms || {})[el.dataset.em]).pages); }
   if(act === 'ac-del'){
     delete SETTINGS.adminPerms[el.dataset.em];
     await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
