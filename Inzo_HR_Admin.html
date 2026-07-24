@@ -282,7 +282,30 @@ textarea.inp{line-height:1.6}
 .page{padding-top:4px}
 .toast{border-radius:10px;font-size:13px}
 /* re-assert responsive rules after the design layer */
-@media(max-width:920px){ .main{margin-left:0} .sidebar{transform:translateX(-105%)} .sidebar.open{transform:none} }
+/* ============================================================
+   TOP BAR NAVIGATION LAYOUT (replaces the left sidebar)
+   ============================================================ */
+#navToggle,#navOverlay{display:none!important}
+.sidebar{position:sticky;top:0;left:0;width:100%;min-height:0;height:auto;display:flex;flex-direction:row;align-items:center;gap:4px;border-right:none;border-bottom:1px solid var(--line);background:#fff;z-index:50;transform:none!important;box-shadow:0 1px 3px rgba(17,24,39,.04);padding:0 12px}
+.sidebar .px-5.py-5{padding:0 14px 0 6px;flex-shrink:0}
+.sidebar nav{display:flex!important;flex-direction:row;align-items:stretch;flex:1;margin:0!important;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
+.sidebar nav::-webkit-scrollbar{height:4px}
+.sidebar nav > div{display:contents!important;max-height:none!important;overflow:visible!important}
+.nav-sec{display:none!important}
+.nav-item{width:auto;margin:0;padding:17px 13px;border-radius:0;white-space:nowrap;font-size:12.5px;border-bottom:2.5px solid transparent;flex-shrink:0}
+.nav-item:hover{background:transparent;color:var(--ink)}
+.nav-item.active, .nav-item.active:hover{background:transparent;color:var(--brand);border-bottom-color:var(--brand);font-weight:600}
+.nav-item.active::before{display:none}
+.nav-item i{width:auto}
+#logoutBtn{margin:0 0 0 4px!important;flex-shrink:0;padding:17px 13px}
+.main{margin-left:0!important}
+.topbar{top:53px}
+@media(max-width:920px){
+  .sidebar{padding:0 6px}
+  .sidebar .px-5.py-5{display:none} /* brand hidden on small screens — more room for tabs */
+  .nav-item{padding:14px 11px;font-size:12px}
+  .topbar{top:47px}
+}
 </style>
 </head>
 <body><div id="nxSplash"><div class="nx-glow"></div><div class="nx-word"><span class="nx-l">N</span><span class="nx-l nx-c">E</span><span class="nx-l">X</span><span class="nx-l nx-c">U</span><span class="nx-l">S</span></div><div class="nx-sub">HR &nbsp;SUITE</div><div class="nx-bar"><i></i></div></div>
