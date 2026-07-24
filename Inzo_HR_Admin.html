@@ -68,10 +68,20 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .ac-row{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:14px;margin-bottom:8px;background:#fff;transition:box-shadow .15s}
 .ac-row:hover{box-shadow:0 4px 16px rgba(15,23,42,.06)}
 .ac-mini{display:inline-block;padding:2px 8px;border-radius:6px;background:#f1f5f9;color:#475569;font-size:10px;margin:1px}
-#navToggle{display:none;position:fixed;top:12px;left:12px;z-index:60;width:42px;height:42px;border-radius:12px;background:#fff;border:1px solid var(--line);box-shadow:0 4px 14px rgba(15,23,42,.08);color:var(--ink);font-size:16px;cursor:pointer}
+#navToggle{display:block;position:fixed;top:12px;left:12px;z-index:60;width:42px;height:42px;border-radius:12px;background:#fff;border:1px solid var(--line);box-shadow:0 4px 14px rgba(15,23,42,.08);color:var(--ink);font-size:16px;cursor:pointer;transition:left .22s ease}
+#navToggle:hover{border-color:var(--brand);color:var(--brand)}
+.sidebar{transition:transform .22s ease}
+.main{transition:margin-left .22s ease}
+@media(min-width:921px){
+  #navToggle{left:244px}
+  body.nav-closed #navToggle{left:12px}
+  body.nav-closed .sidebar{transform:translateX(-105%)}
+  body.nav-closed .main{margin-left:0}
+  .main > header{padding-left:20px}
+  body.nav-closed .main > header{padding-left:64px}
+}
 #navOverlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:45}
 @media(max-width:920px){
-  #navToggle{display:block}
   .sidebar{transform:translateX(-105%);transition:transform .22s ease;box-shadow:0 0 40px rgba(15,23,42,.18)}
   .sidebar.open{transform:none}
   .main{margin-left:0}
@@ -1451,7 +1461,14 @@ function fillEmpSelects(){
 const TITLES = { dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', adminctl:'Admin Control Panel' };
 const _ov = document.createElement('div'); _ov.id = 'navOverlay'; document.body.appendChild(_ov);
 const _sb = document.querySelector('.sidebar');
-$('navToggle').addEventListener('click', () => { _sb.classList.toggle('open'); _ov.style.display = _sb.classList.contains('open') ? 'block' : 'none'; });
+$('navToggle').addEventListener('click', () => {
+  if(window.innerWidth > 920){
+    document.body.classList.toggle('nav-closed');
+  } else {
+    _sb.classList.toggle('open');
+    _ov.style.display = _sb.classList.contains('open') ? 'block' : 'none';
+  }
+});
 _ov.addEventListener('click', () => { _sb.classList.remove('open'); _ov.style.display = 'none'; });
 document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
   btn.addEventListener('click', () => {
