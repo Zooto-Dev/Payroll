@@ -2171,8 +2171,28 @@ async function runPayroll(){
       }
       // Week-offs/holidays are paid only when the employee actually worked or
       // was on paid leave this month — a fully absent month earns nothing.
+      // week-wise WO/H credit: an off day is earned only by working (or paid
+      // leave) around it — not by a single present day in the whole month.
+      const leaveISOs = new Set();
+      myLeaves.forEach(L => { Object.keys(expandLeave(L)).forEach(iso => { if(!days[iso]) leaveISOs.add(iso); }); });
+      const hasWork = iso => { const m = dayMetaMap[iso]; return !!m && !m.isWO && !m.isH && (!!days[iso] || leaveISOs.has(iso)); };
+      const windowHasWork = (iso, from, to) => {
+        let any = false, inMonth = 0;
+        for(let k = from; k <= to; k++){
+          const d2 = isoAdd(iso, k);
+          if(dayMetaMap[d2]){ if(!dayMetaMap[d2].isWO && !dayMetaMap[d2].isH) inMonth++; if(hasWork(d2)) any = true; }
+        }
+        return { any, inMonth };
+      };
+      let earnedWO = 0, earnedH = 0;
+      dayMeta.forEach(x => {
+        if(!x.isWO && !x.isH) return;
+        const before = windowHasWork(x.iso, -6, -1);
+        const ok = before.any || (before.inMonth === 0 && windowHasWork(x.iso, 1, 6).any);
+        if(ok){ if(x.isWO) earnedWO++; else earnedH++; }
+      });
       let paidDays = (present + leaveDays) > 0
-        ? Math.min(dim, present + leaveDays + woCount + hCount - sandwichCut) - lateLOP
+        ? Math.min(dim, present + leaveDays + earnedWO + earnedH - sandwichCut) - lateLOP
         : 0;
       paidDays = Math.max(0, paidDays);
       const lop = +(dim - paidDays).toFixed(1);
