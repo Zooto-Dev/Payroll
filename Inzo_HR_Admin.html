@@ -759,6 +759,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <select id="setWeekOff" class="inp"><option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option></select>
         </div>
         <div><label class="lbl">Lates = Half Day LOP</label><input id="setLates" type="number" class="inp" value="3" title="Half-day LOP after this many lates"></div>
+        <div><label class="lbl">Min days/week to earn Weekly Off</label><input id="setMinWO" type="number" class="inp" value="4" min="1" max="6" title="Weekly off is paid only if this many days were attended in the week before it"></div>
         <div><label class="lbl">PF % (of Basic)</label><input id="setPF" type="number" step="0.01" class="inp" value="12"></div>
         <div><label class="lbl">PF Basic Cap (₹, 0 = no cap)</label><input id="setPFCap" type="number" class="inp" value="15000"></div>
         <div><label class="lbl">ESI % (of Gross)</label><input id="setESI" type="number" step="0.01" class="inp" value="0.75"></div>
@@ -1196,6 +1197,7 @@ function getSettings(){
     otMult:1, otAfter:30, cl:7, sl:7, el:15,
     leaveMode:'annual', accrual:1, sandwich:false, otDepts:'PLANNING,PRODUCTION',
     lwfE:35, lwfR:70, mw1:15220.71, mw2:16780.74, mw3:18500.81, mw4:19425.85,
+    minWO:4,
     units:[],
     depts:["Production", "Cutting", "Stitching", "Lasting", "Quality", "Store", "Purchase", "Planning", "Maintenance", "Dispatch", "Admin", "Accounts", "Merchandising", "Development", "Security", "IT", "Management"],
     desigs:["Managing Director", "Chief Executive Officer", "Manager", "Executive", "Incharge", "Supervisor", "Operator", "Designer", "Data Entry Operator", "Guard", "Helper", "Apprentice", "Intern"],
@@ -2175,21 +2177,30 @@ async function runPayroll(){
       // leave) around it — not by a single present day in the whole month.
       const leaveISOs = new Set();
       myLeaves.forEach(L => { Object.keys(expandLeave(L)).forEach(iso => { if(!days[iso]) leaveISOs.add(iso); }); });
-      const hasWork = iso => { const m = dayMetaMap[iso]; return !!m && !m.isWO && !m.isH && (!!days[iso] || leaveISOs.has(iso)); };
-      const windowHasWork = (iso, from, to) => {
-        let any = false, inMonth = 0;
+      // attended = present OR paid leave OR holiday (a holiday is not the worker's fault)
+      const attended = iso => { const m = dayMetaMap[iso]; return !!m && !m.isWO && (m.isH || !!days[iso] || leaveISOs.has(iso)); };
+      const winStats = (iso, from, to) => {
+        let credit = 0, workable = 0;
         for(let k = from; k <= to; k++){
           const d2 = isoAdd(iso, k);
-          if(dayMetaMap[d2]){ if(!dayMetaMap[d2].isWO && !dayMetaMap[d2].isH) inMonth++; if(hasWork(d2)) any = true; }
+          const m = dayMetaMap[d2];
+          if(m && !m.isWO){ workable++; if(attended(d2)) credit++; }
         }
-        return { any, inMonth };
+        return { credit, workable };
       };
+      const minWO = Math.max(1, Number(S.minWO) || 4);
+      const earnCheck = st => st.workable > 0 && st.credit >= Math.min(minWO, st.workable);
+      function attendedAroundH(iso){
+        for(let k = -3; k <= 3; k++){ if(k !== 0 && attended(isoAdd(iso, k))) return true; }
+        return false;
+      }
       let earnedWO = 0, earnedH = 0;
       dayMeta.forEach(x => {
         if(!x.isWO && !x.isH) return;
-        const before = windowHasWork(x.iso, -6, -1);
-        const ok = before.any || (before.inMonth === 0 && windowHasWork(x.iso, 1, 6).any);
-        if(ok){ if(x.isWO) earnedWO++; else earnedH++; }
+        if(x.isH){ earnedH += attendedAroundH(x.iso) ? 1 : 0; return; }
+        const before = winStats(x.iso, -6, -1);
+        const ok = before.workable > 0 ? earnCheck(before) : earnCheck(winStats(x.iso, 1, 6));
+        if(ok) earnedWO++;
       });
       let paidDays = (present + leaveDays) > 0
         ? Math.min(dim, present + leaveDays + earnedWO + earnedH - sandwichCut) - lateLOP
@@ -3104,7 +3115,7 @@ function fillSettingsForm(){
   $('setName').value = S.name; $('setAddr').value = S.addr; $('setPhone').value = S.phone;
   $('setEmail').value = S.email; $('setCIN').value = S.cin; $('setHR').value = S.hr; $('setHRDesig').value = S.hrDesig;
   $('setProbation').value = S.probation; $('setNotice').value = S.notice;
-  $('setWeekOff').value = S.weekOff; $('setLates').value = S.latesHalf;
+  $('setWeekOff').value = S.weekOff; $('setLates').value = S.latesHalf; $('setMinWO').value = S.minWO || 4;
   $('setPF').value = S.pfPct; $('setPFCap').value = S.pfCap;
   $('setESI').value = S.esiPct; $('setESILimit').value = S.esiLimit; $('setPT').value = S.pt;
   $('setOTMult').value = S.otMult; $('setOTAfter').value = S.otAfter;
@@ -3127,7 +3138,7 @@ $('setSaveBtn').addEventListener('click', async () => {
       name: $('setName').value, addr: $('setAddr').value, phone: $('setPhone').value,
       email: $('setEmail').value, cin: $('setCIN').value, hr: $('setHR').value, hrDesig: $('setHRDesig').value,
       probation: Number($('setProbation').value)||6, notice: Number($('setNotice').value)||30,
-      weekOff: Number($('setWeekOff').value), latesHalf: Number($('setLates').value)||3,
+      weekOff: Number($('setWeekOff').value), latesHalf: Number($('setLates').value)||3, minWO: Number($('setMinWO').value)||4,
       pfPct: Number($('setPF').value)||0, pfCap: Number($('setPFCap').value)||0,
       esiPct: Number($('setESI').value)||0, esiLimit: Number($('setESILimit').value)||0, pt: Number($('setPT').value)||0,
       otMult: Number($('setOTMult').value)||1, otAfter: Number($('setOTAfter').value)||30,
