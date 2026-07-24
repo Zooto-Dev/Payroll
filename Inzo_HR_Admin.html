@@ -68,20 +68,10 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .ac-row{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:14px;margin-bottom:8px;background:#fff;transition:box-shadow .15s}
 .ac-row:hover{box-shadow:0 4px 16px rgba(15,23,42,.06)}
 .ac-mini{display:inline-block;padding:2px 8px;border-radius:6px;background:#f1f5f9;color:#475569;font-size:10px;margin:1px}
-#navToggle{display:block;position:fixed;top:12px;left:12px;z-index:60;width:42px;height:42px;border-radius:12px;background:#fff;border:1px solid var(--line);box-shadow:0 4px 14px rgba(15,23,42,.08);color:var(--ink);font-size:16px;cursor:pointer;transition:left .22s ease}
-#navToggle:hover{border-color:var(--brand);color:var(--brand)}
-.sidebar{transition:transform .22s ease}
-.main{transition:margin-left .22s ease}
-@media(min-width:921px){
-  #navToggle{left:244px}
-  body.nav-closed #navToggle{left:12px}
-  body.nav-closed .sidebar{transform:translateX(-105%)}
-  body.nav-closed .main{margin-left:0}
-  .main > header{padding-left:20px}
-  body.nav-closed .main > header{padding-left:64px}
-}
+#navToggle{display:none;position:fixed;top:12px;left:12px;z-index:60;width:42px;height:42px;border-radius:12px;background:#fff;border:1px solid var(--line);box-shadow:0 4px 14px rgba(15,23,42,.08);color:var(--ink);font-size:16px;cursor:pointer}
 #navOverlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:45}
 @media(max-width:920px){
+  #navToggle{display:block}
   .sidebar{transform:translateX(-105%);transition:transform .22s ease;box-shadow:0 0 40px rgba(15,23,42,.18)}
   .sidebar.open{transform:none}
   .main{margin-left:0}
@@ -191,184 +181,10 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 ::-webkit-scrollbar{height:8px;width:8px}
 ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:8px}
 
-/* ============================================================
-   NEXUS DESIGN SYSTEM v2 — professional light theme
-   (cascade layer: refines every component app-wide)
-   ============================================================ */
-:root{
-  --brand:#2563eb; --brand-soft:#eff4ff; --ink:#111827; --muted:#6b7280;
-  --line:#e5e7eb; --surface:#ffffff; --bg:#f6f7f9;
-  --ok:#059669; --warn:#d97706; --bad:#dc2626;
-  --r-sm:8px; --r-md:12px; --r-lg:16px;
-  --shadow-1:0 1px 2px rgba(17,24,39,.05);
-  --shadow-2:0 4px 12px rgba(17,24,39,.08);
-  --shadow-3:0 12px 32px rgba(17,24,39,.14);
-}
-body{background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
 
-/* ---------- sidebar ---------- */
-.sidebar{width:240px;background:#fbfcfe;border-right:1px solid var(--line)}
-.main{margin-left:240px}
-@media(min-width:921px){ #navToggle{left:254px} body.nav-closed #navToggle{left:12px} }
-.sidebar .px-5.py-5{padding:22px 18px 16px}
-.nav-sec{margin:14px 14px 4px;padding:0 8px;font-size:10px;letter-spacing:.14em;color:#9ca3af;font-weight:700}
-.nav-sec:hover{background:transparent;color:#6b7280}
-.nav-item{margin:1px 10px;padding:9px 12px;border-radius:var(--r-sm);font-size:13px;font-weight:500;color:#4b5563;gap:10px;position:relative}
-.nav-item i{width:18px;text-align:center;font-size:13px;color:#9ca3af;transition:color .12s}
-.nav-item:hover{background:#f3f4f6;color:var(--ink)}
-.nav-item:hover i{color:#6b7280}
-.nav-item.active, .nav-item.active:hover{background:var(--brand-soft);color:var(--brand);font-weight:600}
-.nav-item.active i{color:var(--brand)}
-.nav-item.active::before{content:'';position:absolute;left:-10px;top:20%;height:60%;width:3px;border-radius:0 3px 3px 0;background:var(--brand)}
-
-/* ---------- topbar ---------- */
-.topbar{padding:0 28px;height:58px;background:rgba(255,255,255,.85);backdrop-filter:blur(8px)}
-#pageTitle{font-size:16px;font-weight:600;letter-spacing:-.02em}
-
-/* ---------- cards ---------- */
-.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-1);padding:20px;transition:box-shadow .15s}
-.stat-num{font-size:26px;font-weight:700;letter-spacing:-.03em;margin-top:4px}
-.lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;display:block}
-
-/* ---------- buttons ---------- */
-.btn{border-radius:var(--r-sm);font-size:13px;font-weight:600;padding:8px 14px;letter-spacing:-.01em}
-.btn-primary{background:var(--brand);color:#fff;box-shadow:0 1px 2px rgba(37,99,235,.3)}
-.btn-primary:hover{background:#1d4ed8;box-shadow:0 3px 10px rgba(37,99,235,.3);transform:translateY(-1px)}
-.btn-ghost{background:#fff;border-color:var(--line);color:#374151}
-.btn-ghost:hover{border-color:#c7cdd6;background:#f9fafb}
-.btn-danger{background:#fef2f2;border-color:#fecaca;color:var(--bad)}
-.btn-danger:hover{background:#fee2e2}
-.btn-sm{padding:6px 11px;font-size:12px;border-radius:7px}
-.btn:active{transform:translateY(0)}
-
-/* ---------- inputs ---------- */
-.inp{border:1px solid #d6dae1;border-radius:var(--r-sm);padding:9px 12px;font-size:13.5px;background:#fff;transition:border-color .12s, box-shadow .12s;color:var(--ink)}
-.inp:hover{border-color:#b6bcc6}
-.inp:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
-textarea.inp{line-height:1.6}
-
-/* ---------- tables ---------- */
-.tbl th{font-size:10.5px;letter-spacing:.08em;color:#6b7280;background:#fafbfc;padding:11px 14px;border-bottom:1px solid var(--line)}
-.tbl td{padding:12px 14px;border-bottom:1px solid #f1f3f5;font-size:13px;color:#1f2937}
-.tbl tbody tr:last-child td{border-bottom:none}
-.tbl tbody tr:hover td{background:#f8fafc}
-
-/* ---------- chips ---------- */
-.chip{border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;letter-spacing:0}
-.chip-blue{background:var(--brand-soft);color:var(--brand)}
-.chip-gray{background:#f3f4f6;color:#4b5563}
-.chip-ok{background:#ecfdf5;color:var(--ok)}
-.chip-warn{background:#fffbeb;color:var(--warn)}
-.chip-bad{background:#fef2f2;color:var(--bad)}
-
-/* ---------- modals ---------- */
-.modal{background:rgba(17,24,39,.45);backdrop-filter:blur(3px)}
-.modal-box{border-radius:var(--r-lg);border:1px solid var(--line);box-shadow:var(--shadow-3);padding:24px}
-
-/* ---------- pager & switches (keep tone) ---------- */
-.nx-pager{font-size:12px}
-.nx-pager .pg-btn{border-radius:7px}
-
-/* ---------- scrollbars ---------- */
-*::-webkit-scrollbar{width:10px;height:10px}
-*::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:8px;border:2.5px solid transparent;background-clip:padding-box}
-*::-webkit-scrollbar-thumb:hover{background:#9ca3af;border:2.5px solid transparent;background-clip:padding-box}
-*::-webkit-scrollbar-track{background:transparent}
-
-/* ---------- login card ---------- */
-#loginScreen .card{box-shadow:var(--shadow-3);border-radius:var(--r-lg)}
-
-/* ---------- page spacing ---------- */
-.page{padding-top:4px}
-.toast{border-radius:10px;font-size:13px}
 /* re-assert responsive rules after the design layer */
-/* ============================================================
-   TOP BAR NAVIGATION LAYOUT (replaces the left sidebar)
-   ============================================================ */
-#navToggle,#navOverlay{display:none!important}
-.sidebar{position:sticky;top:0;left:0;width:100%;min-height:0;height:auto;display:flex;flex-direction:row;align-items:center;gap:4px;border-right:none;border-bottom:1px solid var(--line);background:#fff;z-index:50;transform:none!important;box-shadow:0 1px 3px rgba(17,24,39,.04);padding:0 12px}
-.sidebar .px-5.py-5{padding:0 14px 0 6px;flex-shrink:0}
-.sidebar nav{display:flex!important;flex-direction:row;align-items:stretch;flex:1;margin:0!important;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
-.sidebar nav::-webkit-scrollbar{height:4px}
-.sidebar nav > div{display:contents!important;max-height:none!important;overflow:visible!important}
-.nav-sec{display:none!important}
-.nav-item{width:auto;margin:0;padding:17px 13px;border-radius:0;white-space:nowrap;font-size:12.5px;border-bottom:2.5px solid transparent;flex-shrink:0}
-.nav-item:hover{background:transparent;color:var(--ink)}
-.nav-item.active, .nav-item.active:hover{background:transparent;color:var(--brand);border-bottom-color:var(--brand);font-weight:600}
-.nav-item.active::before{display:none}
-.nav-item i{width:auto}
-#logoutBtn{margin:0 0 0 4px!important;flex-shrink:0;padding:17px 13px}
-.main{margin-left:0!important}
-.topbar{top:53px}
-@media(max-width:920px){
-  .sidebar{padding:0 6px}
-  .sidebar .px-5.py-5{display:none} /* brand hidden on small screens — more room for tabs */
-  .nav-item{padding:14px 11px;font-size:12px}
-  .topbar{top:47px}
-}
-/* ============================================================
-   ZEN LAYER — minimalist grouped-menu design (final visual layer)
-   ============================================================ */
-:root{ --brand:#111827; --brand-soft:#f3f4f6; --bg:#fafafa; --line:#ececee }
-body{background:var(--bg)}
 
-/* --- header bar --- */
-.sidebar{height:66px;padding:0;border-bottom:1px solid #f1f1f3;box-shadow:none;background:#fff}
-.sidebar{justify-content:center}
-.sidebar .px-5.py-5{padding:0 8px 0 24px}
-.sidebar nav{flex:0 1 auto;overflow:visible!important;display:flex!important;align-items:center;gap:28px;margin:0 auto!important}
-#logoutBtn{margin:0 24px 0 0!important;padding:8px 14px;border:1px solid var(--line);border-radius:12px;font-size:12px;color:#6b7280}
-#logoutBtn:hover{color:var(--bad);border-color:#fecaca;background:#fff}
 
-/* --- top-level menus --- */
-.nx-menu{position:relative;height:66px;display:flex;align-items:center}
-.sidebar .nav-sec{display:flex!important;align-items:center;gap:6px;margin:0;padding:0 2px;height:100%;font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:#6b7280;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer}
-.sidebar .nav-sec span{text-transform:capitalize;letter-spacing:0}
-.sidebar .nav-sec i{font-size:10px;transition:transform .18s}
-.nx-menu:hover .nav-sec, .nx-menu.nx-open .nav-sec{color:#111827}
-.nx-menu.has-active .nav-sec{color:#111827;font-weight:600;border-bottom-color:#111827}
-.nx-menu.nx-open .nav-sec i{transform:rotate(180deg)}
-
-/* --- dropdown panels --- */
-.nx-menu > div[id]{display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);min-width:230px;background:#fff;border:1px solid #f1f1f3;border-radius:18px;box-shadow:0 18px 50px rgba(17,24,39,.10);padding:8px;z-index:70;max-height:none!important;overflow:visible!important}
-@media(min-width:921px){ .nx-menu:hover > div[id]{display:block} }
-.nx-menu.nx-open > div[id]{display:block}
-.nx-menu > div[id] .nav-item{display:flex;width:100%;margin:0;padding:10px 14px;border-radius:12px;border:none;font-size:13px;color:#4b5563;white-space:nowrap}
-.nx-menu > div[id] .nav-item:hover{background:#f7f7f8;color:#111827}
-.nx-menu > div[id] .nav-item.active{background:#f3f4f6;color:#111827;font-weight:600;border:none}
-.nx-menu > div[id] .nav-item i{width:18px;color:#9ca3af}
-.nx-menu > div[id] .nav-item.active i{color:#111827}
-
-/* --- page header (zen title) --- */
-.topbar{position:static;height:auto;background:transparent;backdrop-filter:none;border:none;max-width:1180px;margin:0 auto;width:100%;padding:34px 28px 6px}
-#pageTitle{font-size:26px;font-weight:350;letter-spacing:-.03em;color:#111827}
-
-/* --- centered zen content --- */
-.page{max-width:1180px;margin:0 auto;width:100%}
-.main > div{width:100%}
-.card{border-radius:20px;border:1px solid #f0f0f2;box-shadow:0 4px 40px rgba(0,0,0,.03);padding:24px}
-.stat-num{font-weight:600}
-
-/* --- buttons: monochrome --- */
-.btn-primary{background:#111827;box-shadow:0 1px 2px rgba(17,24,39,.25);border-radius:12px}
-.btn-primary:hover{background:#000;box-shadow:0 6px 18px rgba(17,24,39,.18)}
-.btn-ghost{border-radius:12px}
-.inp{border-radius:12px;background:#fff}
-.modal-box{border-radius:22px}
-.nav-item.active::before{display:none}
-
-/* --- mobile --- */
-@media(max-width:920px){
-  .sidebar{height:56px;padding:0 4px;overflow-x:auto}
-  .sidebar .px-5.py-5{display:none}
-  .nx-menu{height:56px}
-  .sidebar nav{gap:18px;margin:0 auto!important}
-  .nx-menu > div[id]{position:fixed;top:56px;left:10px;right:10px;transform:none;min-width:0}
-  #logoutBtn{margin-right:6px!important;padding:6px 10px}
-  .topbar{padding:22px 16px 4px}
-  #pageTitle{font-size:21px;padding-left:0}
-  .main > div{padding-left:14px!important;padding-right:14px!important}
-}
 </style>
 </head>
 <body><div id="nxSplash"><div class="nx-glow"></div><div class="nx-word"><span class="nx-l">N</span><span class="nx-l nx-c">E</span><span class="nx-l">X</span><span class="nx-l nx-c">U</span><span class="nx-l">S</span></div><div class="nx-sub">HR &nbsp;SUITE</div><div class="nx-bar"><i></i></div></div>
@@ -1640,20 +1456,11 @@ function fillEmpSelects(){
 const TITLES = { dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', adminctl:'Admin Control Panel' };
 const _ov = document.createElement('div'); _ov.id = 'navOverlay'; document.body.appendChild(_ov);
 const _sb = document.querySelector('.sidebar');
-$('navToggle').addEventListener('click', () => {
-  if(window.innerWidth > 920){
-    document.body.classList.toggle('nav-closed');
-  } else {
-    _sb.classList.toggle('open');
-    _ov.style.display = _sb.classList.contains('open') ? 'block' : 'none';
-  }
-});
+$('navToggle').addEventListener('click', () => { _sb.classList.toggle('open'); _ov.style.display = _sb.classList.contains('open') ? 'block' : 'none'; });
 _ov.addEventListener('click', () => { _sb.classList.remove('open'); _ov.style.display = 'none'; });
 document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
   btn.addEventListener('click', () => {
     if(window.innerWidth <= 920){ _sb.classList.remove('open'); _ov.style.display = 'none'; }
-    document.querySelectorAll('.nx-menu.nx-open').forEach(m => m.classList.remove('nx-open'));
-    setTimeout(nxMarkMenus, 0);
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const page = btn.dataset.page;
@@ -1677,31 +1484,10 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
   });
 });
 document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => $(b.dataset.close).classList.remove('show')));
-// build dropdown menus: wrap each section button with its group panel
-document.querySelectorAll('.sidebar nav > .nav-sec[data-group]').forEach(btn => {
-  const panel = document.getElementById(btn.dataset.group);
-  if(!panel) return;
-  const wrap = document.createElement('div');
-  wrap.className = 'nx-menu';
-  btn.parentNode.insertBefore(wrap, btn);
-  wrap.appendChild(btn);
-  wrap.appendChild(panel);
-  btn.classList.remove('collapsed');
-  panel.classList.remove('collapsed');
-});
-document.querySelectorAll('.nav-sec[data-group]').forEach(h => h.addEventListener('click', e => {
-  e.stopPropagation();
-  const me = h.closest('.nx-menu');
-  document.querySelectorAll('.nx-menu.nx-open').forEach(m => { if(m !== me) m.classList.remove('nx-open'); });
-  me.classList.toggle('nx-open');
+document.querySelectorAll('.nav-sec[data-group]').forEach(h => h.addEventListener('click', () => {
+  h.classList.toggle('collapsed');
+  $(h.dataset.group).classList.toggle('collapsed');
 }));
-document.addEventListener('click', e => {
-  if(!e.target.closest('.nx-menu')) document.querySelectorAll('.nx-menu.nx-open').forEach(m => m.classList.remove('nx-open'));
-});
-function nxMarkMenus(){
-  document.querySelectorAll('.nx-menu').forEach(m => m.classList.toggle('has-active', !!m.querySelector('.nav-item.active')));
-}
-nxMarkMenus();
 
 /* ---------------- OT Report ---------------- */
 let OTR_ROWS = [];
