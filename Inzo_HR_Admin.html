@@ -475,21 +475,32 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
   <div class="grid lg:grid-cols-3 gap-4">
     <div class="card">
       <h3 class="display font-bold mt-0 mb-3">Give Advance / Loan</h3>
+      <label class="lbl">Type</label>
+      <select id="advType" class="inp mb-3">
+        <option value="ADVANCE">Advance — full recovery from next month's salary</option>
+        <option value="LOAN">Loan — agreement + EMI over tenure</option>
+      </select>
       <label class="lbl">Employee</label>
       <select id="advEmp" class="inp mb-3"></select>
-      <label class="lbl">Amount (₹)</label>
+      <label class="lbl">Amount (₹) <span class="text-[10px]" style="color:var(--muted)">max 50% of monthly gross</span></label>
       <input id="advAmount" type="number" class="inp mb-3" placeholder="10000">
-      <label class="lbl">Monthly EMI Deduction (₹)</label>
-      <input id="advEmi" type="number" class="inp mb-3" placeholder="2000">
+      <div id="advLoanWrap" class="hidden">
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div><label class="lbl">Tenure (months)</label><input id="advTenure" type="number" class="inp" placeholder="5"></div>
+          <div><label class="lbl">Monthly EMI (₹)</label><input id="advEmi" type="number" class="inp" placeholder="2000"></div>
+        </div>
+        <button id="advAgrBtn" class="btn btn-ghost btn-sm w-full justify-center mb-3"><i class="fa-solid fa-file-contract"></i> 1. Print Loan Agreement</button>
+      </div>
       <label class="lbl">Reason</label>
       <input id="advReason" class="inp mb-4" placeholder="Personal / Medical…">
       <button id="advSaveBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-plus"></i> Record Advance</button>
+      <p id="advHint" class="text-[10px] mt-2 mb-0" style="color:var(--muted)">Advance is deducted in FULL from the next payroll.</p>
     </div>
     <div class="card lg:col-span-2" style="padding:0;overflow:hidden">
       <div class="p-4 border-b" style="border-color:var(--line)"><h3 class="display font-bold m-0">Open & Recent Advances</h3></div>
       <div style="overflow-x:auto">
         <table class="tbl" id="advTable">
-          <thead><tr><th>Date</th><th>Employee</th><th>Amount</th><th>EMI</th><th>Balance</th><th>Reason</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Date</th><th>Type</th><th>Employee</th><th>Amount</th><th>Recovery</th><th>Balance</th><th>Reason</th><th>Status</th><th></th></tr></thead>
           <tbody><tr><td colspan="8" class="text-center py-8" style="color:var(--muted)">Loading…</td></tr></tbody>
         </table>
       </div>
@@ -596,6 +607,15 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 
 <!-- ================= REPORTS ================= -->
 <div class="page" id="page-reports">
+  <div class="card mb-4">
+    <div class="flex items-center gap-3 flex-wrap mb-3">
+      <h3 class="display font-bold m-0"><i class="fa-solid fa-stopwatch" style="color:var(--brand)"></i> OT Report <span class="text-[10px] font-normal" style="color:var(--muted)">approved overtime — paid separately from salary</span></h3>
+      <input type="month" id="otrMonth" class="inp" style="max-width:170px;margin-left:auto">
+      <button id="otrLoadBtn" class="btn btn-primary btn-sm">Load</button>
+      <button id="otrCsvBtn" class="btn btn-ghost btn-sm hidden"><i class="fa-solid fa-download"></i> CSV</button>
+    </div>
+    <div id="otrWrap"><p class="text-xs m-0" style="color:var(--muted)">Pick a month and click Load.</p></div>
+  </div>
   <button id="rpLoadBtn" class="btn btn-primary mb-4"><i class="fa-solid fa-rotate"></i> Refresh Analytics</button>
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-4" id="rpStats"></div>
   <div class="grid lg:grid-cols-2 gap-4 mt-4">
@@ -1464,6 +1484,44 @@ document.querySelectorAll('.nav-sec[data-group]').forEach(h => h.addEventListene
   $(h.dataset.group).classList.toggle('collapsed');
 }));
 
+/* ---------------- OT Report ---------------- */
+let OTR_ROWS = [];
+$('otrLoadBtn').addEventListener('click', async () => {
+  const m = $('otrMonth').value;
+  if(!m) return notify('Select a month', 'error');
+  const [y, mo] = m.split('-').map(Number);
+  const dim = new Date(y, mo, 0).getDate();
+  const from = m + '-01', to = m + '-' + String(dim).padStart(2, '0');
+  const { data, error } = await sb.from('ot_requests').select('*').eq('status', 'APPROVED').gte('ot_date', from).lte('ot_date', to);
+  if(error) return notify(error.message, 'error');
+  const S = getSettings();
+  const byEmp = {};
+  (data || []).forEach(o => {
+    byEmp[o.employee_code] = byEmp[o.employee_code] || { hours: 0, days: 0 };
+    byEmp[o.employee_code].hours += Number(o.hours) || 0;
+    byEmp[o.employee_code].days++;
+  });
+  OTR_ROWS = Object.entries(byEmp).map(([code, v]) => {
+    const emp = EMP.find(e => e['Employee code'] === code) || {};
+    const gross = grossOf(code) || 0;
+    const rate = Math.round((gross / (dim * 8)) * Number(S.otMult || 2));
+    return { code, name: emp.Name || code, dept: emp.DEPARTMENT || '—', days: v.days, hours: Math.round(v.hours * 2) / 2, rate, amount: Math.round(v.hours * rate) };
+  }).sort((a, b) => b.amount - a.amount);
+  const total = OTR_ROWS.reduce((a, r) => a + r.amount, 0);
+  const totalH = OTR_ROWS.reduce((a, r) => a + r.hours, 0);
+  $('otrWrap').innerHTML = OTR_ROWS.length ? `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Days</th><th>Approved Hours</th><th>Rate/hr (×${S.otMult || 2})</th><th>OT Amount</th></tr></thead>
+    <tbody>${OTR_ROWS.map(r => `<tr><td>${esc(r.code)}</td><td class="font-semibold">${esc(r.name)}</td><td>${esc(r.dept)}</td><td>${r.days}</td><td class="money">${r.hours}</td><td class="money">${fmtINR(r.rate)}</td><td class="money font-semibold">${fmtINR(r.amount)}</td></tr>`).join('')}
+    <tr style="background:#f8fafc"><th colspan="4">TOTAL</th><th class="money">${totalH}</th><th></th><th class="money">${fmtINR(total)}</th></tr></tbody>
+  </table></div>` : '<p class="text-xs m-0" style="color:var(--muted)">No approved overtime in this month.</p>';
+  $('otrCsvBtn').classList.toggle('hidden', !OTR_ROWS.length);
+});
+$('otrCsvBtn').addEventListener('click', () => {
+  dlText('OT_Report_' + $('otrMonth').value + '.csv',
+    ['Code,Name,Department,Days,Approved Hours,Rate per hour,OT Amount',
+     ...OTR_ROWS.map(r => [r.code, '"' + r.name + '"', '"' + r.dept + '"', r.days, r.hours, r.rate, r.amount].join(','))].join('\n'), 'text/csv');
+});
+
 /* ---------------- Universal table pagination ---------------- */
 const NX_PER_PAGE = 15;
 function nxPaginate(tbody){
@@ -2065,13 +2123,11 @@ async function runPayroll(){
         if(r && !x.isWO && !x.isH){
           present++;
           if(isLateFor(r.in_time, sh)) lates++;
-          const worked = hoursOf(r.total_hours);
-          const extra = worked - shHrs;
-          if(worked > 0 && extra * 60 >= Number(S.otAfter)) otHours += extra;
         }
       });
-      // OT approval override: approved requests win over auto-calculation
-      if(otApproved[code] !== undefined) otHours = otApproved[code];
+      // OT is strictly approval-based: only approved request hours count,
+      // no matter how long the person actually stayed.
+      otHours = otApproved[code] !== undefined ? otApproved[code] : 0;
       if((p.salary || {}).otAllowed === false) otHours = 0; // OT not allowed for this employee
       // leaves this month (skip punched days)
       const myLeaves = yearLeaves.filter(L => L.employee_code === code && PAID_LEAVES.includes(L.leave_type));
@@ -2163,7 +2219,8 @@ async function runPayroll(){
   finally{ btn.innerHTML = '<i class="fa-solid fa-calculator"></i> Calculate Payroll'; btn.disabled = false; }
 }
 
-function netOf(r){ return Math.max(0, Math.round(r.earnedGross + r.bonus + (r.otPay||0) + (r.arrears||0) + (r.reward||0) + (r.encash||0) - r.pf - r.esi - r.pt - (r.lwf||0) - (r.customDed||0) - (r.tds||0) - r.advDed - r.otherDed)); }
+/* OT is paid separately (OT Report) — NOT part of salary/net */
+function netOf(r){ return Math.max(0, Math.round(r.earnedGross + r.bonus + (r.arrears||0) + (r.reward||0) + (r.encash||0) - r.pf - r.esi - r.pt - (r.lwf||0) - (r.customDed||0) - (r.tds||0) - r.advDed - r.otherDed)); }
 /* Monthly TDS estimate — FY 2025-26 slabs, 4% cess, 87A rebate */
 function calcTDS(monthlyGross, regime, declarations){
   if(!regime || regime === 'none' || !monthlyGross) return 0;
@@ -2298,6 +2355,19 @@ function slipVC(code, month, net){ // tamper-evident verification code (djb2, sa
   for(let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
   return h.toString(16).toUpperCase().padStart(8, '0');
 }
+function numToWordsA(num){
+  num = Math.round(num); if(num === 0) return 'Zero';
+  const a = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  const b = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  const two = n => n < 20 ? a[n] : b[Math.floor(n/10)] + (n%10 ? ' ' + a[n%10] : '');
+  const three = n => (n >= 100 ? a[Math.floor(n/100)] + ' Hundred' + (n%100 ? ' ' : '') : '') + (n%100 ? two(n%100) : '');
+  let out = '';
+  if(num >= 10000000){ out += three(Math.floor(num/10000000)) + ' Crore '; num %= 10000000; }
+  if(num >= 100000){ out += three(Math.floor(num/100000)) + ' Lakh '; num %= 100000; }
+  if(num >= 1000){ out += three(Math.floor(num/1000)) + ' Thousand '; num %= 1000; }
+  if(num > 0) out += three(num);
+  return out.trim();
+}
 function unitAddrFor(code){
   const units = (SETTINGS && SETTINGS.units) || [];
   const u = units.find(x => String(code).toUpperCase().startsWith(x.code));
@@ -2314,7 +2384,6 @@ function slipHTML(r){
   } else { // legacy payslips
     earnRows.push(['Basic', r.basic||0], ['HRA', r.hra||0], ['Conveyance', r.conv||0], ['Special Allowance', r.spl||0]);
   }
-  earnRows.push(['Overtime (' + (r.otHours||0) + ' hrs)', r.otPay||0]);
   if(r.arrears) earnRows.push(['Arrears', r.arrears]);
   if(r.reward) earnRows.push(['Kaizen Reward', r.reward]);
   if(r.encash) earnRows.push(['Leave Encashment (' + r.encashDays + ' day' + (r.encashDays > 1 ? 's' : '') + ')', r.encash]);
@@ -2419,9 +2488,10 @@ async function loadAdvances(){
       const open = a.status === 'OPEN';
       return `<tr>
         <td>${fmtDate(a.date)}</td>
+        <td><span class="chip ${a.type === 'LOAN' ? 'chip-blue' : 'chip-gray'}">${a.type === 'LOAN' ? 'LOAN' : 'ADVANCE'}</span></td>
         <td><div class="font-semibold">${esc(emp ? emp.Name : a.employee_code)}</div><div class="text-[10px]" style="color:var(--muted)">${esc(a.employee_code)}</div></td>
         <td class="money">${fmtINR(a.amount)}</td>
-        <td class="money">${fmtINR(a.emi)}/mo</td>
+        <td class="money">${a.type === 'LOAN' ? fmtINR(a.emi) + '/mo × ' + (a.tenure || '—') : 'Full next month'}</td>
         <td class="money font-semibold" style="color:${open ? 'var(--warn)' : 'var(--ok)'}">${fmtINR(a.balance)}</td>
         <td>${esc(a.reason || '—')}</td>
         <td><span class="chip ${open ? 'chip-warn' : 'chip-ok'}">${esc(a.status)}</span></td>
@@ -2430,12 +2500,70 @@ async function loadAdvances(){
     }).join('') : '<tr><td colspan="8" class="text-center py-8" style="color:var(--muted)">No advance records.</td></tr>';
   }catch(err){ notify(err.message, 'error'); }
 }
+let AGR_PRINTED = false;
+function advModeUI(){
+  const loan = $('advType').value === 'LOAN';
+  $('advLoanWrap').classList.toggle('hidden', !loan);
+  $('advHint').innerText = loan ? 'Loan needs a printed & signed agreement first, then EMI runs for the tenure.' : 'Advance is deducted in FULL from the next payroll.';
+  $('advSaveBtn').innerHTML = loan ? '<i class="fa-solid fa-plus"></i> 2. Save Loan (after signed agreement)' : '<i class="fa-solid fa-plus"></i> Record Advance';
+  AGR_PRINTED = false;
+}
+document.addEventListener('change', e => {
+  if(e.target && e.target.id === 'advType') advModeUI();
+  if(e.target && e.target.id === 'advTenure'){
+    const a = Number($('advAmount').value) || 0, t = Number($('advTenure').value) || 0;
+    if(a && t) $('advEmi').value = Math.ceil(a / t);
+  }
+});
+$('advAgrBtn').addEventListener('click', () => {
+  const code = $('advEmp').value, amount = Number($('advAmount').value) || 0;
+  const emi = Number($('advEmi').value) || 0, tenure = Number($('advTenure').value) || 0;
+  if(!code || !amount || !emi || !tenure) return notify('Employee, amount, EMI and tenure are required for the agreement', 'error');
+  const emp = EMP.find(e => e['Employee code'] === code) || {};
+  const p = PROFILES[code] || {};
+  const S = getSettings();
+  const today = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' });
+  $('printArea').innerHTML = `<div style="font-family:Georgia,serif;max-width:720px;margin:auto;padding:34px;border:2px solid #0f172a;position:relative">
+    <div style="text-align:center;border-bottom:2px solid #0f172a;padding-bottom:12px;margin-bottom:18px">
+      <h1 style="margin:0;font-size:20px;letter-spacing:.06em">${esc(S.name || '')}</h1>
+      <p style="margin:4px 0 0;font-size:11px;color:#475569">${esc(unitAddrFor(code) || S.addr || '')}</p>
+      <h2 style="margin:14px 0 0;font-size:15px;letter-spacing:.14em">STAFF LOAN AGREEMENT</h2>
+    </div>
+    <p style="font-size:12.5px;line-height:1.9;text-align:justify">
+      This agreement is made on <b>${today}</b> between <b>${esc(S.name || '')}</b> ("the Company") and
+      <b>${esc(emp.Name || code)}</b> (Employee Code: <b>${esc(code)}</b>, Designation: ${esc(emp.DESIGNATION || '—')},
+      Department: ${esc(emp.DEPARTMENT || '—')}) ("the Employee").
+    </p>
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin:10px 0">
+      <tr><td style="border:1px solid #cbd5e1;padding:7px 10px;background:#f8fafc;width:45%"><b>Loan Amount</b></td><td style="border:1px solid #cbd5e1;padding:7px 10px">₹ ${amount.toLocaleString('en-IN')} (Rupees ${esc(numToWordsA(amount))} only)</td></tr>
+      <tr><td style="border:1px solid #cbd5e1;padding:7px 10px;background:#f8fafc"><b>Monthly EMI (salary deduction)</b></td><td style="border:1px solid #cbd5e1;padding:7px 10px">₹ ${emi.toLocaleString('en-IN')}</td></tr>
+      <tr><td style="border:1px solid #cbd5e1;padding:7px 10px;background:#f8fafc"><b>Tenure</b></td><td style="border:1px solid #cbd5e1;padding:7px 10px">${tenure} month(s), starting from the next payroll</td></tr>
+    </table>
+    <p style="font-size:12px;line-height:1.85;text-align:justify">
+      1. The Employee authorises the Company to deduct the EMI from the monthly salary until the loan is fully recovered.<br>
+      2. If the Employee leaves the Company for any reason, the entire outstanding balance becomes immediately payable and may be adjusted against the full &amp; final settlement.<br>
+      3. No interest is charged on this loan. Prepayment is allowed at any time.<br>
+      4. This agreement is governed by the Company's policies and applicable law.
+    </p>
+    <div style="display:flex;justify-content:space-between;margin-top:56px;font-size:12px">
+      <div style="text-align:center"><div style="border-top:1.5px solid #0f172a;padding-top:6px;width:200px">Employee Signature<br><span style="color:#475569">${esc(emp.Name || '')}</span></div></div>
+      <div style="text-align:center"><div style="border-top:1.5px solid #0f172a;padding-top:6px;width:200px">Authorised Signatory<br><span style="color:#475569">${esc(S.hr || '')} — ${esc(S.name || '')}</span></div></div>
+    </div>
+  </div>`;
+  AGR_PRINTED = true;
+  setTimeout(() => { window.print(); $('printArea').innerHTML = ''; }, 150);
+});
 $('advSaveBtn').addEventListener('click', async () => {
   if(!canApprove('advance')) return notify('You are not allowed to add advances', 'error');
-  const amount = Number($('advAmount').value), emi = Number($('advEmi').value);
+  const isLoan = $('advType').value === 'LOAN';
+  const amount = Number($('advAmount').value);
+  const emi = isLoan ? Number($('advEmi').value) : amount;   // advance = full next-month recovery
+  const tenure = isLoan ? (Number($('advTenure').value) || null) : 1;
   const code = $('advEmp').value;
-  if(!code || !amount || !emi) return notify('Employee, amount and EMI are required', 'error');
-  if(emi > amount) return notify('EMI cannot exceed the advance amount', 'error');
+  if(!code || !amount) return notify('Employee and amount are required', 'error');
+  if(isLoan && (!emi || !tenure)) return notify('Loan needs EMI and tenure', 'error');
+  if(isLoan && !AGR_PRINTED && !confirm('Loan agreement print nahi hua — bina signed agreement ke loan save karna hai?')) return;
+  if(emi > amount) return notify('EMI cannot exceed the amount', 'error');
   // Eligibility rule 1: advance cannot exceed 50% of monthly gross
   const gross = grossOf(code);
   if(!gross) return notify('Set the salary structure first — the advance limit is 50% of monthly gross', 'error');
@@ -2448,10 +2576,10 @@ $('advSaveBtn').addEventListener('click', async () => {
   const btn = $('advSaveBtn');
   btn.innerHTML = '<div class="loader-ring"></div> Saving…'; btn.disabled = true;
   try{
-    const { error } = await sb.from('advances').insert([{ employee_code: $('advEmp').value, amount, emi, balance: amount, reason: $('advReason').value, status: 'OPEN' }]);
+    const { error } = await sb.from('advances').insert([{ employee_code: code, amount, emi, balance: amount, reason: $('advReason').value, status: 'OPEN', type: isLoan ? 'LOAN' : 'ADVANCE', tenure }]);
     if(error) throw error;
-    notify('Advance recorded', 'success');
-    $('advAmount').value = ''; $('advEmi').value = ''; $('advReason').value = '';
+    notify(isLoan ? 'Loan recorded — EMI starts from the next payroll' : 'Advance recorded — full amount will be deducted from the next payroll', 'success');
+    $('advAmount').value = ''; $('advEmi').value = ''; $('advReason').value = ''; if($('advTenure')) $('advTenure').value = ''; AGR_PRINTED = false;
     loadAdvances();
   }catch(err){ notify(err.message, 'error'); }
   finally{ btn.innerHTML = '<i class="fa-solid fa-plus"></i> Record Advance'; btn.disabled = false; }
