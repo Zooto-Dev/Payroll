@@ -852,6 +852,9 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       </div>
       <div><label class="lbl">Phone</label><input id="epPhone" class="inp"></div>
       <div><label class="lbl">Email</label><input id="epEmail" class="inp"></div>
+      <div><label class="lbl">Unit / Location</label><input id="epUnitShow" class="inp" readonly style="background:#f8fafc"></div>
+      <div><label class="lbl">Department</label><select id="epDeptSel" class="inp"></select></div>
+      <div><label class="lbl">Designation</label><select id="epDesigSel" class="inp"></select></div>
       <div><label class="lbl">Father's Name</label><input id="epFather" class="inp"></div>
       <div><label class="lbl">Date of Birth</label><input id="epDOB" type="date" class="inp"></div>
       <div><label class="lbl">Gender</label><select id="epGender" class="inp"><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></div>
@@ -980,8 +983,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <label class="lbl">Employee Code <span class="text-[10px]" style="color:var(--muted)">(auto from unit — editable)</span></label>
     <input id="aeCode" class="inp mb-3" style="text-transform:uppercase">
     <div class="grid grid-cols-2 gap-3">
-      <div><label class="lbl">Department</label><input id="aeDept" class="inp" list="deptDL" placeholder="Production"></div>
-      <div><label class="lbl">Designation</label><input id="aeDesig" class="inp" list="desigDL" placeholder="Operator"></div>
+      <div><label class="lbl">Department</label><select id="aeDept" class="inp"></select></div>
+      <div><label class="lbl">Designation</label><select id="aeDesig" class="inp"></select></div>
     </div>
     <div class="grid grid-cols-2 gap-3" style="margin-top:12px;margin-bottom:8px">
       <div><label class="lbl">Date of Joining</label><input id="aeDOJ" type="date" class="inp"></div>
@@ -1732,6 +1735,12 @@ function openEmpModal(code){
   $('epNameShow').innerText = e.Name;
   $('epMetaShow').innerText = `${code} • ${e.DEPARTMENT || '—'} • ${e.DESIGNATION || '—'} • DOJ: ${e.DOJ || '—'}`;
   $('epPhone').value = p.phone || ''; $('epEmail').value = p.email || '';
+  populateDLs();
+  const uPref = String(code).toUpperCase().slice(0, 4);
+  const uMatch = ((SETTINGS.units) || []).find(u => String(code).toUpperCase().startsWith(u.code));
+  $('epUnitShow').value = uMatch ? `${uMatch.code} — ${uMatch.name}` : (uPref.match(/^[A-Z]{2}\d{2}$/) ? uPref : '— (code se auto)');
+  $('epDeptSel').innerHTML = window.nxDeptOpts(e.DEPARTMENT || '');
+  $('epDesigSel').innerHTML = window.nxDesigOpts(e.DESIGNATION || '');
   $('epFather').value = p.father_name || ''; $('epDOB').value = p.dob || ''; $('epGender').value = p.gender || '';
   $('epAddr').value = p.address || '';
   buildSalaryInputs(code);
@@ -1933,6 +1942,12 @@ $('epSaveBtn').addEventListener('click', async () => {
     };
     const { error } = await sb.from('hr_profiles').upsert(row, { onConflict: 'employee_code' });
     if(error) throw error;
+    // employees master: department / designation
+    const empUpd = { DEPARTMENT: $('epDeptSel').value || null, DESIGNATION: $('epDesigSel').value || null };
+    const { error: e2 } = await sb.from('employees').update(empUpd).eq('Employee code', $('epCode').value);
+    if(e2) throw e2;
+    const empRow = EMP.find(x => x['Employee code'] === $('epCode').value);
+    if(empRow) Object.assign(empRow, empUpd);
     PROFILES[row.employee_code] = row;
     const newLine = ($('epWageType').value === 'custom') ? null : ($('epLine').value || null);
     const empRec = EMP.find(x => x['Employee code'] === row.employee_code);
@@ -3295,6 +3310,11 @@ function populateDLs(){
   const S = getSettings();
   $('deptDL').innerHTML = (S.depts || []).map(d => `<option value="${esc(d)}">`).join('');
   $('desigDL').innerHTML = (S.desigs || []).map(d => `<option value="${esc(d)}">`).join('');
+  const deptOpts = sel => '<option value="">— Select Department —</option>' + (S.depts || []).map(d => `<option value="${esc(d)}" ${sel === d ? 'selected' : ''}>${esc(d)}</option>`).join('') + (sel && !(S.depts||[]).includes(sel) ? `<option value="${esc(sel)}" selected>${esc(sel)}</option>` : '');
+  const desigOpts = sel => '<option value="">— Select Designation —</option>' + (S.desigs || []).map(d => `<option value="${esc(d)}" ${sel === d ? 'selected' : ''}>${esc(d)}</option>`).join('') + (sel && !(S.desigs||[]).includes(sel) ? `<option value="${esc(sel)}" selected>${esc(sel)}</option>` : '');
+  if($('aeDept')) $('aeDept').innerHTML = deptOpts('');
+  if($('aeDesig')) $('aeDesig').innerHTML = desigOpts('');
+  window.nxDeptOpts = deptOpts; window.nxDesigOpts = desigOpts;
 }
 function renderUnits(){
   const units = (SETTINGS && SETTINGS.units) || [];
