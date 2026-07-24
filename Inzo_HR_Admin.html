@@ -190,6 +190,99 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 @keyframes spin{to{transform:rotate(360deg)}}
 ::-webkit-scrollbar{height:8px;width:8px}
 ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:8px}
+
+/* ============================================================
+   NEXUS DESIGN SYSTEM v2 — professional light theme
+   (cascade layer: refines every component app-wide)
+   ============================================================ */
+:root{
+  --brand:#2563eb; --brand-soft:#eff4ff; --ink:#111827; --muted:#6b7280;
+  --line:#e5e7eb; --surface:#ffffff; --bg:#f6f7f9;
+  --ok:#059669; --warn:#d97706; --bad:#dc2626;
+  --r-sm:8px; --r-md:12px; --r-lg:16px;
+  --shadow-1:0 1px 2px rgba(17,24,39,.05);
+  --shadow-2:0 4px 12px rgba(17,24,39,.08);
+  --shadow-3:0 12px 32px rgba(17,24,39,.14);
+}
+body{background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+
+/* ---------- sidebar ---------- */
+.sidebar{width:240px;background:#fbfcfe;border-right:1px solid var(--line)}
+.main{margin-left:240px}
+@media(min-width:921px){ #navToggle{left:254px} body.nav-closed #navToggle{left:12px} }
+.sidebar .px-5.py-5{padding:22px 18px 16px}
+.nav-sec{margin:14px 14px 4px;padding:0 8px;font-size:10px;letter-spacing:.14em;color:#9ca3af;font-weight:700}
+.nav-sec:hover{background:transparent;color:#6b7280}
+.nav-item{margin:1px 10px;padding:9px 12px;border-radius:var(--r-sm);font-size:13px;font-weight:500;color:#4b5563;gap:10px;position:relative}
+.nav-item i{width:18px;text-align:center;font-size:13px;color:#9ca3af;transition:color .12s}
+.nav-item:hover{background:#f3f4f6;color:var(--ink)}
+.nav-item:hover i{color:#6b7280}
+.nav-item.active, .nav-item.active:hover{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.nav-item.active i{color:var(--brand)}
+.nav-item.active::before{content:'';position:absolute;left:-10px;top:20%;height:60%;width:3px;border-radius:0 3px 3px 0;background:var(--brand)}
+
+/* ---------- topbar ---------- */
+.topbar{padding:0 28px;height:58px;background:rgba(255,255,255,.85);backdrop-filter:blur(8px)}
+#pageTitle{font-size:16px;font-weight:600;letter-spacing:-.02em}
+
+/* ---------- cards ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-1);padding:20px;transition:box-shadow .15s}
+.stat-num{font-size:26px;font-weight:700;letter-spacing:-.03em;margin-top:4px}
+.lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;display:block}
+
+/* ---------- buttons ---------- */
+.btn{border-radius:var(--r-sm);font-size:13px;font-weight:600;padding:8px 14px;letter-spacing:-.01em}
+.btn-primary{background:var(--brand);color:#fff;box-shadow:0 1px 2px rgba(37,99,235,.3)}
+.btn-primary:hover{background:#1d4ed8;box-shadow:0 3px 10px rgba(37,99,235,.3);transform:translateY(-1px)}
+.btn-ghost{background:#fff;border-color:var(--line);color:#374151}
+.btn-ghost:hover{border-color:#c7cdd6;background:#f9fafb}
+.btn-danger{background:#fef2f2;border-color:#fecaca;color:var(--bad)}
+.btn-danger:hover{background:#fee2e2}
+.btn-sm{padding:6px 11px;font-size:12px;border-radius:7px}
+.btn:active{transform:translateY(0)}
+
+/* ---------- inputs ---------- */
+.inp{border:1px solid #d6dae1;border-radius:var(--r-sm);padding:9px 12px;font-size:13.5px;background:#fff;transition:border-color .12s, box-shadow .12s;color:var(--ink)}
+.inp:hover{border-color:#b6bcc6}
+.inp:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+textarea.inp{line-height:1.6}
+
+/* ---------- tables ---------- */
+.tbl th{font-size:10.5px;letter-spacing:.08em;color:#6b7280;background:#fafbfc;padding:11px 14px;border-bottom:1px solid var(--line)}
+.tbl td{padding:12px 14px;border-bottom:1px solid #f1f3f5;font-size:13px;color:#1f2937}
+.tbl tbody tr:last-child td{border-bottom:none}
+.tbl tbody tr:hover td{background:#f8fafc}
+
+/* ---------- chips ---------- */
+.chip{border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;letter-spacing:0}
+.chip-blue{background:var(--brand-soft);color:var(--brand)}
+.chip-gray{background:#f3f4f6;color:#4b5563}
+.chip-ok{background:#ecfdf5;color:var(--ok)}
+.chip-warn{background:#fffbeb;color:var(--warn)}
+.chip-bad{background:#fef2f2;color:var(--bad)}
+
+/* ---------- modals ---------- */
+.modal{background:rgba(17,24,39,.45);backdrop-filter:blur(3px)}
+.modal-box{border-radius:var(--r-lg);border:1px solid var(--line);box-shadow:var(--shadow-3);padding:24px}
+
+/* ---------- pager & switches (keep tone) ---------- */
+.nx-pager{font-size:12px}
+.nx-pager .pg-btn{border-radius:7px}
+
+/* ---------- scrollbars ---------- */
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:8px;border:2.5px solid transparent;background-clip:padding-box}
+*::-webkit-scrollbar-thumb:hover{background:#9ca3af;border:2.5px solid transparent;background-clip:padding-box}
+*::-webkit-scrollbar-track{background:transparent}
+
+/* ---------- login card ---------- */
+#loginScreen .card{box-shadow:var(--shadow-3);border-radius:var(--r-lg)}
+
+/* ---------- page spacing ---------- */
+.page{padding-top:4px}
+.toast{border-radius:10px;font-size:13px}
+/* re-assert responsive rules after the design layer */
+@media(max-width:920px){ .main{margin-left:0} .sidebar{transform:translateX(-105%)} .sidebar.open{transform:none} }
 </style>
 </head>
 <body><div id="nxSplash"><div class="nx-glow"></div><div class="nx-word"><span class="nx-l">N</span><span class="nx-l nx-c">E</span><span class="nx-l">X</span><span class="nx-l nx-c">U</span><span class="nx-l">S</span></div><div class="nx-sub">HR &nbsp;SUITE</div><div class="nx-bar"><i></i></div></div>
