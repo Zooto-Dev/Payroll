@@ -2192,7 +2192,7 @@ async function runPayroll(){
       const dedMap = empDeductions(code);
       const dedBreak = S.dedComps.map(c => ({ name: c.name, amt: (paidDays > 0 ? (dedMap[c.k]||0) : 0) })).filter(d => d.amt > 0);
       const customDed = dedBreak.reduce((a,d) => a + d.amt, 0);
-      const encash = Math.round(perDay * encashDays);
+      const encash = Math.round((fullGross / dim) * encashDays); // 1 day gross per encashed leave
       const tds = calcTDS(fullGross, p.tax_regime, Number(p.tax_declarations)||0);
       const erPF = pf > 0 ? pf : 0; // employer PF mirrors capped 12%
       const erESI = esi > 0 ? Math.ceil(earnedGross * 3.25 / 100) : 0;
