@@ -707,7 +707,6 @@ function printSlip(s){
   const earnRows = [];
   if(r.comps && r.comps.length){ r.comps.forEach(x => { if(x.amt > 0) earnRows.push([x.name, x.amt]); }); }
   else { earnRows.push(['Basic', r.basic||0], ['HRA', r.hra||0], ['Conveyance', r.conv||0], ['Special Allowance', r.spl||0]); }
-  earnRows.push(['Overtime (' + (r.otHours||0) + ' hrs)', r.otPay||0]);
   if(r.arrears) earnRows.push(['Arrears', r.arrears]);
   if(r.reward) earnRows.push(['Kaizen Reward', r.reward]);
   if(r.encash) earnRows.push(['Leave Encashment (' + (r.encashDays||1) + ' day' + ((r.encashDays||1) > 1 ? 's' : '') + ')', r.encash]);
