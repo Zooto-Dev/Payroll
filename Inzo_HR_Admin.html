@@ -1555,18 +1555,22 @@ $('otrCsvBtn').addEventListener('click', () => {
       const qr = 'https://api.qrserver.com/v1/create-qr-code/?size=340x340&data=' + encodeURIComponent(target);
       $('printArea').innerHTML = `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;text-align:center;border:3px solid #0f172a;padding:34px 30px">
         <div style="font-size:22px;font-weight:800">${esc(S.name || '')}</div>
-        <div style="font-size:30px;font-weight:800;margin-top:18px">आपकी आवाज़, कंपनी तक 📢</div>
-        <div style="font-size:16px;color:#334155;margin-top:6px">Suggestion • Complaint • Kaizen Idea</div>
+        <div style="font-size:30px;font-weight:800;margin-top:18px">VOICE BOX</div>
+        <div style="font-size:16px;color:#334155;margin-top:6px">सुझाव एवं शिकायत पेटी • Suggestion & Grievance Box</div>
         <img src="${qr}" style="width:300px;height:300px;margin:26px auto 10px;display:block">
         <div style="font-size:18px;font-weight:700;margin-top:8px">📱 फ़ोन के कैमरे से ये QR स्कैन करें</div>
         <div style="font-size:14px;color:#334155;margin-top:10px;line-height:1.9">
-          शिकायत, सुझाव या सुधार का आइडिया सीधे HR तक भेजें।<br>
+          अपना सुझाव या शिकायत सीधे HR तक भेजें।<br>
           <b>नाम लिखना ज़रूरी नहीं — पहचान गुप्त रहेगी।</b><br>
-          Scan the QR with your phone camera to send a suggestion,<br>complaint or kaizen idea directly to HR. Name is optional.
+          Scan with your phone camera to send a suggestion or<br>grievance directly to HR. Name is optional.
         </div>
         <div style="font-size:11px;color:#94a3b8;margin-top:22px">Nexus HR • ${esc(S.name || '')}</div>
       </div>`;
-      setTimeout(() => { window.print(); $('printArea').innerHTML = ''; }, 400);
+      const img = $('printArea').querySelector('img');
+      let printed = false;
+      const go = () => { if(printed) return; printed = true; window.print(); setTimeout(() => { $('printArea').innerHTML = ''; }, 300); };
+      img.onload = go;            // QR downloaded -> print
+      setTimeout(go, 3500);       // failsafe if the QR service is slow
     });
     voiceHead.appendChild(b);
   }
