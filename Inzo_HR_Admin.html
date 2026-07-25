@@ -899,6 +899,10 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <h4 class="display font-bold mt-4 mb-2">Statutory Deductions & Tax</h4>
     <div class="grid grid-cols-2 gap-3 mb-2">
       <div class="col-span-2"><label class="flex items-center gap-2 text-sm"><input type="checkbox" id="epOT"> Overtime allowed for this employee</label></div>
+      <div class="col-span-2 flex items-center gap-2 flex-wrap">
+        <button type="button" id="epPwResetBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-key"></i> Reset ESS Password (back to mobile number)</button>
+        <span class="text-[10px]" style="color:var(--muted)">Employee forgot the ESS password? This resets it — the registered mobile number becomes the password again.</span>
+      </div>
       <div><label class="lbl">TDS Regime</label>
         <select id="epRegime" class="inp"><option value="none">No TDS</option><option value="new">New Regime</option><option value="old">Old Regime</option></select></div>
       <div><label class="lbl">80C etc. Declarations ₹/yr (old regime)</label><input id="epDecl" type="number" class="inp" value="0"></div>
@@ -1532,6 +1536,41 @@ $('otrCsvBtn').addEventListener('click', () => {
     ['Code,Name,Department,Days,Approved Hours,Rate per hour,OT Amount',
      ...OTR_ROWS.map(r => [r.code, '"' + r.name + '"', '"' + r.dept + '"', r.days, r.hours, r.rate, r.amount].join(','))].join('\n'), 'text/csv');
 });
+
+/* ---------------- Voice Box QR poster ---------------- */
+(function(){
+  const voiceHead = document.querySelector('#page-voice .card h3, #page-voice h3');
+  if(voiceHead){
+    const b = document.createElement('button');
+    b.className = 'btn btn-ghost btn-sm';
+    b.style.marginLeft = '10px';
+    b.innerHTML = '<i class="fa-solid fa-qrcode"></i> Print QR Poster';
+    b.addEventListener('click', () => {
+      let url = localStorage.getItem('nx_ess_url') || 'https://zooto-dev.github.io/Payroll/Inzo_ESS.html';
+      url = prompt('ESS page ka poora link (poster ka QR isi par khulega):', url);
+      if(!url) return;
+      localStorage.setItem('nx_ess_url', url);
+      const target = url.replace(/#.*$/, '') + '#feedback';
+      const S = getSettings();
+      const qr = 'https://api.qrserver.com/v1/create-qr-code/?size=340x340&data=' + encodeURIComponent(target);
+      $('printArea').innerHTML = `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;text-align:center;border:3px solid #0f172a;padding:34px 30px">
+        <div style="font-size:22px;font-weight:800">${esc(S.name || '')}</div>
+        <div style="font-size:30px;font-weight:800;margin-top:18px">आपकी आवाज़, कंपनी तक 📢</div>
+        <div style="font-size:16px;color:#334155;margin-top:6px">Suggestion • Complaint • Kaizen Idea</div>
+        <img src="${qr}" style="width:300px;height:300px;margin:26px auto 10px;display:block">
+        <div style="font-size:18px;font-weight:700;margin-top:8px">📱 फ़ोन के कैमरे से ये QR स्कैन करें</div>
+        <div style="font-size:14px;color:#334155;margin-top:10px;line-height:1.9">
+          शिकायत, सुझाव या सुधार का आइडिया सीधे HR तक भेजें।<br>
+          <b>नाम लिखना ज़रूरी नहीं — पहचान गुप्त रहेगी।</b><br>
+          Scan the QR with your phone camera to send a suggestion,<br>complaint or kaizen idea directly to HR. Name is optional.
+        </div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:22px">Nexus HR • ${esc(S.name || '')}</div>
+      </div>`;
+      setTimeout(() => { window.print(); $('printArea').innerHTML = ''; }, 400);
+    });
+    voiceHead.appendChild(b);
+  }
+})();
 
 /* ---------------- Universal table pagination ---------------- */
 const NX_PER_PAGE = 15;
@@ -3170,6 +3209,14 @@ $('setSaveBtn').addEventListener('click', async () => {
   }catch(err){ notify(err.message, 'error'); }
   finally{ btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Settings'; btn.disabled = false; }
 });
+$('epPwResetBtn').addEventListener('click', async () => {
+  const code = $('epCode').value;
+  if(!confirm('Reset ESS password for ' + code + '? The registered mobile number will work as the password again.')) return;
+  const { error } = await sb.from('hr_profiles').update({ ess_password: null }).eq('employee_code', code);
+  if(error) return notify(error.message + ' — run the V15 migration SQL first?', 'error');
+  notify('ESS password reset — mobile number is the password now', 'success');
+});
+
 /* ---------------- Blank joining form (printable) ---------------- */
 $('empFormBtn').addEventListener('click', () => {
   const S = getSettings();
