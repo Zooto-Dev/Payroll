@@ -420,7 +420,6 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div class="p-4 border-b flex items-center justify-between" style="border-color:var(--line)">
         <h3 class="display font-bold m-0"><i class="fa-solid fa-clock" style="color:var(--warn)"></i> Pending Overtime</h3>
         <div>
-          <button class="btn btn-ghost btn-sm" data-act="ot-bulk-add"><i class="fa-solid fa-users"></i> Add Bulk OT</button>
           <button class="btn btn-primary btn-sm" data-act="ot-approve-all"><i class="fa-solid fa-check-double"></i> Approve All</button>
         </div>
       </div>
@@ -552,9 +551,9 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <h3 class="display font-bold mt-0 mb-3">Issue Asset</h3>
       <label class="lbl">Employee</label><select id="asEmp" class="inp mb-3"></select>
       <label class="lbl">Asset Type</label>
-      <select id="asType" class="inp mb-3"><option>LAPTOP</option><option>MOBILE</option><option>SIM</option><option>SHOES</option><option>UNIFORM</option><option>ID CARD</option><option>ACCESS CARD</option><option>TOOL</option><option>OTHER</option></select>
+      <select id="asType" class="inp mb-3"><option>LAPTOP</option><option>MOBILE</option><option>SIM</option><option>EMAIL ID</option><option>SHOES</option><option>UNIFORM</option><option>ID CARD</option><option>ACCESS CARD</option><option>TOOL</option><option>OTHER</option></select>
       <div class="grid grid-cols-2 gap-3">
-        <div><label class="lbl">Name / Model</label><input id="asName" class="inp" placeholder="Dell 5420 / Safety Shoes 9"></div>
+        <div><label class="lbl">Name / Model <span class="text-[10px]" style="color:var(--muted)">(EMAIL ID ke liye yahin email likho)</span></label><input id="asName" class="inp" placeholder="Dell 5420 / hr@zooto.in"></div>
         <div><label class="lbl">Serial / Tag No.</label><input id="asSerial" class="inp"></div>
       </div>
       <label class="lbl" style="margin-top:12px;display:block">Issue Date</label>
@@ -870,8 +869,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div><label class="lbl">Skill Category (min wage)</label>
         <select id="epSkill" class="inp"><option value="">Not applicable</option><option value="mw1">Unskilled</option><option value="mw2">Semi-Skilled</option><option value="mw3">Skilled</option><option value="mw4">Highly Skilled</option></select></div>
       <div id="epLineWrap"><label class="lbl">Production Line</label><select id="epLine" class="inp"></select></div>
-      <div><label class="lbl">Reporting Manager</label><input id="epManager" class="inp"></div>
-      <div><label class="lbl">Work Location / Unit</label><input id="epLocation" class="inp" placeholder="IMT Manesar - Unit 1"></div>
+      <div><label class="lbl">Reporting Manager</label><input id="epManager" class="inp" list="mgrDL"></div>
+      <datalist id="mgrDL"></datalist>
       <div><label class="lbl">Emergency Contact</label><input id="epEmName" class="inp" placeholder="Name"></div>
       <div><label class="lbl">Emergency Phone</label><input id="epEmPhone" class="inp"></div>
     </div>
@@ -1007,6 +1006,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         </select></div>
       <div id="aeCTCWrap" class="hidden"><label class="lbl">Monthly CTC (₹)</label>
         <input id="aeCTC" type="number" class="inp" placeholder="45000"></div>
+      <div><label class="lbl">Reporting Manager</label><input id="aeMgr" class="inp" list="mgrDL" placeholder="Select after department"></div>
     </div>
     <div id="aeSalPreview" class="text-[11px] mb-2 p-2 rounded-lg" style="background:var(--brand-soft)"></div>
     <label class="flex items-center gap-2 text-sm mb-3"><input type="checkbox" id="aeOT" checked> Overtime allowed for this employee</label>
@@ -1295,6 +1295,17 @@ function allowedPages(){
   return myPerm().pages;
 }
 function canApprove(kind){ return isSuper() || !(SETTINGS.adminPerms || {})[ME_EMAIL] || myPerm().approve[kind] !== false; }
+// role of the logged-in admin = the employee whose profile email matches the login email
+function myEmpRole(){
+  const p = Object.values(PROFILES).find(x => (x.email || '').toLowerCase() === ME_EMAIL);
+  if(!p) return { desig: '', dept: '' };
+  const e = EMP.find(x => x['Employee code'] === p.employee_code) || {};
+  return { desig: String(e.DESIGNATION || '').toUpperCase(), dept: String(e.DEPARTMENT || '').toUpperCase() };
+}
+// CEO-only actions (super admins always allowed — system owner)
+function roleCEO(){ const r = myEmpRole().desig; return isSuper() || r.includes('CEO') || r.includes('CHIEF EXECUTIVE') || r.includes('MANAGING DIRECTOR'); }
+// Accounts Manager only
+function roleAcctMgr(){ const r = myEmpRole(); return isSuper() || (r.desig.includes('MANAGER') && r.dept.includes('ACCOUNT')); }
 function canFinalize(){ return isSuper() || ((SETTINGS.adminPerms || {})[ME_EMAIL] ? myPerm().finalize === true : true); }
 function applyPerms(){
   const allowed = allowedPages();
@@ -1759,6 +1770,7 @@ $('aeSaveBtn').addEventListener('click', async () => {
     }
     const prof = { employee_code: code, dob: $('aeDOB').value || null,
       pf_applicable: true, esi_applicable: true, lwf_applicable: true,
+      reporting_manager: $('aeMgr').value || null,
       salary: { earn, ded: {}, wageType: mgmt ? 'custom' : 'category', skill, otAllowed: $('aeOT').checked },
       basic: earn.basic || 0, hra: earn.hra || 0, conveyance: earn.conveyance || 0, special_allowance: earn.special_allowance || 0 };
     await sb.from('hr_profiles').upsert(prof, { onConflict: 'employee_code' });
@@ -1786,6 +1798,11 @@ function openEmpModal(code){
   $('epDeptSel').innerHTML = window.nxDeptOpts(e.DEPARTMENT || '');
   $('epDesigSel').innerHTML = window.nxDesigOpts(e.DESIGNATION || '');
   $('epFather').value = p.father_name || ''; $('epDOB').value = p.dob || ''; $('epGender').value = p.gender || '';
+  const dept2 = String(e.DEPARTMENT || '').toUpperCase();
+  $('mgrDL').innerHTML = EMP.filter(x => String(x.DEPARTMENT || '').toUpperCase() === dept2
+    && /MANAGER|EXECUTIVE|INCHARGE|SUPERVISOR|CEO|DIRECTOR/i.test(String(x.DESIGNATION || ''))
+    && String(x.Status).toUpperCase() === 'ACTIVE' && x['Employee code'] !== code)
+    .map(x => `<option value="${esc(x.Name)} (${esc(x['Employee code'])})">${esc(x.DESIGNATION || '')}</option>`).join('');
   $('epAddr').value = p.address || '';
   buildSalaryInputs(code);
   $('epPF').checked = p.pf_applicable !== false; $('epESI').checked = p.esi_applicable !== false; $('epPT').checked = p.pt_applicable !== false;
@@ -1800,7 +1817,7 @@ function openEmpModal(code){
   $('epGrade').value = p.grade || ''; $('epType').value = p.employment_type || 'Permanent';
   $('epSkill').value = (p.salary && p.salary.skill) || '';
   renderLines(); $('epLine').value = e.LINE || '';
-  $('epManager').value = p.reporting_manager || ''; $('epLocation').value = p.work_location || '';
+  $('epManager').value = p.reporting_manager || '';
   $('epEmName').value = p.emergency_name || ''; $('epEmPhone').value = p.emergency_phone || '';
   loadDocs(code);
   updateGrossPreview();
@@ -1870,6 +1887,15 @@ document.addEventListener('change', async e => {
     renderLines();
     return;
   }
+  if(e.target && e.target.id === 'aeDept'){
+    const dept = e.target.value.toUpperCase();
+    const seniors = EMP.filter(x => String(x.DEPARTMENT || '').toUpperCase() === dept
+      && /MANAGER|EXECUTIVE|INCHARGE|SUPERVISOR|CEO|DIRECTOR/i.test(String(x.DESIGNATION || ''))
+      && String(x.Status).toUpperCase() === 'ACTIVE');
+    $('mgrDL').innerHTML = seniors.map(x => `<option value="${esc(x.Name)} (${esc(x['Employee code'])})">${esc(x.DESIGNATION || '')}</option>`).join('');
+    $('aeMgr').placeholder = seniors.length ? 'Type / choose from ' + seniors.length + ' senior(s)' : 'No seniors found in ' + e.target.value;
+    return;
+  }
   if(e.target && (e.target.id === 'aeCat' || e.target.id === 'aeSkill' || e.target.id === 'aeCTC')){
     updateAePreview();
     return;
@@ -1914,6 +1940,10 @@ function updateGrossPreview(){
   $('epGross').innerText = fmtINR(g);
   const S = getSettings();
   const er = employerSides(g, currentPFWages(), $('epPF').checked, $('epESI').checked, $('epLWF').checked);
+  // gross above the ESI limit -> employee is out of ESI (and PT): auto-uncheck
+  if(g > Number(S.esiLimit)){
+    if($('epESI').checked || $('epPT').checked){ $('epESI').checked = false; $('epPT').checked = false; }
+  }
   const eeESI = ($('epESI').checked && g > 0 && g <= Number(S.esiLimit)) ? Math.ceil(g * Number(S.esiPct) / 100) : 0;
   const esiNote = (g > Number(S.esiLimit) && $('epESI').checked) ? ` <span class="chip chip-gray">ESI N/A — gross above ₹${Number(S.esiLimit).toLocaleString('en-IN')} limit</span>` : '';
   const skill = $('epSkill').value;
@@ -1980,7 +2010,7 @@ $('epSaveBtn').addEventListener('click', async () => {
       pan: $('epPAN').value, uan: $('epUAN').value, esi_no: $('epESINo').value,
       shift_id: Number($('epShift').value) || null,
       grade: $('epGrade').value, employment_type: $('epType').value,
-      reporting_manager: $('epManager').value, work_location: $('epLocation').value,
+      reporting_manager: $('epManager').value,
       emergency_name: $('epEmName').value, emergency_phone: $('epEmPhone').value,
       gender: $('epGender').value || null
     };
@@ -2702,9 +2732,9 @@ document.body.addEventListener('click', async e => {
     await sb.from('leaves').update({ status: 'CANCELLED' }).eq('id', el.dataset.id);
     loadLeaves();
   }
-  if((act === 'appr-leave' || act === 'rej-leave') && !canApprove('leave')) return notify('You are not allowed to approve leaves', 'error');
-  if((act === 'ot-appr-grp' || act === 'ot-rej-grp') && !canApprove('ot')) return notify('You are not allowed to approve overtime', 'error');
-  if((act === 'appr-exp' || act === 'rej-exp' || act === 'appr-ex' || act === 'rej-ex') && !canApprove('expense')) return notify('You are not allowed to approve expenses', 'error');
+  if((act === 'appr-leave' || act === 'rej-leave') && !(canApprove('leave') && roleCEO())) return notify('Only the CEO can approve leaves', 'error');
+  if((act === 'ot-appr-grp' || act === 'ot-rej-grp') && !(canApprove('ot') && roleCEO())) return notify('Only the CEO can approve overtime', 'error');
+  if((act === 'appr-exp' || act === 'rej-exp' || act === 'appr-ex' || act === 'rej-ex') && !(canApprove('expense') && roleAcctMgr())) return notify('Only the Accounts Manager can approve expenses', 'error');
   if(act === 'appr-leave'){
     await sb.from('leaves').update({ status: 'APPROVED' }).eq('id', el.dataset.id);
     notify('Leave approved', 'success');
@@ -2715,7 +2745,7 @@ document.body.addEventListener('click', async e => {
     loadApprovals();
   }
   if(act === 'ot-approve-all'){
-    if(!canApprove('ot')) return notify('You are not allowed to approve overtime', 'error');
+    if(!(canApprove('ot') && roleCEO())) return notify('Only the CEO can approve overtime', 'error');
     if(!confirm('Approve ALL pending overtime requests?')) return;
     const { error } = await sb.from('ot_requests').update({ status: 'APPROVED' }).eq('status', 'PENDING');
     if(error) return notify(error.message, 'error');
