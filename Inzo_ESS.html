@@ -817,8 +817,8 @@ function showPublicFeedback(){
       <h3 class="display font-bold mt-0 mb-3 text-sm"><i class="fa-solid fa-comments" style="color:var(--brand)"></i> Voice Box — सुझाव / शिकायत</h3>
       <label class="lbl">Type</label>
       <select id="pfType" class="inp mb-3">
-        <option value="GRIEVANCE">Grievance — salary or any other issue</option>
         <option value="SUGGESTION">Suggestion — a problem you see + your solutions</option>
+        <option value="GRIEVANCE">Grievance — salary or any other issue</option>
       </select>
       <label class="lbl">Your Name — optional / नाम (ज़रूरी नहीं)</label>
       <input id="pfName" class="inp mb-3" placeholder="Anonymous">
@@ -826,7 +826,7 @@ function showPublicFeedback(){
       <input id="pfSubject" class="inp mb-3" placeholder="Short title">
       <label class="lbl">Details</label>
       <textarea id="pfDetails" class="inp mb-3" rows="3" placeholder="Describe the issue / idea…"></textarea>
-      <div id="pfSolWrap" class="hidden">
+      <div id="pfSolWrap">
         <label class="lbl">Your 2–3 Best Solutions</label>
         <textarea id="pfSolutions" class="inp mb-3" rows="3" placeholder="1. …&#10;2. …&#10;3. …"></textarea>
       </div>
