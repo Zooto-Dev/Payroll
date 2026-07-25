@@ -80,10 +80,10 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div class="card">
       <label class="lbl">Employee Code</label>
       <input id="inCode" class="inp mb-3" placeholder="EMP-1234" autocapitalize="characters">
-      <label class="lbl">Registered Mobile Number</label>
-      <input id="inPhone" type="tel" class="inp mb-4" placeholder="98XXXXXXXX">
+      <label class="lbl">Password</label>
+      <input id="inPhone" type="password" class="inp mb-4" placeholder="Password">
       <button id="loginBtn" class="btn btn-primary"><i class="fa-solid fa-right-to-bracket"></i> View My HR</button>
-      <p class="text-[11px] mt-3 text-center" style="color:var(--muted)">Use the mobile number registered with HR. Contact HR if you cannot sign in.</p>
+      <p class="text-[11px] mt-3 text-center" style="color:var(--muted)">पहली बार? HR के पास registered <b>mobile number</b> ही आपका password है — login करके Profile से बदल लें। Contact HR if you cannot sign in.</p>
     </div>
   </div>
 
@@ -213,7 +213,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     </div>
 
     <div class="page" id="p-me">
-      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm">My Details</h3><div id="meBox"></div></div>
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm">My Details</h3><div id="meBox"></div>
+        <button id="pwOpenBtn" class="btn btn-ghost btn-sm mt-3"><i class="fa-solid fa-key"></i> Change Password</button></div>
       <div class="card">
         <h3 class="display font-bold mt-0 mb-2 text-sm">Update Contact Details</h3>
         <label class="lbl">Address</label><input id="upAddr" class="inp mb-3">
@@ -224,6 +225,20 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
   </div>
 </div>
 
+<!-- change password modal -->
+<div class="modal" id="pwModal">
+  <div class="modal-box" style="max-width:380px">
+    <h3 class="display font-bold text-lg mt-0 mb-3">Change Password</h3>
+    <label class="lbl">Current Password</label>
+    <input id="pwOld" type="password" class="inp mb-3">
+    <label class="lbl">New Password (min 4 characters)</label>
+    <input id="pwNew" type="password" class="inp mb-3">
+    <label class="lbl">Confirm New Password</label>
+    <input id="pwNew2" type="password" class="inp mb-4">
+    <button id="pwSaveBtn" class="btn btn-primary w-full justify-center">Change Password</button>
+    <button class="btn btn-ghost w-full justify-center mt-2" data-close="pwModal">Cancel</button>
+  </div>
+</div>
 <div class="tabbar hidden" id="tabbar">
   <button class="tab active" data-p="home"><i class="fa-solid fa-house"></i>Home</button>
   <button class="tab" data-p="req"><i class="fa-solid fa-paper-plane"></i>Requests</button>
@@ -769,8 +784,72 @@ function printSlip(s){
   setTimeout(() => { window.print(); $('slipPrint').innerHTML = ''; }, 200);
 }
 
-// auto-login if saved
+// change password
+$('pwOpenBtn').addEventListener('click', () => { $('pwOld').value = ''; $('pwNew').value = ''; $('pwNew2').value = ''; $('pwModal').classList.add('show'); });
+$('pwSaveBtn').addEventListener('click', async () => {
+  if(!sb) return;
+  if($('pwNew').value !== $('pwNew2').value) return notify('New passwords do not match');
+  if($('pwNew').value.length < 4) return notify('New password must be at least 4 characters');
+  const { data, error } = await sb.rpc('ess_set_password', { p_code: CODE, p_old: $('pwOld').value, p_new: $('pwNew').value });
+  if(error) return notify(error.message);
+  if(data && data.error) return notify(data.error);
+  PHONE = $('pwNew').value;
+  localStorage.setItem('ess_phone', PHONE);
+  $('pwModal').classList.remove('show');
+  notify('Password changed ✓');
+});
+
+// ===== PUBLIC FEEDBACK (QR route, no login): ess.html#feedback =====
+function showPublicFeedback(){
+  nxHideSplash();
+  $('login').classList.add('hidden');
+  const wrap = document.createElement('div');
+  wrap.className = 'max-w-md mx-auto px-4 py-8';
+  wrap.innerHTML = `
+    <div class="text-center mb-5">
+      <h1 class="m-0" style="font-family:'Syncopate',sans-serif;font-weight:700;font-size:20px;letter-spacing:.22em">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</h1>
+      <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.1em;text-transform:uppercase">Voice Box — सुझाव पेटी</p>
+    </div>
+    <div class="card">
+      <p class="text-xs mt-0 mb-3" style="color:var(--muted)">अपनी बात कंपनी तक पहुँचाएँ — शिकायत, सुझाव या Kaizen idea. नाम लिखना ज़रूरी नहीं है। • Share a grievance, suggestion or kaizen idea. Name is optional.</p>
+      <label class="lbl">Type / प्रकार</label>
+      <select id="pfType" class="inp mb-3">
+        <option value="SUGGESTION">Suggestion / सुझाव</option>
+        <option value="GRIEVANCE">Grievance / शिकायत</option>
+        <option value="KAIZEN">Kaizen Idea / सुधार का आइडिया</option>
+      </select>
+      <label class="lbl">Your Name (optional) / आपका नाम (ज़रूरी नहीं)</label>
+      <input id="pfName" class="inp mb-3" placeholder="Anonymous">
+      <label class="lbl">Department (optional) / विभाग</label>
+      <input id="pfDept" class="inp mb-3" placeholder="e.g. Stitching">
+      <label class="lbl">Subject / विषय</label>
+      <input id="pfSubject" class="inp mb-3" placeholder="Short title">
+      <label class="lbl">Details / विवरण</label>
+      <textarea id="pfDetails" class="inp mb-4" rows="4" placeholder="अपनी बात यहाँ लिखें…"></textarea>
+      <button id="pfSendBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-paper-plane"></i> Submit / भेजें</button>
+      <p id="pfDone" class="hidden text-center text-sm mt-3" style="color:var(--ok)"><i class="fa-solid fa-circle-check"></i> धन्यवाद! आपकी बात HR तक पहुँच गई है।</p>
+    </div>`;
+  document.body.appendChild(wrap);
+  document.getElementById('pfSendBtn').addEventListener('click', async () => {
+    if(!sb) return notify('Loading… try again in a moment');
+    const sub = document.getElementById('pfSubject').value.trim();
+    if(!sub) return notify('Subject / विषय ज़रूरी है');
+    const btn = document.getElementById('pfSendBtn');
+    btn.disabled = true; btn.innerHTML = 'Sending…';
+    const { data, error } = await sb.rpc('public_submit_feedback', {
+      p_name: document.getElementById('pfName').value, p_dept: document.getElementById('pfDept').value,
+      p_type: document.getElementById('pfType').value, p_subject: sub, p_details: document.getElementById('pfDetails').value });
+    btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit / भेजें';
+    if(error) return notify(error.message);
+    if(data && data.error) return notify(data.error);
+    document.getElementById('pfDone').classList.remove('hidden');
+    ['pfName','pfDept','pfSubject','pfDetails'].forEach(id => document.getElementById(id).value = '');
+  });
+}
+
+// auto-login if saved (skipped on the public feedback route)
 window.addEventListener('load', () => {
+  if(location.hash === '#feedback'){ showPublicFeedback(); return; }
   const c = localStorage.getItem('ess_code'), p = localStorage.getItem('ess_phone');
   if(c && p){ $('inCode').value = c; $('inPhone').value = p; $('loginBtn').click(); }
 });
