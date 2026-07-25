@@ -31,6 +31,9 @@
 body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
 .display{font-family:'Space Grotesk',sans-serif}
 .wrap{max-width:520px;margin:0 auto;padding:16px;padding-bottom:90px}
+.modal{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal.show{display:flex}
+.modal-box{background:#fff;border-radius:16px;padding:20px;width:100%;max-width:380px;box-shadow:0 20px 50px rgba(15,23,42,.25)}
 .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px}
 .inp{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;outline:none;box-sizing:border-box;font-family:'Inter',sans-serif}
 .inp:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
@@ -803,47 +806,42 @@ $('pwSaveBtn').addEventListener('click', async () => {
 function showPublicFeedback(){
   nxHideSplash();
   $('login').classList.add('hidden');
-  const wrap = document.createElement('div');
-  wrap.className = 'max-w-md mx-auto px-4 py-8';
-  wrap.innerHTML = `
-    <div class="text-center mb-5">
+  const wrap = document.querySelector('.wrap');
+  const box = document.createElement('div');
+  box.innerHTML = `
+    <div class="text-center mb-5 pt-6">
       <h1 class="m-0" style="font-family:'Syncopate',sans-serif;font-weight:700;font-size:20px;letter-spacing:.22em">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</h1>
-      <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.1em;text-transform:uppercase">Voice Box — सुझाव पेटी</p>
+      <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Voice Box</p>
     </div>
     <div class="card">
-      <p class="text-xs mt-0 mb-3" style="color:var(--muted)">अपनी बात कंपनी तक पहुँचाएँ — शिकायत, सुझाव या Kaizen idea. नाम लिखना ज़रूरी नहीं है। • Share a grievance, suggestion or kaizen idea. Name is optional.</p>
       <label class="lbl">Type / प्रकार</label>
       <select id="pfType" class="inp mb-3">
         <option value="SUGGESTION">Suggestion / सुझाव</option>
         <option value="GRIEVANCE">Grievance / शिकायत</option>
-        <option value="KAIZEN">Kaizen Idea / सुधार का आइडिया</option>
       </select>
-      <label class="lbl">Your Name (optional) / आपका नाम (ज़रूरी नहीं)</label>
+      <label class="lbl">Name — optional / नाम (ज़रूरी नहीं)</label>
       <input id="pfName" class="inp mb-3" placeholder="Anonymous">
-      <label class="lbl">Department (optional) / विभाग</label>
-      <input id="pfDept" class="inp mb-3" placeholder="e.g. Stitching">
-      <label class="lbl">Subject / विषय</label>
-      <input id="pfSubject" class="inp mb-3" placeholder="Short title">
-      <label class="lbl">Details / विवरण</label>
-      <textarea id="pfDetails" class="inp mb-4" rows="4" placeholder="अपनी बात यहाँ लिखें…"></textarea>
+      <label class="lbl">Your Message / आपकी बात</label>
+      <textarea id="pfDetails" class="inp mb-4" rows="5" placeholder="यहाँ लिखें…"></textarea>
       <button id="pfSendBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-paper-plane"></i> Submit / भेजें</button>
-      <p id="pfDone" class="hidden text-center text-sm mt-3" style="color:var(--ok)"><i class="fa-solid fa-circle-check"></i> धन्यवाद! आपकी बात HR तक पहुँच गई है।</p>
+      <p id="pfDone" class="hidden text-center text-sm mt-3" style="color:var(--ok)"><i class="fa-solid fa-circle-check"></i> Submitted — HR तक पहुँच गया। धन्यवाद!</p>
     </div>`;
-  document.body.appendChild(wrap);
+  wrap.appendChild(box);
   document.getElementById('pfSendBtn').addEventListener('click', async () => {
     if(!sb) return notify('Loading… try again in a moment');
-    const sub = document.getElementById('pfSubject').value.trim();
-    if(!sub) return notify('Subject / विषय ज़रूरी है');
+    const msg = document.getElementById('pfDetails').value.trim();
+    if(msg.length < 5) return notify('कृपया अपनी बात लिखें / Please write your message');
     const btn = document.getElementById('pfSendBtn');
     btn.disabled = true; btn.innerHTML = 'Sending…';
     const { data, error } = await sb.rpc('public_submit_feedback', {
-      p_name: document.getElementById('pfName').value, p_dept: document.getElementById('pfDept').value,
-      p_type: document.getElementById('pfType').value, p_subject: sub, p_details: document.getElementById('pfDetails').value });
+      p_name: document.getElementById('pfName').value, p_dept: '',
+      p_type: document.getElementById('pfType').value,
+      p_subject: msg.slice(0, 80), p_details: msg });
     btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit / भेजें';
     if(error) return notify(error.message);
     if(data && data.error) return notify(data.error);
     document.getElementById('pfDone').classList.remove('hidden');
-    ['pfName','pfDept','pfSubject','pfDetails'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('pfName').value = ''; document.getElementById('pfDetails').value = '';
   });
 }
 
