@@ -814,34 +814,46 @@ function showPublicFeedback(){
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Voice Box</p>
     </div>
     <div class="card">
-      <label class="lbl">Type / प्रकार</label>
+      <h3 class="display font-bold mt-0 mb-3 text-sm"><i class="fa-solid fa-comments" style="color:var(--brand)"></i> Voice Box — सुझाव / शिकायत</h3>
+      <label class="lbl">Type</label>
       <select id="pfType" class="inp mb-3">
-        <option value="SUGGESTION">Suggestion / सुझाव</option>
-        <option value="GRIEVANCE">Grievance / शिकायत</option>
+        <option value="GRIEVANCE">Grievance — salary or any other issue</option>
+        <option value="SUGGESTION">Suggestion — a problem you see + your solutions</option>
       </select>
-      <label class="lbl">Name — optional / नाम (ज़रूरी नहीं)</label>
+      <label class="lbl">Your Name — optional / नाम (ज़रूरी नहीं)</label>
       <input id="pfName" class="inp mb-3" placeholder="Anonymous">
-      <label class="lbl">Your Message / आपकी बात</label>
-      <textarea id="pfDetails" class="inp mb-4" rows="5" placeholder="यहाँ लिखें…"></textarea>
-      <button id="pfSendBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-paper-plane"></i> Submit / भेजें</button>
-      <p id="pfDone" class="hidden text-center text-sm mt-3" style="color:var(--ok)"><i class="fa-solid fa-circle-check"></i> Submitted — HR तक पहुँच गया। धन्यवाद!</p>
+      <label class="lbl">Subject</label>
+      <input id="pfSubject" class="inp mb-3" placeholder="Short title">
+      <label class="lbl">Details</label>
+      <textarea id="pfDetails" class="inp mb-3" rows="3" placeholder="Describe the issue / idea…"></textarea>
+      <div id="pfSolWrap" class="hidden">
+        <label class="lbl">Your 2–3 Best Solutions</label>
+        <textarea id="pfSolutions" class="inp mb-3" rows="3" placeholder="1. …&#10;2. …&#10;3. …"></textarea>
+      </div>
+      <button id="pfSendBtn" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Submit</button>
+      <p id="pfDone" class="hidden text-sm mt-3" style="color:var(--ok)"><i class="fa-solid fa-circle-check"></i> Submitted — HR तक पहुँच गया। धन्यवाद!</p>
     </div>`;
   wrap.appendChild(box);
+  document.getElementById('pfType').addEventListener('change', () => {
+    document.getElementById('pfSolWrap').classList.toggle('hidden', document.getElementById('pfType').value === 'GRIEVANCE');
+  });
   document.getElementById('pfSendBtn').addEventListener('click', async () => {
     if(!sb) return notify('Loading… try again in a moment');
-    const msg = document.getElementById('pfDetails').value.trim();
-    if(msg.length < 5) return notify('कृपया अपनी बात लिखें / Please write your message');
+    const sub = document.getElementById('pfSubject').value.trim();
+    if(!sub) return notify('Subject ज़रूरी है / Subject is required');
+    const sol = document.getElementById('pfSolutions').value.trim();
+    const det = document.getElementById('pfDetails').value.trim() + (sol ? '\n\nSolutions:\n' + sol : '');
     const btn = document.getElementById('pfSendBtn');
     btn.disabled = true; btn.innerHTML = 'Sending…';
     const { data, error } = await sb.rpc('public_submit_feedback', {
       p_name: document.getElementById('pfName').value, p_dept: '',
       p_type: document.getElementById('pfType').value,
-      p_subject: msg.slice(0, 80), p_details: msg });
-    btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit / भेजें';
+      p_subject: sub, p_details: det });
+    btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit';
     if(error) return notify(error.message);
     if(data && data.error) return notify(data.error);
     document.getElementById('pfDone').classList.remove('hidden');
-    document.getElementById('pfName').value = ''; document.getElementById('pfDetails').value = '';
+    ['pfName','pfSubject','pfDetails','pfSolutions'].forEach(id => document.getElementById(id).value = '');
   });
 }
 
