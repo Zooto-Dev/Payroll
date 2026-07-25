@@ -3173,36 +3173,79 @@ $('setSaveBtn').addEventListener('click', async () => {
 /* ---------------- Blank joining form (printable) ---------------- */
 $('empFormBtn').addEventListener('click', () => {
   const S = getSettings();
-  const fld = (label, w) => `<td style="border:1px solid #94a3b8;padding:7px 9px;width:${w||'auto'}"><span style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.05em">${label}</span><div style="height:18px"></div></td>`;
-  const sec = t => `<tr><td colspan="4" style="background:#0f172a;color:#fff;padding:5px 10px;font-size:11px;letter-spacing:.12em;font-weight:700">${t}</td></tr>`;
-  $('printArea').innerHTML = `<div style="font-family:Arial,sans-serif;max-width:760px;margin:auto;font-size:12px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #0f172a;padding-bottom:10px;margin-bottom:12px">
-      <div>
-        <h1 style="margin:0;font-size:19px">${esc(S.name || '')}</h1>
-        <p style="margin:3px 0 0;font-size:10px;color:#475569">${esc(S.addr || '')}</p>
-        <h2 style="margin:10px 0 0;font-size:14px;letter-spacing:.14em">EMPLOYEE JOINING FORM</h2>
-      </div>
-      <div style="width:96px;height:116px;border:1.5px dashed #94a3b8;display:flex;align-items:center;justify-content:center;font-size:9px;color:#94a3b8;text-align:center">PASSPORT<br>PHOTO</div>
+  // character boxes for numbers (Aadhaar, mobile, account…)
+  const boxes = n => `<div style="display:flex;gap:0">${Array(n).fill(0).map(() => '<div style="width:19px;height:24px;border:1px solid #475569;border-left-width:0"></div>').join('')}</div>`.replace('border-left-width:0', 'border-left-width:1px'); // first box keeps left border
+  const line = w => `<div style="border-bottom:1.2px solid #475569;height:22px;width:${w || '100%'}"></div>`;
+  const F = (en, hi, inner) => `<div style="margin-bottom:11px"><div style="font-size:9.5px;font-weight:700;color:#111;margin-bottom:4px">${en} <span style="font-weight:400;color:#555">/ ${hi}</span></div>${inner}</div>`;
+  const CB = opts => `<div style="display:flex;gap:18px;padding:3px 0">${opts.map(o => `<span style="font-size:11px"><span style="display:inline-block;width:13px;height:13px;border:1.3px solid #111;vertical-align:-2px;margin-right:5px"></span>${o}</span>`).join('')}</div>`;
+  const SEC = (n, en, hi) => `<div style="background:#f1f5f9;border-left:4px solid #0f172a;padding:5px 10px;margin:16px 0 10px;font-size:11.5px;font-weight:700;letter-spacing:.04em">${n}. ${en} <span style="font-weight:400;color:#555">/ ${hi}</span></div>`;
+  $('printArea').innerHTML = `<div style="font-family:Arial,sans-serif;max-width:740px;margin:auto;color:#111">
+    <table style="width:100%;margin-bottom:4px"><tr>
+      <td>
+        <div style="font-size:19px;font-weight:800">${esc(S.name || '')}</div>
+        <div style="font-size:10px;color:#444;margin-top:2px">${esc(S.addr || '')}</div>
+        <div style="font-size:14px;font-weight:700;margin-top:10px;letter-spacing:.08em">EMPLOYEE JOINING FORM <span style="font-weight:400">/ कर्मचारी नियुक्ति फॉर्म</span></div>
+        <div style="font-size:9.5px;color:#555;margin-top:3px">कृपया साफ अक्षरों में CAPITAL LETTERS में भरें • Please fill in CAPITAL letters</div>
+      </td>
+      <td style="width:110px;vertical-align:top;text-align:right">
+        <div style="width:96px;height:118px;border:1.5px solid #475569;display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:#666;text-align:center;line-height:1.6">पासपोर्ट<br>फोटो<br>PHOTO</div>
+      </td>
+    </tr></table>
+
+    ${SEC('1','PERSONAL DETAILS','व्यक्तिगत जानकारी')}
+    ${F('Full Name','पूरा नाम', line())}
+    ${F("Father's / Husband's Name","पिता / पति का नाम", line())}
+    <table style="width:100%"><tr>
+      <td style="width:34%;padding-right:14px">${F('Date of Birth','जन्म तिथि', '<div style="display:flex;align-items:center;gap:6px">' + boxes(2) + '<b>/</b>' + boxes(2) + '<b>/</b>' + boxes(4) + '</div>')}</td>
+      <td style="width:30%;padding-right:14px">${F('Gender','लिंग', CB(['Male / पुरुष','Female / महिला']))}</td>
+      <td>${F('Marital Status','वैवाहिक स्थिति', CB(['Married / विवाहित','Single / अविवाहित']))}</td>
+    </tr></table>
+    ${F('Mobile Number','मोबाइल नंबर', boxes(10))}
+    ${F('Full Address','पूरा पता', line() + '<div style="height:8px"></div>' + line())}
+
+    ${SEC('2','BANK DETAILS','बैंक विवरण')} 
+    <div style="font-size:9.5px;color:#555;margin:-6px 0 8px">कैंसिल चेक या पासबुक की कॉपी साथ लगाएँ • Attach cancelled cheque / passbook copy</div>
+    ${F('Bank Name','बैंक का नाम', line('70%'))}
+    ${F('Account Number','खाता संख्या', boxes(16))}
+    ${F('IFSC Code','आई.एफ.एस.सी. कोड', boxes(11))}
+
+    ${SEC('3','ID DETAILS','पहचान विवरण')}
+    ${F('Aadhaar Number','आधार नंबर', boxes(12))}
+    <table style="width:100%"><tr>
+      <td style="width:50%;padding-right:14px">${F('PAN (if any)','पैन (यदि हो)', boxes(10))}</td>
+      <td>${F('UAN / PF No. (previous job, if any)','यू.ए.एन. (पिछली नौकरी से, यदि हो)', boxes(12))}</td>
+    </tr></table>
+
+    ${SEC('4','EMERGENCY CONTACT','आपातकालीन संपर्क')}
+    <table style="width:100%"><tr>
+      <td style="width:45%;padding-right:14px">${F('Name','नाम', line())}</td>
+      <td style="width:22%;padding-right:14px">${F('Relation','रिश्ता', line())}</td>
+      <td>${F('Mobile','मोबाइल', boxes(10))}</td>
+    </tr></table>
+
+    <div style="border:1.3px solid #475569;padding:9px 12px;margin-top:14px">
+      <div style="font-size:10px;line-height:1.75"><b>घोषणा / Declaration:</b> मैं घोषणा करता/करती हूँ कि ऊपर दी गई जानकारी सत्य है। मैं कंपनी के नियमों का पालन करूँगा/करूँगी। •
+      I declare that the above information is true and I agree to follow the company's rules.</div>
+      <table style="width:100%;margin-top:30px"><tr>
+        <td style="text-align:center;width:50%"><div style="border-top:1.2px solid #111;margin:0 30px;padding-top:4px;font-size:10px">कर्मचारी के हस्ताक्षर व तिथि<br>Employee Signature & Date</div></td>
+        <td style="text-align:center"><div style="border-top:1.2px solid #111;margin:0 30px;padding-top:4px;font-size:10px">HR / अधिकृत हस्ताक्षर<br>HR / Authorised Signatory</div></td>
+      </tr></table>
     </div>
-    <table style="width:100%;border-collapse:collapse">
-      ${sec('PERSONAL DETAILS')}
-      <tr>${fld('Full Name','40%')}${fld("Father's / Husband's Name",'40%')}</tr>
-      <tr>${fld('Date of Birth')}${fld('Gender')}${fld('Mobile No.')}${fld('Alternate No.')}</tr>
-      <tr><td colspan="3" style="border:1px solid #94a3b8;padding:7px 9px"><span style="font-size:9px;color:#64748b">PERMANENT ADDRESS</span><div style="height:30px"></div></td>${fld('Email')}</tr>
-      ${sec('EMPLOYMENT DETAILS (office use)')}
-      <tr>${fld('Employee Code')}${fld('Unit / Location')}${fld('Date of Joining')}${fld('Production Line')}</tr>
-      <tr>${fld('Department')}${fld('Designation')}${fld('Category (Worker / Staff)')}${fld('Skill Level')}</tr>
-      ${sec('BANK DETAILS (attach cancelled cheque / passbook copy)')}
-      <tr>${fld('Bank Name','34%')}${fld('Account Number','36%')}${fld('IFSC Code')}</tr>
-      ${sec('STATUTORY DETAILS')}
-      <tr>${fld('Aadhaar Number')}${fld('PAN')}${fld('UAN (if existing)')}${fld('ESIC No. (if existing)')}</tr>
-      ${sec('EMERGENCY CONTACT')}
-      <tr>${fld('Contact Name','40%')}${fld('Relation')}${fld('Contact Number')}</tr>
-    </table>
-    <p style="font-size:10px;color:#334155;margin:14px 0 4px;line-height:1.7"><b>Declaration:</b> I hereby declare that the information given above is true and correct to the best of my knowledge. I agree to abide by the rules and policies of the company. Documents attached: Aadhaar ☐ &nbsp; PAN ☐ &nbsp; Bank Proof ☐ &nbsp; Photos ☐ &nbsp; Previous Experience/Relieving ☐</p>
-    <div style="display:flex;justify-content:space-between;margin-top:44px;font-size:11px">
-      <div style="text-align:center"><div style="border-top:1.5px solid #0f172a;padding-top:5px;width:180px">Employee Signature & Date</div></div>
-      <div style="text-align:center"><div style="border-top:1.5px solid #0f172a;padding-top:5px;width:180px">HR / Authorised Signatory</div></div>
+
+    <div style="border:1.3px dashed #64748b;padding:8px 12px;margin-top:10px;background:#f8fafc">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;margin-bottom:7px">FOR OFFICE USE ONLY / केवल कार्यालय उपयोग हेतु</div>
+      <table style="width:100%;font-size:9.5px"><tr>
+        <td style="width:25%;padding-right:12px">Employee Code${line()}</td>
+        <td style="width:25%;padding-right:12px">Unit / Location${line()}</td>
+        <td style="width:25%;padding-right:12px">Department${line()}</td>
+        <td style="width:25%">Designation${line()}</td>
+      </tr><tr>
+        <td style="padding-right:12px;padding-top:8px">Date of Joining${line()}</td>
+        <td style="padding-right:12px;padding-top:8px">Category (Worker/Staff)${line()}</td>
+        <td style="padding-right:12px;padding-top:8px">Skill Level${line()}</td>
+        <td style="padding-top:8px">Production Line${line()}</td>
+      </tr></table>
+      <div style="font-size:9.5px;margin-top:8px">Documents received / प्राप्त दस्तावेज़: &nbsp; Aadhaar ☐ &nbsp; Bank Proof ☐ &nbsp; Photos ☐ &nbsp; PAN ☐ &nbsp; Experience Letter ☐</div>
     </div>
   </div>`;
   setTimeout(() => { window.print(); $('printArea').innerHTML = ''; }, 150);
