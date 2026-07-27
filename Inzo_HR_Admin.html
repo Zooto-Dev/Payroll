@@ -269,6 +269,7 @@ body.no-confidential .confidential-col{display:none!important}
 <!-- ================= DASHBOARD ================= -->
 <div class="page show" id="page-dashboard">
   <div id="dashNoSalary" class="mb-4"></div>
+  <div id="dashIncomplete" class="mb-4"></div>
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
     <div class="card"><p class="lbl m-0">Present Today</p><div class="stat-num" style="color:var(--ok)" id="dPresent">—</div></div>
     <div class="card"><p class="lbl m-0">Late Today</p><div class="stat-num" style="color:var(--warn)" id="dLate">—</div></div>
@@ -1323,6 +1324,7 @@ function adminRoleOf(email){
   return { desig: '', dept: '' };
 }
 function myEmpRole(){ return adminRoleOf(ME_EMAIL); }
+function isHRAdmin(){ const d = adminRoleOf(ME_EMAIL).dept; return isSuper() || d.includes('ADMIN') || d.includes('HR') || d.includes('HUMAN'); }
 // CEO-only actions (super admins always allowed — system owner)
 function roleCEO(){ const r = myEmpRole().desig; return isSuper() || r.includes('CEO') || r.includes('CHIEF EXECUTIVE') || r.includes('MANAGING DIRECTOR'); }
 // Accounts Manager only
@@ -1693,6 +1695,34 @@ new MutationObserver(muts => {
 }).observe(document.body, { childList: true, subtree: true });
 
 /* ---------------- Dashboard ---------------- */
+function renderIncompleteCard(){
+  const host = document.getElementById('dashIncomplete');
+  if(!host) return;
+  if(!isHRAdmin()){ host.innerHTML = ''; return; }
+  const need = [];
+  EMP.filter(e => String(e.Status).toUpperCase() === 'ACTIVE').forEach(e => {
+    const code = e['Employee code'], p = PROFILES[code] || {};
+    const miss = [];
+    if(!p.phone) miss.push('Mobile');
+    if(!p.dob) miss.push('DOB');
+    if(!e.DEPARTMENT) miss.push('Department');
+    if(!e.DESIGNATION) miss.push('Designation');
+    if(!p.bank_name || !p.account_no || !p.ifsc) miss.push('Bank');
+    if(!p.pan) miss.push('PAN');
+    if(!p.aadhaar && !p.aadhaar_no) miss.push('Aadhaar');
+    if(miss.length) need.push({ e, code, miss });
+  });
+  host.innerHTML = need.length ? `
+    <div class="card" style="border-left:3px solid var(--brand)">
+      <h3 class="display font-bold m-0 mb-2 text-sm"><i class="fa-solid fa-id-card-clip" style="color:var(--brand)"></i> Incomplete Profiles <span class="chip chip-blue">${need.length}</span> <span class="text-[10px] font-normal" style="color:var(--muted)">complete these before payroll / compliance</span></h3>
+      <div style="max-height:230px;overflow:auto">${need.map(n => `
+        <div class="flex items-center justify-between py-2" style="border-bottom:1px solid var(--line)">
+          <div><div class="text-sm">${esc(n.e.Name)} <span style="color:var(--muted)">(${esc(n.code)})</span></div>
+            <div class="text-[10px]">${n.miss.map(m => `<span class="chip chip-warn" style="margin:1px">${m}</span>`).join('')}</div></div>
+          <button class="btn btn-ghost btn-sm" data-act="edit-emp" data-code="${esc(n.code)}">Complete <i class="fa-solid fa-arrow-right"></i></button>
+        </div>`).join('')}</div>
+    </div>` : '<div class="card" style="border-left:3px solid var(--ok)"><h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-circle-check" style="color:var(--ok)"></i> All active profiles are complete</h3></div>';
+}
 function renderNoSalaryCard(){
   const host = document.getElementById('dashNoSalary');
   if(!host) return;
@@ -1710,6 +1740,7 @@ function renderNoSalaryCard(){
 }
 async function loadDashboard(){
   renderNoSalaryCard();
+  renderIncompleteCard();
   loadEngagement();
   renderSetupChecklist();
   renderLeaveDecisions();
