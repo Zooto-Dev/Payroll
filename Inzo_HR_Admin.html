@@ -147,6 +147,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 /* ---------- Toast ---------- */
 #toastWrap{position:fixed;bottom:22px;right:22px;z-index:100;display:flex;flex-direction:column;gap:8px}
 .toast{background:var(--ink);color:#fff;padding:11px 16px;border-radius:12px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:9px;box-shadow:0 10px 25px rgba(0,0,0,.2);animation:tin .25s ease}
+body.no-confidential .confidential-col{display:none!important}
 @keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
 /* ---------- A4 Paper (payslips & letters) ---------- */
@@ -717,10 +718,13 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div class="card lg:col-span-2">
       <h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-key" style="color:var(--brand)"></i> Admin Permissions</h3>
       <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Each row is one admin: which pages they can open, and what they can approve. Changes save instantly. Admins not listed see all pages (except Settings) with full approvals.</p>
-      <div class="flex gap-2 mb-3 flex-wrap">
-        <input id="acEmail" class="inp" style="flex:1;min-width:220px" placeholder="admin email (as created in Supabase)">
-        <button id="acAddBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i> Add Admin</button>
+      <div class="flex gap-2 mb-2 flex-wrap">
+        <input id="acEmail" class="inp" style="flex:1;min-width:220px" placeholder="new admin's login email">
+        <input id="acPass" type="text" class="inp" style="max-width:180px" placeholder="temporary password">
+        <button id="acCreateBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-user-plus"></i> Create Admin Login</button>
+        <button id="acAddBtn" class="btn btn-ghost btn-sm" title="Only set page/approval access (login already exists)"><i class="fa-solid fa-sliders"></i> Set Access</button>
       </div>
+      <div id="acCreateHint" class="hidden text-[11px] mb-3 p-2 rounded-lg" style="background:#fffbeb;color:#92400e"></div>
       <div id="acPagesWrap" class="hidden mb-3 p-4 rounded-xl" style="background:#f8fafc;border:1px solid var(--line)">
         <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div class="text-sm font-semibold"><i class="fa-solid fa-user-gear" style="color:var(--brand)"></i> <span id="acWho"></span></div>
@@ -1283,8 +1287,15 @@ function isSuper(){
   return !sup.length || sup.includes(ME_EMAIL);
 }
 function normPerm(v){
-  if(Array.isArray(v)) return { pages: v, approve: { leave:true, ot:true, expense:true, advance:true }, finalize: false };
-  return Object.assign({ pages: ALL_PAGES.filter(x => x !== 'settings'), approve: { leave:true, ot:true, expense:true, advance:true }, finalize: false }, v || {});
+  if(Array.isArray(v)) return { pages: v, approve: { leave:true, ot:true, expense:true, advance:true }, finalize: false, confidential: false };
+  return Object.assign({ pages: ALL_PAGES.filter(x => x !== 'settings'), approve: { leave:true, ot:true, expense:true, advance:true }, finalize: false, confidential: false }, v || {});
+}
+function canSeeConfidential(){ return isSuper() || !(SETTINGS.adminPerms || {})[ME_EMAIL] || myPerm().confidential === true; }
+const CONFIDENTIAL_PAGES = ['payroll','advances','compliance','reports','letters'];
+function applyConfidential(){
+  if(canSeeConfidential()) return;
+  document.querySelectorAll('.nav-item[data-page]').forEach(b => { if(CONFIDENTIAL_PAGES.includes(b.dataset.page)) b.classList.add('hidden'); });
+  document.body.classList.add('no-confidential');
 }
 function myPerm(){ return normPerm((SETTINGS.adminPerms || {})[ME_EMAIL]); }
 function allowedPages(){
@@ -1327,7 +1338,7 @@ function renderAdminCtl(){
       <th>Admin</th><th>Pages</th>
       <th style="text-align:center">Leave<br>Approve</th><th style="text-align:center">OT<br>Approve</th>
       <th style="text-align:center">Expense<br>Approve</th><th style="text-align:center">Advance<br>Add</th>
-      <th style="text-align:center">Payroll<br>Finalize</th><th></th>
+      <th style="text-align:center">Payroll<br>Finalize</th><th style="text-align:center">See Salary /<br>Confidential</th><th></th>
     </tr></thead>
     <tbody>${Object.keys(perms).map(em => { const p = normPerm(perms[em]); return `
       <tr>
@@ -1338,6 +1349,7 @@ function renderAdminCtl(){
         <td style="text-align:center">${sw(em, 'expense', p.approve.expense !== false)}</td>
         <td style="text-align:center">${sw(em, 'advance', p.approve.advance !== false)}</td>
         <td style="text-align:center">${sw(em, 'finalize', p.finalize === true)}</td>
+        <td style="text-align:center">${sw(em, 'confidential', p.confidential === true)}</td>
         <td><button class="btn btn-danger btn-sm" data-act="ac-del" data-em="${esc(em)}" title="Remove — full default access"><i class="fa-solid fa-trash"></i></button></td>
       </tr>`; }).join('')}</tbody>
   </table></div>` : '<div class="p-4 rounded-xl text-center text-xs" style="background:#f8fafc;color:var(--muted)"><i class="fa-solid fa-users-viewfinder mb-1" style="font-size:18px"></i><br>No admins added yet — type an email above. Unlisted admins see all pages (except Settings) with full approvals.</div>';
@@ -1347,7 +1359,7 @@ document.addEventListener('change', async e => {
   const em = e.target.dataset.em, k = e.target.dataset.k, on = e.target.checked;
   SETTINGS.adminPerms = SETTINGS.adminPerms || {};
   const p = normPerm(SETTINGS.adminPerms[em]);
-  if(k === 'finalize') p.finalize = on; else p.approve[k] = on;
+  if(k === 'finalize') p.finalize = on; else if(k === 'confidential') p.confidential = on; else p.approve[k] = on;
   SETTINGS.adminPerms[em] = p;
   const { error } = await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
   if(error) return notify(error.message, 'error');
@@ -1371,6 +1383,32 @@ $('acSaveSupers').addEventListener('click', async () => {
   if(SETTINGS.superAdmins.length && !SETTINGS.superAdmins.includes(ME_EMAIL) && !confirm('Your own email is NOT in the super admin list — you will lose this panel after refresh. Continue?')) return;
   await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
   notify('Super admins saved', 'success'); applyPerms();
+});
+$('acCreateBtn').addEventListener('click', async () => {
+  if(!isSuper()) return notify('Only a super admin can create admin logins', 'error');
+  const em = $('acEmail').value.trim().toLowerCase();
+  const pw = $('acPass').value.trim();
+  if(!em || !em.includes('@')) return notify('Enter the new admin email', 'error');
+  if(pw.length < 6) return notify('Temporary password must be at least 6 characters', 'error');
+  const btn = $('acCreateBtn'); btn.disabled = true; btn.innerHTML = '<div class="loader-ring"></div> Creating…';
+  try{
+    // create the auth user without disturbing the current session
+    const tmp = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data, error } = await tmp.auth.signUp({ email: em, password: pw });
+    if(error) throw error;
+    const hint = $('acCreateHint');
+    if(data && data.user && !data.session){
+      hint.innerHTML = `<b>${esc(em)}</b> created. If Supabase email-confirmation is ON, the admin must confirm via the email link before first login. (You can turn confirmation OFF in Supabase → Authentication → Providers → Email.)`;
+    } else {
+      hint.innerHTML = `<b>${esc(em)}</b> is ready — they can log in with the temporary password now. Ask them to change it.`;
+    }
+    hint.classList.remove('hidden');
+    notify('Admin login created', 'success');
+    // pre-open the access editor for this new admin
+    acShowPages(em, normPerm((SETTINGS.adminPerms || {})[em]).pages);
+    $('acPass').value = '';
+  }catch(err){ notify('Could not create: ' + err.message, 'error'); }
+  finally{ btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create Admin Login'; }
 });
 $('acAddBtn').addEventListener('click', () => {
   const em = $('acEmail').value.trim().toLowerCase();
@@ -1399,6 +1437,7 @@ async function enterApp(){
   ME_EMAIL = ((session && session.user && session.user.email) || '').toLowerCase();
   await loadCore();
   applyPerms();
+  applyConfidential();
   loadDashboard();
   loadApprovals();
   nxHideSplash();
@@ -1484,6 +1523,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     btn.classList.add('active');
     const page = btn.dataset.page;
     const allowed = allowedPages();
+    if(!canSeeConfidential() && CONFIDENTIAL_PAGES.includes(page)) return notify('You do not have access to confidential (salary) data', 'error');
     if(page !== 'adminctl' && allowed && !allowed.includes(page)) return notify('You do not have access to this page', 'error');
     if(page === 'adminctl' && !isSuper()) return;
     document.querySelectorAll('.page').forEach(p => p.classList.remove('show'));
@@ -1696,7 +1736,7 @@ function renderEmployees(filter){
       <td>${esc(e.DEPARTMENT || '—')}</td>
       <td>${esc(e.DESIGNATION || '—')}</td>
       <td>${esc(e.DOJ || '—')}</td>
-      <td class="money font-semibold">${gross ? fmtINR(gross) : '<span class="chip chip-bad">Not set</span>'}</td>
+      <td class="money font-semibold confidential-col">${gross ? fmtINR(gross) : '<span class="chip chip-bad">Not set</span>'}</td>
       <td><span class="chip ${active ? 'chip-ok' : 'chip-gray'}">${esc(e.Status || '—')}</span></td>
       <td><button class="btn btn-ghost btn-sm" data-act="edit-emp" data-code="${esc(code)}"><i class="fa-solid fa-pen"></i> Profile</button></td>
     </tr>`;
