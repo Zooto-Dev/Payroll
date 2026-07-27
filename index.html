@@ -857,7 +857,7 @@ setTimeout(nxHideSplash, 7000); // failsafe
             
             const displaySize = { width: video.clientWidth, height: video.clientHeight };
             faceapi.matchDimensions(canvas, displaySize);
-            const detectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+            const detectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 });
             
             isDetecting = true;
             
@@ -927,7 +927,7 @@ setTimeout(nxHideSplash, 7000); // failsafe
                     resetScanState();
                 }
 
-                if(isDetecting) requestAnimationFrame(scanFrame);
+                if(isDetecting) setTimeout(() => requestAnimationFrame(scanFrame), 120);
             }
             scanFrame();
         }
