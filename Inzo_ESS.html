@@ -215,7 +215,14 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       </div>
     </div>
 
-    <div class="page" id="p-me">
+    <div class="page" id="p-team">
+  <div class="card">
+    <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-people-group" style="color:var(--brand)"></i> My Line — Today's Attendance</h3>
+    <p class="text-xs mt-0 mb-3" id="teamDate" style="color:var(--muted)"></p>
+    <div id="teamBox"><p class="text-xs m-0" style="color:var(--muted)">Loading…</p></div>
+  </div>
+</div>
+<div class="page" id="p-me">
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm">My Details</h3><div id="meBox"></div>
         <button id="pwOpenBtn" class="btn btn-ghost btn-sm mt-3"><i class="fa-solid fa-key"></i> Change Password</button></div>
       <div class="card">
@@ -245,6 +252,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 <div class="tabbar hidden" id="tabbar">
   <button class="tab active" data-p="home"><i class="fa-solid fa-house"></i>Home</button>
   <button class="tab" data-p="req"><i class="fa-solid fa-paper-plane"></i>Requests</button>
+  <button class="tab hidden" id="tabTeam" data-p="team"><i class="fa-solid fa-people-group"></i>My Line</button>
   <button class="tab" data-p="me"><i class="fa-solid fa-user"></i>Profile</button>
 </div>
 <div id="slipPrint"></div>
@@ -326,7 +334,31 @@ document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () =>
   document.querySelectorAll('.page').forEach(p => p.classList.remove('show'));
   $('p-' + t.dataset.p).classList.add('show');
   window.scrollTo(0, 0);
+  if(t.dataset.p === 'team') loadLineToday();
 }));
+async function loadLineToday(){
+  const { data, error } = await sb.rpc('ess_line_today', { p_code: CODE, p_phone: PHONE });
+  if(error || (data && data.error)){ $('teamBox').innerHTML = `<p class="text-xs" style="color:var(--bad)">${esc((error&&error.message)||data.error)}</p>`; return; }
+  $('teamDate').innerText = 'Date: ' + (data.date || '');
+  const lines = data.lines || [];
+  if(!lines.length){ $('teamBox').innerHTML = '<p class="text-xs m-0" style="color:var(--muted)">You are not set as a supervisor of any line.</p>'; return; }
+  $('teamBox').innerHTML = lines.map(L => {
+    const inCount = (L.workers || []).filter(w => w.in_time).length;
+    return `<div class="mb-3">
+      <div class="flex items-center justify-between mb-2">
+        <span class="font-semibold text-sm">${esc(L.line)}</span>
+        <span class="chip chip-blue">${inCount}/${(L.workers||[]).length} punched in</span>
+      </div>
+      ${(L.workers||[]).length ? (L.workers||[]).map(w => `
+        <div class="flex items-center justify-between py-2" style="border-bottom:1px solid var(--line)">
+          <div><div class="text-sm">${esc(w.name)}</div><div class="text-[10px]" style="color:var(--muted)">${esc(w.code)}</div></div>
+          <div class="text-right">${w.in_time
+            ? `<span class="chip chip-ok">IN ${esc(String(w.in_time).slice(0,5))}</span>${w.out_time ? ` <span class="chip chip-gray">OUT ${esc(String(w.out_time).slice(0,5))}</span>` : ''}`
+            : `<span class="chip chip-bad">Absent</span>`}</div>
+        </div>`).join('') : '<p class="text-[11px] m-0" style="color:var(--muted)">No workers assigned to this line.</p>'}
+    </div>`;
+  }).join('');
+}
 
 $('loginBtn').addEventListener('click', async () => {
   CODE = $('inCode').value.trim().toUpperCase();
@@ -339,6 +371,9 @@ $('loginBtn').addEventListener('click', async () => {
     if(error) throw error;
     if(data && data.error) return notify(data.error);
     D = data;
+    sb.rpc('ess_line_today', { p_code: CODE, p_phone: PHONE }).then(({ data: ld }) => {
+      if(ld && ld.lines && ld.lines.length) $('tabTeam').classList.remove('hidden');
+    }).catch(() => {});
     localStorage.setItem('ess_code', CODE);
     localStorage.setItem('ess_phone', PHONE);
     render();
