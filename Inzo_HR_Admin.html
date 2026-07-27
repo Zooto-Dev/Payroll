@@ -634,6 +634,15 @@ body.no-confidential .confidential-col{display:none!important}
 
 <!-- ================= LETTERS ================= -->
 <div class="page" id="page-letters">
+  <div class="card mb-4" style="background:linear-gradient(135deg,#f8fafc,#eff6ff);border:1px solid #dbeafe">
+    <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-magnifying-glass" style="color:var(--brand)"></i> Verify a Document</h3>
+    <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Enter any Reference / Certificate number printed on a letter or certificate to check who it was issued to and when.</p>
+    <div class="flex gap-2 flex-wrap">
+      <input id="docVerifyNo" class="inp" style="flex:1;min-width:240px" placeholder="e.g. ZOOTO/EXP/2026/004">
+      <button id="docVerifyBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-check-double"></i> Verify</button>
+    </div>
+    <div id="docVerifyResult" class="mt-3"></div>
+  </div>
   <div class="card mb-4 flex items-end gap-3 flex-wrap">
     <div><label class="lbl">Document Type</label>
       <select id="letterType" class="inp" style="min-width:220px">
@@ -2478,6 +2487,7 @@ async function runPayroll(){
         shiftName: sh.name, shHrs, perHour,
         basic: Math.round(basic), comps, dedBreak, customDed,
         earnedGross: Math.round(earnedGross), pf, esi, pt, lwf,
+        hasPay: (present + leaveDays) > 0 && paidDays > 0 && Math.round(earnedGross) > 0,
         otHours, otPay: Math.round(perHour * otHours * Number(S.otMult)),
         tds, arrears, reward, encash, encashDays, lopLeave, otApprovedMode: otApproved[code] !== undefined,
         erPF, erESI, erLWF,
@@ -2730,7 +2740,17 @@ function openSlip(i){
 }
 function printHTML(html){
   $('printArea').innerHTML = html;
-  setTimeout(() => { window.print(); $('printArea').innerHTML = ''; }, 150);
+  const imgs = Array.from($('printArea').querySelectorAll('img'));
+  let done = false;
+  const fire = () => { if(done) return; done = true; window.print(); setTimeout(() => { $('printArea').innerHTML = ''; }, 400); };
+  if(!imgs.length){ setTimeout(fire, 120); return; }
+  let left = imgs.length;
+  const tick = () => { if(--left <= 0) fire(); };
+  imgs.forEach(im => {
+    if(im.complete && im.naturalWidth) { tick(); }
+    else { im.addEventListener('load', tick); im.addEventListener('error', tick); }
+  });
+  setTimeout(fire, 8000); // failsafe: print even if a QR is slow/blocked
 }
 $('slipPrintBtn').addEventListener('click', () => printHTML($('slipPaper').innerHTML));
 $('payBankBtn').addEventListener('click', () => {
@@ -2745,8 +2765,10 @@ $('payBankBtn').addEventListener('click', () => {
   notify('Bank advice exported' + (missing.length ? ' — ' + missing.length + ' employee(s) have no account number on file' : ''), missing.length ? 'error' : 'success');
 });
 $('payPrintAllBtn').addEventListener('click', () => {
-  const rows = PAY_ROWS.filter(r => r.hasSalary);
-  if(!rows.length) return notify('No payslips to print', 'error');
+  const rows = PAY_ROWS.filter(r => r.hasSalary && r.hasPay !== false);
+  if(!rows.length) return notify('No payslips to print (all filtered employees have zero attendance this month)', 'error');
+  const skipped = PAY_ROWS.filter(r => r.hasSalary && r.hasPay === false).length;
+  if(skipped) notify(skipped + ' employee(s) with zero attendance skipped', 'success');
   printHTML(rows.map(r => slipHTML(Object.assign({}, r, { month: PAY_MONTH }))).join(''));
 });
 
@@ -3106,6 +3128,24 @@ document.body.addEventListener('click', async e => {
 });
 
 /* ---------------- LETTERS ---------------- */
+$('docVerifyBtn').addEventListener('click', async () => {
+  const no = $('docVerifyNo').value.trim();
+  if(!no) return notify('Enter a document number', 'error');
+  const box = $('docVerifyResult');
+  box.innerHTML = '<p class="text-xs" style="color:var(--muted)">Checking…</p>';
+  const { data, error } = await sb.from('doc_register').select('*').ilike('doc_no', no).maybeSingle();
+  if(error){ box.innerHTML = `<p class="text-xs" style="color:var(--bad)">${esc(error.message)} — run the V18 migration?</p>`; return; }
+  if(!data){ box.innerHTML = '<div class="p-3 rounded-xl text-sm" style="background:#fef2f2;color:var(--bad)"><i class="fa-solid fa-circle-xmark"></i> No document found with this number. It may be forged or was issued before document logging was enabled.</div>'; return; }
+  box.innerHTML = `<div class="p-3 rounded-xl text-sm" style="background:#ecfdf5;border:1px solid #a7f3d0">
+    <div class="font-semibold" style="color:var(--ok)"><i class="fa-solid fa-circle-check"></i> Genuine document</div>
+    <div class="mt-2" style="color:#334155">
+      <div><b>Number:</b> ${esc(data.doc_no)}</div>
+      <div><b>Type:</b> ${esc(data.title || data.doc_type || '—')}</div>
+      <div><b>Issued to:</b> ${esc(data.employee_name || '—')} ${data.employee_code ? '(' + esc(data.employee_code) + ')' : ''}</div>
+      <div><b>Issued on:</b> ${esc(data.issued_on || '—')}</div>
+      <div><b>Issued by:</b> ${esc(data.issued_by || '—')}</div>
+    </div></div>`;
+});
 $('letterType').addEventListener('change', () => {
   const t = $('letterType').value;
   $('offerFieldsWrap').classList.toggle('hidden', t !== 'offer');
@@ -3137,6 +3177,37 @@ function annexureHTML(gross, code){
   <p style="font-size:10.5px;color:#64748b">Statutory deductions (PF/ESI/PT) as applicable under law will be deducted from the gross salary.</p>`;
 }
 
+// generate a unique sequential doc number for a given type, and log it so it can be verified later
+async function logRenderedDoc(kind, title, code, name){
+  try{
+    const txt = $('letterPaper').innerText || '';
+    let m = txt.match(/Ref:\s*([A-Za-z0-9\/\-]+)/) || txt.match(/Certificate No\.?\s*([A-Za-z0-9\/\-]+)/i);
+    const doc_no = m ? m[1].trim() : null;
+    if(!doc_no) return;
+    const { data: ex } = await sb.from('doc_register').select('id').ilike('doc_no', doc_no).maybeSingle();
+    if(ex) return;
+    await sb.from('doc_register').insert([{ doc_no, doc_type: kind, employee_code: code || null, employee_name: name || null, title: title || kind, issued_by: ME_EMAIL }]);
+  }catch(e){}
+}
+async function nextDocNo(kind, code, name, title){
+  const S = getSettings();
+  const co = (S.name || 'CO').split(' ')[0].toUpperCase();
+  const map = { appointment:'APT', offer:'OFR', experience:'EXP', intern:'INT', nda:'NDA', warning:'WRN', promotion:'PRO', revision:'REV', salary_cert:'SAL', reliving:'REL', relieving:'REL', termination:'TRM' };
+  const tag = map[kind] || 'DOC';
+  const yr = new Date().getFullYear();
+  const prefix = `${co}/${tag}/${yr}/`;
+  let seq = 1;
+  try{
+    const { data } = await sb.from('doc_register').select('doc_no').ilike('doc_no', prefix + '%');
+    const nums = (data || []).map(d => parseInt(String(d.doc_no).split('/').pop(), 10)).filter(n => !isNaN(n));
+    seq = (nums.length ? Math.max(...nums) : 0) + 1;
+  }catch(e){}
+  const doc_no = prefix + String(seq).padStart(3, '0');
+  try{
+    await sb.from('doc_register').insert([{ doc_no, doc_type: kind, employee_code: code || null, employee_name: name || null, title: title || kind, issued_by: ME_EMAIL }]);
+  }catch(e){}
+  return doc_no;
+}
 function letterShell(title, refNo, body){
   const S = getSettings();
   const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' });
@@ -3205,6 +3276,7 @@ $('letterGenBtn').addEventListener('click', () => {
     window._letterCtx = null;
     $('letterDocBtn').classList.add('hidden');
     $('letterDesk').scrollIntoView({ behavior:'smooth' });
+    logRenderedDoc('intern', 'Internship Certificate', '', $('inName') ? $('inName').value.trim() : '');
     return;
   }
 
@@ -3324,6 +3396,8 @@ $('letterGenBtn').addEventListener('click', () => {
   $('letterPaper').innerHTML = html;
   $('letterDesk').classList.remove('hidden');
   $('letterPrintBtn').classList.remove('hidden');
+  const _emp = EMP.find(x => x['Employee code'] === ($('letterEmp') ? $('letterEmp').value : ''));
+  logRenderedDoc(t, ($('letterType').selectedOptions[0]||{}).text || t, _emp ? _emp['Employee code'] : '', _emp ? _emp.Name : '');
   const isEmpLetter = t !== 'offer';
   window._letterCtx = isEmpLetter ? { code: $('letterEmp').value, type: t.toUpperCase() + '_LETTER' } : null;
   $('letterDocBtn').classList.toggle('hidden', !isEmpLetter);
