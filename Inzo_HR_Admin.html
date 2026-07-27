@@ -268,6 +268,7 @@ body.no-confidential .confidential-col{display:none!important}
 
 <!-- ================= DASHBOARD ================= -->
 <div class="page show" id="page-dashboard">
+  <div id="dashNoSalary" class="mb-4"></div>
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
     <div class="card"><p class="lbl m-0">Present Today</p><div class="stat-num" style="color:var(--ok)" id="dPresent">—</div></div>
     <div class="card"><p class="lbl m-0">Late Today</p><div class="stat-num" style="color:var(--warn)" id="dLate">—</div></div>
@@ -877,6 +878,7 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">Emergency Contact</label><input id="epEmName" class="inp" placeholder="Name"></div>
       <div><label class="lbl">Emergency Phone</label><input id="epEmPhone" class="inp"></div>
     </div>
+    <div id="epSalarySection">
     <h4 class="display font-bold mt-5 mb-2">Salary Structure (Monthly) <span class="text-[10px] font-normal" style="color:var(--muted)">components are managed in Settings</span></h4>
     <div class="mb-3">
       <label class="lbl">Salary Type</label>
@@ -898,6 +900,8 @@ body.no-confidential .confidential-col{display:none!important}
       </div>
       <div id="epCTCInfo" class="text-xs mt-2 pt-2" style="border-top:1px dashed var(--line);color:var(--muted)"></div>
     </div>
+    </div><!-- /epSalarySection -->
+    <div id="epSalaryHidden" class="hidden mt-5 p-4 rounded-xl text-sm" style="background:#f8fafc;color:var(--muted)"><i class="fa-solid fa-lock"></i> Salary details are confidential and visible only to the Accounts team.</div>
     <h4 class="display font-bold mt-4 mb-2">Statutory Deductions & Tax</h4>
     <div class="grid grid-cols-2 gap-3 mb-2">
       <div class="col-span-2"><label class="flex items-center gap-2 text-sm"><input type="checkbox" id="epOT"> Overtime allowed for this employee</label></div>
@@ -1289,9 +1293,14 @@ function isSuper(){
 }
 function normPerm(v){
   if(Array.isArray(v)) return { pages: v, approve: { leave:true, ot:true, expense:true, advance:true }, finalize: false, confidential: false };
-  return Object.assign({ pages: ALL_PAGES.filter(x => x !== 'settings'), approve: { leave:true, ot:true, expense:true, advance:true }, finalize: false, confidential: false }, v || {});
+  return Object.assign({ pages: ALL_PAGES.filter(x => x !== 'settings'), approve: { leave:true, ot:true, expense:true, advance:true }, finalize: false, confidential: false, dept: '', desig: '' }, v || {});
 }
-function canSeeConfidential(){ return isSuper() || !(SETTINGS.adminPerms || {})[ME_EMAIL] || myPerm().confidential === true; }
+function canSeeConfidential(){
+  if(isSuper()) return true;
+  if(adminRoleOf(ME_EMAIL).dept.includes('ACCOUNT')) return true;
+  if(!(SETTINGS.adminPerms || {})[ME_EMAIL]) return false;
+  return myPerm().confidential === true;
+}
 const CONFIDENTIAL_PAGES = ['payroll','advances','compliance','reports','letters'];
 function applyConfidential(){
   if(canSeeConfidential()) return;
@@ -1306,12 +1315,14 @@ function allowedPages(){
 }
 function canApprove(kind){ return isSuper() || !(SETTINGS.adminPerms || {})[ME_EMAIL] || myPerm().approve[kind] !== false; }
 // role of the logged-in admin = the employee whose profile email matches the login email
-function myEmpRole(){
-  const p = Object.values(PROFILES).find(x => (x.email || '').toLowerCase() === ME_EMAIL);
-  if(!p) return { desig: '', dept: '' };
-  const e = EMP.find(x => x['Employee code'] === p.employee_code) || {};
-  return { desig: String(e.DESIGNATION || '').toUpperCase(), dept: String(e.DEPARTMENT || '').toUpperCase() };
+function adminRoleOf(email){
+  const perm = (SETTINGS.adminPerms || {})[email] || {};
+  if(perm.dept || perm.desig) return { dept: String(perm.dept || '').toUpperCase(), desig: String(perm.desig || '').toUpperCase() };
+  const p = Object.values(PROFILES).find(x => (x.email || '').toLowerCase() === email);
+  if(p){ const e = EMP.find(x => x['Employee code'] === p.employee_code) || {}; return { desig: String(e.DESIGNATION || '').toUpperCase(), dept: String(e.DEPARTMENT || '').toUpperCase() }; }
+  return { desig: '', dept: '' };
 }
+function myEmpRole(){ return adminRoleOf(ME_EMAIL); }
 // CEO-only actions (super admins always allowed — system owner)
 function roleCEO(){ const r = myEmpRole().desig; return isSuper() || r.includes('CEO') || r.includes('CHIEF EXECUTIVE') || r.includes('MANAGING DIRECTOR'); }
 // Accounts Manager only
@@ -1336,7 +1347,7 @@ function renderAdminCtl(){
   $('acList').innerHTML = Object.keys(perms).length ? `
   <div style="overflow-x:auto"><table class="tbl" style="min-width:760px">
     <thead><tr>
-      <th>Admin</th><th>Pages</th>
+      <th>Admin</th><th>Department</th><th>Pages</th>
       <th style="text-align:center">Leave<br>Approve</th><th style="text-align:center">OT<br>Approve</th>
       <th style="text-align:center">Expense<br>Approve</th><th style="text-align:center">Advance<br>Add</th>
       <th style="text-align:center">Payroll<br>Finalize</th><th style="text-align:center">See Salary /<br>Confidential</th><th></th>
@@ -1344,6 +1355,10 @@ function renderAdminCtl(){
     <tbody>${Object.keys(perms).map(em => { const p = normPerm(perms[em]); return `
       <tr>
         <td><div class="flex items-center gap-2"><div class="ac-avatar" style="width:30px;height:30px;font-size:11px;border-radius:9px">${initials(em)}</div><span class="text-xs font-semibold">${esc(em)}</span></div></td>
+        <td><select class="inp ac-dept" data-em="${esc(em)}" style="padding:5px 8px;font-size:12px;min-width:130px">
+          <option value="">— Set —</option>
+          ${(getSettings().depts || []).map(d => `<option value="${esc(d)}" ${String(p.dept||'').toUpperCase() === d.toUpperCase() ? 'selected' : ''}>${esc(d)}</option>`).join('')}
+        </select></td>
         <td><button class="btn btn-ghost btn-sm" data-act="ac-edit" data-em="${esc(em)}">${p.pages.length}/${ALL_PAGES.length} <i class="fa-solid fa-pen text-[10px]"></i></button></td>
         <td style="text-align:center">${sw(em, 'leave', p.approve.leave !== false)}</td>
         <td style="text-align:center">${sw(em, 'ot', p.approve.ot !== false)}</td>
@@ -1356,6 +1371,19 @@ function renderAdminCtl(){
   </table></div>` : '<div class="p-4 rounded-xl text-center text-xs" style="background:#f8fafc;color:var(--muted)"><i class="fa-solid fa-users-viewfinder mb-1" style="font-size:18px"></i><br>No admins added yet — type an email above. Unlisted admins see all pages (except Settings) with full approvals.</div>';
 }
 document.addEventListener('change', async e => {
+  if(e.target.classList && e.target.classList.contains('ac-dept')){
+    const em = e.target.dataset.em;
+    SETTINGS.adminPerms = SETTINGS.adminPerms || {};
+    const p = normPerm(SETTINGS.adminPerms[em]);
+    p.dept = e.target.value;
+    if(p.dept.toUpperCase().includes('ACCOUNT')) p.confidential = true;
+    SETTINGS.adminPerms[em] = p;
+    const { error } = await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
+    if(error) return notify(error.message, 'error');
+    notify('Department set to ' + (e.target.value || '—') + ' for ' + em, 'success');
+    renderAdminCtl(); applyPerms();
+    return;
+  }
   if(!e.target.classList || !e.target.classList.contains('ac-sw')) return;
   const em = e.target.dataset.em, k = e.target.dataset.k, on = e.target.checked;
   SETTINGS.adminPerms = SETTINGS.adminPerms || {};
@@ -1665,7 +1693,23 @@ new MutationObserver(muts => {
 }).observe(document.body, { childList: true, subtree: true });
 
 /* ---------------- Dashboard ---------------- */
+function renderNoSalaryCard(){
+  const host = document.getElementById('dashNoSalary');
+  if(!host) return;
+  if(!canSeeConfidential()){ host.innerHTML = ''; return; }
+  const pending = EMP.filter(e => String(e.Status).toUpperCase() === 'ACTIVE' && !grossOf(e['Employee code']));
+  host.innerHTML = pending.length ? `
+    <div class="card" style="border-left:3px solid var(--warn)">
+      <h3 class="display font-bold m-0 mb-2 text-sm"><i class="fa-solid fa-triangle-exclamation" style="color:var(--warn)"></i> Salary Structure Not Set <span class="chip chip-warn">${pending.length}</span></h3>
+      <div style="max-height:190px;overflow:auto">${pending.map(e => `
+        <div class="flex items-center justify-between py-2" style="border-bottom:1px solid var(--line)">
+          <span class="text-sm">${esc(e.Name)} <span style="color:var(--muted)">(${esc(e['Employee code'])})</span> — ${esc(e.DEPARTMENT || '—')}</span>
+          <button class="btn btn-ghost btn-sm" data-act="edit-emp" data-code="${esc(e['Employee code'])}">Set Salary <i class="fa-solid fa-arrow-right"></i></button>
+        </div>`).join('')}</div>
+    </div>` : '';
+}
 async function loadDashboard(){
+  renderNoSalaryCard();
   loadEngagement();
   renderSetupChecklist();
   renderLeaveDecisions();
@@ -1846,6 +1890,9 @@ function openEmpModal(code){
     .map(x => `<option value="${esc(x.Name)} (${esc(x['Employee code'])})">${esc(x.DESIGNATION || '')}</option>`).join('');
   $('epAddr').value = p.address || '';
   buildSalaryInputs(code);
+  const showSal = canSeeConfidential();
+  if($('epSalarySection')) $('epSalarySection').classList.toggle('hidden', !showSal);
+  if($('epSalaryHidden')) $('epSalaryHidden').classList.toggle('hidden', showSal);
   $('epPF').checked = p.pf_applicable !== false; $('epESI').checked = p.esi_applicable !== false; $('epPT').checked = p.pt_applicable !== false;
   $('epLWF').checked = p.lwf_applicable !== false;
   $('epRegime').value = p.tax_regime || 'none'; $('epDecl').value = p.tax_declarations || 0;
