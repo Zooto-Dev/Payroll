@@ -700,32 +700,37 @@ body.no-confidential .confidential-col{display:none!important}
 
 <!-- ================= SETTINGS ================= -->
 <div class="page" id="page-adminctl">
-  <div class="card mb-4" style="background:linear-gradient(135deg,#f8fafc,#eff6ff);border:1px solid #dbeafe">
-    <div class="flex items-start gap-3">
-      <div class="ac-avatar" style="width:44px;height:44px;border-radius:14px"><i class="fa-solid fa-user-shield"></i></div>
-      <div>
-        <h3 class="display font-bold mt-0 mb-1">Admin Access Control</h3>
-        <p class="text-xs m-0" style="color:var(--muted);max-width:640px">Decide which pages each admin can open. All access rules are saved in the company database (company settings) — they apply on every device, instantly on the admin's next page load. Admin logins themselves are created in Supabase → Authentication → Users.</p>
-      </div>
+  <h2 class="display font-bold mt-0 mb-1" style="font-size:20px">Admin Control Panel</h2>
+  <p class="text-xs mt-0 mb-4" style="color:var(--muted)">Manage who is a super admin and what each admin can access. Changes save to the company database and apply on every device.</p>
+
+  <div class="card mb-4">
+    <h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-crown" style="color:#f59e0b"></i> Super Admins</h3>
+    <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Full access to everything, including this panel. Pick an employee, or type an email. Multiple allowed.</p>
+    <div class="flex gap-2 mb-2 flex-wrap">
+      <select id="acSuperPick" class="inp" style="flex:1;min-width:220px"><option value="">— Pick an employee to make Super Admin —</option></select>
+      <button id="acSuperAdd" class="btn btn-ghost btn-sm"><i class="fa-solid fa-plus"></i> Add</button>
     </div>
+    <input id="acSupers" class="inp mb-2" placeholder="Or type emails, comma separated">
+    <div id="acSuperChips" class="mb-3"></div>
+    <button id="acSaveSupers" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk"></i> Save Super Admins</button>
   </div>
-  <div class="grid lg:grid-cols-3 gap-4">
-    <div class="card">
-      <h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-crown" style="color:#f59e0b"></i> Super Admins</h3>
-      <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Full access to everything, including this panel. Comma separated.</p>
-      <input id="acSupers" class="inp mb-2" placeholder="you@company.com, md@company.com">
-      <div id="acSuperChips" class="mb-3"></div>
-      <button id="acSaveSupers" class="btn btn-primary btn-sm w-full justify-center"><i class="fa-solid fa-floppy-disk"></i> Save Super Admins</button>
-    </div>
-    <div class="card lg:col-span-2">
-      <h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-key" style="color:var(--brand)"></i> Admin Permissions</h3>
-      <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Each row is one admin: which pages they can open, and what they can approve. Changes save instantly. Admins not listed see all pages (except Settings) with full approvals.</p>
-      <div class="flex gap-2 mb-2 flex-wrap">
-        <input id="acEmail" class="inp" style="flex:1;min-width:220px" placeholder="new admin's login email">
-        <input id="acPass" type="text" class="inp" style="max-width:180px" placeholder="temporary password">
-        <button id="acCreateBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-user-plus"></i> Create Admin Login</button>
-        <button id="acAddBtn" class="btn btn-ghost btn-sm" title="Only set page/approval access (login already exists)"><i class="fa-solid fa-sliders"></i> Set Access</button>
+
+  <div class="card">
+    <h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-key" style="color:var(--brand)"></i> Admins &amp; Permissions</h3>
+    <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Add an employee as an admin, set their department and what they can approve. Each change saves instantly.</p>
+    <div class="p-3 rounded-xl mb-3" style="background:#f8fafc;border:1px solid var(--line)">
+      <div class="text-xs font-semibold mb-2"><i class="fa-solid fa-user-plus" style="color:var(--brand)"></i> Add / create an admin</div>
+      <div class="flex gap-2 mb-2 flex-wrap items-center">
+        <select id="acEmpPick" class="inp" style="flex:1;min-width:220px"><option value="">— Pick an employee —</option></select>
+        <span class="text-[11px]" style="color:var(--muted)">or</span>
+        <input id="acEmail" class="inp" style="flex:1;min-width:180px" placeholder="type login email">
       </div>
+      <div class="flex gap-2 flex-wrap">
+        <input id="acPass" type="text" class="inp" style="max-width:180px" placeholder="temp password (new login)">
+        <button id="acCreateBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-user-plus"></i> Create Login</button>
+        <button id="acAddBtn" class="btn btn-ghost btn-sm" title="Login already exists — just set access"><i class="fa-solid fa-sliders"></i> Add to List</button>
+      </div>
+    </div>
       <div id="acCreateHint" class="hidden text-[11px] mb-3 p-2 rounded-lg" style="background:#fffbeb;color:#92400e"></div>
       <div id="acPagesWrap" class="hidden mb-3 p-4 rounded-xl" style="background:#f8fafc;border:1px solid var(--line)">
         <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -739,7 +744,6 @@ body.no-confidential .confidential-col{display:none!important}
         <button id="acSavePerms" class="btn btn-primary btn-sm mt-4"><i class="fa-solid fa-check"></i> Save Access</button>
       </div>
       <div id="acList"></div>
-    </div>
   </div>
 </div>
 <div class="page" id="page-settings">
@@ -1340,13 +1344,30 @@ function applyPerms(){
 }
 const PAGE_ICONS = { dashboard:'gauge', employees:'users', attendance:'calendar-check', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', idcards:'id-card', approvals:'clipboard-check', voice:'comments', settings:'gear' };
 function initials(em){ return em.split('@')[0].replace(/[^a-z0-9]/gi, ' ').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'A'; }
+function empEmailOptions(){
+  // employees that have an email on file -> usable as an admin login
+  return EMP.map(e => {
+    const p = PROFILES[e['Employee code']] || {};
+    return { code: e['Employee code'], name: e.Name, email: (p.email || '').trim() };
+  }).filter(x => x.email);
+}
+function fillAdminPickers(){
+  const opts = empEmailOptions();
+  const html = '<option value="">— Pick an employee —</option>' +
+    opts.map(o => `<option value="${esc(o.email)}">${esc(o.name)} (${esc(o.code)}) — ${esc(o.email)}</option>`).join('');
+  if($('acSuperPick')) $('acSuperPick').innerHTML = html.replace('— Pick an employee —', '— Pick an employee to make Super Admin —');
+  if($('acEmpPick')) $('acEmpPick').innerHTML = html;
+}
 function renderAdminCtl(){
+  fillAdminPickers();
   $('acSupers').value = (SETTINGS.superAdmins || []).join(', ');
   $('acSuperChips').innerHTML = (SETTINGS.superAdmins || []).map(s =>
     `<span class="ac-mini" style="background:#fef3c7;color:#92400e"><i class="fa-solid fa-crown"></i> ${esc(s)}</span>`).join(' ') || '<span class="text-[11px]" style="color:var(--muted)">None saved yet — save your own email first.</span>';
   const perms = SETTINGS.adminPerms || {};
+  const supers = (SETTINGS.superAdmins || []).map(s => s.toLowerCase());
+  const everyone = Array.from(new Set([...Object.keys(perms), ...supers]));
   const sw = (em, k, on) => `<label class="sw"><input type="checkbox" class="ac-sw" data-em="${esc(em)}" data-k="${k}" ${on ? 'checked' : ''}><i></i></label>`;
-  $('acList').innerHTML = Object.keys(perms).length ? `
+  $('acList').innerHTML = everyone.length ? `
   <div style="overflow-x:auto"><table class="tbl" style="min-width:760px">
     <thead><tr>
       <th>Admin</th><th>Department</th><th>Pages</th>
@@ -1354,9 +1375,9 @@ function renderAdminCtl(){
       <th style="text-align:center">Expense<br>Approve</th><th style="text-align:center">Advance<br>Add</th>
       <th style="text-align:center">Payroll<br>Finalize</th><th style="text-align:center">See Salary /<br>Confidential</th><th></th>
     </tr></thead>
-    <tbody>${Object.keys(perms).map(em => { const p = normPerm(perms[em]); return `
-      <tr>
-        <td><div class="flex items-center gap-2"><div class="ac-avatar" style="width:30px;height:30px;font-size:11px;border-radius:9px">${initials(em)}</div><span class="text-xs font-semibold">${esc(em)}</span></div></td>
+    <tbody>${everyone.map(em => { const p = normPerm(perms[em]); const isSup = supers.includes(em.toLowerCase()); return `
+      <tr${isSup ? ' style="background:#fffdf5"' : ''}>
+        <td><div class="flex items-center gap-2"><div class="ac-avatar" style="width:30px;height:30px;font-size:11px;border-radius:9px">${initials(em)}</div><div><span class="text-xs font-semibold">${esc(em)}</span>${isSup ? '<div class="text-[9px]" style="color:#b45309"><i class="fa-solid fa-crown"></i> Super Admin</div>' : ''}</div></div></td>
         <td><select class="inp ac-dept" data-em="${esc(em)}" style="padding:5px 8px;font-size:12px;min-width:130px">
           <option value="">— Set —</option>
           ${(getSettings().depts || []).map(d => `<option value="${esc(d)}" ${String(p.dept||'').toUpperCase() === d.toUpperCase() ? 'selected' : ''}>${esc(d)}</option>`).join('')}
@@ -1370,7 +1391,7 @@ function renderAdminCtl(){
         <td style="text-align:center">${sw(em, 'confidential', p.confidential === true)}</td>
         <td><button class="btn btn-danger btn-sm" data-act="ac-del" data-em="${esc(em)}" title="Remove — full default access"><i class="fa-solid fa-trash"></i></button></td>
       </tr>`; }).join('')}</tbody>
-  </table></div>` : '<div class="p-4 rounded-xl text-center text-xs" style="background:#f8fafc;color:var(--muted)"><i class="fa-solid fa-users-viewfinder mb-1" style="font-size:18px"></i><br>No admins added yet — type an email above. Unlisted admins see all pages (except Settings) with full approvals.</div>';
+  </table></div>` : '<div class="p-4 rounded-xl text-center text-xs" style="background:#f8fafc;color:var(--muted)"><i class="fa-solid fa-users-viewfinder mb-1" style="font-size:18px"></i><br>No admins yet — pick an employee above to add one.</div>';
 }
 document.addEventListener('change', async e => {
   if(e.target.classList && e.target.classList.contains('ac-dept')){
@@ -1408,6 +1429,17 @@ document.addEventListener('click', e => {
   if(chip) chip.classList.toggle('on');
   if(e.target.id === 'acAll' || (e.target.closest && e.target.closest('#acAll'))) document.querySelectorAll('#acPages .ac-chip').forEach(c => c.classList.add('on'));
   if(e.target.id === 'acNone' || (e.target.closest && e.target.closest('#acNone'))) document.querySelectorAll('#acPages .ac-chip').forEach(c => c.classList.remove('on'));
+});
+$('acSuperAdd').addEventListener('click', () => {
+  const v = $('acSuperPick').value.trim();
+  if(!v) return;
+  const cur = $('acSupers').value.split(',').map(s => s.trim()).filter(Boolean);
+  if(!cur.map(s => s.toLowerCase()).includes(v.toLowerCase())) cur.push(v);
+  $('acSupers').value = cur.join(', ');
+  notify('Added — now click Save Super Admins', 'success');
+});
+$('acEmpPick').addEventListener('change', () => {
+  if($('acEmpPick').value) $('acEmail').value = $('acEmpPick').value;
 });
 $('acSaveSupers').addEventListener('click', async () => {
   SETTINGS.superAdmins = $('acSupers').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
@@ -1710,6 +1742,7 @@ function renderIncompleteCard(){
     if(!p.bank_name || !p.account_no || !p.ifsc) miss.push('Bank');
     if(!p.pan) miss.push('PAN');
     if(!p.aadhaar && !p.aadhaar_no) miss.push('Aadhaar');
+    if(!e.Descriptor && !e.descriptor) miss.push('Face');
     if(miss.length) need.push({ e, code, miss });
   });
   host.innerHTML = need.length ? `
