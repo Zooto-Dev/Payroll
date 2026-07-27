@@ -745,7 +745,7 @@ setTimeout(nxHideSplash, 7000); // failsafe
                 });
 
                 if(labeledFaceDescriptors.length > 0) {
-                    faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.45); 
+                    faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.55); 
                     if (!isSilent) {
                         updateLoading(100, "System Ready");
                         
@@ -951,9 +951,9 @@ setTimeout(nxHideSplash, 7000); // failsafe
 
            TUNING:
         */
-        const AS_THRESHOLD = 0.65;        // avg real-face probability needed to punch (raise = stricter)
+        const AS_THRESHOLD = 0.50;        // avg real-face probability needed to punch (raise = stricter)
         const AS_FRAMES = 3;              // frames sampled per decision
-        const LIVE_MIN_FACE_RATIO = 0.16; // smaller face = screen at a distance -> silently ignore
+        const LIVE_MIN_FACE_RATIO = 0.11; // smaller face = screen at a distance -> silently ignore
 
         let antiSpoofSession = null, antiSpoofInputName = null, antiSpoofFailedToLoad = false;
         const asCanvas = document.createElement('canvas');
