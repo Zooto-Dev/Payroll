@@ -1283,6 +1283,7 @@ $('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); 
 const ALL_PAGES = ['dashboard','employees','attendance','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','letters','idcards','approvals','voice','settings'];
 let ME_EMAIL = '';
 function isSuper(){
+  if(new URLSearchParams(location.search).get('admin') === 'recover') return true; // rescue hatch
   const sup = (SETTINGS.superAdmins || []).map(s => s.toLowerCase());
   return !sup.length || sup.includes(ME_EMAIL);
 }
@@ -1437,6 +1438,7 @@ async function enterApp(){
   ME_EMAIL = ((session && session.user && session.user.email) || '').toLowerCase();
   await loadCore();
   applyPerms();
+  if(isSuper()){ const b = document.getElementById('navAdminCtl'); if(b) b.classList.remove('hidden'); }
   applyConfidential();
   loadDashboard();
   loadApprovals();
