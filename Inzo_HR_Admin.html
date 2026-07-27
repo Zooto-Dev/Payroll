@@ -852,7 +852,6 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       </div>
       <div><label class="lbl">Phone</label><input id="epPhone" class="inp"></div>
       <div><label class="lbl">Email</label><input id="epEmail" class="inp"></div>
-      <div><label class="lbl">Unit / Location</label><input id="epUnitShow" class="inp" readonly style="background:#f8fafc"></div>
       <div><label class="lbl">Department</label><select id="epDeptSel" class="inp"></select></div>
       <div><label class="lbl">Designation</label><select id="epDesigSel" class="inp"></select></div>
       <div><label class="lbl">Father's Name</label><input id="epFather" class="inp"></div>
@@ -1009,7 +1008,6 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div><label class="lbl">Reporting Manager</label><input id="aeMgr" class="inp" list="mgrDL" placeholder="Select after department"></div>
     </div>
     <div id="aeSalPreview" class="text-[11px] mb-2 p-2 rounded-lg" style="background:var(--brand-soft)"></div>
-    <label class="flex items-center gap-2 text-sm mb-3"><input type="checkbox" id="aeOT" checked> Overtime allowed for this employee</label>
     <p class="text-[11px] mb-3" style="color:var(--muted)"><i class="fa-solid fa-circle-info"></i> Employees added here can use every HR feature (payroll, leaves, ESS, ID card). For face-recognition punching, their face must also be registered from the Attendance app's admin panel using this same code.</p>
     <button id="aeSaveBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-user-plus"></i> Add Employee</button>
   </div>
@@ -1735,7 +1733,7 @@ function ctcToGross(ctc){
 $('empAddBtn').addEventListener('click', () => {
   renderLines(); renderUnits(); populateDLs();
   $('aeUnit').value = '';
-  $('aeCat').value = 'worker'; $('aeSkill').value = 'mw3'; $('aeCTC').value = ''; $('aeOT').checked = true;
+  $('aeCat').value = 'worker'; $('aeSkill').value = 'mw3'; $('aeCTC').value = '';
   updateAePreview();
   $('aeName').value = ''; $('aeDept').value = ''; $('aeDesig').value = '';
   $('aeDOJ').value = todayISO(); $('aeDOB').value = '';
@@ -1746,6 +1744,9 @@ $('empAddBtn').addEventListener('click', () => {
 });
 $('aeSaveBtn').addEventListener('click', async () => {
   const name = $('aeName').value.trim(), code = $('aeCode').value.trim().toUpperCase();
+  if(name && code){
+    var aeOTAllowed = confirm('OVERTIME: kya "' + name + '" ko overtime allowed hai?\n\nOK = YES (OT milega)\nCancel = NO (OT kabhi nahi)');
+  }
   if(!name || !code) return notify('Name and employee code are required', 'error');
   if(EMP.some(e => String(e['Employee code']).toUpperCase() === code)) return notify('This employee code already exists', 'error');
   const btn = $('aeSaveBtn');
@@ -1771,7 +1772,7 @@ $('aeSaveBtn').addEventListener('click', async () => {
     const prof = { employee_code: code, dob: $('aeDOB').value || null,
       pf_applicable: true, esi_applicable: true, lwf_applicable: true,
       reporting_manager: $('aeMgr').value || null,
-      salary: { earn, ded: {}, wageType: mgmt ? 'custom' : 'category', skill, otAllowed: $('aeOT').checked },
+      salary: { earn, ded: {}, wageType: mgmt ? 'custom' : 'category', skill, otAllowed: aeOTAllowed },
       basic: earn.basic || 0, hra: earn.hra || 0, conveyance: earn.conveyance || 0, special_allowance: earn.special_allowance || 0 };
     await sb.from('hr_profiles').upsert(prof, { onConflict: 'employee_code' });
     PROFILES[code] = Object.assign(PROFILES[code] || {}, prof);
@@ -1792,15 +1793,13 @@ function openEmpModal(code){
   $('epMetaShow').innerText = `${code} • ${e.DEPARTMENT || '—'} • ${e.DESIGNATION || '—'} • DOJ: ${e.DOJ || '—'}`;
   $('epPhone').value = p.phone || ''; $('epEmail').value = p.email || '';
   populateDLs();
-  const uPref = String(code).toUpperCase().slice(0, 4);
-  const uMatch = ((SETTINGS.units) || []).find(u => String(code).toUpperCase().startsWith(u.code));
-  $('epUnitShow').value = uMatch ? `${uMatch.code} — ${uMatch.name}` : (uPref.match(/^[A-Z]{2}\d{2}$/) ? uPref : '— (code se auto)');
   $('epDeptSel').innerHTML = window.nxDeptOpts(e.DEPARTMENT || '');
   $('epDesigSel').innerHTML = window.nxDesigOpts(e.DESIGNATION || '');
   $('epFather').value = p.father_name || ''; $('epDOB').value = p.dob || ''; $('epGender').value = p.gender || '';
   const dept2 = String(e.DEPARTMENT || '').toUpperCase();
   $('mgrDL').innerHTML = EMP.filter(x => String(x.DEPARTMENT || '').toUpperCase() === dept2
     && /MANAGER|EXECUTIVE|INCHARGE|SUPERVISOR|CEO|DIRECTOR/i.test(String(x.DESIGNATION || ''))
+    && String(x.DESIGNATION || '').trim().toUpperCase() !== String(e.DESIGNATION || '').trim().toUpperCase()
     && String(x.Status).toUpperCase() === 'ACTIVE' && x['Employee code'] !== code)
     .map(x => `<option value="${esc(x.Name)} (${esc(x['Employee code'])})">${esc(x.DESIGNATION || '')}</option>`).join('');
   $('epAddr').value = p.address || '';
@@ -1887,13 +1886,15 @@ document.addEventListener('change', async e => {
     renderLines();
     return;
   }
-  if(e.target && e.target.id === 'aeDept'){
-    const dept = e.target.value.toUpperCase();
+  if(e.target && (e.target.id === 'aeDept' || e.target.id === 'aeDesig')){
+    const dept = $('aeDept').value.toUpperCase();
+    const myDesig = String($('aeDesig').value || '').trim().toUpperCase();
     const seniors = EMP.filter(x => String(x.DEPARTMENT || '').toUpperCase() === dept
       && /MANAGER|EXECUTIVE|INCHARGE|SUPERVISOR|CEO|DIRECTOR/i.test(String(x.DESIGNATION || ''))
+      && String(x.DESIGNATION || '').trim().toUpperCase() !== myDesig  // same designation cannot be the manager
       && String(x.Status).toUpperCase() === 'ACTIVE');
     $('mgrDL').innerHTML = seniors.map(x => `<option value="${esc(x.Name)} (${esc(x['Employee code'])})">${esc(x.DESIGNATION || '')}</option>`).join('');
-    $('aeMgr').placeholder = seniors.length ? 'Type / choose from ' + seniors.length + ' senior(s)' : 'No seniors found in ' + e.target.value;
+    $('aeMgr').placeholder = seniors.length ? 'Type / choose from ' + seniors.length + ' senior(s)' : 'No eligible senior in ' + $('aeDept').value;
     return;
   }
   if(e.target && (e.target.id === 'aeCat' || e.target.id === 'aeSkill' || e.target.id === 'aeCTC')){
