@@ -1155,21 +1155,28 @@ body.no-confidential .confidential-col{display:none!important}
 
 /* ---- Nexus config from the GAS endpoint (keys live in the SUPABASE sheet) ---- */
 const NX_CONFIG_URL = 'https://script.google.com/macros/s/AKfycbyLyxuzYzGZ1odibF_-ORvn314hFY_zKg4595HpDZrhMObhqbcAh_LIw60sTc4b_dPI/exec';
-function nxGasSetPassword(email, password, pin){
+let NX_PIN = sessionStorage.getItem('nx_admin_pin') || '';
+async function ensurePin(){
+  if(NX_PIN) return NX_PIN;
+  const pin = await nxPrompt('Enter your admin RESET PIN\n(the secret code set in the SUPABASE config sheet):', 'Admin PIN', true);
+  if(pin){ NX_PIN = pin; sessionStorage.setItem('nx_admin_pin', pin); }
+  return NX_PIN;
+}
+function nxGas(action, params){
   return new Promise((resolve) => {
-    const cb = 'nxPwd' + Math.floor(Math.random() * 1e6);
-    const timer = setTimeout(() => { delete window[cb]; resolve({ error: 'Timeout — check internet / GAS deployment' }); }, 12000);
+    const cb = 'nxg' + Math.floor(Math.random() * 1e6);
+    const timer = setTimeout(() => { delete window[cb]; resolve({ error: 'Timeout — check internet / GAS deployment' }); }, 15000);
     window[cb] = data => { clearTimeout(timer); delete window[cb]; const s = document.getElementById(cb); if(s) s.remove(); resolve(data || {}); };
     const s = document.createElement('script');
     s.id = cb;
-    s.src = NX_CONFIG_URL + '?action=setpwd&callback=' + cb +
-            '&email=' + encodeURIComponent(email) +
-            '&password=' + encodeURIComponent(password) +
-            '&pin=' + encodeURIComponent(pin) + '&t=' + Date.now();
-    s.onerror = () => { clearTimeout(timer); delete window[cb]; resolve({ error: 'Could not reach the reset service' }); };
+    let qs = '?action=' + action + '&callback=' + cb + '&t=' + Date.now();
+    Object.keys(params || {}).forEach(k => { qs += '&' + k + '=' + encodeURIComponent(params[k]); });
+    s.src = NX_CONFIG_URL + qs;
+    s.onerror = () => { clearTimeout(timer); delete window[cb]; resolve({ error: 'Could not reach the service' }); };
     document.body.appendChild(s);
   });
 }
+const nxGasSetPassword = (email, password, pin) => nxGas('setpwd', { email, password, pin });
 function nxLoadConfig(){
   return new Promise((resolve, reject) => {
     const cached = (() => { try { return JSON.parse(localStorage.getItem('nx_cfg') || 'null'); } catch(e){ return null; } })();
@@ -1453,15 +1460,30 @@ document.addEventListener('click', async e => {
   renderAdminCtl(); applyPerms();
 });
 const nxPrompt = (msg, title='Enter', password=false) => nxAsk({ title, msg, input:true, password });
-function renderAdminCtl(){
+let NX_AUTH_USERS = null; // cached list of real Supabase logins
+async function loadAuthUsers(force){
+  if(NX_AUTH_USERS && !force) return NX_AUTH_USERS;
+  const pin = await ensurePin();
+  if(!pin) return [];
+  const res = await nxGas('listusers', { pin });
+  if(res.error){ notify(res.error, 'error'); if(/pin/i.test(res.error)){ NX_PIN=''; sessionStorage.removeItem('nx_admin_pin'); } return NX_AUTH_USERS || []; }
+  NX_AUTH_USERS = res.users || [];
+  return NX_AUTH_USERS;
+}
+async function renderAdminCtl(){
   fillAdminPickers();
   $('acSupers').value = (SETTINGS.superAdmins || []).join(', ');
   $('acSuperChips').innerHTML = (SETTINGS.superAdmins || []).map(s =>
-    `<span class="ac-mini" style="background:#fef3c7;color:#92400e"><i class="fa-solid fa-crown"></i> ${esc(s)}</span>`).join(' ') || '<span class="text-[11px]" style="color:var(--muted)">None saved yet — save your own email first.</span>';
+    `<span class="ac-mini" style="background:#fef3c7;color:#92400e"><i class="fa-solid fa-crown"></i> ${esc(s)}</span>`).join(' ') || '<span class="text-[11px]" style="color:var(--muted)">None saved yet.</span>';
   const perms = SETTINGS.adminPerms || {};
   const supers = (SETTINGS.superAdmins || []).map(s => s.toLowerCase());
-  // ONLY people who are actually an admin or super admin
-  const everyone = Array.from(new Set([...supers, ...Object.keys(perms).map(x => x.toLowerCase())]));
+  // SOURCE OF TRUTH = real Supabase logins. Settings only holds role/dept for them.
+  const authUsers = await loadAuthUsers();
+  const authEmails = authUsers.map(u => (u.email||'').toLowerCase());
+  const confirmedMap = {}; authUsers.forEach(u => confirmedMap[(u.email||'').toLowerCase()] = u.confirmed);
+  // show every real login; a login is an "admin" if it has perms or is super
+  const everyone = authEmails.length ? authEmails : Array.from(new Set([...supers, ...Object.keys(perms).map(x => x.toLowerCase())]));
+  window._acConfirmed = confirmedMap;
   const sw = (em, k, on) => `<label class="sw"><input type="checkbox" class="ac-sw" data-em="${esc(em)}" data-k="${k}" ${on ? 'checked' : ''}><i></i></label>`;
   if($('acCount')) $('acCount').innerText = everyone.length + ' total';
   $('acList').innerHTML = everyone.length ? `
@@ -1474,7 +1496,7 @@ function renderAdminCtl(){
     </tr></thead>
     <tbody>${everyone.map(em => { const p = normPerm(perms[em]); const isSup = supers.includes(em.toLowerCase()); return `
       <tr${isSup ? ' style="background:#fffdf5"' : ''}>
-        <td><div class="flex items-center gap-2"><div class="ac-avatar" style="width:30px;height:30px;font-size:11px;border-radius:9px">${initials(em)}</div><div><span class="text-xs font-semibold">${esc(nameForEmail(em) || em)}</span><div class="text-[9px]" style="color:var(--muted)">${esc(em)}</div></div></div></td>
+        <td><div class="flex items-center gap-2"><div class="ac-avatar" style="width:30px;height:30px;font-size:11px;border-radius:9px">${initials(em)}</div><div><span class="text-xs font-semibold">${esc(nameForEmail(em) || em)}</span><div class="text-[9px]" style="color:var(--muted)">${esc(em)}${(window._acConfirmed && window._acConfirmed[em] === false) ? ' · <span style=\'color:#d97706\'>unconfirmed</span>' : ''}</div></div></div></td>
         <td><select class="inp ac-role" data-em="${esc(em)}" style="padding:5px 8px;font-size:12px;min-width:120px">
           <option value="user" ${(!isSup && !perms[em]) ? 'selected' : ''}>User (no admin)</option>
           <option value="admin" ${(!isSup && perms[em]) ? 'selected' : ''}>Admin</option>
@@ -1589,22 +1611,19 @@ $('acCreateBtn').addEventListener('click', async () => {
   const pw = $('acPass').value.trim();
   if(!em || !em.includes('@')) return notify('Enter the new admin email', 'error');
   if(pw.length < 6) return notify('Temporary password must be at least 6 characters', 'error');
+  const pin = await ensurePin(); if(!pin) return;
   const btn = $('acCreateBtn'); btn.disabled = true; btn.innerHTML = '<div class="loader-ring"></div> Creating…';
   try{
-    // create the auth user without disturbing the current session
-    const tmp = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
-    const { data, error } = await tmp.auth.signUp({ email: em, password: pw });
-    if(error) throw error;
-    const hint = $('acCreateHint');
-    if(data && data.user && !data.session){
-      hint.innerHTML = `<b>${esc(em)}</b> created. If Supabase email-confirmation is ON, the admin must confirm via the email link before first login. (You can turn confirmation OFF in Supabase → Authentication → Providers → Email.)`;
-    } else {
-      hint.innerHTML = `<b>${esc(em)}</b> is ready — they can log in with the temporary password now. Ask them to change it.`;
-    }
-    hint.classList.remove('hidden');
+    const res = await nxGas('createuser', { email: em, password: pw, pin });
+    if(res.error) throw new Error(res.error);
+    $('acCreateHint').innerHTML = `<b>${esc(em)}</b> is ready — they can log in with the temporary password now (already confirmed). Ask them to change it.`;
+    $('acCreateHint').classList.remove('hidden');
+    // give them a default admin role in settings
+    SETTINGS.adminPerms = SETTINGS.adminPerms || {};
+    if(!SETTINGS.adminPerms[em]) SETTINGS.adminPerms[em] = normPerm(null);
+    await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
+    NX_AUTH_USERS = null; // refresh from server next render
     notify('Admin login created', 'success');
-    // pre-open the access editor for this new admin
-    acShowPages(em, normPerm((SETTINGS.adminPerms || {})[em]).pages);
     $('acPass').value = '';
   }catch(err){ notify('Could not create: ' + err.message, 'error'); }
   finally{ btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create Admin Login'; }
@@ -1748,7 +1767,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if(page === 'assets') loadAssets();
     if(page === 'exits') loadExits();
     if(page === 'reports') loadReports();
-    if(page === 'adminctl') renderAdminCtl();
+    if(page === 'adminctl'){ NX_AUTH_USERS = null; renderAdminCtl(); }
   });
 });
 document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => $(b.dataset.close).classList.remove('show')));
@@ -3164,10 +3183,23 @@ document.body.addEventListener('click', async e => {
   if(act === 'dc-del'){ DED_EDIT.splice(Number(el.dataset.i), 1); renderCompMgr(); }
   if(act === 'ac-edit'){ $('acEmail').value = el.dataset.em; acShowPages(el.dataset.em, normPerm((SETTINGS.adminPerms || {})[el.dataset.em]).pages); }
   if(act === 'ac-del'){
-    if(!(await nxConfirm('Remove ' + el.dataset.em + ' from the admin list?\nTheir login is not deleted — only admin access here.', 'Remove Admin'))) return;
-    delete SETTINGS.adminPerms[el.dataset.em];
+    if(!isSuper()) return notify('Only a super admin can delete logins', 'error');
+    const em = el.dataset.em;
+    const full = await nxConfirm('Delete the login for ' + em + '?\n\nOK = delete the Supabase login completely\nCancel = only remove admin rights (keep the login)', 'Delete Admin');
+    // strip role from settings either way
+    const supers = (SETTINGS.superAdmins || []).filter(s => s.toLowerCase() !== em.toLowerCase());
+    SETTINGS.superAdmins = supers;
+    if(SETTINGS.adminPerms) delete SETTINGS.adminPerms[em];
     await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
-    renderAdminCtl(); applyPerms(); notify('Removed from admin list', 'success');
+    if(full){
+      const pin = await ensurePin(); if(!pin){ renderAdminCtl(); applyPerms(); return; }
+      const res = await nxGas('deleteuser', { email: em, pin });
+      if(res.error) notify(res.error, 'error'); else notify('Login deleted', 'success');
+      NX_AUTH_USERS = null;
+    } else {
+      notify('Admin rights removed (login kept)', 'success');
+    }
+    renderAdminCtl(); applyPerms();
   }
   if(act === 'ac-pwd'){
     if(!isSuper()) return notify('Only a super admin can reset passwords', 'error');
