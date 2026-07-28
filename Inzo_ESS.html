@@ -249,6 +249,16 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <button class="btn btn-ghost w-full justify-center mt-2" data-close="pwModal">Cancel</button>
   </div>
 </div>
+<div class="modal" id="nxAskModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);align-items:center;justify-content:center;z-index:200;padding:16px">
+  <div style="background:#fff;border-radius:16px;padding:20px;width:100%;max-width:360px;box-shadow:0 20px 50px rgba(15,23,42,.25)">
+    <h3 id="nxAskTitle" style="font-weight:700;margin:0 0 8px;font-size:16px">Confirm</h3>
+    <p id="nxAskMsg" style="font-size:14px;color:#475569;margin:0 0 14px;white-space:pre-line"></p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button id="nxAskCancel" class="btn btn-ghost btn-sm">Cancel</button>
+      <button id="nxAskOk" class="btn btn-primary btn-sm">OK</button>
+    </div>
+  </div>
+</div>
 <div class="tabbar hidden" id="tabbar">
   <button class="tab active" data-p="home"><i class="fa-solid fa-house"></i>Home</button>
   <button class="tab" data-p="req"><i class="fa-solid fa-paper-plane"></i>Requests</button>
@@ -295,10 +305,22 @@ let sb = null;
 nxLoadConfig().then(c => {
   SUPABASE_URL = c.url; SUPABASE_ANON_KEY = c.key;
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-}).catch(err => setTimeout(() => alert('Nexus configuration error: ' + err.message), 900));
+}).catch(err => setTimeout(() => nxInfo('Nexus configuration error: ' + err.message, 'Configuration error'), 900));
 const $ = id => document.getElementById(id);
 let D = null, CODE = '', PHONE = '';
 
+function nxConfirm(msg, title){
+  return new Promise(resolve => {
+    const m = document.getElementById('nxAskModal');
+    document.getElementById('nxAskTitle').innerText = title || 'Confirm';
+    document.getElementById('nxAskMsg').innerText = msg || '';
+    m.style.display = 'flex';
+    const done = v => { m.style.display = 'none'; ok.onclick = null; cancel.onclick = null; resolve(v); };
+    const ok = document.getElementById('nxAskOk'), cancel = document.getElementById('nxAskCancel');
+    ok.onclick = () => done(true); cancel.onclick = () => done(false);
+  });
+}
+function nxInfo(msg, title){ return nxConfirm(msg, title); }
 function notify(msg){
   const t = document.createElement('div');
   t.className = 'toast'; t.textContent = msg;
@@ -514,7 +536,7 @@ function renderResign(){
       <label class="lbl">Reason</label><input id="resReason" class="inp mb-3" placeholder="Reason for resignation">
       <button id="resBtn" class="btn btn-primary" style="background:var(--bad)"><i class="fa-solid fa-paper-plane"></i> Submit Resignation</button>`;
     $('resBtn').addEventListener('click', async () => {
-      if(!confirm('Are you sure you want to submit your resignation? HR will be notified.')) return;
+      if(!(await nxConfirm('Are you sure you want to submit your resignation? HR will be notified.', 'Submit Resignation'))) return;
       const btn = $('resBtn');
       btn.innerHTML = '<div class="loader-ring"></div> Submitting…'; btn.disabled = true;
       try{
