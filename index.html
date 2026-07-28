@@ -709,60 +709,70 @@ setTimeout(nxHideSplash, 7000); // failsafe
         async function fetchEmployeesData(isSilent = false) {
             try {
                 let data = null;
+                // start from whatever we already have cached (map by code)
+                let cacheMap = {};
+                try { (JSON.parse(localStorage.getItem('cached_employees_data') || '[]')).forEach(e => cacheMap[e['Employee code']] = e); } catch(e){}
+                const haveCache = Object.keys(cacheMap).length > 0;
 
-                // Try fetching live data if online
                 if (navigator.onLine) {
                     try {
-                        const response = await supabaseClient.from('employees').select('*').ilike('Status', 'active');
+                        const since = localStorage.getItem('emp_sync_ts');
+                        // FULL pull only the first time; after that just the changed rows (huge bandwidth saving)
+                        let q = supabaseClient.from('employees')
+                                  .select('"Employee code",Name,Status,DEPARTMENT,DESIGNATION,DOJ,LINE,Descriptor,updated_at')
+                                  .ilike('Status', 'active');
+                        if (since && haveCache) q = q.gt('updated_at', since);
+                        const response = await q;
                         if (response.error) throw response.error;
-                        data = response.data;
+                        const changed = response.data || [];
+                        // merge changed rows into the cache map
+                        let newestTs = since || '';
+                        changed.forEach(e => {
+                            cacheMap[e['Employee code']] = e;
+                            if (e.updated_at && e.updated_at > newestTs) newestTs = e.updated_at;
+                        });
+                        // drop anyone who is no longer active (only worth checking on a full-ish sync)
+                        if (!since || !haveCache) {
+                            const activeSet = new Set(changed.map(e => e['Employee code']));
+                            Object.keys(cacheMap).forEach(k => { if (!activeSet.has(k)) delete cacheMap[k]; });
+                        }
+                        data = Object.values(cacheMap);
                         localStorage.setItem('cached_employees_data', JSON.stringify(data));
-                        // all codes (any status) so auto-generated codes never clash
-                        try{ const allRes = await supabaseClient.from('employees').select('"Employee code"'); if(!allRes.error){ window.NX_ALL_CODES = (allRes.data||[]).map(x => x['Employee code']); localStorage.setItem('cached_all_codes', JSON.stringify(window.NX_ALL_CODES)); } }catch(e){}
+                        if (newestTs) localStorage.setItem('emp_sync_ts', newestTs);
+                        if (changed.length && isSilent) console.log('[Nexus] synced ' + changed.length + ' changed employee(s)');
+                        // refresh the code list only occasionally (cheap, code-only column)
+                        if (!since || !haveCache) {
+                            try{ const allRes = await supabaseClient.from('employees').select('"Employee code"'); if(!allRes.error){ window.NX_ALL_CODES = (allRes.data||[]).map(x => x['Employee code']); localStorage.setItem('cached_all_codes', JSON.stringify(window.NX_ALL_CODES)); } }catch(e){}
+                        }
                     } catch (dbErr) {
-                        console.warn("DB Fetch failed, trying cache...", dbErr);
+                        console.warn("DB sync failed, using cache…", dbErr);
                     }
                 }
 
-                // If offline or DB fetch failed, load from cache
                 if (!data) {
-                    const cachedStr = localStorage.getItem('cached_employees_data');
-                    if (cachedStr) {
-                        data = JSON.parse(cachedStr);
-                        if (!isSilent) notify("Offline Mode Active", "info");
-                    } else {
-                        throw new Error("No offline data available. Connect to internet first.");
-                    }
+                    if (haveCache) { data = Object.values(cacheMap); if (!isSilent) notify("Offline Mode Active", "info"); }
+                    else throw new Error("No offline data available. Connect to internet first.");
                 }
 
                 if(!window.NX_ALL_CODES){ const ac = localStorage.getItem('cached_all_codes'); if(ac){ try{ window.NX_ALL_CODES = JSON.parse(ac); }catch(e){} } }
                 if (!data || data.length === 0) throw new Error("No employee records");
 
-                // Company settings (departments / designations / units / category wages) — cached
-                try{
-                    if(navigator.onLine){
+                // Settings + production lines change very rarely -> fetch at most once every 12h
+                const CFG_TTL = 12 * 3600 * 1000;
+                const cfgAge = Date.now() - Number(localStorage.getItem('cfg_ts') || 0);
+                if (navigator.onLine && cfgAge > CFG_TTL) {
+                    try{
                         const sRes = await supabaseClient.from('company_settings').select('data').eq('id', 1).maybeSingle();
                         if(!sRes.error && sRes.data){ window.NX_SETTINGS = sRes.data.data || {}; localStorage.setItem('cached_settings', JSON.stringify(window.NX_SETTINGS)); }
-                    }
-                }catch(e){ console.warn('settings fetch warn', e); }
+                        const plRes = await supabaseClient.from('production_lines').select('*');
+                        if(!plRes.error){ window.productionLines = plRes.data || []; localStorage.setItem('cached_lines', JSON.stringify(window.productionLines)); }
+                        localStorage.setItem('cfg_ts', String(Date.now()));
+                    }catch(e){ console.warn('cfg fetch warn', e); }
+                }
                 if(!window.NX_SETTINGS){ const cs = localStorage.getItem('cached_settings'); if(cs){ try{ window.NX_SETTINGS = JSON.parse(cs); }catch(e){} } }
                 window.NX_SETTINGS = window.NX_SETTINGS || {};
-
-                // Production lines (manpower caps) — cached for offline use
+                if(!window.productionLines || !window.productionLines.length){ const cl = localStorage.getItem('cached_lines'); if(cl){ try{ window.productionLines = JSON.parse(cl); }catch(e){} } }
                 window.productionLines = window.productionLines || [];
-                try {
-                    if (navigator.onLine) {
-                        const plRes = await supabaseClient.from('production_lines').select('*');
-                        if (!plRes.error) {
-                            window.productionLines = plRes.data || [];
-                            localStorage.setItem('cached_lines', JSON.stringify(window.productionLines));
-                        }
-                    }
-                } catch (e) { console.warn('Line fetch warning:', e); }
-                if (!window.productionLines.length) {
-                    const cl = localStorage.getItem('cached_lines');
-                    if (cl) { try { window.productionLines = JSON.parse(cl); } catch(e){} }
-                }
 
                 labeledFaceDescriptors = [];
                 employeeDataMap.clear();
@@ -1768,6 +1778,14 @@ setTimeout(nxHideSplash, 7000); // failsafe
                 window.NX_ALL_CODES = window.NX_ALL_CODES || [];
                 window.NX_ALL_CODES.push(empCode);
                 localStorage.setItem('cached_all_codes', JSON.stringify(window.NX_ALL_CODES));
+                // register the new face into the live matcher right now (zero extra bandwidth)
+                try{
+                    labeledFaceDescriptors.push(new faceapi.LabeledFaceDescriptors(empCode, [new Float32Array(descriptorArray)]));
+                    employeeDataMap.set(empCode, row);
+                    faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.55);
+                    const cached = JSON.parse(localStorage.getItem('cached_employees_data') || '[]');
+                    cached.push(row); localStorage.setItem('cached_employees_data', JSON.stringify(cached));
+                }catch(e){ console.warn('live add warn', e); }
 
                 notify(`Employee ${empName} Registered!`, "success");
                 document.getElementById('registerForm').reset();
