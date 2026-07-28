@@ -756,6 +756,7 @@ setTimeout(nxHideSplash, 7000); // failsafe
                             setSystemStatus('ready');
                             initLocation();
                             startCamera(); // Auto start camera as soon as ready
+                            startAutoSync();
                         }, 600);
                     }
                 } else {
@@ -778,13 +779,12 @@ setTimeout(nxHideSplash, 7000); // failsafe
                 await faceapi.tf.setBackend('webgl');
                 await faceapi.tf.ready();
 
-                // Switched to a more reliable CDN for models to fix 'Failed to fetch' error
                 const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
-                
-                updateLoading(40, "Loading optimized models...");
-                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-                await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-                await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+                // load each model only once per page-life; face-api keeps them in memory
+                updateLoading(40, "Loading models…");
+                if(!faceapi.nets.tinyFaceDetector.isLoaded)   await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                if(!faceapi.nets.faceLandmark68Net.isLoaded)  await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+                if(!faceapi.nets.faceRecognitionNet.isLoaded) await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
                 
                 updateLoading(70, "Syncing employee directory...");
                 await fetchEmployeesData();
@@ -796,6 +796,28 @@ setTimeout(nxHideSplash, 7000); // failsafe
                 notify("System error. Check internet connection or CORS.", "error");
             }
         }
+
+        // Keep the directory fresh: refetch when we regain connectivity, and every 3 min silently.
+        let _syncTimer = null;
+        function startAutoSync(){
+          if(_syncTimer) return;
+          _syncTimer = setInterval(() => { if(navigator.onLine) fetchEmployeesData(true).catch(()=>{}); }, 180000);
+        }
+        window.addEventListener('online', () => {
+          setSystemStatus('ready');
+          fetchEmployeesData(true).catch(()=>{});   // pull any employees added while offline
+          if(!isDetecting && mediaStream === null) startCamera(); // camera may have dropped
+        });
+        window.addEventListener('offline', () => {
+          notify('Offline — using saved data, camera stays on', 'info');
+        });
+        // When returning to this tab, don't rebuild everything — just make sure the camera is live.
+        document.addEventListener('visibilitychange', () => {
+          if(document.visibilityState === 'visible'){
+            if(faceMatcher && !isDetecting) startCamera();
+            if(navigator.onLine) fetchEmployeesData(true).catch(()=>{});
+          }
+        });
 
         // --- STREAMING_CHUNK: Camera & Scanning Engine ---
         async function startCamera() {
@@ -823,8 +845,11 @@ setTimeout(nxHideSplash, 7000); // failsafe
                 };
             } catch (err) {
                 console.error("Camera:", err);
-                notify("Camera permission denied", "error");
-                speakText("Camera ki permission nahi mili hai. Kripya allow karein.");
+                // don't nag repeatedly; retry once after a short delay (transient device hiccup)
+                setTimeout(() => { if(!isDetecting) startCamera().catch(()=>{}); }, 1500);
+                if(err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')){
+                    notify("Camera permission needed — allow it in the address bar", "error");
+                }
             }
         }
 
@@ -857,7 +882,7 @@ setTimeout(nxHideSplash, 7000); // failsafe
             
             const displaySize = { width: video.clientWidth, height: video.clientHeight };
             faceapi.matchDimensions(canvas, displaySize);
-            const detectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 });
+            const detectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.5 });
             
             isDetecting = true;
             
@@ -927,7 +952,7 @@ setTimeout(nxHideSplash, 7000); // failsafe
                     resetScanState();
                 }
 
-                if(isDetecting) setTimeout(() => requestAnimationFrame(scanFrame), 120);
+                if(isDetecting) setTimeout(() => requestAnimationFrame(scanFrame), 250);
             }
             scanFrame();
         }
@@ -979,7 +1004,20 @@ setTimeout(nxHideSplash, 7000); // failsafe
                 } catch(_) {}
             }
         }
-        loadAntiSpoof();
+        // Anti-spoof is heavy — on weak tablets (e.g. PowerVR GE8320) it makes
+        // recognition crawl. Disable it per-device with ?anti_spoof=off (sticks
+        // via localStorage). Re-enable anytime with ?anti_spoof=on.
+        (function(){
+          const q = new URLSearchParams(location.search).get('anti_spoof');
+          if (q === 'off') localStorage.setItem('nx_antispoof', 'off');
+          if (q === 'on')  localStorage.removeItem('nx_antispoof');
+          if (localStorage.getItem('nx_antispoof') === 'off') {
+            antiSpoofFailedToLoad = true;
+            console.log('[Nexus] Anti-spoof disabled on this device — face recognition only.');
+          } else {
+            loadAntiSpoof();
+          }
+        })();
 
         // 1.5x square crop around the face box -> 128x128 -> CHW float tensor
         function antiSpoofScore(box){
