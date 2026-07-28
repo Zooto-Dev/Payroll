@@ -1032,6 +1032,10 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">Date of Joining</label><input id="aeDOJ" type="date" class="inp"></div>
       <div><label class="lbl">Date of Birth</label><input id="aeDOB" type="date" class="inp"></div>
       <div id="aeLineWrap"><label class="lbl">Production Line</label><select id="aeLine" class="inp"></select></div>
+      <div><label class="lbl">Reporting Manager</label><input id="aeMgr" class="inp" list="mgrDL" placeholder="Select after department"></div>
+    </div>
+    <div id="aeSalaryBlock">
+    <div class="grid grid-cols-2 gap-3" style="margin-bottom:8px">
       <div><label class="lbl">Employee Category</label>
         <select id="aeCat" class="inp">
           <option value="worker">Worker — minimum wage</option>
@@ -1044,9 +1048,9 @@ body.no-confidential .confidential-col{display:none!important}
         </select></div>
       <div id="aeCTCWrap" class="hidden"><label class="lbl">Monthly CTC (₹)</label>
         <input id="aeCTC" type="number" class="inp" placeholder="45000"></div>
-      <div><label class="lbl">Reporting Manager</label><input id="aeMgr" class="inp" list="mgrDL" placeholder="Select after department"></div>
     </div>
     <div id="aeSalPreview" class="text-[11px] mb-2 p-2 rounded-lg" style="background:var(--brand-soft)"></div>
+    </div>
     <p class="text-[11px] mb-3" style="color:var(--muted)"><i class="fa-solid fa-circle-info"></i> Employees added here can use every HR feature (payroll, leaves, ESS, ID card). For face-recognition punching, their face must also be registered from the Attendance app's admin panel using this same code.</p>
     <button id="aeSaveBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-user-plus"></i> Add Employee</button>
   </div>
@@ -1317,6 +1321,7 @@ $('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); 
 
 const ALL_PAGES = ['dashboard','employees','attendance','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','letters','idcards','approvals','voice','settings'];
 let ME_EMAIL = '';
+let FACE_CODES = new Set();
 function isSuper(){
   if(new URLSearchParams(location.search).get('admin') === 'recover') return true; // rescue hatch
   const sup = (SETTINGS.superAdmins || []).map(s => s.toLowerCase());
@@ -1655,8 +1660,9 @@ nxLoadConfig().then(c => {
 /* ---------------- Core data ---------------- */
 async function loadCore(){
   try{
-    const [empRes, profRes, setRes, holRes, shRes, plRes] = await Promise.all([
+    const [empRes, faceRes, profRes, setRes, holRes, shRes, plRes] = await Promise.all([
       sb.from('employees').select('Name, "Employee code", Status, DEPARTMENT, DESIGNATION, DOJ, LINE').order('Name'),
+      sb.from('employees').select('"Employee code"').not('Descriptor', 'is', null),
       sb.from('hr_profiles').select('*'),
       sb.from('company_settings').select('data').eq('id', 1).maybeSingle(),
       sb.from('holidays').select('*').order('date'),
@@ -1667,6 +1673,7 @@ async function loadCore(){
     LINES = (plRes && plRes.data) || [];
     if(empRes.error) throw empRes.error;
     EMP = empRes.data || [];
+    FACE_CODES = new Set((faceRes && faceRes.data ? faceRes.data : []).map(x => x['Employee code']));
     PROFILES = {};
     (profRes.data || []).forEach(p => { PROFILES[p.employee_code] = p; });
     SETTINGS = (setRes.data && setRes.data.data) || {};
@@ -1865,7 +1872,7 @@ function renderIncompleteCard(){
     if(!p.bank_name || !p.account_no || !p.ifsc) miss.push('Bank');
     if(!p.pan) miss.push('PAN');
     if(!p.aadhaar && !p.aadhaar_no) miss.push('Aadhaar');
-    if(!e.Descriptor && !e.descriptor) miss.push('Face');
+    if(!FACE_CODES.has(code)) miss.push('Face');
     if(miss.length) need.push({ e, code, miss });
   });
   host.innerHTML = need.length ? `
@@ -2013,6 +2020,8 @@ $('empAddBtn').addEventListener('click', () => {
   let code;
   do { code = 'EMP-' + Math.floor(1000 + Math.random() * 9000); } while (EMP.some(e => e['Employee code'] === code));
   $('aeCode').value = code;
+  const showSal = canSeeConfidential();
+  if($('aeSalaryBlock')) $('aeSalaryBlock').style.display = showSal ? '' : 'none';
   $('addEmpModal').classList.add('show');
 });
 $('aeSaveBtn').addEventListener('click', async () => {
@@ -2033,23 +2042,30 @@ $('aeSaveBtn').addEventListener('click', async () => {
     if(error) throw error;
     // salary from category (worker = min wage level, management = CTC)
     const S2 = getSettings();
-    const mgmt = $('aeCat').value === 'mgmt';
+    const salaryAllowed = canSeeConfidential();
+    const mgmt = salaryAllowed && $('aeCat').value === 'mgmt';
     let earn = {}, skill = '';
-    if(mgmt){
-      const ctc = Number($('aeCTC').value) || 0;
-      if(ctc) earn = splitGross(ctcToGross(ctc));
-    } else {
-      skill = $('aeSkill').value;
-      earn = splitGross(Math.round(Number(S2[skill]) || 0));
+    if(salaryAllowed){
+      if(mgmt){
+        const ctc = Number($('aeCTC').value) || 0;
+        if(ctc) earn = splitGross(ctcToGross(ctc));
+      } else {
+        skill = $('aeSkill').value;
+        earn = splitGross(Math.round(Number(S2[skill]) || 0));
+      }
     }
     const prof = { employee_code: code, dob: $('aeDOB').value || null,
       pf_applicable: true, esi_applicable: true, lwf_applicable: true,
       reporting_manager: $('aeMgr').value || null,
-      salary: { earn, ded: {}, wageType: mgmt ? 'custom' : 'category', skill, otAllowed: aeOTAllowed },
-      basic: earn.basic || 0, hra: earn.hra || 0, conveyance: earn.conveyance || 0, special_allowance: earn.special_allowance || 0 };
+      otAllowed: aeOTAllowed };
+    // only write a salary structure if this admin is allowed to see/set salary
+    if(salaryAllowed){
+      prof.salary = { earn, ded: {}, wageType: mgmt ? 'custom' : 'category', skill, otAllowed: aeOTAllowed };
+      prof.basic = earn.basic || 0; prof.hra = earn.hra || 0; prof.conveyance = earn.conveyance || 0; prof.special_allowance = earn.special_allowance || 0;
+    }
     await sb.from('hr_profiles').upsert(prof, { onConflict: 'employee_code' });
     PROFILES[code] = Object.assign(PROFILES[code] || {}, prof);
-    notify(`${name} added — now open Profile to set phone, salary and shift`, 'success');
+    notify(`${name} added` + (salaryAllowed ? ' — now open Profile to set phone, salary and shift' : ' — Accounts will set the salary'), 'success');
     $('addEmpModal').classList.remove('show');
     await loadCore();
     openEmpModal(code);
