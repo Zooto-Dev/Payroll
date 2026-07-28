@@ -463,20 +463,42 @@
                             <input type="text" id="regName" class="input-field" required placeholder="e.g. Vivek Kumar">
                         </div>
                         <div>
-                            <label class="text-xs font-semibold text-slate-600 mb-1 block">Emp Code (Auto-generated) *</label>
-                            <input type="text" id="regCode" class="input-field bg-slate-100 cursor-not-allowed font-mono font-bold text-blue-700" required readonly placeholder="Generating...">
+                            <label class="text-xs font-semibold text-slate-600 mb-1 block">Mobile Number</label>
+                            <input type="tel" id="regMobile" class="input-field" placeholder="98XXXXXXXX">
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-slate-600 mb-1 block">Unit / Location</label>
+                            <select id="regUnit" class="input-field"></select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-slate-600 mb-1 block">Emp Code (Auto) *</label>
+                            <input type="text" id="regCode" class="input-field font-mono font-bold text-blue-700" required placeholder="Pick a unit…">
                         </div>
                         <div>
                             <label class="text-xs font-semibold text-slate-600 mb-1 block">Date of Joining</label>
                             <input type="date" id="regDOJ" class="input-field" required>
                         </div>
                         <div>
+                            <label class="text-xs font-semibold text-slate-600 mb-1 block">Employee Category</label>
+                            <select id="regCat" class="input-field">
+                                <option value="worker">Worker (min-wage)</option>
+                                <option value="staff">Staff / Management (CTC)</option>
+                            </select>
+                        </div>
+                        <div id="regSkillWrap">
+                            <label class="text-xs font-semibold text-slate-600 mb-1 block">Skill Level</label>
+                            <select id="regSkill" class="input-field">
+                                <option value="mw1">Unskilled</option><option value="mw2">Semi-skilled</option>
+                                <option value="mw3" selected>Skilled</option><option value="mw4">Highly skilled</option>
+                            </select>
+                        </div>
+                        <div>
                             <label class="text-xs font-semibold text-slate-600 mb-1 block">Department</label>
-                            <input type="text" id="regDept" class="input-field" required placeholder="e.g. MIS">
+                            <select id="regDept" class="input-field"></select>
                         </div>
                         <div>
                             <label class="text-xs font-semibold text-slate-600 mb-1 block">Designation</label>
-                            <input type="text" id="regDesig" class="input-field" required placeholder="e.g. Executive">
+                            <select id="regDesig" class="input-field"></select>
                         </div>
                     </div>
 
@@ -694,8 +716,9 @@ setTimeout(nxHideSplash, 7000); // failsafe
                         const response = await supabaseClient.from('employees').select('*').ilike('Status', 'active');
                         if (response.error) throw response.error;
                         data = response.data;
-                        // Cache data locally for offline usage
                         localStorage.setItem('cached_employees_data', JSON.stringify(data));
+                        // all codes (any status) so auto-generated codes never clash
+                        try{ const allRes = await supabaseClient.from('employees').select('"Employee code"'); if(!allRes.error){ window.NX_ALL_CODES = (allRes.data||[]).map(x => x['Employee code']); localStorage.setItem('cached_all_codes', JSON.stringify(window.NX_ALL_CODES)); } }catch(e){}
                     } catch (dbErr) {
                         console.warn("DB Fetch failed, trying cache...", dbErr);
                     }
@@ -712,7 +735,18 @@ setTimeout(nxHideSplash, 7000); // failsafe
                     }
                 }
 
+                if(!window.NX_ALL_CODES){ const ac = localStorage.getItem('cached_all_codes'); if(ac){ try{ window.NX_ALL_CODES = JSON.parse(ac); }catch(e){} } }
                 if (!data || data.length === 0) throw new Error("No employee records");
+
+                // Company settings (departments / designations / units / category wages) — cached
+                try{
+                    if(navigator.onLine){
+                        const sRes = await supabaseClient.from('company_settings').select('data').eq('id', 1).maybeSingle();
+                        if(!sRes.error && sRes.data){ window.NX_SETTINGS = sRes.data.data || {}; localStorage.setItem('cached_settings', JSON.stringify(window.NX_SETTINGS)); }
+                    }
+                }catch(e){ console.warn('settings fetch warn', e); }
+                if(!window.NX_SETTINGS){ const cs = localStorage.getItem('cached_settings'); if(cs){ try{ window.NX_SETTINGS = JSON.parse(cs); }catch(e){} } }
+                window.NX_SETTINGS = window.NX_SETTINGS || {};
 
                 // Production lines (manpower caps) — cached for offline use
                 window.productionLines = window.productionLines || [];
@@ -888,7 +922,12 @@ setTimeout(nxHideSplash, 7000); // failsafe
             
             async function scanFrame() {
                 if (!isDetecting) return;
-
+                // camera not ready yet (just switched tabs / device woke up) -> wait a beat, don't crash
+                if (!video || video.readyState < 2 || !video.videoWidth) {
+                    if(isDetecting) setTimeout(() => requestAnimationFrame(scanFrame), 200);
+                    return;
+                }
+              try {
                 const detection = await faceapi.detectSingleFace(video, detectorOptions)
                                               .withFaceLandmarks()
                                               .withFaceDescriptor();
@@ -901,7 +940,7 @@ setTimeout(nxHideSplash, 7000); // failsafe
 
                     const match = faceMatcher.findBestMatch(detection.descriptor);
                     
-                    if (match.label !== 'unknown' && match.distance < 0.45) {
+                    if (match.label !== 'unknown' && match.distance < 0.55) {
                         
                         if (currentTarget === match.label) {
                             matchConfidence += 50;
@@ -951,7 +990,11 @@ setTimeout(nxHideSplash, 7000); // failsafe
                 } else {
                     resetScanState();
                 }
-
+              } catch(err) {
+                console.warn('scan frame skipped:', err && err.message);
+                // if the camera stream died, revive it
+                if(!video.videoWidth && isDetecting){ try{ await startCamera(); }catch(e){} }
+              }
                 if(isDetecting) setTimeout(() => requestAnimationFrame(scanFrame), 250);
             }
             scanFrame();
@@ -1550,6 +1593,53 @@ setTimeout(nxHideSplash, 7000); // failsafe
             resumeScanning();
         });
 
+        const DEFAULT_DEPTS = ['Production','Cutting','Stitching','Finishing','Packing','Quality','Store','Maintenance','Admin','HR','Accounts','Purchase','Dispatch','Security','Housekeeping','MIS','Planning'];
+        const DEFAULT_DESIGS = ['Operator','Helper','Tailor','Cutter','Supervisor','Incharge','Executive','Sr. Executive','Manager','Asst. Manager','Accountant','Director','CEO'];
+        function nxUnitCode(unitCode){
+          // next serial for a unit prefix, matching admin's ZM01043 style
+          const codes = (window.NX_ALL_CODES || []).filter(c => String(c).toUpperCase().startsWith(unitCode));
+          let max = 0;
+          codes.forEach(c => { const n = parseInt(String(c).slice(unitCode.length), 10); if(!isNaN(n) && n > max) max = n; });
+          return unitCode + String(max + 1).padStart(3, '0');
+        }
+        function nxFillEnrollForm(){
+          const S = window.NX_SETTINGS || {};
+          const depts = (S.depts && S.depts.length) ? S.depts : DEFAULT_DEPTS;
+          const desigs = (S.desigs && S.desigs.length) ? S.desigs : DEFAULT_DESIGS;
+          const units = S.units || [];
+          const dd = document.getElementById('regDept'); if(dd) dd.innerHTML = '<option value="">— Select —</option>' + depts.map(d => `<option>${d}</option>`).join('');
+          const gg = document.getElementById('regDesig'); if(gg) gg.innerHTML = '<option value="">— Select —</option>' + desigs.map(d => `<option>${d}</option>`).join('');
+          const uu = document.getElementById('regUnit');
+          if(uu) uu.innerHTML = units.length ? units.map(u => `<option value="${u.code}">${u.code} — ${u.name}</option>`).join('') : '<option value="">(no units set in admin)</option>';
+          // unit -> auto code
+          if(uu && !uu._wired){
+            uu._wired = true;
+            uu.addEventListener('change', () => { const rc = document.getElementById('regCode'); if(uu.value) rc.value = nxUnitCode(uu.value); });
+          }
+          if(uu && uu.value){ document.getElementById('regCode').value = nxUnitCode(uu.value); }
+          // category -> skill visibility
+          const cat = document.getElementById('regCat');
+          if(cat && !cat._wired){
+            cat._wired = true;
+            cat.addEventListener('change', () => { document.getElementById('regSkillWrap').style.display = cat.value === 'worker' ? '' : 'none'; });
+          }
+          // default DOJ today
+          const doj = document.getElementById('regDOJ'); if(doj && !doj.value) doj.value = new Date().toISOString().slice(0,10);
+        }
+        // salary builder mirrored from admin (min-wage split or CTC reverse) — kept simple for kiosk
+        function nxBuildSalary(){
+          const S = window.NX_SETTINGS || {};
+          const cat = (document.getElementById('regCat')||{}).value || 'worker';
+          if(cat !== 'worker') return null; // staff CTC is set later in admin panel
+          const skill = (document.getElementById('regSkill')||{}).value || 'mw3';
+          const rate = (S.mwRates || {})[skill];
+          if(!rate) return null;
+          const gross = Number(rate);
+          const basic = Math.round(gross * 0.5), hra = Math.round(gross * 0.25), special = gross - basic - hra;
+          return { earn: [
+            { name:'Basic', amt: basic }, { name:'HRA', amt: hra }, { name:'Special Allowance', amt: special }
+          ], ded:{}, wageType:'category', skill, otAllowed:true };
+        }
         async function openAdminDashboard() {
             adminPanelModal.classList.add('show');
             
@@ -1559,10 +1649,10 @@ setTimeout(nxHideSplash, 7000); // failsafe
             video.srcObject = null; // Clears the frozen camera frame completely
             scannerWrapper.classList.remove('active-scan');
             
-            // Reset Admin Form
+            // Reset Admin Form + fill dropdowns from company settings
             document.getElementById('registerForm').reset();
-            const uniqueCode = 'EMP-' + Math.floor(1000 + Math.random() * 9000);
-            document.getElementById('regCode').value = uniqueCode;
+            nxFillEnrollForm();
+            document.getElementById('regCode').value = '';
             newEmpDescriptor = null;
             faceStatus.className = "text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded text-[10px]";
             faceStatus.innerText = "Not Captured";
@@ -1635,38 +1725,54 @@ setTimeout(nxHideSplash, 7000); // failsafe
                 return;
             }
 
-            const empName = document.getElementById('regName').value;
-            const empCode = document.getElementById('regCode').value;
+            const empName = document.getElementById('regName').value.trim();
+            const empCode = document.getElementById('regCode').value.trim().toUpperCase();
             const empDOJ = document.getElementById('regDOJ').value;
             const empDept = document.getElementById('regDept').value;
             const empDesig = document.getElementById('regDesig').value;
+            const empMobile = document.getElementById('regMobile').value.trim();
             const btn = document.getElementById('saveEmpBtn');
+
+            if(!empName || !empCode){ notify('Name and code are required', 'error'); return; }
+            if((window.NX_ALL_CODES || []).map(c => String(c).toUpperCase()).includes(empCode)){
+                notify('This employee code already exists — pick the unit again for a fresh code', 'error'); return;
+            }
 
             btn.innerHTML = `<div class="loader-ring"></div> Saving...`;
             btn.disabled = true;
 
             try {
-                // Formatting descriptor for database
                 const descriptorArray = Array.from(newEmpDescriptor);
-                
-                const { error } = await supabaseClient.from('employees').insert([{
+                const salary = nxBuildSalary();
+                const row = {
                     Name: empName,
                     'Employee code': empCode,
                     Descriptor: JSON.stringify(descriptorArray),
                     Status: 'Active',
-                    DEPARTMENT: empDept,
-                    DESIGNATION: empDesig,
-                    DOJ: empDOJ
-                }]);
-
+                    DEPARTMENT: empDept || null,
+                    DESIGNATION: empDesig || null,
+                    DOJ: empDOJ || null
+                };
+                const { error } = await supabaseClient.from('employees').insert([row]);
                 if(error) throw error;
+
+                // profile (mobile) + salary structure so the admin panel is immediately in sync
+                try{
+                    const prof = { employee_code: empCode };
+                    if(empMobile) prof.phone = empMobile;
+                    if(salary) prof.salary = salary;
+                    if(empMobile || salary) await supabaseClient.from('hr_profiles').upsert(prof, { onConflict: 'employee_code' });
+                }catch(e){ console.warn('profile sync warn', e); }
+
+                // keep local code list current so the next code + duplicate guard are correct
+                window.NX_ALL_CODES = window.NX_ALL_CODES || [];
+                window.NX_ALL_CODES.push(empCode);
+                localStorage.setItem('cached_all_codes', JSON.stringify(window.NX_ALL_CODES));
 
                 notify(`Employee ${empName} Registered!`, "success");
                 document.getElementById('registerForm').reset();
-                
-                // Generate next code automatically
-                const nextUniqueCode = 'EMP-' + Math.floor(1000 + Math.random() * 9000);
-                document.getElementById('regCode').value = nextUniqueCode;
+                nxFillEnrollForm();
+                document.getElementById('regCode').value = '';
 
                 newEmpDescriptor = null;
                 faceStatus.className = "text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded text-[10px]";
