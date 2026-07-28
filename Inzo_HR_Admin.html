@@ -1155,6 +1155,21 @@ body.no-confidential .confidential-col{display:none!important}
 
 /* ---- Nexus config from the GAS endpoint (keys live in the SUPABASE sheet) ---- */
 const NX_CONFIG_URL = 'https://script.google.com/macros/s/AKfycbyLyxuzYzGZ1odibF_-ORvn314hFY_zKg4595HpDZrhMObhqbcAh_LIw60sTc4b_dPI/exec';
+function nxGasSetPassword(email, password, pin){
+  return new Promise((resolve) => {
+    const cb = 'nxPwd' + Math.floor(Math.random() * 1e6);
+    const timer = setTimeout(() => { delete window[cb]; resolve({ error: 'Timeout — check internet / GAS deployment' }); }, 12000);
+    window[cb] = data => { clearTimeout(timer); delete window[cb]; const s = document.getElementById(cb); if(s) s.remove(); resolve(data || {}); };
+    const s = document.createElement('script');
+    s.id = cb;
+    s.src = NX_CONFIG_URL + '?action=setpwd&callback=' + cb +
+            '&email=' + encodeURIComponent(email) +
+            '&password=' + encodeURIComponent(password) +
+            '&pin=' + encodeURIComponent(pin) + '&t=' + Date.now();
+    s.onerror = () => { clearTimeout(timer); delete window[cb]; resolve({ error: 'Could not reach the reset service' }); };
+    document.body.appendChild(s);
+  });
+}
 function nxLoadConfig(){
   return new Promise((resolve, reject) => {
     const cached = (() => { try { return JSON.parse(localStorage.getItem('nx_cfg') || 'null'); } catch(e){ return null; } })();
@@ -3157,11 +3172,23 @@ document.body.addEventListener('click', async e => {
   if(act === 'ac-pwd'){
     if(!isSuper()) return notify('Only a super admin can reset passwords', 'error');
     const em = el.dataset.em;
-    const ok = await nxConfirm('Send a secure password-reset link to:\n' + em + '\n\nThey will click it and set a new password themselves.', 'Reset Password');
-    if(!ok) return;
-    const { error } = await sb.auth.resetPasswordForEmail(em, { redirectTo: location.origin + location.pathname });
-    if(error) return notify(error.message, 'error');
-    notify('Reset link e-mailed to ' + em, 'success');
+    const mode = await nxConfirm('Reset password for ' + em + '?\n\nOK = set a custom password now\nCancel = e-mail them a reset link', 'Reset Password');
+    if(mode){
+      const np = await nxPrompt('New password for ' + em + ' (min 6 characters):', 'Custom Password', true);
+      if(np === null) return;
+      if(np.length < 6) return notify('Password must be at least 6 characters', 'error');
+      const pin = await nxPrompt('Enter your admin RESET PIN\n(the secret code set in the SUPABASE config sheet):', 'Admin PIN', true);
+      if(!pin) return;
+      notify('Setting password…', 'info');
+      const res = await nxGasSetPassword(em, np, pin);
+      if(res.error) return notify(res.error, 'error');
+      if(res.ok) return notify('Password updated for ' + em + ' ✓', 'success');
+      notify('Unexpected response — try again', 'error');
+    } else {
+      const { error } = await sb.auth.resetPasswordForEmail(em, { redirectTo: location.origin + location.pathname });
+      if(error) return notify(error.message, 'error');
+      notify('Reset link e-mailed to ' + em, 'success');
+    }
   }
   if(act === 'unit-del'){
     SETTINGS.units.splice(Number(el.dataset.i), 1);
