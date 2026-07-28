@@ -810,7 +810,7 @@ function nxConfirm(msg, title){
                 });
 
                 if(labeledFaceDescriptors.length > 0) {
-                    faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.55); 
+                    faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.42); 
                     if (!isSilent) {
                         updateLoading(100, "System Ready");
                         
@@ -970,9 +970,20 @@ function nxConfirm(msg, title){
                     reticle.classList.add('detecting');
 
                     const match = faceMatcher.findBestMatch(detection.descriptor);
-                    
-                    if (match.label !== 'unknown' && match.distance < 0.55) {
-                        
+
+                    // how confusable is this? compare best vs second-best distance
+                    let ambiguous = false;
+                    try {
+                        const dists = labeledFaceDescriptors.map(ld => ({
+                            label: ld.label,
+                            d: Math.min.apply(null, ld.descriptors.map(dd => faceapi.euclideanDistance(dd, detection.descriptor)))
+                        })).sort((a,b) => a.d - b.d);
+                        if (dists.length >= 2 && (dists[1].d - dists[0].d) < 0.08) ambiguous = true; // too close to call
+                    } catch(e){}
+
+                    const STRICT = 0.42;
+                    if (match.label !== 'unknown' && match.distance < STRICT && !ambiguous) {
+
                         if (currentTarget === match.label) {
                             matchConfidence += 50;
                         } else {
