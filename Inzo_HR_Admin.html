@@ -1793,7 +1793,7 @@ async function loadDashboard(){
     const [attRes, slipRes, monthRes] = await Promise.all([
       sb.from('attendance').select('*').eq('date', today).order('created_at', { ascending:false }),
       sb.from('payslips').select('net_pay, month').order('created_at', { ascending:false }).limit(200),
-      sb.from('attendance').select('employee_code, Name, in_time').gte('date', ym + '-01').lte('date', ym + '-31')
+      sb.from('attendance').select('employee_code, Name, in_time').like('in_time', '%LATE%').gte('date', ym + '-01').lte('date', ym + '-31')
     ]);
     const rows = attRes.data || [];
     const total = activeEmps().length;
