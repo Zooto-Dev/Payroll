@@ -1654,7 +1654,7 @@ nxLoadConfig().then(c => {
   else nxHideSplash();
 }).catch(err => {
   nxHideSplash();
-  setTimeout(() => alert('Nexus configuration error: ' + err.message), 900);
+  setTimeout(() => nxAsk({ title:'Configuration error', msg:'Nexus configuration error: ' + err.message, okText:'OK' }), 900);
 });
 
 /* ---------------- Core data ---------------- */
@@ -1788,9 +1788,9 @@ $('otrCsvBtn').addEventListener('click', () => {
     b.className = 'btn btn-ghost btn-sm';
     b.style.marginLeft = '10px';
     b.innerHTML = '<i class="fa-solid fa-qrcode"></i> Print QR Poster';
-    b.addEventListener('click', () => {
+    b.addEventListener('click', async () => {
       let url = localStorage.getItem('nx_ess_url') || 'https://zooto-dev.github.io/Payroll/Inzo_ESS.html';
-      url = prompt('ESS page ka poora link (poster ka QR isi par khulega):', url);
+      url = await nxAsk({ title:'ESS Link', msg:'ESS page ka poora link (poster ka QR isi par khulega):', input:true, placeholder: url, okText:'Print' });
       if(!url) return;
       localStorage.setItem('nx_ess_url', url);
       const target = url.replace(/#.*$/, '') + '#feedback';
@@ -2027,7 +2027,7 @@ $('empAddBtn').addEventListener('click', () => {
 $('aeSaveBtn').addEventListener('click', async () => {
   const name = $('aeName').value.trim(), code = $('aeCode').value.trim().toUpperCase();
   if(name && code){
-    var aeOTAllowed = confirm('OVERTIME: kya "' + name + '" ko overtime allowed hai?\n\nOK = YES (OT milega)\nCancel = NO (OT kabhi nahi)');
+    var aeOTAllowed = await nxConfirm('Kya "' + name + '" ko overtime allowed hai?\n\nOK = YES (OT milega)\nCancel = NO (OT kabhi nahi)', 'Overtime Allowed?');
   }
   if(!name || !code) return notify('Name and employee code are required', 'error');
   if(EMP.some(e => String(e['Employee code']).toUpperCase() === code)) return notify('This employee code already exists', 'error');
@@ -2709,7 +2709,7 @@ $('payTable').addEventListener('input', e => {
 $('payFinalizeBtn').addEventListener('click', async () => {
   if(!canFinalize()) return notify('You are not allowed to finalize payroll — ask a super admin', 'error');
   if(!PAY_ROWS.length) return;
-  if(!confirm(`Finalize payroll for ${monthLabel(PAY_MONTH)}? Payslips will be saved and advance balances updated.`)) return;
+  if(!(await nxConfirm(`Finalize payroll for ${monthLabel(PAY_MONTH)}? Payslips will be saved and advance balances updated.`, 'Finalize Payroll'))) return;
   const btn = $('payFinalizeBtn');
   btn.innerHTML = '<div class="loader-ring loader-dark"></div> Saving…'; btn.disabled = true;
   try{
@@ -2987,7 +2987,7 @@ $('advSaveBtn').addEventListener('click', async () => {
   const code = $('advEmp').value;
   if(!code || !amount) return notify('Employee and amount are required', 'error');
   if(isLoan && (!emi || !tenure)) return notify('Loan needs EMI and tenure', 'error');
-  if(isLoan && !AGR_PRINTED && !confirm('Loan agreement print nahi hua — bina signed agreement ke loan save karna hai?')) return;
+  if(isLoan && !AGR_PRINTED && !(await nxConfirm('Loan agreement print nahi hua — bina signed agreement ke loan save karna hai?', 'Loan Agreement'))) return;
   if(emi > amount) return notify('EMI cannot exceed the amount', 'error');
   // Eligibility rule 1: advance cannot exceed 50% of monthly gross
   const gross = grossOf(code);
@@ -3018,7 +3018,7 @@ document.body.addEventListener('click', async e => {
   if(act === 'edit-emp') openEmpModal(el.dataset.code);
   if(act === 'view-slip') openSlip(Number(el.dataset.i));
   if(act === 'close-adv'){
-    if(!confirm('Mark this advance as fully settled?')) return;
+    if(!(await nxConfirm('Mark this advance as fully settled?', 'Settle Advance'))) return;
     await sb.from('advances').update({ balance: 0, status: 'CLOSED' }).eq('id', el.dataset.id);
     loadAdvances();
   }
@@ -3028,13 +3028,13 @@ document.body.addEventListener('click', async e => {
     renderHolidays();
   }
   if(act === 'del-shift'){
-    if(!confirm('Delete this shift? Employees on it will fall back to the default (first) shift.')) return;
+    if(!(await nxConfirm('Delete this shift? Employees on it will fall back to the default (first) shift.', 'Delete Shift'))) return;
     await sb.from('shifts').delete().eq('id', el.dataset.id);
     SHIFTS = SHIFTS.filter(s => String(s.id) !== String(el.dataset.id));
     renderShifts(); fillEmpSelects();
   }
   if(act === 'cancel-leave'){
-    if(!confirm('Cancel this leave?')) return;
+    if(!(await nxConfirm('Cancel this leave?', 'Cancel Leave'))) return;
     await sb.from('leaves').update({ status: 'CANCELLED' }).eq('id', el.dataset.id);
     loadLeaves();
   }
@@ -3052,7 +3052,7 @@ document.body.addEventListener('click', async e => {
   }
   if(act === 'ot-approve-all'){
     if(!(canApprove('ot') && roleCEO())) return notify('Only the CEO can approve overtime', 'error');
-    if(!confirm('Approve ALL pending overtime requests?')) return;
+    if(!(await nxConfirm('Approve ALL pending overtime requests?', 'Approve Overtime'))) return;
     const { error } = await sb.from('ot_requests').update({ status: 'APPROVED' }).eq('status', 'PENDING');
     if(error) return notify(error.message, 'error');
     notify('All pending overtime approved', 'success');
@@ -3089,19 +3089,19 @@ document.body.addEventListener('click', async e => {
   }
   if(act === 'vb-review'){ await sb.from('feedback').update({ status:'IN_REVIEW' }).eq('id', el.dataset.id); loadVoice(); }
   if(act === 'vb-resolve'){
-    const note = prompt('Resolution note (optional):') || '';
+    const note = (await nxPrompt('Resolution note (optional):', 'Resolve')) || '';
     await sb.from('feedback').update({ status:'RESOLVED', admin_note: note }).eq('id', el.dataset.id);
     notify('Marked resolved', 'success'); loadVoice();
   }
   if(act === 'vb-reject'){
-    const note = prompt('Rejection note (optional):') || '';
+    const note = (await nxPrompt('Rejection note (optional):', 'Reject')) || '';
     await sb.from('feedback').update({ status:'REJECTED', admin_note: note }).eq('id', el.dataset.id);
     loadVoice();
   }
   if(act === 'vb-kapprove'){
-    const amt = Number(prompt('Kaizen reward amount (₹) — will be added as "Kaizen Reward" in the next payroll:', '500'));
+    const amt = Number(await nxAsk({ title:'Kaizen Reward', msg:'Reward amount (₹) — will be added as "Kaizen Reward" in the next payroll:', input:true, placeholder:'500', okText:'Approve' }));
     if(!amt || amt <= 0) return;
-    const note = prompt('Approval note (optional):') || '';
+    const note = (await nxPrompt('Approval note (optional):', 'Approve')) || '';
     const code = el.dataset.code;
     await sb.from('feedback').update({ status:'APPROVED', reward: amt, admin_note: note }).eq('id', el.dataset.id);
     const p = PROFILES[code] || {};
@@ -3122,7 +3122,7 @@ document.body.addEventListener('click', async e => {
     window.open(data.signedUrl, '_blank');
   }
   if(act === 'del-doc'){
-    if(!confirm('Delete this document?')) return;
+    if(!(await nxConfirm('Delete this document?', 'Delete Document'))) return;
     await sb.storage.from('hr-docs').remove([el.dataset.path]);
     await sb.from('hr_documents').delete().eq('id', el.dataset.id);
     loadDocs($('epCode').value);
@@ -3131,15 +3131,15 @@ document.body.addEventListener('click', async e => {
   if(act === 'ex-rej'){ await sb.from('expenses').update({ status:'REJECTED' }).eq('id', el.dataset.id); if($('page-approvals').classList.contains('show')) loadApprovals(); else loadExpenses(); }
   if(act === 'ex-paid'){ await sb.from('expenses').update({ status:'PAID' }).eq('id', el.dataset.id); notify('Reimbursement marked paid', 'success'); loadExpenses(); }
   if(act === 'as-return'){
-    const cond = prompt('Return condition? (OK / Damaged / Lost)', 'OK');
+    const cond = await nxAsk({ title:'Return Asset', msg:'Return condition? (OK / Damaged / Lost)', input:true, placeholder:'OK', okText:'Save' });
     if(cond === null) return;
-    const dmg = /ok/i.test(cond) ? '' : (prompt('Damage/loss note:') || '');
+    const dmg = /ok/i.test(cond || '') ? '' : ((await nxPrompt('Damage/loss note:', 'Asset Note')) || '');
     await sb.from('assets').update({ status:'RETURNED', return_date: todayISO(), return_condition: cond, damage_note: dmg }).eq('id', el.dataset.id);
     notify('Asset returned', 'success'); loadAssets();
   }
   if(act === 'open-fnf') openFnF(el.dataset.id);
   if(act === 'fnf-save') fnfPersist(false);
-  if(act === 'fnf-settle'){ if(confirm('Mark this exit as SETTLED? This will be treated as final.')) fnfPersist(true); }
+  if(act === 'fnf-settle'){ if(await nxConfirm('Mark this exit as SETTLED? This will be treated as final.', 'Settle Exit')) fnfPersist(true); }
   if(act === 'fnf-print') printHTML(fnfSheet());
   if(act === 'del-ann'){ await sb.from('announcements').delete().eq('id', el.dataset.id); loadEngagement(); }
   if(act === 'ec-del'){
@@ -3169,7 +3169,7 @@ document.body.addEventListener('click', async e => {
     renderUnits();
   }
   if(act === 'pl-del'){
-    if(!confirm('Delete this line? Assigned employees will keep punching but without a capacity limit.')) return;
+    if(!(await nxConfirm('Delete this line? Assigned employees will keep punching but without a capacity limit.', 'Delete Line'))) return;
     await sb.from('production_lines').delete().eq('id', el.dataset.id);
     LINES = LINES.filter(l => String(l.id) !== String(el.dataset.id));
     renderLines();
@@ -3396,7 +3396,7 @@ function certShell(title, name, line1, line2, meta){
     </div>
   </div>`;
 }
-$('letterGenBtn').addEventListener('click', () => {
+$('letterGenBtn').addEventListener('click', async () => {
   const t = $('letterType').value;
   const S = getSettings();
   let html = '';
@@ -3521,8 +3521,8 @@ $('letterGenBtn').addEventListener('click', () => {
       sb.from('salary_revisions').insert([{ employee_code: code, old_gross: gross, new_gross: ng, effective_date: eff, note: 'Promotion to ' + nd }]).then(() => {});
     }
     if(t === 'revision'){
-      const ng = Number($('promoGross').value) || Number(prompt('New monthly gross (₹)?'));
-      const eff = $('promoDate').value || prompt('Effective date (YYYY-MM-DD)?');
+      const ng = Number($('promoGross').value) || Number(await nxPrompt('New monthly gross (₹)?', 'Promotion'));
+      const eff = $('promoDate').value || (await nxPrompt('Effective date (YYYY-MM-DD)?', 'Effective Date'));
       if(!ng || !eff) return notify('New gross salary and effective date are required', 'error');
       html = letterShell('SALARY REVISION LETTER', `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/REV/${yr}/${esc(code)}`,
         `<p>Dear <b>${esc(e.Name)}</b>,</p>
@@ -3878,7 +3878,7 @@ $('mwApplyBtn').addEventListener('click', async () => {
   const S = getSettings();
   const targets = Object.values(PROFILES).filter(p => p.salary && (p.salary.wageType === 'category' || (!p.salary.wageType && p.salary.skill)) && p.salary.skill);
   if(!targets.length) return notify('No employees on "Category — Minimum Wage" salary type found', 'error');
-  if(!confirm(`Update the salary of ${targets.length} category worker(s) from the current minimum wage rates?`)) return;
+  if(!(await nxConfirm(`Update the salary of ${targets.length} category worker(s) from the current minimum wage rates?`, 'Update Salaries'))) return;
   const btn = $('mwApplyBtn');
   btn.innerHTML = '<div class="loader-ring"></div> Applying…'; btn.disabled = true;
   let done = 0;
