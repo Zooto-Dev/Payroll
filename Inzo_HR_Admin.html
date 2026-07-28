@@ -1379,7 +1379,7 @@ function renderAdminCtl(){
   $('acList').innerHTML = everyone.length ? `
   <div style="overflow-x:auto"><table class="tbl" style="min-width:760px">
     <thead><tr>
-      <th>Admin</th><th>Department</th><th>Pages</th>
+      <th>Admin</th><th>Department</th><th>Designation</th><th>Pages</th>
       <th style="text-align:center">Leave<br>Approve</th><th style="text-align:center">OT<br>Approve</th>
       <th style="text-align:center">Expense<br>Approve</th><th style="text-align:center">Advance<br>Add</th>
       <th style="text-align:center">Payroll<br>Finalize</th><th style="text-align:center">See Salary /<br>Confidential</th><th></th>
@@ -1387,9 +1387,13 @@ function renderAdminCtl(){
     <tbody>${everyone.map(em => { const p = normPerm(perms[em]); const isSup = supers.includes(em.toLowerCase()); return `
       <tr${isSup ? ' style="background:#fffdf5"' : ''}>
         <td><div class="flex items-center gap-2"><div class="ac-avatar" style="width:30px;height:30px;font-size:11px;border-radius:9px">${initials(em)}</div><div><span class="text-xs font-semibold">${esc(em)}</span>${isSup ? '<div class="text-[9px]" style="color:#b45309"><i class="fa-solid fa-crown"></i> Super Admin</div>' : ''}</div></div></td>
-        <td><select class="inp ac-dept" data-em="${esc(em)}" style="padding:5px 8px;font-size:12px;min-width:130px">
+        <td><select class="inp ac-dept" data-em="${esc(em)}" style="padding:5px 8px;font-size:12px;min-width:120px">
           <option value="">— Set —</option>
           ${(getSettings().depts || []).map(d => `<option value="${esc(d)}" ${String(p.dept||'').toUpperCase() === d.toUpperCase() ? 'selected' : ''}>${esc(d)}</option>`).join('')}
+        </select></td>
+        <td><select class="inp ac-desig" data-em="${esc(em)}" style="padding:5px 8px;font-size:12px;min-width:120px">
+          <option value="">— Set —</option>
+          ${(getSettings().desigs || []).map(d => `<option value="${esc(d)}" ${String(p.desig||'').toUpperCase() === d.toUpperCase() ? 'selected' : ''}>${esc(d)}</option>`).join('')}
         </select></td>
         <td><button class="btn btn-ghost btn-sm" data-act="ac-edit" data-em="${esc(em)}">${p.pages.length}/${ALL_PAGES.length} <i class="fa-solid fa-pen text-[10px]"></i></button></td>
         <td style="text-align:center">${sw(em, 'leave', p.approve.leave !== false)}</td>
@@ -1398,21 +1402,25 @@ function renderAdminCtl(){
         <td style="text-align:center">${sw(em, 'advance', p.approve.advance !== false)}</td>
         <td style="text-align:center">${sw(em, 'finalize', p.finalize === true)}</td>
         <td style="text-align:center">${sw(em, 'confidential', p.confidential === true)}</td>
-        <td><button class="btn btn-danger btn-sm" data-act="ac-del" data-em="${esc(em)}" title="Remove — full default access"><i class="fa-solid fa-trash"></i></button></td>
+        <td><div class="flex gap-1">
+          <button class="btn btn-ghost btn-sm" data-act="ac-pwd" data-em="${esc(em)}" title="Reset login password (super admin only)"><i class="fa-solid fa-key"></i></button>
+          <button class="btn btn-danger btn-sm" data-act="ac-del" data-em="${esc(em)}" title="Remove from admin list"><i class="fa-solid fa-trash"></i></button>
+        </div></td>
       </tr>`; }).join('')}</tbody>
   </table></div>` : '<div class="p-4 rounded-xl text-center text-xs" style="background:#f8fafc;color:var(--muted)"><i class="fa-solid fa-users-viewfinder mb-1" style="font-size:18px"></i><br>No admins yet — pick an employee above to add one.</div>';
 }
 document.addEventListener('change', async e => {
-  if(e.target.classList && e.target.classList.contains('ac-dept')){
+  if(e.target.classList && (e.target.classList.contains('ac-dept') || e.target.classList.contains('ac-desig'))){
     const em = e.target.dataset.em;
+    const isDept = e.target.classList.contains('ac-dept');
     SETTINGS.adminPerms = SETTINGS.adminPerms || {};
     const p = normPerm(SETTINGS.adminPerms[em]);
-    p.dept = e.target.value;
-    if(p.dept.toUpperCase().includes('ACCOUNT')) p.confidential = true;
+    if(isDept){ p.dept = e.target.value; if(p.dept.toUpperCase().includes('ACCOUNT')) p.confidential = true; }
+    else { p.desig = e.target.value; }
     SETTINGS.adminPerms[em] = p;
     const { error } = await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
     if(error) return notify(error.message, 'error');
-    notify('Department set to ' + (e.target.value || '—') + ' for ' + em, 'success');
+    notify((isDept ? 'Department' : 'Designation') + ' set to ' + (e.target.value || '—'), 'success');
     renderAdminCtl(); applyPerms();
     return;
   }
@@ -1482,10 +1490,17 @@ $('acCreateBtn').addEventListener('click', async () => {
   }catch(err){ notify('Could not create: ' + err.message, 'error'); }
   finally{ btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create Admin Login'; }
 });
-$('acAddBtn').addEventListener('click', () => {
-  const em = $('acEmail').value.trim().toLowerCase();
-  if(!em || !em.includes('@')) return notify('Enter the admin email', 'error');
-  acShowPages(em, (SETTINGS.adminPerms || {})[em]);
+$('acAddBtn').addEventListener('click', async () => {
+  const em = ($('acEmpPick').value || $('acEmail').value).trim().toLowerCase();
+  if(!em || !em.includes('@')) return notify('Pick an employee or enter an email', 'error');
+  SETTINGS.adminPerms = SETTINGS.adminPerms || {};
+  if(!SETTINGS.adminPerms[em]) SETTINGS.adminPerms[em] = normPerm(null); // default: all pages, full approvals
+  const { error } = await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
+  if(error) return notify(error.message, 'error');
+  notify(em + ' added to the admin list', 'success');
+  $('acEmail').value = ''; if($('acEmpPick')) $('acEmpPick').value = '';
+  renderAdminCtl(); applyPerms();
+  acShowPages(em, SETTINGS.adminPerms[em]); // open the editor to fine-tune
 });
 $('acSavePerms').addEventListener('click', async () => {
   const em = $('acWho').innerText;
@@ -3019,9 +3034,39 @@ document.body.addEventListener('click', async e => {
   if(act === 'dc-del'){ DED_EDIT.splice(Number(el.dataset.i), 1); renderCompMgr(); }
   if(act === 'ac-edit'){ $('acEmail').value = el.dataset.em; acShowPages(el.dataset.em, normPerm((SETTINGS.adminPerms || {})[el.dataset.em]).pages); }
   if(act === 'ac-del'){
+    if(!confirm('Remove ' + el.dataset.em + ' from the admin list? (Their Supabase login is not deleted, only admin access here.)')) return;
     delete SETTINGS.adminPerms[el.dataset.em];
     await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
-    renderAdminCtl(); applyPerms(); notify('Restrictions removed', 'success');
+    renderAdminCtl(); applyPerms(); notify('Removed from admin list', 'success');
+  }
+  if(act === 'ac-pwd'){
+    if(!isSuper()) return notify('Only a super admin can reset passwords', 'error');
+    const em = el.dataset.em;
+    const mode = confirm('Reset password for ' + em + '?\n\nOK = e-mail them a secure reset link\nCancel = set a temporary password myself');
+    if(mode){
+      // email a reset link (works on any Supabase project, no secret key needed)
+      const { error } = await sb.auth.resetPasswordForEmail(em, { redirectTo: location.origin + location.pathname });
+      if(error) return notify(error.message, 'error');
+      notify('Reset link e-mailed to ' + em, 'success');
+    } else {
+      const np = prompt('New temporary password for ' + em + ' (min 6 chars).\nNOTE: this needs the Service Role key set in the config sheet; otherwise use the e-mail option.');
+      if(!np) return;
+      if(np.length < 6) return notify('Password must be at least 6 characters', 'error');
+      // try the admin endpoint via the Nexus config (service role). Falls back to a clear message.
+      try{
+        const cfg = JSON.parse(localStorage.getItem('nx_cfg') || '{}');
+        if(!cfg.service){ return notify('Direct password set needs the Service Role key. Use the e-mail reset option instead.', 'error'); }
+        const admin = supabase.createClient(SUPABASE_URL, cfg.service, { auth:{ persistSession:false } });
+        // find the user id
+        const { data: list, error: le } = await admin.auth.admin.listUsers();
+        if(le) throw le;
+        const u = (list.users || []).find(x => (x.email||'').toLowerCase() === em);
+        if(!u) return notify('That email has no login yet — use Create Login first', 'error');
+        const { error: ue } = await admin.auth.admin.updateUserById(u.id, { password: np });
+        if(ue) throw ue;
+        notify('Password updated for ' + em, 'success');
+      }catch(err){ notify('Could not set directly: ' + err.message + '. Use the e-mail reset option.', 'error'); }
+    }
   }
   if(act === 'unit-del'){
     SETTINGS.units.splice(Number(el.dataset.i), 1);
