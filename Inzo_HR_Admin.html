@@ -727,7 +727,10 @@ body.no-confidential .confidential-col{display:none!important}
   <div class="card">
     <div class="flex items-center justify-between flex-wrap gap-2">
       <h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-key" style="color:var(--brand)"></i> Admins &amp; Permissions <span id="acCount" class="chip chip-gray"></span></h3>
-      <button id="acRefreshBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate"></i> Refresh</button>
+      <div class="flex gap-2">
+        <button id="acCleanBtn" class="btn btn-ghost btn-sm" title="Remove accidental / blank admin rows"><i class="fa-solid fa-broom"></i> Clean up</button>
+        <button id="acRefreshBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate"></i> Refresh</button>
+      </div>
     </div>
     <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Add an employee as an admin, set their department and what they can approve. Each change saves instantly.</p>
     <div class="p-3 rounded-xl mb-3" style="background:#f8fafc;border:1px solid var(--line)">
@@ -1403,6 +1406,32 @@ function nxAsk({ title='Confirm', msg='', input=false, placeholder='', okText='O
 }
 const nxConfirm = (msg, title='Confirm') => nxAsk({ title, msg });
 document.addEventListener('click', e => { if(e.target.closest && e.target.closest('#acRefreshBtn')){ loadCore().then(renderAdminCtl); notify('Refreshed', 'success'); } });
+document.addEventListener('click', async e => {
+  if(!(e.target.closest && e.target.closest('#acCleanBtn'))) return;
+  const perms = SETTINGS.adminPerms || {};
+  const before = Object.keys(perms).length;
+  const supers = (SETTINGS.superAdmins || []).map(s => s.toLowerCase());
+  const keep = {};
+  Object.keys(perms).forEach(em => {
+    if(supers.includes(em.toLowerCase())) return; // supers don't need a perms row
+    const p = normPerm(perms[em]);
+    const meaningful =
+      (p.pages && p.pages.length && p.pages.length < ALL_PAGES.length) || // custom page set
+      p.dept || p.desig ||                                               // has a role set
+      p.confidential === true || p.finalize === true ||                  // special rights
+      p.approve.leave === false || p.approve.ot === false ||             // an approval removed
+      p.approve.expense === false || p.approve.advance === false;
+    if(meaningful) keep[em] = perms[em];
+  });
+  const removed = before - Object.keys(keep).length;
+  if(!removed) return notify('Nothing to clean — the list is already tidy', 'success');
+  if(!(await nxConfirm('Remove ' + removed + ' blank/accidental admin row(s)?\nOnly rows with no role and default access will be removed. Super admins are kept.', 'Clean up admin list'))) return;
+  SETTINGS.adminPerms = keep;
+  const { error } = await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
+  if(error) return notify(error.message, 'error');
+  notify('Removed ' + removed + ' accidental row(s)', 'success');
+  renderAdminCtl(); applyPerms();
+});
 const nxPrompt = (msg, title='Enter', password=false) => nxAsk({ title, msg, input:true, password });
 function renderAdminCtl(){
   fillAdminPickers();
@@ -1411,9 +1440,8 @@ function renderAdminCtl(){
     `<span class="ac-mini" style="background:#fef3c7;color:#92400e"><i class="fa-solid fa-crown"></i> ${esc(s)}</span>`).join(' ') || '<span class="text-[11px]" style="color:var(--muted)">None saved yet — save your own email first.</span>';
   const perms = SETTINGS.adminPerms || {};
   const supers = (SETTINGS.superAdmins || []).map(s => s.toLowerCase());
-  // include everyone who has an email on file so no one is ever missing from the list
-  const empEmails = empEmailOptions().map(o => o.email.toLowerCase());
-  const everyone = Array.from(new Set([...supers, ...Object.keys(perms).map(x => x.toLowerCase()), ...empEmails]));
+  // ONLY people who are actually an admin or super admin
+  const everyone = Array.from(new Set([...supers, ...Object.keys(perms).map(x => x.toLowerCase())]));
   const sw = (em, k, on) => `<label class="sw"><input type="checkbox" class="ac-sw" data-em="${esc(em)}" data-k="${k}" ${on ? 'checked' : ''}><i></i></label>`;
   if($('acCount')) $('acCount').innerText = everyone.length + ' total';
   $('acList').innerHTML = everyone.length ? `
