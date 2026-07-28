@@ -725,7 +725,10 @@ body.no-confidential .confidential-col{display:none!important}
   </div>
 
   <div class="card">
-    <h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-key" style="color:var(--brand)"></i> Admins &amp; Permissions</h3>
+    <div class="flex items-center justify-between flex-wrap gap-2">
+      <h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-key" style="color:var(--brand)"></i> Admins &amp; Permissions <span id="acCount" class="chip chip-gray"></span></h3>
+      <button id="acRefreshBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate"></i> Refresh</button>
+    </div>
     <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Add an employee as an admin, set their department and what they can approve. Each change saves instantly.</p>
     <div class="p-3 rounded-xl mb-3" style="background:#f8fafc;border:1px solid var(--line)">
       <div class="text-xs font-semibold mb-2"><i class="fa-solid fa-user-plus" style="color:var(--brand)"></i> Add / create an admin</div>
@@ -857,6 +860,17 @@ body.no-confidential .confidential-col{display:none!important}
 </div><!-- /appShell -->
 
 <!-- ================= EMPLOYEE PROFILE MODAL ================= -->
+<div class="modal" id="nxAskModal">
+  <div class="modal-box" style="max-width:400px">
+    <h3 id="nxAskTitle" class="display font-bold text-base mt-0 mb-2">Confirm</h3>
+    <p id="nxAskMsg" class="text-sm mb-3" style="color:#475569;white-space:pre-line"></p>
+    <input id="nxAskInput" class="inp mb-3 hidden">
+    <div class="flex gap-2 justify-end">
+      <button id="nxAskCancel" class="btn btn-ghost btn-sm">Cancel</button>
+      <button id="nxAskOk" class="btn btn-primary btn-sm">OK</button>
+    </div>
+  </div>
+</div>
 <div class="modal" id="empModal">
   <div class="modal-box">
     <div class="flex items-center justify-between mb-4">
@@ -1353,6 +1367,10 @@ function applyPerms(){
 }
 const PAGE_ICONS = { dashboard:'gauge', employees:'users', attendance:'calendar-check', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', idcards:'id-card', approvals:'clipboard-check', voice:'comments', settings:'gear' };
 function initials(em){ return em.split('@')[0].replace(/[^a-z0-9]/gi, ' ').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'A'; }
+function nameForEmail(email){
+  const o = empEmailOptions().find(x => x.email.toLowerCase() === String(email).toLowerCase());
+  return o ? o.name : '';
+}
 function empEmailOptions(){
   // employees that have an email on file -> usable as an admin login
   return EMP.map(e => {
@@ -1367,6 +1385,25 @@ function fillAdminPickers(){
   if($('acSuperPick')) $('acSuperPick').innerHTML = html.replace('— Pick an employee —', '— Pick an employee to make Super Admin —');
   if($('acEmpPick')) $('acEmpPick').innerHTML = html;
 }
+function nxAsk({ title='Confirm', msg='', input=false, placeholder='', okText='OK', password=false } = {}){
+  return new Promise(resolve => {
+    $('nxAskTitle').innerText = title;
+    $('nxAskMsg').innerText = msg;
+    const inp = $('nxAskInput');
+    inp.classList.toggle('hidden', !input);
+    inp.type = password ? 'password' : 'text';
+    inp.value = ''; inp.placeholder = placeholder;
+    $('nxAskOk').innerText = okText;
+    $('nxAskModal').classList.add('show');
+    if(input) setTimeout(() => inp.focus(), 50);
+    const done = val => { $('nxAskModal').classList.remove('show'); $('nxAskOk').onclick = null; $('nxAskCancel').onclick = null; resolve(val); };
+    $('nxAskOk').onclick = () => done(input ? (inp.value || '') : true);
+    $('nxAskCancel').onclick = () => done(input ? null : false);
+  });
+}
+const nxConfirm = (msg, title='Confirm') => nxAsk({ title, msg });
+document.addEventListener('click', e => { if(e.target.closest && e.target.closest('#acRefreshBtn')){ loadCore().then(renderAdminCtl); notify('Refreshed', 'success'); } });
+const nxPrompt = (msg, title='Enter', password=false) => nxAsk({ title, msg, input:true, password });
 function renderAdminCtl(){
   fillAdminPickers();
   $('acSupers').value = (SETTINGS.superAdmins || []).join(', ');
@@ -1374,19 +1411,27 @@ function renderAdminCtl(){
     `<span class="ac-mini" style="background:#fef3c7;color:#92400e"><i class="fa-solid fa-crown"></i> ${esc(s)}</span>`).join(' ') || '<span class="text-[11px]" style="color:var(--muted)">None saved yet — save your own email first.</span>';
   const perms = SETTINGS.adminPerms || {};
   const supers = (SETTINGS.superAdmins || []).map(s => s.toLowerCase());
-  const everyone = Array.from(new Set([...Object.keys(perms), ...supers]));
+  // include everyone who has an email on file so no one is ever missing from the list
+  const empEmails = empEmailOptions().map(o => o.email.toLowerCase());
+  const everyone = Array.from(new Set([...supers, ...Object.keys(perms).map(x => x.toLowerCase()), ...empEmails]));
   const sw = (em, k, on) => `<label class="sw"><input type="checkbox" class="ac-sw" data-em="${esc(em)}" data-k="${k}" ${on ? 'checked' : ''}><i></i></label>`;
+  if($('acCount')) $('acCount').innerText = everyone.length + ' total';
   $('acList').innerHTML = everyone.length ? `
   <div style="overflow-x:auto"><table class="tbl" style="min-width:760px">
     <thead><tr>
-      <th>Admin</th><th>Department</th><th>Designation</th><th>Pages</th>
+      <th>User</th><th>Role</th><th>Department</th><th>Designation</th><th>Pages</th>
       <th style="text-align:center">Leave<br>Approve</th><th style="text-align:center">OT<br>Approve</th>
       <th style="text-align:center">Expense<br>Approve</th><th style="text-align:center">Advance<br>Add</th>
       <th style="text-align:center">Payroll<br>Finalize</th><th style="text-align:center">See Salary /<br>Confidential</th><th></th>
     </tr></thead>
     <tbody>${everyone.map(em => { const p = normPerm(perms[em]); const isSup = supers.includes(em.toLowerCase()); return `
       <tr${isSup ? ' style="background:#fffdf5"' : ''}>
-        <td><div class="flex items-center gap-2"><div class="ac-avatar" style="width:30px;height:30px;font-size:11px;border-radius:9px">${initials(em)}</div><div><span class="text-xs font-semibold">${esc(em)}</span>${isSup ? '<div class="text-[9px]" style="color:#b45309"><i class="fa-solid fa-crown"></i> Super Admin</div>' : ''}</div></div></td>
+        <td><div class="flex items-center gap-2"><div class="ac-avatar" style="width:30px;height:30px;font-size:11px;border-radius:9px">${initials(em)}</div><div><span class="text-xs font-semibold">${esc(nameForEmail(em) || em)}</span><div class="text-[9px]" style="color:var(--muted)">${esc(em)}</div></div></div></td>
+        <td><select class="inp ac-role" data-em="${esc(em)}" style="padding:5px 8px;font-size:12px;min-width:120px">
+          <option value="user" ${(!isSup && !perms[em]) ? 'selected' : ''}>User (no admin)</option>
+          <option value="admin" ${(!isSup && perms[em]) ? 'selected' : ''}>Admin</option>
+          <option value="super" ${isSup ? 'selected' : ''}>Super Admin</option>
+        </select></td>
         <td><select class="inp ac-dept" data-em="${esc(em)}" style="padding:5px 8px;font-size:12px;min-width:120px">
           <option value="">— Set —</option>
           ${(getSettings().depts || []).map(d => `<option value="${esc(d)}" ${String(p.dept||'').toUpperCase() === d.toUpperCase() ? 'selected' : ''}>${esc(d)}</option>`).join('')}
@@ -1410,6 +1455,27 @@ function renderAdminCtl(){
   </table></div>` : '<div class="p-4 rounded-xl text-center text-xs" style="background:#f8fafc;color:var(--muted)"><i class="fa-solid fa-users-viewfinder mb-1" style="font-size:18px"></i><br>No admins yet — pick an employee above to add one.</div>';
 }
 document.addEventListener('change', async e => {
+  if(e.target.classList && e.target.classList.contains('ac-role')){
+    const em = e.target.dataset.em, role = e.target.value;
+    SETTINGS.superAdmins = SETTINGS.superAdmins || [];
+    SETTINGS.adminPerms = SETTINGS.adminPerms || {};
+    const lc = em.toLowerCase();
+    // clear from super list first
+    SETTINGS.superAdmins = SETTINGS.superAdmins.filter(s => s.toLowerCase() !== lc);
+    if(role === 'super'){
+      SETTINGS.superAdmins.push(em);
+      delete SETTINGS.adminPerms[em];       // supers need no per-page rules
+    } else if(role === 'admin'){
+      if(!SETTINGS.adminPerms[em]) SETTINGS.adminPerms[em] = normPerm(null);
+    } else { // user
+      delete SETTINGS.adminPerms[em];
+    }
+    const { error } = await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
+    if(error) return notify(error.message, 'error');
+    notify(em + ' → ' + (role === 'super' ? 'Super Admin' : role === 'admin' ? 'Admin' : 'User'), 'success');
+    renderAdminCtl(); applyPerms();
+    return;
+  }
   if(e.target.classList && (e.target.classList.contains('ac-dept') || e.target.classList.contains('ac-desig'))){
     const em = e.target.dataset.em;
     const isDept = e.target.classList.contains('ac-dept');
@@ -1447,22 +1513,27 @@ document.addEventListener('click', e => {
   if(e.target.id === 'acAll' || (e.target.closest && e.target.closest('#acAll'))) document.querySelectorAll('#acPages .ac-chip').forEach(c => c.classList.add('on'));
   if(e.target.id === 'acNone' || (e.target.closest && e.target.closest('#acNone'))) document.querySelectorAll('#acPages .ac-chip').forEach(c => c.classList.remove('on'));
 });
-$('acSuperAdd').addEventListener('click', () => {
-  const v = $('acSuperPick').value.trim();
-  if(!v) return;
-  const cur = $('acSupers').value.split(',').map(s => s.trim()).filter(Boolean);
-  if(!cur.map(s => s.toLowerCase()).includes(v.toLowerCase())) cur.push(v);
-  $('acSupers').value = cur.join(', ');
-  notify('Added — now click Save Super Admins', 'success');
+$('acSuperAdd').addEventListener('click', async () => {
+  const v = ($('acSuperPick').value || $('acSupers').value.split(',').pop() || '').trim().toLowerCase();
+  if(!v || !v.includes('@')) return notify('Pick an employee (with an email) first', 'error');
+  SETTINGS.superAdmins = SETTINGS.superAdmins || [];
+  if(!SETTINGS.superAdmins.map(s => s.toLowerCase()).includes(v)) SETTINGS.superAdmins.push(v);
+  if(SETTINGS.adminPerms) delete SETTINGS.adminPerms[v];
+  const { error } = await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
+  if(error) return notify(error.message, 'error');
+  notify(v + ' is now a Super Admin', 'success');
+  $('acSuperPick').value = '';
+  renderAdminCtl(); applyPerms();
 });
 $('acEmpPick').addEventListener('change', () => {
   if($('acEmpPick').value) $('acEmail').value = $('acEmpPick').value;
 });
 $('acSaveSupers').addEventListener('click', async () => {
   SETTINGS.superAdmins = $('acSupers').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-  if(SETTINGS.superAdmins.length && !SETTINGS.superAdmins.includes(ME_EMAIL) && !confirm('Your own email is NOT in the super admin list — you will lose this panel after refresh. Continue?')) return;
-  await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
-  notify('Super admins saved', 'success'); applyPerms();
+  if(SETTINGS.superAdmins.length && !SETTINGS.superAdmins.includes(ME_EMAIL) && !(await nxConfirm('Your own email is NOT in the super admin list — you will lose this panel after refresh. Continue?', 'Warning'))) return;
+  const { error } = await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
+  if(error) return notify(error.message, 'error');
+  notify('Super admins saved', 'success'); renderAdminCtl(); applyPerms();
 });
 $('acCreateBtn').addEventListener('click', async () => {
   if(!isSuper()) return notify('Only a super admin can create admin logins', 'error');
@@ -3034,7 +3105,7 @@ document.body.addEventListener('click', async e => {
   if(act === 'dc-del'){ DED_EDIT.splice(Number(el.dataset.i), 1); renderCompMgr(); }
   if(act === 'ac-edit'){ $('acEmail').value = el.dataset.em; acShowPages(el.dataset.em, normPerm((SETTINGS.adminPerms || {})[el.dataset.em]).pages); }
   if(act === 'ac-del'){
-    if(!confirm('Remove ' + el.dataset.em + ' from the admin list? (Their Supabase login is not deleted, only admin access here.)')) return;
+    if(!(await nxConfirm('Remove ' + el.dataset.em + ' from the admin list?\nTheir login is not deleted — only admin access here.', 'Remove Admin'))) return;
     delete SETTINGS.adminPerms[el.dataset.em];
     await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
     renderAdminCtl(); applyPerms(); notify('Removed from admin list', 'success');
@@ -3042,31 +3113,11 @@ document.body.addEventListener('click', async e => {
   if(act === 'ac-pwd'){
     if(!isSuper()) return notify('Only a super admin can reset passwords', 'error');
     const em = el.dataset.em;
-    const mode = confirm('Reset password for ' + em + '?\n\nOK = e-mail them a secure reset link\nCancel = set a temporary password myself');
-    if(mode){
-      // email a reset link (works on any Supabase project, no secret key needed)
-      const { error } = await sb.auth.resetPasswordForEmail(em, { redirectTo: location.origin + location.pathname });
-      if(error) return notify(error.message, 'error');
-      notify('Reset link e-mailed to ' + em, 'success');
-    } else {
-      const np = prompt('New temporary password for ' + em + ' (min 6 chars).\nNOTE: this needs the Service Role key set in the config sheet; otherwise use the e-mail option.');
-      if(!np) return;
-      if(np.length < 6) return notify('Password must be at least 6 characters', 'error');
-      // try the admin endpoint via the Nexus config (service role). Falls back to a clear message.
-      try{
-        const cfg = JSON.parse(localStorage.getItem('nx_cfg') || '{}');
-        if(!cfg.service){ return notify('Direct password set needs the Service Role key. Use the e-mail reset option instead.', 'error'); }
-        const admin = supabase.createClient(SUPABASE_URL, cfg.service, { auth:{ persistSession:false } });
-        // find the user id
-        const { data: list, error: le } = await admin.auth.admin.listUsers();
-        if(le) throw le;
-        const u = (list.users || []).find(x => (x.email||'').toLowerCase() === em);
-        if(!u) return notify('That email has no login yet — use Create Login first', 'error');
-        const { error: ue } = await admin.auth.admin.updateUserById(u.id, { password: np });
-        if(ue) throw ue;
-        notify('Password updated for ' + em, 'success');
-      }catch(err){ notify('Could not set directly: ' + err.message + '. Use the e-mail reset option.', 'error'); }
-    }
+    const ok = await nxConfirm('Send a secure password-reset link to:\n' + em + '\n\nThey will click it and set a new password themselves.', 'Reset Password');
+    if(!ok) return;
+    const { error } = await sb.auth.resetPasswordForEmail(em, { redirectTo: location.origin + location.pathname });
+    if(error) return notify(error.message, 'error');
+    notify('Reset link e-mailed to ' + em, 'success');
   }
   if(act === 'unit-del'){
     SETTINGS.units.splice(Number(el.dataset.i), 1);
@@ -3518,7 +3569,7 @@ $('setSaveBtn').addEventListener('click', async () => {
 });
 $('epPwResetBtn').addEventListener('click', async () => {
   const code = $('epCode').value;
-  if(!confirm('Reset ESS password for ' + code + '? The registered mobile number will work as the password again.')) return;
+  if(!(await nxConfirm('Reset ESS password for ' + code + '?\nThe registered mobile number will work as the password again.', 'Reset ESS Password'))) return;
   const { error } = await sb.from('hr_profiles').update({ ess_password: null }).eq('employee_code', code);
   if(error) return notify(error.message + ' — run the V15 migration SQL first?', 'error');
   notify('ESS password reset — mobile number is the password now', 'success');
