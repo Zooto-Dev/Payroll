@@ -947,7 +947,7 @@ function nxConfirm(msg, title){
             
             const displaySize = { width: video.clientWidth, height: video.clientHeight };
             faceapi.matchDimensions(canvas, displaySize);
-            const detectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.5 });
+            const detectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 });
             
             isDetecting = true;
             
@@ -959,36 +959,47 @@ function nxConfirm(msg, title){
                     return;
                 }
               try {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // STAGE 1 (cheap): is there a face at all? just the detector, no landmarks/descriptor.
+                const faceBox = await faceapi.detectSingleFace(video, detectorOptions);
+                if (!faceBox) {
+                    reticle.classList.remove('detecting');
+                    resetScanState();
+                    if(isDetecting) setTimeout(() => requestAnimationFrame(scanFrame), 60);
+                    return;
+                }
+                // STAGE 2 (expensive, only now that a face is found): landmarks + descriptor for THIS face.
                 const detection = await faceapi.detectSingleFace(video, detectorOptions)
                                               .withFaceLandmarks()
                                               .withFaceDescriptor();
-
-                const ctx = canvas.getContext('2d');
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
 
                 if (detection) {
                     reticle.classList.add('detecting');
 
                     const match = faceMatcher.findBestMatch(detection.descriptor);
 
-                    // how confusable is this? compare best vs second-best distance
-                    let ambiguous = false;
-                    try {
-                        const dists = labeledFaceDescriptors.map(ld => ({
-                            label: ld.label,
-                            d: Math.min.apply(null, ld.descriptors.map(dd => faceapi.euclideanDistance(dd, detection.descriptor)))
-                        })).sort((a,b) => a.d - b.d);
-                        if (dists.length >= 2 && (dists[1].d - dists[0].d) < 0.08) ambiguous = true; // too close to call
-                    } catch(e){}
+                    // ambiguity guard in ONE pass: find best & second-best distance without extra allocs
+                    let best = 1e9, second = 1e9;
+                    for (let li = 0; li < labeledFaceDescriptors.length; li++) {
+                        const ds = labeledFaceDescriptors[li].descriptors;
+                        for (let di = 0; di < ds.length; di++) {
+                            const dd = faceapi.euclideanDistance(ds[di], detection.descriptor);
+                            if (dd < best) { second = best; best = dd; }
+                            else if (dd < second) { second = dd; }
+                        }
+                    }
+                    const ambiguous = (second - best) < 0.10; // two people too close -> refuse (no wrong punch)
 
                     const STRICT = 0.42;
                     if (match.label !== 'unknown' && match.distance < STRICT && !ambiguous) {
 
                         if (currentTarget === match.label) {
-                            matchConfidence += 50;
+                            matchConfidence += 55;
                         } else {
                             currentTarget = match.label;
-                            matchConfidence = 50;
+                            matchConfidence = 45;
                         }
 
                         verifyUI.classList.remove('opacity-0');
@@ -1037,7 +1048,7 @@ function nxConfirm(msg, title){
                 // if the camera stream died, revive it
                 if(!video.videoWidth && isDetecting){ try{ await startCamera(); }catch(e){} }
               }
-                if(isDetecting) setTimeout(() => requestAnimationFrame(scanFrame), 250);
+                if(isDetecting) setTimeout(() => requestAnimationFrame(scanFrame), 40);
             }
             scanFrame();
         }
@@ -1062,7 +1073,7 @@ function nxConfirm(msg, title){
            TUNING:
         */
         const AS_THRESHOLD = 0.50;        // avg real-face probability needed to punch (raise = stricter)
-        const AS_FRAMES = 3;              // frames sampled per decision
+        const AS_FRAMES = 1;              // one pass is enough on GPU — was 3 (with waits) = the slow part
         const LIVE_MIN_FACE_RATIO = 0.11; // smaller face = screen at a distance -> silently ignore
 
         let antiSpoofSession = null, antiSpoofInputName = null, antiSpoofFailedToLoad = false;
@@ -1075,7 +1086,7 @@ function nxConfirm(msg, title){
                 const resp = await fetch('anti_spoof.onnx');
                 if (!resp.ok) throw new Error('anti_spoof.onnx not found (' + resp.status + ')');
                 const buf = await resp.arrayBuffer();
-                antiSpoofSession = await ort.InferenceSession.create(buf, { executionProviders: ['wasm'] });
+                antiSpoofSession = await ort.InferenceSession.create(buf, { executionProviders: ['webgl', 'wasm'], graphOptimizationLevel: 'all' });
                 antiSpoofInputName = antiSpoofSession.inputNames[0];
                 console.log('Anti-spoof model loaded');
             } catch (e) {
