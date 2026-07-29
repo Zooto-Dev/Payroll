@@ -947,7 +947,7 @@ function nxConfirm(msg, title){
             
             const displaySize = { width: video.clientWidth, height: video.clientHeight };
             faceapi.matchDimensions(canvas, displaySize);
-            const detectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 });
+            const detectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 });
             
             isDetecting = true;
             
@@ -1092,7 +1092,7 @@ function nxConfirm(msg, title){
         */
         const AS_THRESHOLD = 0.50;        // avg real-face probability needed to punch (raise = stricter)
         const AS_FRAMES = 1;              // one pass is enough on GPU — was 3 (with waits) = the slow part
-        const LIVE_MIN_FACE_RATIO = 0.11; // smaller face = screen at a distance -> silently ignore
+        const LIVE_MIN_FACE_RATIO = 0.07; // lowered so short people / high-mounted camera still register
 
         let antiSpoofSession = null, antiSpoofInputName = null, antiSpoofFailedToLoad = false;
         const asCanvas = document.createElement('canvas');
@@ -1299,9 +1299,24 @@ function nxConfirm(msg, title){
                 let punchType = "IN";
                 let successMessage = "";
 
+                const MIN_OUT_GAP_MS = 3 * 60 * 60 * 1000; // 3 hours minimum before punch-out
                 if (records && records.length > 0) {
                     let record = records[0];
                     if (!record.out_time) {
+                        // guard: don't allow punch-out until 3 hours after punch-in
+                        const inMs = new Date(`${todayStr}T${record.in_time.substring(0,8)}`).getTime();
+                        const nowMs = new Date(`${todayStr}T${timeStr}`).getTime();
+                        if (nowMs - inMs < MIN_OUT_GAP_MS) {
+                            if(!offlineProcessData) {
+                                const leftMin = Math.ceil((MIN_OUT_GAP_MS - (nowMs - inMs)) / 60000);
+                                const hh = Math.floor(leftMin / 60), mm = leftMin % 60;
+                                const leftTxt = (hh ? hh + ' ghante ' : '') + (mm ? mm + ' minute' : '');
+                                notify(empName + ', aap abhi punch-in kar chuke hain. Punch-out ' + leftTxt + ' baad hoga.', 'info');
+                                speakText(empName + ', aapka punch pehle se laga hua hai.');
+                                resumeScanning();
+                            }
+                            return;
+                        }
                         punchType = "OUT";
                         let totalMs = new Date(`${todayStr}T${timeStr}`).getTime() - new Date(`${todayStr}T${record.in_time.substring(0,8)}`).getTime();
                         let totalStr = `${String(Math.floor(totalMs / 3600000)).padStart(2,'0')}:${String(Math.floor((totalMs % 3600000) / 60000)).padStart(2,'0')}:00`;
