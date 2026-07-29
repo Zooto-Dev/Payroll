@@ -2514,7 +2514,11 @@ async function runPayroll(){
     const LDEC = ldRes.data || [];
     const yearLeaves = yearLvRes.data || [];
     const otApproved = {};
-    (otRes.data || []).forEach(o => { otApproved[o.employee_code] = (otApproved[o.employee_code]||0) + Number(o.hours); });
+    const otApprovedDays = {};   // employee_code -> Set of approved OT dates (for Sunday/holiday work OT)
+    (otRes.data || []).forEach(o => {
+      otApproved[o.employee_code] = (otApproved[o.employee_code]||0) + Number(o.hours);
+      (otApprovedDays[o.employee_code] = otApprovedDays[o.employee_code] || new Set()).add(o.ot_date);
+    });
     const dayMetaMap = {}; dayMeta.forEach(x => dayMetaMap[x.iso] = x);
     const isoAdd = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate()+n); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
     // expand a leave into {iso: fraction} for the payroll month (sandwich + half day aware)
@@ -2548,9 +2552,18 @@ async function runPayroll(){
           if(isLateFor(r.in_time, sh)) lates++;
         }
       });
-      // OT is strictly approval-based: only approved request hours count,
-      // no matter how long the person actually stayed.
+      // OT = strictly approval-based (approved by CEO). A normal long day does NOT earn OT.
+      // Two ways to earn OT, both require an approved OT request:
+      //   1) the approved hours entered against that request, and/or
+      //   2) working on a weekly-off (Sunday) or holiday -> that whole shift counts as OT.
       otHours = otApproved[code] !== undefined ? otApproved[code] : 0;
+      // add Sunday/holiday worked-day OT (only for days that have an approved OT request)
+      const otDays = otApprovedDays[code] || new Set();
+      dayMeta.forEach(x => {
+        if((x.isWO || x.isH) && days[x.iso] && otDays.has(x.iso)){
+          otHours += shHrs; // full shift as overtime for a worked week-off / holiday
+        }
+      });
       if((p.salary || {}).otAllowed === false) otHours = 0; // OT not allowed for this employee
       // leaves this month (skip punched days)
       const myLeaves = yearLeaves.filter(L => L.employee_code === code && PAID_LEAVES.includes(L.leave_type));
@@ -4038,6 +4051,22 @@ async function ensureFaceModels(){
   ]);
   faceModelsReady = true;
 }
+function adminFaceQuality(detection, iw, ih){
+  const box = detection.detection.box;
+  const score = detection.detection.score;
+  const ratio = box.width / iw;
+  if(ratio < 0.15) return { ok:false, reason:'Face too small in the photo', tip:'Use a close-up photo where the face fills most of the frame' };
+  if(score < 0.70) return { ok:false, reason:'Face not clear', tip:'Use a sharp, well-lit, front-facing photo (no mask/cap/sunglasses)' };
+  const cx = (box.x + box.width/2) / iw, cy = (box.y + box.height/2) / ih;
+  if(cx < 0.15 || cx > 0.85 || cy < 0.1 || cy > 0.9) return { ok:false, reason:'Face not centered / partly cut', tip:'Use a photo with the full face centered' };
+  try{
+    const lm = detection.landmarks, le = lm.getLeftEye(), re = lm.getRightEye();
+    const lc = le.reduce((a,p)=>({x:a.x+p.x/le.length,y:a.y+p.y/le.length}),{x:0,y:0});
+    const rc = re.reduce((a,p)=>({x:a.x+p.x/re.length,y:a.y+p.y/re.length}),{x:0,y:0});
+    if(Math.abs(lc.y - rc.y) / box.height > 0.14) return { ok:false, reason:'Head tilted / side profile', tip:'Use a straight front-facing photo' };
+  }catch(e){}
+  return { ok:true };
+}
 async function checkFaceStatus(code){
   $('epFaceStatus').className = 'chip chip-gray';
   $('epFaceStatus').innerText = 'Checking…';
@@ -4064,6 +4093,9 @@ $('epFaceBtn').addEventListener('click', async () => {
         .withFaceLandmarks().withFaceDescriptor();
     }
     if(!detection) return notify('No face found in this photo — use a clearer, front-facing photo with good light', 'error');
+    // ---- QUALITY GATE: reject a poor photo so punching never fails later ----
+    const q = adminFaceQuality(detection, img.width, img.height);
+    if(!q.ok){ notify('Photo rejected: ' + q.reason + '. ' + q.tip, 'error'); return; }
     const descriptor = JSON.stringify(Array.from(detection.descriptor));
     const { error } = await sb.from('employees').update({ Descriptor: descriptor }).eq('"Employee code"', code);
     if(error) throw error;
