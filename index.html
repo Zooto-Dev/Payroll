@@ -951,7 +951,14 @@ function nxConfirm(msg, title){
             
             isDetecting = true;
             
-            async function scanFrame() {
+            const NX_DEBUG = new URLSearchParams(location.search).get('debug') === '1';
+        let _hud;
+        function hud(txt){
+          if(!NX_DEBUG) return;
+          if(!_hud){ _hud = document.createElement('div'); _hud.style.cssText='position:fixed;top:0;left:0;right:0;background:#000;color:#0f0;font:12px monospace;padding:6px;z-index:99999;white-space:pre'; document.body.appendChild(_hud); }
+          _hud.textContent = txt;
+        }
+        async function scanFrame() {
                 if (!isDetecting) return;
                 // camera not ready yet (just switched tabs / device woke up) -> wait a beat, don't crash
                 if (!video || video.readyState < 2 || !video.videoWidth) {
@@ -963,7 +970,9 @@ function nxConfirm(msg, title){
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
                 // STAGE 1 (cheap): is there a face at all? just the detector, no landmarks/descriptor.
+                const _t0 = performance.now();
                 const faceBox = await faceapi.detectSingleFace(video, detectorOptions);
+                const _t1 = performance.now();
                 if (!faceBox) {
                     reticle.classList.remove('detecting');
                     resetScanState();
@@ -974,11 +983,14 @@ function nxConfirm(msg, title){
                 const detection = await faceapi.detectSingleFace(video, detectorOptions)
                                               .withFaceLandmarks()
                                               .withFaceDescriptor();
+                const _t2 = performance.now();
+                hud('detect: ' + (_t1-_t0).toFixed(0) + 'ms  descriptor: ' + (_t2-_t1).toFixed(0) + 'ms  conf: ' + matchConfidence + '  target: ' + (currentTarget||'-'));
 
                 if (detection) {
                     reticle.classList.add('detecting');
 
                     const match = faceMatcher.findBestMatch(detection.descriptor);
+                    if(NX_DEBUG) hud('detect:' + (_t1-_t0).toFixed(0) + ' desc:' + (_t2-_t1).toFixed(0) + 'ms  best:' + match.label + ' dist:' + match.distance.toFixed(3) + ' conf:' + matchConfidence);
 
                     // ambiguity guard in ONE pass: find best & second-best distance without extra allocs
                     let best = 1e9, second = 1e9;
