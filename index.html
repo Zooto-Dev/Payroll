@@ -1810,6 +1810,30 @@ function nxConfirm(msg, title){
         });
 
         // Capture Admin Face
+        // Judge if a detected face is good enough to REGISTER (so bad enrolments never happen).
+        function faceQuality(detection, vw, vh){
+            const box = detection.detection.box;
+            const score = detection.detection.score;           // detector confidence 0..1
+            const ratio = box.width / vw;                      // how big the face is in frame
+            // face must be reasonably big (close enough) — the #1 cause of bad matches
+            if (ratio < 0.18) return { ok:false, reason:'Face too small / far', tip:'Come closer to the camera' };
+            if (ratio > 0.85) return { ok:false, reason:'Face too close', tip:'Move back a little' };
+            // detector must be confident it is a clear face
+            if (score < 0.75) return { ok:false, reason:'Face not clear', tip:'Better light, no mask/cap, look straight' };
+            // face must be roughly centered (not half cut at an edge)
+            const cx = (box.x + box.width/2) / vw, cy = (box.y + box.height/2) / vh;
+            if (cx < 0.2 || cx > 0.8 || cy < 0.15 || cy > 0.85) return { ok:false, reason:'Face not centered', tip:'Center your face in the frame' };
+            // frontal check: eyes roughly level (not tilted / side profile) using landmarks
+            try {
+                const lm = detection.landmarks;
+                const le = lm.getLeftEye(), re = lm.getRightEye();
+                const lc = le.reduce((a,p)=>({x:a.x+p.x/le.length,y:a.y+p.y/le.length}),{x:0,y:0});
+                const rc = re.reduce((a,p)=>({x:a.x+p.x/re.length,y:a.y+p.y/re.length}),{x:0,y:0});
+                const tilt = Math.abs(lc.y - rc.y) / box.height;         // vertical eye offset
+                if (tilt > 0.12) return { ok:false, reason:'Head tilted', tip:'Keep your head straight' };
+            } catch(e){}
+            return { ok:true };
+        }
         document.getElementById('captureFaceBtn').addEventListener('click', async () => {
             const btn = document.getElementById('captureFaceBtn');
             btn.innerHTML = `<div class="loader-ring"></div> Scanning Face...`;
@@ -1823,18 +1847,28 @@ function nxConfirm(msg, title){
             const detection = await faceapi.detectSingleFace(adminVideo, detectorOptions).withFaceLandmarks().withFaceDescriptor();
 
             if (detection) {
+                // ---- QUALITY GATE: only accept a clear, big, frontal, centered face ----
+                const q = faceQuality(detection, adminVideo.videoWidth || adminVideo.clientWidth, adminVideo.videoHeight || adminVideo.clientHeight);
+                if (!q.ok) {
+                    newEmpDescriptor = null;
+                    saveEmpBtn.disabled = true;
+                    faceStatus.className = "text-red-600 font-bold bg-red-100 px-2 py-0.5 rounded text-[10px]";
+                    faceStatus.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' + q.reason;
+                    notify('Registration rejected: ' + q.reason + '. ' + q.tip, 'error');
+                    const ctx = adminCanvas.getContext('2d');
+                    ctx.clearRect(0,0, adminCanvas.width, adminCanvas.height);
+                    btn.innerHTML = `<i class="fa-solid fa-camera"></i> Scan & Capture Face`;
+                    return;
+                }
                 newEmpDescriptor = detection.descriptor;
-                
-                // Draw box
                 const resizedDetections = faceapi.resizeResults(detection, { width: adminVideo.clientWidth, height: adminVideo.clientHeight });
                 const ctx = adminCanvas.getContext('2d');
                 ctx.clearRect(0,0, adminCanvas.width, adminCanvas.height);
                 faceapi.draw.drawDetections(adminCanvas, resizedDetections);
-                
                 faceStatus.className = "text-emerald-600 font-bold bg-emerald-100 px-2 py-0.5 rounded text-[10px]";
-                faceStatus.innerHTML = `<i class="fa-solid fa-check-circle"></i> Captured`;
+                faceStatus.innerHTML = `<i class="fa-solid fa-check-circle"></i> Good quality — Captured`;
                 saveEmpBtn.disabled = false;
-                notify("Face Captured Successfully!", "success");
+                notify("Face captured — good quality!", "success");
             } else {
                 notify("No face detected. Look directly at the camera.", "error");
                 const ctx = adminCanvas.getContext('2d');
