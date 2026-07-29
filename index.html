@@ -993,6 +993,46 @@ function nxConfirm(msg, title){
                 if (detection) {
                     reticle.classList.add('detecting');
 
+                    // ---- FACE QUALITY GATE: only a clean, whole, front-facing face may punch ----
+                    const box = detection.detection.box;
+                    const vw = video.videoWidth, vh = video.videoHeight;
+                    const score = detection.detection.score || 0;
+                    const ratioW = box.width / vw;
+                    const margin = 6; // px tolerance
+                    const cutOff = (box.x < margin) || (box.y < margin) ||
+                                   (box.x + box.width > vw - margin) || (box.y + box.height > vh - margin);
+                    // head tilt / turn check from eye landmarks (both eyes roughly level & present)
+                    let badPose = false;
+                    try {
+                        const lm = detection.landmarks;
+                        const le = lm.getLeftEye(), re = lm.getRightEye();
+                        const lc = le.reduce((a,p)=>({x:a.x+p.x/le.length,y:a.y+p.y/le.length}),{x:0,y:0});
+                        const rc = re.reduce((a,p)=>({x:a.x+p.x/re.length,y:a.y+p.y/re.length}),{x:0,y:0});
+                        const eyeDx = Math.abs(rc.x - lc.x), eyeDy = Math.abs(rc.y - lc.y);
+                        if (eyeDx < box.width * 0.22) badPose = true;      // face turned sideways
+                        if (eyeDy > box.width * 0.18) badPose = true;      // head tilted too much
+                    } catch(e){}
+
+                    let qualityMsg = '';
+                    if (score < 0.55) qualityMsg = 'Face saaf nahi — thoda ujaale mein aayein';
+                    else if (ratioW < 0.14) qualityMsg = 'Thoda paas aayein / camera ke saamne aayein';
+                    else if (cutOff) qualityMsg = 'Poora chehra frame ke andar laayein';
+                    else if (badPose) qualityMsg = 'Seedha camera ki taraf dekhein';
+
+                    if (qualityMsg) {
+                        // reset any partial confidence and guide the person; DO NOT punch
+                        currentTarget = null; matchConfidence = 0;
+                        verifyUI && verifyUI.classList.add('opacity-0');
+                        statusText.innerText = 'ADJUST';
+                        if (!window._qLast || Date.now() - window._qLast > 2500) {
+                            window._qLast = Date.now();
+                            notify(qualityMsg, 'info');
+                        }
+                        if(isDetecting) setTimeout(() => requestAnimationFrame(scanFrame), 60);
+                        return;
+                    }
+                    statusText.innerText = 'SCANNING';
+
                     const match = faceMatcher.findBestMatch(detection.descriptor);
                     if(NX_DEBUG) hud('detect:' + (_t1-_t0).toFixed(0) + ' desc:' + (_t2-_t1).toFixed(0) + 'ms  best:' + match.label + ' dist:' + match.distance.toFixed(3) + ' conf:' + matchConfidence);
 
