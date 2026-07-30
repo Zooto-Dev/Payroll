@@ -795,6 +795,7 @@ body.no-confidential .confidential-col{display:none!important}
         <div><label class="lbl">Leave Policy</label>
           <select id="setLeaveMode" class="inp"><option value="annual">Annual quota (CL/SL/EL)</option><option value="monthly">Monthly accrual (earn per month)</option></select></div>
         <div><label class="lbl">Accrual / Month (days)</label><input id="setAccrual" type="number" step="0.5" class="inp" value="1"></div>
+        <div><label class="lbl">Min days worked to earn a month's leave</label><input id="setMinDaysForLeave" type="number" class="inp" value="15" min="1" max="31" title="An employee must attend at least this many days in a month to earn that month's leave. Below this, they won't appear in the Unused-Leave list."></div>
 
         <div><label class="lbl">OT Departments (ESS apply)</label><input id="setOTDepts" class="inp" value="PLANNING,PRODUCTION" title="Comma separated. Employees of these departments can request OT from ESS."></div>
         <div><label class="lbl">CL / Year</label><input id="setCL" type="number" class="inp" value="7"></div>
@@ -3649,6 +3650,7 @@ function fillSettingsForm(){
   $('setDesigs').value = (S.desigs || []).join('\n');
   renderUnits(); populateDLs();
   $('setLeaveMode').value = S.leaveMode; $('setAccrual').value = S.accrual; $('setOTDepts').value = S.otDepts;
+  $('setMinDaysForLeave').value = S.minDaysForLeave || 15;
   EARN_EDIT = null; DED_EDIT = null;
   renderCompMgr();
 }
@@ -3674,6 +3676,7 @@ $('setSaveBtn').addEventListener('click', async () => {
       depts: $('setDepts').value.split('\n').map(s => s.trim()).filter(Boolean),
       desigs: $('setDesigs').value.split('\n').map(s => s.trim()).filter(Boolean),
       leaveMode: $('setLeaveMode').value, accrual: Number($('setAccrual').value)||1, sandwich: false, otDepts: $('setOTDepts').value,
+      minDaysForLeave: Number($('setMinDaysForLeave').value)||15,
       earnComps: EARN_EDIT || getSettings().earnComps,
       dedComps: DED_EDIT || getSettings().dedComps
     };
@@ -4854,15 +4857,27 @@ async function renderLeaveDecisions(){
   const dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   if(dim - now.getDate() > 2){ if(card) card.remove(); return; } // only in the last 2 days
   const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-  const [lvRes, ldRes] = await Promise.all([
+  const [lvRes, ldRes, attRes] = await Promise.all([
     sb.from('leaves').select('employee_code, leave_type, days').eq('status','APPROVED').gte('from_date', ym + '-01').lte('from_date', ym + '-31'),
-    sb.from('leave_decisions').select('employee_code').eq('month', ym)
+    sb.from('leave_decisions').select('employee_code').eq('month', ym),
+    sb.from('attendance').select('employee_code, in_time').gte('date', ym + '-01').lte('date', ym + '-31')
   ]);
   if(ldRes.error) return; // V13 not run yet
   const used = {};
   (lvRes.data || []).forEach(L => { if(PAID_LEAVES.includes(L.leave_type)) used[L.employee_code] = (used[L.employee_code]||0) + Number(L.days); });
   const decided = new Set((ldRes.data || []).map(d => d.employee_code));
-  const pending = activeEmps().filter(e => !(used[e['Employee code']] > 0) && !decided.has(e['Employee code']));
+  // count present days this month per employee (only real punches)
+  const presentDays = {};
+  (attRes.data || []).forEach(a => { if(a.in_time) presentDays[a.employee_code] = (presentDays[a.employee_code]||0) + 1; });
+  // an employee earns this month's leave only after working a minimum number of days
+  const MIN_DAYS_FOR_LEAVE = Number(S.minDaysForLeave) || 15;
+  const pending = activeEmps().filter(e => {
+    const code = e['Employee code'];
+    if(used[code] > 0) return false;              // already took leave
+    if(decided.has(code)) return false;           // already decided
+    if((presentDays[code] || 0) < MIN_DAYS_FOR_LEAVE) return false; // hasn't earned leave yet
+    return true;
+  });
   if(!pending.length){ if(card) card.remove(); return; }
   if(!card){
     card = document.createElement('div');
