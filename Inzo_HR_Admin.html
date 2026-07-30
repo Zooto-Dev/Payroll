@@ -1398,6 +1398,23 @@ function applyPerms(){
 }
 const PAGE_ICONS = { dashboard:'gauge', employees:'users', attendance:'calendar-check', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', idcards:'id-card', approvals:'clipboard-check', voice:'comments', settings:'gear' };
 function initials(em){ return em.split('@')[0].replace(/[^a-z0-9]/gi, ' ').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'A'; }
+const _empPhotoCache = {};
+async function loadEmpPhoto(code){
+  try{
+    if(_empPhotoCache[code] === undefined){
+      const { data } = await sb.from('attendance')
+        .select('in_photo_url, out_photo_url, created_at')
+        .eq('employee_code', code)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      _empPhotoCache[code] = (data && data[0] && (data[0].in_photo_url || data[0].out_photo_url)) || null;
+    }
+    const url = _empPhotoCache[code];
+    if(url && $('epCode').value === code){
+      $('epAvatar').innerHTML = `<img src="${esc(url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" alt="">`;
+    }
+  }catch(e){ /* keep the initial */ }
+}
 function nameForEmail(email){
   const o = empEmailOptions().find(x => x.email.toLowerCase() === String(email).toLowerCase());
   return o ? o.name : '';
@@ -2108,11 +2125,14 @@ $('aeSaveBtn').addEventListener('click', async () => {
   finally{ btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Add Employee'; btn.disabled = false; }
 });
 
-function openEmpModal(code){
+async function openEmpModal(code){
   const e = EMP.find(x => x['Employee code'] === code); if(!e) return;
   const p = PROFILES[code] || {};
   $('epCode').value = code;
-  $('epAvatar').innerText = (e.Name || '?').charAt(0).toUpperCase();
+  // show the initial first (instant), then swap in the real photo when it loads
+  $('epAvatar').innerHTML = (e.Name || '?').charAt(0).toUpperCase();
+  $('epAvatar').style.overflow = 'hidden';
+  loadEmpPhoto(code);
   $('epNameShow').innerText = e.Name;
   $('epMetaShow').innerText = `${code} • ${e.DEPARTMENT || '—'} • ${e.DESIGNATION || '—'} • DOJ: ${e.DOJ || '—'}`;
   $('epPhone').value = p.phone || ''; $('epEmail').value = p.email || '';
@@ -5168,5 +5188,103 @@ $('holAddBtn').addEventListener('click', async () => {
   }catch(err){ notify(err.message, 'error'); }
 });
 </script>
+
+<script>
+/* ============ Excel-style column filters for all .tbl tables ============ */
+(function(){
+  const FILTERS = new WeakMap();
+  function cellText(tr, i){ const td = tr.children[i]; return td ? (td.innerText||'').trim() : ''; }
+  function applyFilters(table){
+    const state = FILTERS.get(table); if(!state) return;
+    const rows = Array.from(table.tBodies[0]?.rows || []);
+    rows.forEach(tr => {
+      if(tr.dataset.nofilter === '1') return;
+      let show = true;
+      for(const [ci, set] of Object.entries(state)){
+        if(set && set.size){ if(!set.has(cellText(tr, +ci))) { show = false; break; } }
+      }
+      tr.style.display = show ? '' : 'none';
+    });
+    Array.from(table.tHead?.rows[0]?.cells || []).forEach((th, i) => {
+      const btn = th.querySelector('.colf-btn');
+      if(btn){ const s = state[i]; btn.classList.toggle('active', !!(s && s.size)); }
+    });
+  }
+  function openMenu(table, th, ci){
+    document.querySelectorAll('.colf-menu').forEach(m => m.remove());
+    const rows = Array.from(table.tBodies[0]?.rows || []).filter(r => r.dataset.nofilter !== '1');
+    const values = Array.from(new Set(rows.map(r => cellText(r, ci)))).filter(v => v !== '').sort();
+    if(!values.length) return;
+    const state = FILTERS.get(table) || {};
+    const sel = state[ci] || new Set();
+    const menu = document.createElement('div');
+    menu.className = 'colf-menu';
+    menu.innerHTML =
+      '<input class="colf-search" placeholder="Search…">' +
+      '<div class="colf-actions"><a class="colf-all">Select all</a><a class="colf-clear">Clear</a></div>' +
+      '<div class="colf-list">' +
+      values.map(v => `<label><input type="checkbox" value="${v.replace(/"/g,'&quot;')}" ${(!sel.size||sel.has(v))?'checked':''}><span>${v}</span></label>`).join('') +
+      '</div>' +
+      '<div class="colf-foot"><button class="colf-apply">Apply</button><button class="colf-reset">Reset</button></div>';
+    document.body.appendChild(menu);
+    const r = th.getBoundingClientRect();
+    menu.style.top = (r.bottom + window.scrollY + 4) + 'px';
+    menu.style.left = Math.min(r.left + window.scrollX, window.innerWidth - 240) + 'px';
+    const search = menu.querySelector('.colf-search');
+    search.addEventListener('input', () => {
+      const q = search.value.toLowerCase();
+      menu.querySelectorAll('.colf-list label').forEach(l => { l.style.display = l.innerText.toLowerCase().includes(q) ? '' : 'none'; });
+    });
+    menu.querySelector('.colf-all').onclick = () => menu.querySelectorAll('.colf-list input').forEach(c => c.checked = true);
+    menu.querySelector('.colf-clear').onclick = () => menu.querySelectorAll('.colf-list input').forEach(c => c.checked = false);
+    menu.querySelector('.colf-apply').onclick = () => {
+      const picked = Array.from(menu.querySelectorAll('.colf-list input:checked')).map(c => c.value);
+      const all = menu.querySelectorAll('.colf-list input').length;
+      const st = FILTERS.get(table) || {};
+      if(picked.length === all) delete st[ci]; else st[ci] = new Set(picked);
+      FILTERS.set(table, st); applyFilters(table); menu.remove();
+    };
+    menu.querySelector('.colf-reset').onclick = () => {
+      const st = FILTERS.get(table) || {}; delete st[ci]; FILTERS.set(table, st); applyFilters(table); menu.remove();
+    };
+    setTimeout(() => document.addEventListener('click', function h(e){ if(!menu.contains(e.target)){ menu.remove(); document.removeEventListener('click', h);} }), 0);
+  }
+  function decorate(table){
+    if(!table.tHead || table.dataset.colf === '1') return;
+    table.dataset.colf = '1';
+    const ths = table.tHead.rows[0]?.cells || [];
+    Array.from(ths).forEach((th, i) => {
+      if(!th.innerText.trim()) return;
+      if(th.querySelector('.colf-btn')) return;
+      const btn = document.createElement('span');
+      btn.className = 'colf-btn'; btn.innerHTML = ' <i class="fa-solid fa-filter"></i>';
+      btn.style.cssText = 'cursor:pointer;opacity:.45;margin-left:4px;font-size:10px';
+      btn.onclick = (e) => { e.stopPropagation(); openMenu(table, th, i); };
+      th.appendChild(btn);
+    });
+    if(table.tBodies[0]){
+      new MutationObserver(() => applyFilters(table)).observe(table.tBodies[0], { childList: true });
+    }
+  }
+  function scan(){ document.querySelectorAll('table.tbl').forEach(decorate); }
+  document.addEventListener('DOMContentLoaded', scan);
+  new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
+  setTimeout(scan, 800);
+})();
+</script>
+<style>
+.colf-btn.active{ opacity:1 !important; color:var(--brand); }
+.colf-menu{ position:absolute; z-index:9999; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 12px 30px rgba(15,23,42,.18); width:220px; padding:8px; font-size:12px; }
+.colf-search{ width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; font-size:12px; }
+.colf-actions{ display:flex; justify-content:space-between; margin-bottom:6px; }
+.colf-actions a{ color:var(--brand); cursor:pointer; font-size:11px; }
+.colf-list{ max-height:180px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:4px; }
+.colf-list label{ display:flex; align-items:center; gap:6px; padding:3px 4px; cursor:pointer; border-radius:5px; }
+.colf-list label:hover{ background:#f1f5f9; }
+.colf-foot{ display:flex; gap:6px; margin-top:8px; }
+.colf-foot button{ flex:1; padding:6px; border-radius:8px; border:none; cursor:pointer; font-size:12px; }
+.colf-apply{ background:var(--brand); color:#fff; }
+.colf-reset{ background:#f1f5f9; color:#334155; }
+</style>
 </body>
 </html>
