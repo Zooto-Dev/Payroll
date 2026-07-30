@@ -47,6 +47,42 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .tab{flex:1;text-align:center;padding:6px 2px;border:none;background:none;color:var(--muted);font-size:10px;font-weight:600;cursor:pointer}
 .tab i{display:block;font-size:17px;margin-bottom:3px}
 .tab.active{color:var(--brand)}
+
+/* ======= DESKTOP: sidebar layout (≥900px) ======= */
+@media (min-width: 900px){
+  .wrap{ max-width: 760px; margin-left: 250px; margin-right: auto; padding: 32px 40px; padding-bottom: 40px; }
+  /* turn the bottom tab-bar into a fixed LEFT sidebar */
+  .tabbar{
+    top: 0; bottom: 0; left: 0; right: auto;
+    width: 220px; flex-direction: column; justify-content: flex-start;
+    border-top: none; border-right: 1px solid var(--line);
+    padding: 24px 12px; gap: 6px; background: #fff;
+  }
+  .tabbar::before{
+    content: 'NEXUS'; display:block; text-align:center;
+    font-family:'Syncopate',sans-serif; font-weight:700; font-size:16px;
+    letter-spacing:.18em; color:#0f172a; margin-bottom: 8px;
+  }
+  .tabbar::after{
+    content: 'My HR'; display:block; text-align:center; font-size:10px;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--muted);
+    margin-bottom: 20px; border-bottom:1px solid var(--line); padding-bottom:16px;
+  }
+  .tab{
+    flex: none; width: 100%; text-align: left; font-size: 14px;
+    padding: 12px 16px; border-radius: 12px; display: flex; align-items: center; gap: 12px;
+  }
+  .tab i{ font-size: 16px; width: 20px; text-align:center; }
+  .tab:hover{ background: var(--brand-soft, #ecfeff); }
+  .tab.active{ background: var(--brand-soft, #ecfeff); font-weight: 700; }
+  /* login card stays nicely centered on desktop */
+  #login{ max-width: 420px; margin: 0 auto; }
+  #toastWrap{ left: auto; right: 24px; transform: none; }
+}
+/* wider desktops: give the content a bit more room, keep it readable */
+@media (min-width: 1300px){
+  .wrap{ max-width: 900px; }
+}
 .page{display:none}.page.show{display:block}
 .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:13px}
 .row:last-child{border-bottom:none}
