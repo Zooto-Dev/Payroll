@@ -673,19 +673,28 @@ setTimeout(nxHideSplash, 7000); // failsafe
                 _nxAudioCtx = _nxAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
                 const ctx = _nxAudioCtx;
                 if(ctx.state === 'suspended') ctx.resume();
-                // success = rising two-note ding-dong; error = lower single tone
-                const notes = (kind === 'error') ? [[440, 0]] : [[880, 0], [1174, 0.12]];
+                // Pleasant notification: success = soft rising 3-note arpeggio (C E G),
+                // error = gentle low two-tone. Warm bell-like tone with smooth decay.
+                const success = [[523.25, 0.00], [659.25, 0.10], [783.99, 0.20]]; // C5 E5 G5
+                const errorN  = [[392.00, 0.00], [329.63, 0.14]];                 // G4 -> E4 (soft "no")
+                const notes = (kind === 'error') ? errorN : success;
+                const master = ctx.createGain();
+                master.gain.value = 0.5;
+                master.connect(ctx.destination);
                 notes.forEach(([freq, when]) => {
                     const t = ctx.currentTime + when;
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(freq, t);
-                    gain.gain.setValueAtTime(0.0001, t);
-                    gain.gain.exponentialRampToValueAtTime(0.35, t + 0.02);   // quick attack
-                    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35); // smooth decay
-                    osc.connect(gain); gain.connect(ctx.destination);
-                    osc.start(t); osc.stop(t + 0.4);
+                    // two oscillators (fundamental + soft octave) for a warmer bell tone
+                    [[freq, 0.30, 'sine'], [freq*2, 0.10, 'sine']].forEach(([f, vol, type]) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.type = type;
+                        osc.frequency.setValueAtTime(f, t);
+                        gain.gain.setValueAtTime(0.0001, t);
+                        gain.gain.exponentialRampToValueAtTime(vol, t + 0.015);  // soft attack
+                        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.55); // long smooth decay
+                        osc.connect(gain); gain.connect(master);
+                        osc.start(t); osc.stop(t + 0.6);
+                    });
                 });
             }catch(e){ /* audio not available */ }
         }
