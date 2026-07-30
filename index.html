@@ -666,21 +666,38 @@ setTimeout(nxHideSplash, 7000); // failsafe
             }).join(' ');
         }
         let _nxVoicesReady = false;
-        function speakText(text, isName) {
-            if (!('speechSynthesis' in window)) return;
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'hi-IN';
-            const voices = window.speechSynthesis.getVoices();
-            const hindiVoice = voices.find(v => v.lang === 'hi-IN') || voices.find(v => (v.lang||'').startsWith('hi'));
-            if (hindiVoice) utterance.voice = hindiVoice;
-            utterance.rate = 0.95;
-            window.speechSynthesis.speak(utterance);
+        // Pleasant "ting" chime instead of spoken text (like a phone notification).
+        let _nxAudioCtx = null;
+        function nxChime(kind){
+            try{
+                _nxAudioCtx = _nxAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
+                const ctx = _nxAudioCtx;
+                if(ctx.state === 'suspended') ctx.resume();
+                // success = rising two-note ding-dong; error = lower single tone
+                const notes = (kind === 'error') ? [[440, 0]] : [[880, 0], [1174, 0.12]];
+                notes.forEach(([freq, when]) => {
+                    const t = ctx.currentTime + when;
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, t);
+                    gain.gain.setValueAtTime(0.0001, t);
+                    gain.gain.exponentialRampToValueAtTime(0.35, t + 0.02);   // quick attack
+                    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35); // smooth decay
+                    osc.connect(gain); gain.connect(ctx.destination);
+                    osc.start(t); osc.stop(t + 0.4);
+                });
+            }catch(e){ /* audio not available */ }
         }
-        // voices load asynchronously; make sure they're ready
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.onvoiceschanged = () => { _nxVoicesReady = true; };
+        // keep the old name so existing calls work; now it just plays a chime.
+        function speakText(text, isName){
+            const isErr = /nahi|full|pehle se|kuch der|error/i.test(String(text||''));
+            nxChime(isErr ? 'error' : 'success');
         }
+        // unlock audio on first user touch (browsers block sound until interaction)
+        document.addEventListener('click', () => {
+            try{ _nxAudioCtx = _nxAudioCtx || new (window.AudioContext || window.webkitAudioContext)(); if(_nxAudioCtx.state==='suspended') _nxAudioCtx.resume(); }catch(e){}
+        }, { once: false });
 
 function nxConfirm(msg, title){
   return new Promise(resolve => {
@@ -1283,6 +1300,22 @@ function nxConfirm(msg, title){
         }
 
         // --- STREAMING_CHUNK: Attendance Business Logic ---
+        // Local memory of today's punches so offline refreshes never cause a duplicate punch-in.
+        function getLocalPunch(code, dayStr){
+            try{ const m = JSON.parse(localStorage.getItem('today_punches') || '{}'); return (m[dayStr] || {})[code] || null; }catch(e){ return null; }
+        }
+        function setLocalPunch(code, dayStr, field, value){
+            try{
+                const m = JSON.parse(localStorage.getItem('today_punches') || '{}');
+                if(!m[dayStr]) m[dayStr] = {};
+                if(!m[dayStr][code]) m[dayStr][code] = {};
+                m[dayStr][code][field] = value;
+                // keep only the last 3 days to stay tiny
+                const days = Object.keys(m).sort().slice(-3);
+                const trimmed = {}; days.forEach(d => trimmed[d] = m[d]);
+                localStorage.setItem('today_punches', JSON.stringify(trimmed));
+            }catch(e){}
+        }
         async function recordAttendance(empCode, offlineProcessData = null) {
             if(!offlineProcessData) {
                 notify("Verifying data...", "info");
@@ -1372,9 +1405,21 @@ function nxConfirm(msg, title){
                     console.warn("Photo upload warning:", e);
                 }
 
-                const { data: records, error: fetchErr } = await supabaseClient
-                    .from('attendance').select('*').eq('employee_code', empCode).eq('date', todayStr).order('created_at', { ascending: false });
+                let records = null, fetchErr = null;
+                try {
+                    const r = await supabaseClient
+                        .from('attendance').select('*').eq('employee_code', empCode).eq('date', todayStr).order('created_at', { ascending: false });
+                    records = r.data; fetchErr = r.error;
+                } catch(e){ fetchErr = e; }
 
+                // OFFLINE-SAFE GUARD: if we couldn't read the server (net down) but we KNOW locally
+                // that this person already punched in today, do NOT punch them in again.
+                const localToday = getLocalPunch(empCode, todayStr);
+                if ((fetchErr || records === null) && localToday && localToday.in) {
+                    // we have a local in-punch; treat the server record as "already in" so we don't duplicate
+                    records = [{ id: null, in_time: localToday.in, out_time: localToday.out || null, date: todayStr, _local: true }];
+                    fetchErr = null;
+                }
                 if (fetchErr) throw fetchErr;
 
                 let punchType = "IN";
@@ -1402,7 +1447,17 @@ function nxConfirm(msg, title){
                         let totalMs = new Date(`${todayStr}T${timeStr}`).getTime() - new Date(`${todayStr}T${record.in_time.substring(0,8)}`).getTime();
                         let totalStr = `${String(Math.floor(totalMs / 3600000)).padStart(2,'0')}:${String(Math.floor((totalMs % 3600000) / 60000)).padStart(2,'0')}:00`;
 
-                        const { error: updateErr } = await supabaseClient.from('attendance').update({ out_time: timeStr, out_photo_url: photoUrl, total_hours: totalStr }).eq('id', record.id);
+                        let updateErr = null;
+                        if(record.id){
+                            const u = await supabaseClient.from('attendance').update({ out_time: timeStr, out_photo_url: photoUrl, total_hours: totalStr }).eq('id', record.id);
+                            updateErr = u.error;
+                        } else {
+                            // local-only in-record (server was offline at in-time). Queue the out-punch instead.
+                            let pend = JSON.parse(localStorage.getItem('pending_punches') || '[]');
+                            pend.push({ type:'OUT', empCode, date: todayStr, out_time: timeStr, total_hours: totalStr });
+                            localStorage.setItem('pending_punches', JSON.stringify(pend));
+                        }
+                        setLocalPunch(empCode, todayStr, 'out', timeStr);
                         if (updateErr) throw updateErr;
                         
                         successMessage = speakName(empName) + ", aapka punch out safal raha.";
@@ -1456,7 +1511,7 @@ function nxConfirm(msg, title){
                     }]);
                     
                     if (insertErr) throw insertErr;
-                    
+                    setLocalPunch(empCode, todayStr, 'in', finalInTime);  // remember locally (offline-safe)
                     successMessage = speakName(empName) + ", aapka punch in safal raha.";
                     if(isLate && !offlineProcessData) successMessage += " Dhyan rahe, aap late hain.";
                 }
