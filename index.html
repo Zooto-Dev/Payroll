@@ -10,6 +10,14 @@
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
+    <script>
+      // Offline resilience: cache the app + libraries + models so a reload works with no internet.
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW register failed:', err));
+        });
+      }
+    </script>
     <style>
 /* ===== NEXUS CINEMATIC SPLASH ===== */
 #nxSplash{position:fixed;inset:0;z-index:99999;background:#f8fafc;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .8s ease, visibility .8s}
@@ -627,24 +635,51 @@ setTimeout(nxHideSplash, 7000); // failsafe
         let mediaStream = null;
 
         // --- Utility Functions ---
-        function speakText(text) {
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel(); // Stop any previous speech
-                const utterance = new SpeechSynthesisUtterance(text);
-                
-                // Hindi language (hi-IN) set kar di hai
-                utterance.lang = 'hi-IN'; 
-                
-                // System me Hindi voice dhoondh kar set karna
-                const voices = window.speechSynthesis.getVoices();
-                const hindiVoice = voices.find(v => v.lang === 'hi-IN');
-                if(hindiVoice) {
-                    utterance.voice = hindiVoice;
-                }
-
-                utterance.rate = 1.0; // Normal speed
-                window.speechSynthesis.speak(utterance);
-            }
+        // Convert a Latin-script name to Devanagari so the Hindi voice pronounces it correctly
+        // (otherwise "Pankaj" gets spelled out letter-by-letter as "p a n k a j").
+        function toDevanagari(word){
+            let w = word.toLowerCase();
+            // common name-endings that need a long vowel to sound right
+            w = w.replace(/a$/, 'aa');          // Sunita -> Sunitaa, Sita -> Sitaa
+            // 'n'/'m' before another consonant -> nasal (anusvara) : Pankaj, Sandeep, Santosh
+            w = w.replace(/n([kgcjtdpbmshl])/g, 'ṁ$1').replace(/m([kgpb])/g, 'ṁ$1');
+            let s = w;
+            const pairs = [
+              ['chh','छ'],['sh','श'],['ch','च'],['th','थ'],['dh','ध'],['ph','फ'],['bh','भ'],['gh','घ'],
+              ['kh','ख'],['jh','झ'],
+              ['aa','ा'],['ee','ी'],['ii','ी'],['oo','ू'],['uu','ू'],['ai','ै'],['au','ौ'],
+              ['ṁ','ं'],
+              ['a','_A_'],['b','ब'],['c','क'],['d','द'],['e','े'],['f','फ'],['g','ग'],['h','ह'],
+              ['i','ि'],['j','ज'],['k','क'],['l','ल'],['m','म'],['n','न'],['o','ो'],['p','प'],
+              ['q','क'],['r','र'],['s','स'],['t','त'],['u','ु'],['v','व'],['w','व'],['x','क्स'],
+              ['y','य'],['z','ज़']
+            ];
+            for(const [lat, dev] of pairs){ s = s.split(lat).join(dev); }
+            s = s.split('_A_').join('');
+            return s.trim();
+        }
+        function speakName(name){
+            // transliterate each word; keep it readable for the Hindi voice
+            return String(name || '').trim().split(/\s+/).map(w => {
+                // if it already has Devanagari, leave it; else transliterate
+                return /[\u0900-\u097F]/.test(w) ? w : toDevanagari(w);
+            }).join(' ');
+        }
+        let _nxVoicesReady = false;
+        function speakText(text, isName) {
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'hi-IN';
+            const voices = window.speechSynthesis.getVoices();
+            const hindiVoice = voices.find(v => v.lang === 'hi-IN') || voices.find(v => (v.lang||'').startsWith('hi'));
+            if (hindiVoice) utterance.voice = hindiVoice;
+            utterance.rate = 0.95;
+            window.speechSynthesis.speak(utterance);
+        }
+        // voices load asynchronously; make sure they're ready
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.onvoiceschanged = () => { _nxVoicesReady = true; };
         }
 
 function nxConfirm(msg, title){
@@ -845,11 +880,17 @@ function nxConfirm(msg, title){
                 await faceapi.tf.ready();
 
                 const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
-                // load each model only once per page-life; face-api keeps them in memory
                 updateLoading(40, "Loading models…");
-                if(!faceapi.nets.tinyFaceDetector.isLoaded)   await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-                if(!faceapi.nets.faceLandmark68Net.isLoaded)  await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-                if(!faceapi.nets.faceRecognitionNet.isLoaded) await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+                try {
+                    if(!faceapi.nets.tinyFaceDetector.isLoaded)   await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                    if(!faceapi.nets.faceLandmark68Net.isLoaded)  await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+                    if(!faceapi.nets.faceRecognitionNet.isLoaded) await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+                } catch(modelErr){
+                    // models not cached yet AND no internet -> can't run face recognition
+                    if(!faceapi.nets.faceRecognitionNet.isLoaded){
+                        throw new Error('Models not downloaded yet. Please connect to the internet ONCE so the app can save them for offline use.');
+                    }
+                }
                 
                 updateLoading(70, "Syncing employee directory...");
                 await fetchEmployeesData();
@@ -1254,7 +1295,7 @@ function nxConfirm(msg, title){
             const now = Date.now();
             if (!offlineProcessData && lastPunchTime.has(empCode) && (now - lastPunchTime.get(empCode)) < 60000) {
                 notify("Attendance recently recorded.", "error");
-                speakText(empName + ", aapki haziri abhi kuch der pehle hi lag chuki hai.");
+                speakText(speakName(empName) + ", aapki haziri abhi kuch der pehle hi lag chuki hai.");
                 resumeScanning();
                 return;
             }
@@ -1352,7 +1393,7 @@ function nxConfirm(msg, title){
                                 const hh = Math.floor(leftMin / 60), mm = leftMin % 60;
                                 const leftTxt = (hh ? hh + ' ghante ' : '') + (mm ? mm + ' minute' : '');
                                 notify(empName + ', aap abhi punch-in kar chuke hain. Punch-out ' + leftTxt + ' baad hoga.', 'info');
-                                speakText(empName + ', aapka punch pehle se laga hua hai.');
+                                speakText(speakName(empName) + ', aapka punch pehle se laga hua hai.');
                                 resumeScanning();
                             }
                             return;
@@ -1364,11 +1405,11 @@ function nxConfirm(msg, title){
                         const { error: updateErr } = await supabaseClient.from('attendance').update({ out_time: timeStr, out_photo_url: photoUrl, total_hours: totalStr }).eq('id', record.id);
                         if (updateErr) throw updateErr;
                         
-                        successMessage = empName + ", aapka punch out safal raha.";
+                        successMessage = speakName(empName) + ", aapka punch out safal raha.";
                     } else {
                         if(!offlineProcessData) {
                             notify("Shift completed for today.", "info");
-                            speakText(empName + ", aaj ki aapki shift puri ho chuki hai.");
+                            speakText(speakName(empName) + ", aaj ki aapki shift puri ho chuki hai.");
                             resumeScanning();
                         }
                         return;
@@ -1395,7 +1436,7 @@ function nxConfirm(msg, title){
                                     } catch (logErr) { console.warn('Deployment log warning:', logErr); }
                                     if (!offlineProcessData) {
                                         notify('Manpower full on ' + lineDef.name + ' (' + lineCount + '/' + lineDef.capacity + '). Attendance not marked — reported to admin.', 'error');
-                                        speakText(empName + ', ' + lineDef.name + ' par manpower full ho chuki hai. Aapki attendance nahi lagi. Record admin ko bhej diya gaya hai.');
+                                        speakText(speakName(empName) + ', ' + lineDef.name + ' par manpower full ho chuki hai. Aapki attendance nahi lagi. Record admin ko bhej diya gaya hai.');
                                         resumeScanning();
                                     }
                                     return;
@@ -1416,7 +1457,7 @@ function nxConfirm(msg, title){
                     
                     if (insertErr) throw insertErr;
                     
-                    successMessage = empName + ", aapka punch in safal raha.";
+                    successMessage = speakName(empName) + ", aapka punch in safal raha.";
                     if(isLate && !offlineProcessData) successMessage += " Dhyan rahe, aap late hain.";
                 }
 
