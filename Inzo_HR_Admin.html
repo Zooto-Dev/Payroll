@@ -1316,14 +1316,11 @@ function isLateFor(inTime, s){
   const [th,tm] = t.split(':').map(Number);
   return (th*60+tm) > cut;
 }
-// Department-based late rule (same as the kiosk): Store/Production late after 09:30, else 10:00.
+// Late rule: late if punched in after 10:00 (same for everyone).
 function isLateByDept(inTime, dept){
   if(!inTime) return false;
-  const d = String(dept||'').toUpperCase();
-  const cutStr = (d.includes('STORE') || d.includes('PRODUCTION')) ? '09:30' : '10:00';
-  const [ch,cm] = cutStr.split(':').map(Number);
   const [th,tm] = inTime.substring(0,5).split(':').map(Number);
-  return (th*60+tm) > (ch*60+cm);
+  return (th*60+tm) > (10*60);  // after 10:00
 }
 function hoursOf(hhmm){
   if(!hhmm) return 0;
@@ -1990,6 +1987,36 @@ new MutationObserver(muts => {
 }).observe(document.body, { childList: true, subtree: true });
 
 /* ---------------- Dashboard ---------------- */
+function renderDeptWise(rows){
+  const host = document.getElementById('dDeptWise'); if(!host) return;
+  const active = activeEmps();
+  const byDept = {};
+  active.forEach(e => { const d = (e.DEPARTMENT || 'Unassigned'); (byDept[d] = byDept[d] || { total:0, present:0, late:0 }).total++; });
+  const presentByCode = {};
+  rows.forEach(r => { presentByCode[r.employee_code] = r; });
+  active.forEach(e => {
+    const r = presentByCode[e['Employee code']];
+    if(r){ const d = (e.DEPARTMENT || 'Unassigned'); byDept[d].present++; if(isRowLate(r)) byDept[d].late++; }
+  });
+  const depts = Object.entries(byDept).sort((a,b) => b[1].total - a[1].total);
+  host.innerHTML = depts.length ? depts.map(([d, s]) => {
+    const absent = s.total - s.present;
+    const pct = s.total ? Math.round(s.present / s.total * 100) : 0;
+    return `<div class="p-2 rounded-lg" style="background:#f8fafc;border:1px solid var(--line)">
+      <div class="flex items-center justify-between mb-1">
+        <b class="text-xs">${esc(d)}</b>
+        <span class="text-[11px]" style="color:var(--muted)">${s.present}/${s.total} present · ${pct}%</span>
+      </div>
+      <div style="height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:var(--ok)"></div>
+      </div>
+      <div class="flex gap-2 mt-1 text-[10px]">
+        ${s.late ? `<span class="chip chip-warn" style="font-size:9px">${s.late} late</span>` : ''}
+        ${absent ? `<span class="chip chip-bad" style="font-size:9px">${absent} absent</span>` : '<span class="chip chip-ok" style="font-size:9px">all in</span>'}
+      </div>
+    </div>`;
+  }).join('') : '<p style="color:var(--muted)">No data yet.</p>';
+}
 function renderIncompleteCard(){
   const host = document.getElementById('dashIncomplete');
   if(!host) return;
