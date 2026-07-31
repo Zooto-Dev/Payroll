@@ -1316,6 +1316,15 @@ function isLateFor(inTime, s){
   const [th,tm] = t.split(':').map(Number);
   return (th*60+tm) > cut;
 }
+// Department-based late rule (same as the kiosk): Store/Production late after 09:30, else 10:00.
+function isLateByDept(inTime, dept){
+  if(!inTime) return false;
+  const d = String(dept||'').toUpperCase();
+  const cutStr = (d.includes('STORE') || d.includes('PRODUCTION')) ? '09:30' : '10:00';
+  const [ch,cm] = cutStr.split(':').map(Number);
+  const [th,tm] = inTime.substring(0,5).split(':').map(Number);
+  return (th*60+tm) > (ch*60+cm);
+}
 function hoursOf(hhmm){
   if(!hhmm) return 0;
   const [h,m] = hhmm.split(':').map(Number);
@@ -1397,6 +1406,8 @@ function applyPerms(){
   });
 }
 const PAGE_ICONS = { dashboard:'gauge', employees:'users', attendance:'calendar-check', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', idcards:'id-card', approvals:'clipboard-check', voice:'comments', settings:'gear' };
+function isRowLate(r){ return r.is_late === true || String(r.in_time||'').toUpperCase().includes('LATE'); }
+function cleanInTime(r){ return String(r.in_time||'').replace(/\s*\(?LATE\)?/i,'').trim(); }
 function initials(em){ return em.split('@')[0].replace(/[^a-z0-9]/gi, ' ').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'A'; }
 function showAttList(kind){
   const rows = window._todayAtt || [];
@@ -1404,10 +1415,10 @@ function showAttList(kind){
   let title = '', list = [];
   if(kind === 'present'){
     title = 'Present Today';
-    list = rows.map(r => ({ code:r.employee_code, name: r.Name || nameOf(r.employee_code), time: (r.in_time||'').replace(' LATE',''), late: (r.in_time||'').includes('LATE'), photo: r.in_photo_url }));
+    list = rows.map(r => ({ code:r.employee_code, name: r.Name || nameOf(r.employee_code), time: cleanInTime(r), late: isRowLate(r), photo: r.in_photo_url }));
   } else if(kind === 'late'){
     title = 'Late Today';
-    list = rows.filter(r => (r.in_time||'').includes('LATE')).map(r => ({ code:r.employee_code, name: r.Name || nameOf(r.employee_code), time: (r.in_time||'').replace(' LATE',''), late:true, photo: r.in_photo_url }));
+    list = rows.filter(isRowLate).map(r => ({ code:r.employee_code, name: r.Name || nameOf(r.employee_code), time: cleanInTime(r), late:true, photo: r.in_photo_url }));
   } else {
     title = 'Absent Today';
     const present = new Set(rows.map(r => r.employee_code));
@@ -1460,8 +1471,8 @@ function exportAttList(kind){
     const present = new Set(rows.map(r => r.employee_code));
     data = activeEmps().filter(e => !present.has(e['Employee code'])).map(e => [e['Employee code'], e.Name, e.DEPARTMENT||'', 'ABSENT']);
   } else {
-    let src2 = kind === 'late' ? rows.filter(r => (r.in_time||'').includes('LATE')) : rows;
-    data = src2.map(r => [r.employee_code, r.Name||nameOf(r.employee_code), (r.in_time||'').replace(' LATE',''), (r.in_time||'').includes('LATE')?'LATE':'ON TIME']);
+    let src2 = kind === 'late' ? rows.filter(isRowLate) : rows;
+    data = src2.map(r => [r.employee_code, r.Name||nameOf(r.employee_code), cleanInTime(r), isRowLate(r)?'LATE':'ON TIME']);
   }
   const csv = 'Code,Name,Info,Status\n' + data.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
@@ -1998,15 +2009,24 @@ function renderIncompleteCard(){
     if(miss.length) need.push({ e, code, miss });
   });
   host.innerHTML = need.length ? `
-    <div class="card" style="border-left:3px solid var(--brand)">
-      <h3 class="display font-bold m-0 mb-2 text-sm"><i class="fa-solid fa-id-card-clip" style="color:var(--brand)"></i> Incomplete Profiles <span class="chip chip-blue">${need.length}</span> <span class="text-[10px] font-normal" style="color:var(--muted)">complete these before payroll / compliance</span></h3>
-      <div style="max-height:230px;overflow:auto">${need.map(n => `
-        <div class="flex items-center justify-between py-2" style="border-bottom:1px solid var(--line)">
-          <div><div class="text-sm">${esc(n.e.Name)} <span style="color:var(--muted)">(${esc(n.code)})</span></div>
-            <div class="text-[10px]">${n.miss.map(m => `<span class="chip chip-warn" style="margin:1px">${m}</span>`).join('')}</div></div>
-          <button class="btn btn-ghost btn-sm" data-act="edit-emp" data-code="${esc(n.code)}">Complete <i class="fa-solid fa-arrow-right"></i></button>
-        </div>`).join('')}</div>
-    </div>` : '<div class="card" style="border-left:3px solid var(--ok)"><h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-circle-check" style="color:var(--ok)"></i> All active profiles are complete</h3></div>';
+    <div class="mb-2 flex items-center gap-2">
+      <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-id-card-clip" style="color:var(--brand)"></i> Incomplete Profiles <span class="chip chip-blue">${need.length}</span></h3>
+      <span class="text-[10px]" style="color:var(--muted)">complete these before payroll / compliance</span>
+    </div>
+    <div style="max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:12px">
+      <table class="tbl" style="font-size:12px;margin:0">
+        <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Designation</th><th>Missing Fields</th><th></th></tr></thead>
+        <tbody>${need.map(n => `
+          <tr>
+            <td class="font-mono">${esc(n.code)}</td>
+            <td class="font-semibold">${esc(n.e.Name)}</td>
+            <td>${esc(n.e.DEPARTMENT || '—')}</td>
+            <td>${esc(n.e.DESIGNATION || '—')}</td>
+            <td>${n.miss.map(m => `<span class="chip chip-warn" style="margin:1px;font-size:10px">${m}</span>`).join(' ')}</td>
+            <td><button class="btn btn-ghost btn-sm" data-act="edit-emp" data-code="${esc(n.code)}">Complete <i class="fa-solid fa-arrow-right"></i></button></td>
+          </tr>`).join('')}</tbody>
+      </table>
+    </div>` : '<div class="flex items-center gap-2 text-sm" style="color:var(--ok)"><i class="fa-solid fa-circle-check"></i> All active profiles are complete</div>';
 }
 function renderNoSalaryCard(){
   const host = document.getElementById('dashNoSalary');
@@ -2036,12 +2056,14 @@ async function loadDashboard(){
     const [attRes, slipRes, monthRes] = await Promise.all([
       sb.from('attendance').select('*').eq('date', today).order('created_at', { ascending:false }),
       sb.from('payslips').select('net_pay, month').order('created_at', { ascending:false }).limit(200),
-      sb.from('attendance').select('employee_code, Name, in_time').like('in_time', '%LATE%').gte('date', ym + '-01').lte('date', ym + '-31')
+      sb.from('attendance').select('employee_code, Name, in_time, is_late').gte('date', ym + '-01').lte('date', ym + '-31')
     ]);
     const rows = attRes.data || [];
     const total = activeEmps().length;
-    const late = rows.filter(r => (r.in_time||'').includes('LATE')).length;
+    const late = rows.filter(isRowLate).length;
     window._todayAtt = rows; // for the click-through lists
+    // monthly late board uses is_late
+    if(window._monthLateRows === undefined) window._monthLateRows = (monthRes.data||[]).filter(isRowLate);
     $('dPresent').innerText = rows.length;
     $('dLate').innerText = late;
     $('dAbsent').innerText = Math.max(0, total - rows.length);
@@ -2054,7 +2076,7 @@ async function loadDashboard(){
     } else $('dPayroll').innerText = '—';
 
     $('dPunchList').innerHTML = rows.length ? rows.map(r => {
-      const isLate = (r.in_time||'').includes('LATE');
+      const isLate = isRowLate(r);
       return `<div class="flex items-center justify-between p-2 rounded-lg" style="background:#f8fafc">
         <div class="flex items-center gap-2">
           ${r.in_photo_url ? `<img src="${esc(r.in_photo_url)}" loading="lazy" class="w-8 h-8 rounded-full object-cover" alt="">` : '<div class="w-8 h-8 rounded-full" style="background:var(--line)"></div>'}
@@ -2069,7 +2091,7 @@ async function loadDashboard(){
 
     const lateMap = {};
     (monthRes.data || []).forEach(r => {
-      if((r.in_time||'').includes('LATE')){
+      if(isRowLate(r)){
         lateMap[r.employee_code] = lateMap[r.employee_code] || { name:r.Name, n:0 };
         lateMap[r.employee_code].n++;
       }
@@ -2457,7 +2479,7 @@ $('epSaveBtn').addEventListener('click', async () => {
 
 /* ---------------- Attendance data (shared) ---------------- */
 async function fetchMonthAttendance(ym){
-  const { data, error } = await sb.from('attendance').select('employee_code, Name, date, in_time, out_time, total_hours')
+  const { data, error } = await sb.from('attendance').select('employee_code, Name, date, in_time, out_time, total_hours, is_late')
     .gte('date', ym + '-01').lte('date', ym + '-31');
   if(error) throw error;
   return data || [];
@@ -2521,7 +2543,7 @@ async function loadRegister(){
         const r = (attMap[code] || {})[x.iso];
         const future = x.iso > todayISO();
         let cls = '', txt = '';
-        if(r){ const isL = isLateFor(r.in_time, sh); cls = isL ? 'c-L' : 'c-P'; txt = isL ? 'L' : 'P'; p++; if(isL) l++; }
+        if(r){ const isL = isRowLate(r); cls = isL ? 'c-L' : 'c-P'; txt = isL ? 'L' : 'P'; p++; if(isL) l++; }
         else if(lvSet.has(x.iso) && !x.isWO && !x.isH){ cls = 'c-LV'; txt = 'LV'; lv++; }
         else if(x.isH){ cls = 'c-H'; txt = 'H'; }
         else if(x.isWO){ cls = 'c-WO'; txt = 'WO'; }
@@ -4328,7 +4350,9 @@ $('fxSaveBtn').addEventListener('click', async () => {
     const upd = {};
     if(inT){
       const inFull = inT + ':00';
-      upd.in_time = isLateFor(inFull, sh) ? inFull + ' (LATE)' : inFull;
+      const emp0 = EMP.find(x => x['Employee code'] === code) || {};
+      upd.in_time = inFull;
+      upd.is_late = isLateByDept(inFull, emp0.DEPARTMENT);
     }
     if(outT) upd.out_time = outT + ':00';
     if(recs && recs.length){
