@@ -600,49 +600,59 @@ body.no-confidential .confidential-col{display:none!important}
 
 <!-- ================= ASSETS ================= -->
 <div class="page" id="page-assets">
-  <div class="grid lg:grid-cols-3 gap-4">
+  <!-- Row 1: two forms side by side -->
+  <div class="grid lg:grid-cols-2 gap-4">
     <div class="card">
-      <h3 class="display font-bold mt-0 mb-3"><i class="fa-solid fa-box-open" style="color:var(--brand)"></i> Issue Asset</h3>
-      <label class="lbl">Employee</label><select id="asEmp" class="inp mb-3"></select>
-      <label class="lbl">Item (from stock)</label>
-      <select id="asStock" class="inp mb-1"></select>
-      <p class="text-[11px] mb-3" id="asStockHint" style="color:var(--muted)"></p>
+      <h3 class="display font-bold mt-0 mb-3"><i class="fa-solid fa-arrow-right-from-bracket" style="color:var(--brand)"></i> Issue Asset</h3>
       <div class="grid grid-cols-2 gap-3 mb-3">
-        <div><label class="lbl">Quantity</label><input id="asQty" type="number" class="inp" value="1" min="1"></div>
-        <div><label class="lbl">Serial / Tag No. <span class="text-[10px]" style="color:var(--muted)">(optional)</span></label><input id="asSerial" class="inp"></div>
+        <div><label class="lbl">Employee</label><select id="asEmp" class="inp"></select></div>
+        <div><label class="lbl">Item (from stock)</label><select id="asStock" class="inp"></select></div>
       </div>
+      <p class="text-[11px] mb-3 -mt-1" id="asStockHint" style="color:var(--muted)"></p>
       <div class="grid grid-cols-2 gap-3 mb-3">
+        <div><label class="lbl">Brand</label><input id="asBrand" class="inp" placeholder="e.g. Dell / Nike"></div>
+        <div><label class="lbl">Model / Serial No.</label><input id="asSerial" class="inp" placeholder="e.g. 5420 / SN-8842"></div>
+      </div>
+      <div class="grid grid-cols-3 gap-3 mb-3">
+        <div><label class="lbl">Quantity</label><input id="asQty" type="number" class="inp" value="1" min="1"></div>
         <div><label class="lbl">Issue Date</label><input id="asDate" type="date" class="inp"></div>
-        <div><label class="lbl">Return By <span class="text-[10px]" style="color:var(--muted)">(if temporary)</span></label><input id="asReturnBy" type="date" class="inp"></div>
+        <div><label class="lbl">Return By</label><input id="asReturnBy" type="date" class="inp"></div>
       </div>
       <label class="lbl">Purpose / Remarks</label>
       <input id="asPurpose" class="inp mb-4" placeholder="e.g. Field work / Official use">
-      <button id="asSaveBtn" class="btn btn-primary w-full justify-center mb-3"><i class="fa-solid fa-arrow-right-from-bracket"></i> Issue &amp; Print Gate Pass</button>
+      <button id="asSaveBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i> Issue &amp; Print Gate Pass</button>
+    </div>
 
-      <div style="border-top:1px dashed var(--line);padding-top:12px">
-        <label class="lbl">Add to Stock <span class="text-[10px]" style="color:var(--muted)">(new items / restock)</span></label>
-        <div class="grid grid-cols-2 gap-2 mb-2">
-          <select id="stType" class="inp"><option>LAPTOP</option><option>MOBILE</option><option>SIM</option><option>SHOES</option><option>UNIFORM</option><option>ID CARD</option><option>ACCESS CARD</option><option>TOOL</option><option>KEYBOARD</option><option>MOUSE</option><option>CHARGER</option><option>HEADPHONE</option><option>OTHER</option></select>
-          <input id="stQty" type="number" class="inp" value="1" min="1" placeholder="Qty">
-        </div>
-        <input id="stName" class="inp mb-2" placeholder="Name / label (e.g. Blue Uniform L) — optional">
-        <button id="stAddBtn" class="btn btn-ghost btn-sm w-full justify-center"><i class="fa-solid fa-boxes-stacked"></i> Add to Stock</button>
+    <div class="card">
+      <h3 class="display font-bold mt-0 mb-3"><i class="fa-solid fa-boxes-stacked" style="color:var(--brand)"></i> Add to Stock <span class="text-[11px] font-normal" style="color:var(--muted)">(new items / restock)</span></h3>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div><label class="lbl">Asset Type</label>
+        <select id="stType" class="inp"><option>LAPTOP</option><option>MOBILE</option><option>SIM</option><option>SHOES</option><option>UNIFORM</option><option>ID CARD</option><option>ACCESS CARD</option><option>TOOL</option><option>KEYBOARD</option><option>MOUSE</option><option>CHARGER</option><option>HEADPHONE</option><option>OTHER</option></select></div>
+        <div><label class="lbl">Quantity</label><input id="stQty" type="number" class="inp" value="1" min="1"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div><label class="lbl">Brand</label><input id="stBrand" class="inp" placeholder="e.g. Dell / Nike"></div>
+        <div><label class="lbl">Model / Label</label><input id="stName" class="inp" placeholder="e.g. Blue Uniform L"></div>
+      </div>
+      <button id="stAddBtn" class="btn btn-ghost w-full justify-center"><i class="fa-solid fa-plus"></i> Add to Stock</button>
+      <div class="mt-4 pt-3" style="border-top:1px dashed var(--line)">
+        <div class="text-[11px] font-semibold mb-2" style="color:var(--muted)">CURRENT STOCK</div>
+        <div id="stockSummary" class="flex flex-wrap gap-1"></div>
       </div>
     </div>
-    <div class="card lg:col-span-2" style="padding:0;overflow:hidden">
-      <div class="p-4 border-b" style="border-color:var(--line)">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="display font-bold m-0">Asset Register & History</h3>
-          <select id="asFilter" class="inp" style="max-width:220px"><option value="">All employees</option></select>
-        </div>
-        <div class="flex items-center gap-1 flex-wrap"><span class="text-[11px] font-semibold" style="color:var(--muted)">STOCK:</span> <span id="stockSummary" class="flex flex-wrap gap-1"></span></div>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="tbl" id="asTable">
-          <thead><tr><th>Asset ID</th><th>Employee</th><th>Type</th><th>Asset</th><th>Qty</th><th>Issued</th><th>Returned</th><th>Status</th><th></th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
+  </div>
+
+  <!-- Row 2: full-width register table below -->
+  <div class="card mt-4" style="padding:0;overflow:hidden">
+    <div class="p-4 border-b flex items-center justify-between" style="border-color:var(--line)">
+      <h3 class="display font-bold m-0">Asset Register & History</h3>
+      <select id="asFilter" class="inp" style="max-width:220px"><option value="">All employees</option></select>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="tbl" id="asTable">
+        <thead><tr><th>Asset ID</th><th>Employee</th><th>Type</th><th>Brand</th><th>Model / Serial</th><th>Qty</th><th>Issued</th><th>Returned</th><th>Status</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -4662,7 +4672,7 @@ function fillStockDropdown(){
   const sel = $('asStock'); if(!sel) return;
   const avail = STOCK.filter(s => s.available_qty > 0);
   sel.innerHTML = avail.length
-    ? avail.map(s => `<option value="${s.id}">${esc(s.asset_type)}${s.asset_name ? ' — ' + esc(s.asset_name) : ''} (${s.available_qty} available)</option>`).join('')
+    ? avail.map(s => `<option value="${s.id}">${esc(s.asset_type)}${s.brand ? ' · ' + esc(s.brand) : ''}${s.asset_name ? ' — ' + esc(s.asset_name) : ''} (${s.available_qty} available)</option>`).join('')
     : '<option value="">No stock — add items below first</option>';
   updateStockHint();
   sel.onchange = updateStockHint;
@@ -4670,27 +4680,27 @@ function fillStockDropdown(){
 function updateStockHint(){
   const s = STOCK.find(x => String(x.id) === String($('asStock').value));
   $('asStockHint').innerText = s ? `${s.available_qty} available of ${s.total_qty} total` : '';
+  if(s && $('asBrand') && !$('asBrand').value) $('asBrand').value = s.brand || '';
 }
 function renderStockCard(){
   // show a compact stock summary in the asFilter card header area if present
   const host = document.getElementById('stockSummary');
   if(!host) return;
-  host.innerHTML = STOCK.length ? STOCK.map(s => `<span class="chip ${s.available_qty>0?'chip-ok':'chip-bad'}" style="margin:2px" title="${s.available_qty} of ${s.total_qty}">${esc(s.asset_type)}${s.asset_name?' '+esc(s.asset_name):''}: ${s.available_qty}/${s.total_qty}</span>`).join(' ') : '<span class="text-xs" style="color:var(--muted)">No stock added yet.</span>';
+  host.innerHTML = STOCK.length ? STOCK.map(s => `<span class="chip ${s.available_qty>0?'chip-ok':'chip-bad'}" style="margin:2px" title="${s.available_qty} of ${s.total_qty}">${esc(s.asset_type)}${s.brand?' '+esc(s.brand):''}${s.asset_name?' '+esc(s.asset_name):''}: ${s.available_qty}/${s.total_qty}</span>`).join(' ') : '<span class="text-xs" style="color:var(--muted)">No stock added yet.</span>';
 }
 
 // Add / restock
 $('stAddBtn') && $('stAddBtn').addEventListener('click', async () => {
-  const type = $('stType').value, name = $('stName').value.trim(), qty = Number($('stQty').value) || 0;
+  const type = $('stType').value, name = $('stName').value.trim(), brand = $('stBrand').value.trim(), qty = Number($('stQty').value) || 0;
   if(qty < 1) return notify('Enter a quantity', 'error');
-  // merge into an existing stock line (same type+name) or create new
-  const existing = STOCK.find(s => s.asset_type === type && (s.asset_name||'') === name);
+  const existing = STOCK.find(s => s.asset_type === type && (s.asset_name||'') === name && (s.brand||'') === brand);
   if(existing){
     await sb.from('asset_stock').update({ total_qty: existing.total_qty + qty, available_qty: existing.available_qty + qty }).eq('id', existing.id);
   } else {
-    await sb.from('asset_stock').insert([{ asset_type: type, asset_name: name || null, total_qty: qty, available_qty: qty }]);
+    await sb.from('asset_stock').insert([{ asset_type: type, asset_name: name || null, brand: brand || null, total_qty: qty, available_qty: qty }]);
   }
-  $('stName').value = ''; $('stQty').value = 1;
-  notify(qty + ' × ' + type + ' added to stock', 'success');
+  $('stName').value = ''; $('stBrand').value = ''; $('stQty').value = 1;
+  notify(qty + ' × ' + (brand ? brand + ' ' : '') + type + ' added to stock', 'success');
   loadAssets();
 });
 function renderAssets(){
@@ -4704,7 +4714,8 @@ function renderAssets(){
       <td class="font-mono text-[11px]">${esc(a.pass_id || '—')}</td>
       <td><div class="font-semibold">${esc(emp ? emp.Name : a.employee_code)}</div><div class="text-[10px]" style="color:var(--muted)">${esc(a.employee_code)}</div></td>
       <td><span class="chip chip-gray">${esc(a.asset_type)}</span></td>
-      <td>${esc(a.asset_name || '—')}</td>
+      <td>${esc(a.brand || '—')}</td>
+      <td>${esc(a.serial_no || a.asset_name || '—')}</td>
       <td>${a.quantity || 1}</td>
       <td>${fmtDate(a.issue_date)}</td><td>${a.return_date ? fmtDate(a.return_date) : '—'}</td>
       <td><span class="chip ${issued ? 'chip-warn' : 'chip-ok'}">${esc(a.status)}</span>${a.return_condition && a.return_condition !== 'OK' ? ' <span class="chip chip-bad">'+esc(a.return_condition)+'</span>' : ''}</td>
@@ -4713,7 +4724,7 @@ function renderAssets(){
         ${issued ? `<button class="btn btn-ghost btn-sm" data-act="as-return" data-id="${a.id}"><i class="fa-solid fa-rotate-left"></i> Return</button>` : ''}
       </td>
     </tr>`;
-  }).join('') : '<tr><td colspan="9" class="text-center py-8" style="color:var(--muted)">No assets issued.</td></tr>';
+  }).join('') : '<tr><td colspan="10" class="text-center py-8" style="color:var(--muted)">No assets issued.</td></tr>';
 }
 $('asFilter').addEventListener('change', renderAssets);
 $('asSaveBtn').addEventListener('click', async () => {
@@ -4728,6 +4739,7 @@ $('asSaveBtn').addEventListener('click', async () => {
   const assetId = 'AST-' + yr + '-' + String((count || 0) + 1).padStart(4, '0');
   const row = {
     employee_code: $('asEmp').value, asset_type: stock.asset_type, asset_name: stock.asset_name || stock.asset_type,
+    brand: $('asBrand').value || stock.brand || null,
     serial_no: $('asSerial').value, issue_date: $('asDate').value || todayISO(),
     pass_id: assetId, quantity: qty, stock_id: stock.id,
     expected_return: $('asReturnBy').value || null,
@@ -4737,7 +4749,7 @@ $('asSaveBtn').addEventListener('click', async () => {
   if(error) return notify(error.message, 'error');
   // reduce stock
   await sb.from('asset_stock').update({ available_qty: stock.available_qty - qty }).eq('id', stock.id);
-  $('asSerial').value = ''; $('asPurpose').value = ''; $('asReturnBy').value = ''; $('asQty').value = 1;
+  $('asSerial').value = ''; $('asBrand').value = ''; $('asPurpose').value = ''; $('asReturnBy').value = ''; $('asQty').value = 1;
   notify('Issued — Asset ID ' + assetId, 'success');
   loadAssets();
   printGatePass(row);
@@ -4773,8 +4785,8 @@ function printGatePass(a){
     <div class="bd">
       <div class="row"><div class="k">Issued To</div><div class="v">${emp.Name || a.employee_code} (${a.employee_code})</div></div>
       <div class="row"><div class="k">Department</div><div class="v">${dept} &nbsp;•&nbsp; ${desig}</div></div>
-      <div class="row"><div class="k">Asset</div><div class="v">${a.asset_type} — ${a.asset_name}</div></div>
-      <div class="row"><div class="k">Serial / Tag</div><div class="v">${a.serial_no || '—'} &nbsp;•&nbsp; Qty: ${a.quantity || 1}</div></div>
+      <div class="row"><div class="k">Asset</div><div class="v">${a.asset_type}${a.brand ? ' — ' + a.brand : ''}${a.asset_name && a.asset_name !== a.asset_type ? ' ' + a.asset_name : ''}</div></div>
+      <div class="row"><div class="k">Model / Serial</div><div class="v">${a.serial_no || '—'} &nbsp;•&nbsp; Qty: ${a.quantity || 1}</div></div>
       <div class="row"><div class="k">Issue Date</div><div class="v">${a.issue_date}${a.expected_return ? ' &nbsp;•&nbsp; Return by: ' + a.expected_return : ' &nbsp;•&nbsp; Non-returnable'}</div></div>
       ${a.purpose ? `<div class="row"><div class="k">Purpose</div><div class="v">${a.purpose}</div></div>` : ''}
       <div class="sign">
