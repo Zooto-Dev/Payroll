@@ -1346,9 +1346,12 @@ function nxConfirm(msg, title){
             const todayStr = offlineProcessData ? offlineProcessData.todayStr : `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}-${String(localDate.getDate()).padStart(2, '0')}`;
             const timeStr = offlineProcessData ? offlineProcessData.timeStr : `${String(localDate.getHours()).padStart(2, '0')}:${String(localDate.getMinutes()).padStart(2, '0')}:${String(localDate.getSeconds()).padStart(2, '0')}`;
             
-            // LATE MARK LOGIC (Shift 09:30 AM)
-            const shiftStart = "09:30:00";
-            const isLate = timeStr > shiftStart;
+            // LATE MARK LOGIC — department based
+            //   Store / Production : late after 09:30
+            //   Everyone else      : late after 10:00
+            const _dept = String((empData && empData.DEPARTMENT) || '').toUpperCase();
+            const lateCutoff = (_dept.includes('STORE') || _dept.includes('PRODUCTION')) ? "09:30:00" : "10:00:00";
+            const isLate = timeStr > lateCutoff;
 
             let imageBase64 = offlineProcessData ? offlineProcessData.imageBase64 : null;
 
@@ -1510,12 +1513,13 @@ function nxConfirm(msg, title){
                             }
                         }
                     }
-                    const finalInTime = isLate ? `${timeStr} (LATE)` : timeStr;
+                    const finalInTime = timeStr; // keep the time clean; LATE goes in its own column
                     const { error: insertErr } = await supabaseClient.from('attendance').insert([{ 
                         employee_code: empCode, 
                         Name: empName, 
                         date: todayStr, 
-                        in_time: finalInTime, 
+                        in_time: finalInTime,
+                        is_late: isLate,
                         in_photo_url: photoUrl 
                     }]);
                     
