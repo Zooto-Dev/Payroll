@@ -602,17 +602,28 @@ body.no-confidential .confidential-col{display:none!important}
 <div class="page" id="page-assets">
   <div class="grid lg:grid-cols-3 gap-4">
     <div class="card">
-      <h3 class="display font-bold mt-0 mb-3">Issue Asset</h3>
+      <h3 class="display font-bold mt-0 mb-3"><i class="fa-solid fa-box-open" style="color:var(--brand)"></i> Issue Asset</h3>
       <label class="lbl">Employee</label><select id="asEmp" class="inp mb-3"></select>
-      <label class="lbl">Asset Type</label>
-      <select id="asType" class="inp mb-3"><option>LAPTOP</option><option>MOBILE</option><option>SIM</option><option>EMAIL ID</option><option>SHOES</option><option>UNIFORM</option><option>ID CARD</option><option>ACCESS CARD</option><option>TOOL</option><option>OTHER</option></select>
-      <div class="grid grid-cols-2 gap-3">
-        <div><label class="lbl">Name / Model <span class="text-[10px]" style="color:var(--muted)">(EMAIL ID ke liye yahin email likho)</span></label><input id="asName" class="inp" placeholder="Dell 5420 / hr@zooto.in"></div>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div><label class="lbl">Asset Type</label>
+        <select id="asType" class="inp"><option>LAPTOP</option><option>MOBILE</option><option>SIM</option><option>EMAIL ID</option><option>SHOES</option><option>UNIFORM</option><option>ID CARD</option><option>ACCESS CARD</option><option>TOOL</option><option>KEYBOARD</option><option>MOUSE</option><option>CHARGER</option><option>HEADPHONE</option><option>VEHICLE</option><option>OTHER</option></select></div>
+        <div><label class="lbl">Quantity</label><input id="asQty" type="number" class="inp" value="1" min="1"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div><label class="lbl">Name / Model <span class="text-[10px]" style="color:var(--muted)">(EMAIL ke liye email)</span></label><input id="asName" class="inp" placeholder="Dell 5420"></div>
         <div><label class="lbl">Serial / Tag No.</label><input id="asSerial" class="inp"></div>
       </div>
-      <label class="lbl" style="margin-top:12px;display:block">Issue Date</label>
-      <input id="asDate" type="date" class="inp mb-4">
-      <button id="asSaveBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-plus"></i> Issue Asset</button>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div><label class="lbl">Condition</label><select id="asCond" class="inp"><option>New</option><option>Good</option><option>Used</option><option>Refurbished</option></select></div>
+        <div><label class="lbl">Approx Value (₹)</label><input id="asValue" type="number" class="inp" placeholder="45000"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div><label class="lbl">Issue Date</label><input id="asDate" type="date" class="inp"></div>
+        <div><label class="lbl">Return By <span class="text-[10px]" style="color:var(--muted)">(if temporary)</span></label><input id="asReturnBy" type="date" class="inp"></div>
+      </div>
+      <label class="lbl">Purpose / Remarks</label>
+      <input id="asPurpose" class="inp mb-4" placeholder="e.g. Field work / Official use">
+      <button id="asSaveBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-plus"></i> Issue Asset &amp; Generate Gate Pass</button>
     </div>
     <div class="card lg:col-span-2" style="padding:0;overflow:hidden">
       <div class="p-4 border-b flex items-center justify-between" style="border-color:var(--line)">
@@ -621,7 +632,7 @@ body.no-confidential .confidential-col{display:none!important}
       </div>
       <div style="overflow-x:auto">
         <table class="tbl" id="asTable">
-          <thead><tr><th>Employee</th><th>Type</th><th>Asset</th><th>Serial</th><th>Issued</th><th>Returned</th><th>Condition</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Asset ID</th><th>Employee</th><th>Type</th><th>Asset</th><th>Serial</th><th>Issued</th><th>Returned</th><th>Condition</th><th>Status</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -3452,6 +3463,11 @@ document.body.addEventListener('click', async e => {
   if(act === 'ex-appr'){ await sb.from('expenses').update({ status:'APPROVED' }).eq('id', el.dataset.id); if($('page-approvals').classList.contains('show')) loadApprovals(); else loadExpenses(); }
   if(act === 'ex-rej'){ await sb.from('expenses').update({ status:'REJECTED' }).eq('id', el.dataset.id); if($('page-approvals').classList.contains('show')) loadApprovals(); else loadExpenses(); }
   if(act === 'ex-paid'){ await sb.from('expenses').update({ status:'PAID' }).eq('id', el.dataset.id); notify('Reimbursement marked paid', 'success'); loadExpenses(); }
+  if(act === 'as-pass'){
+    const a = ASSETS.find(x => String(x.id) === String(el.dataset.id));
+    if(a) printGatePass(a);
+    return;
+  }
   if(act === 'as-return'){
     const cond = await nxAsk({ title:'Return Asset', msg:'Return condition? (OK / Damaged / Lost)', input:true, placeholder:'OK', okText:'Save' });
     if(cond === null) return;
@@ -4629,24 +4645,92 @@ function renderAssets(){
     const emp = EMP.find(e => e['Employee code'] === a.employee_code);
     const issued = a.status === 'ISSUED';
     return `<tr>
+      <td class="font-mono text-[11px]">${esc(a.pass_id || '—')}</td>
       <td><div class="font-semibold">${esc(emp ? emp.Name : a.employee_code)}</div><div class="text-[10px]" style="color:var(--muted)">${esc(a.employee_code)}</div></td>
       <td><span class="chip chip-gray">${esc(a.asset_type)}</span></td>
-      <td>${esc(a.asset_name || '—')}</td><td>${esc(a.serial_no || '—')}</td>
+      <td>${esc(a.asset_name || '—')}${a.quantity > 1 ? ' <span class="chip chip-blue" style="font-size:9px">×'+a.quantity+'</span>' : ''}</td><td>${esc(a.serial_no || '—')}</td>
       <td>${fmtDate(a.issue_date)}</td><td>${a.return_date ? fmtDate(a.return_date) : '—'}</td>
-      <td>${esc(a.return_condition || '—')}${a.damage_note ? ' <span class="chip chip-bad">Damage</span>' : ''}</td>
+      <td>${esc(a.return_condition || a.condition_out || '—')}${a.damage_note ? ' <span class="chip chip-bad">Damage</span>' : ''}</td>
       <td><span class="chip ${issued ? 'chip-warn' : 'chip-ok'}">${esc(a.status)}</span></td>
-      <td>${issued ? `<button class="btn btn-ghost btn-sm" data-act="as-return" data-id="${a.id}"><i class="fa-solid fa-rotate-left"></i> Return</button>` : ''}</td>
+      <td class="flex gap-1">
+        ${a.pass_id ? `<button class="btn btn-ghost btn-sm" data-act="as-pass" data-id="${a.id}" title="Reprint gate pass"><i class="fa-solid fa-print"></i></button>` : ''}
+        ${issued ? `<button class="btn btn-ghost btn-sm" data-act="as-return" data-id="${a.id}"><i class="fa-solid fa-rotate-left"></i> Return</button>` : ''}
+      </td>
     </tr>`;
-  }).join('') : '<tr><td colspan="9" class="text-center py-8" style="color:var(--muted)">No assets issued.</td></tr>';
+  }).join('') : '<tr><td colspan="10" class="text-center py-8" style="color:var(--muted)">No assets issued.</td></tr>';
 }
 $('asFilter').addEventListener('change', renderAssets);
 $('asSaveBtn').addEventListener('click', async () => {
   if(!$('asEmp').value) return notify('Please select an employee', 'error');
-  const { error } = await sb.from('assets').insert([{ employee_code: $('asEmp').value, asset_type: $('asType').value, asset_name: $('asName').value, serial_no: $('asSerial').value, issue_date: $('asDate').value || todayISO() }]);
+  if(!$('asName').value.trim()) return notify('Enter the asset name / model', 'error');
+  // unique gate-pass id: GP-YYYY-#### (sequential within the year)
+  const yr = new Date().getFullYear();
+  const { count } = await sb.from('assets').select('id', { count:'exact', head:true }).like('pass_id', 'AST-' + yr + '-%');
+  const assetId = 'AST-' + yr + '-' + String((count || 0) + 1).padStart(4, '0');
+  const row = {
+    employee_code: $('asEmp').value, asset_type: $('asType').value, asset_name: $('asName').value,
+    serial_no: $('asSerial').value, issue_date: $('asDate').value || todayISO(),
+    pass_id: assetId, quantity: Number($('asQty').value) || 1, condition_out: $('asCond').value,
+    est_value: Number($('asValue').value) || null, expected_return: $('asReturnBy').value || null,
+    purpose: $('asPurpose').value || null, issued_by: (ME_EMAIL || 'admin')
+  };
+  const { error } = await sb.from('assets').insert([row]);
   if(error) return notify(error.message, 'error');
-  $('asName').value = ''; $('asSerial').value = '';
-  notify('Asset issued', 'success'); loadAssets();
+  $('asName').value = ''; $('asSerial').value = ''; $('asValue').value = ''; $('asPurpose').value = ''; $('asReturnBy').value = '';
+  notify('Asset issued — Asset ID ' + assetId, 'success');
+  loadAssets();
+  printGatePass(row);   // open the printable gate pass
 });
+
+function printGatePass(a){
+  const emp = EMP.find(e => e['Employee code'] === a.employee_code) || {};
+  const dept = emp.DEPARTMENT || '—', desig = emp.DESIGNATION || '—';
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Gate Pass ${a.pass_id}</title>
+  <style>
+    *{font-family:Arial,sans-serif;box-sizing:border-box}
+    body{margin:0;padding:24px;color:#0f172a}
+    .pass{max-width:640px;margin:0 auto;border:2px solid #0f172a;border-radius:12px;overflow:hidden}
+    .hd{background:#0f172a;color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
+    .hd h1{margin:0;font-size:18px;letter-spacing:.05em}
+    .hd .id{font-size:13px;background:#fff;color:#0f172a;padding:4px 10px;border-radius:6px;font-weight:700}
+    .bd{padding:20px}
+    .row{display:flex;border-bottom:1px solid #e2e8f0;padding:8px 0}
+    .row .k{width:150px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+    .row .v{flex:1;font-weight:600;font-size:14px}
+    .sign{display:flex;justify-content:space-between;margin-top:36px}
+    .sign div{text-align:center;font-size:12px;color:#475569}
+    .sign .line{border-top:1px solid #0f172a;width:160px;margin-bottom:4px;padding-top:34px}
+    .note{margin-top:16px;font-size:11px;color:#64748b;border-top:1px dashed #cbd5e1;padding-top:10px}
+    .stamp{text-align:center;margin-top:8px}
+    @media print{ .noprint{display:none} body{padding:0} }
+  </style></head><body>
+  <div class="pass">
+    <div class="hd">
+      <div><h1>ZOOTO FASHION — MATERIAL GATE PASS</h1><div style="font-size:11px;opacity:.85;margin-top:2px">Returnable / Non-Returnable Asset Issue</div></div>
+      <div style="text-align:right"><div style="font-size:9px;opacity:.75;color:#0f172a;background:#fff;padding:2px 6px 0;border-radius:6px 6px 0 0">ASSET ID</div><div class="id" style="border-radius:0 0 6px 6px">${a.pass_id}</div></div>
+    </div>
+    <div class="bd">
+      <div class="row"><div class="k">Issued To</div><div class="v">${emp.Name || a.employee_code} (${a.employee_code})</div></div>
+      <div class="row"><div class="k">Department</div><div class="v">${dept} &nbsp;•&nbsp; ${desig}</div></div>
+      <div class="row"><div class="k">Asset</div><div class="v">${a.asset_type} — ${a.asset_name}</div></div>
+      <div class="row"><div class="k">Serial / Tag</div><div class="v">${a.serial_no || '—'} &nbsp;•&nbsp; Qty: ${a.quantity || 1}</div></div>
+      <div class="row"><div class="k">Condition</div><div class="v">${a.condition_out || '—'}${a.est_value ? ' &nbsp;•&nbsp; Approx ₹' + Number(a.est_value).toLocaleString('en-IN') : ''}</div></div>
+      <div class="row"><div class="k">Issue Date</div><div class="v">${a.issue_date}${a.expected_return ? ' &nbsp;•&nbsp; Return by: ' + a.expected_return : ' &nbsp;•&nbsp; Non-returnable'}</div></div>
+      ${a.purpose ? `<div class="row"><div class="k">Purpose</div><div class="v">${a.purpose}</div></div>` : ''}
+      <div class="sign">
+        <div><div class="line"></div>Employee Signature</div>
+        <div><div class="line"></div>Issued By / Store</div>
+        <div><div class="line"></div>Security / Gate</div>
+      </div>
+      <div class="note">This gate pass authorises the above employee to carry the listed asset out of the premises. Security must verify the Asset ID (${a.pass_id}) and asset before allowing exit. Keep this pass for records; produce on demand.</div>
+    </div>
+  </div>
+  <div class="stamp noprint" style="margin-top:16px"><button onclick="window.print()" style="padding:10px 20px;background:#0f172a;color:#fff;border:none;border-radius:8px;cursor:pointer">Print Gate Pass</button></div>
+  <script>window.onload=()=>setTimeout(()=>window.print(),400)<\/script>
+  </body></html>`;
+  const w = window.open('', '_blank');
+  w.document.write(html); w.document.close();
+}
 
 /* ================= COMPLIANCE ================= */
 $('cmpMonth').value = todayISO().slice(0,7);
