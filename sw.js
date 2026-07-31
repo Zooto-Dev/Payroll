@@ -3,7 +3,7 @@
    Caches the app shell + all CDN libraries + face models the
    first time online, so a reload works even with NO internet.
    ============================================================ */
-const CACHE = 'nexus-attend-v1';
+const CACHE = 'nexus-attend-v2';
 
 // core files the app needs to boot (cached on install)
 const CORE = [
@@ -47,17 +47,31 @@ self.addEventListener('fetch', e => {
                 url.hostname.includes('cdn.tailwindcss') || url.hostname.includes('justadudewhohacks') ||
                 url.hostname.includes('githubusercontent');
 
+  const isHTML = url.origin === location.origin && (url.pathname.endsWith('.html') || url.pathname.endsWith('/'));
+
+  if (isHTML) {
+    // NETWORK-FIRST for pages: always try to get the latest; use cache only if offline.
+    e.respondWith(
+      fetch(req).then(resp => {
+        if (resp && resp.ok) { const copy = resp.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
+        return resp;
+      }).catch(() => caches.match(req))
+    );
+    return;
+  }
+
   if (isModel || isCdn || url.origin === location.origin) {
+    // CACHE-FIRST for models/libraries/assets (they don't change).
     e.respondWith(
       caches.match(req).then(hit => {
-        if (hit) return hit;                       // offline / repeat visit -> from cache
-        return fetch(req).then(resp => {           // first time -> fetch + store
+        if (hit) return hit;
+        return fetch(req).then(resp => {
           if (resp && (resp.ok || resp.type === 'opaque')) {
             const copy = resp.clone();
             caches.open(CACHE).then(c => c.put(req, copy));
           }
           return resp;
-        }).catch(() => hit); // network failed and nothing cached -> undefined (browser handles)
+        }).catch(() => hit);
       })
     );
   }
