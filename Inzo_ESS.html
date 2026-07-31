@@ -499,13 +499,17 @@ function render(){
   // calendar
   CAL_CACHE = {}; CAL_YM = new Date().toISOString().slice(0,7);
   renderCalendar();
-  // payslips
-  $('payBox').innerHTML = slips.length ? slips.map((s, i) =>
-    `<div class="row"><span class="k">${esc(s.month)}</span>
+  // payslips — newest first, month name shown, grouped feel
+  const sortedSlips = slips.slice().sort((a,b) => (b.month||'').localeCompare(a.month||''));
+  const monthName = ym => { const [y,m] = (ym||'').split('-'); const mn = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(m)] || ym; return mn + ' ' + (y||''); };
+  $('payBox').innerHTML = sortedSlips.length ? (
+    `<p class="text-[11px] mb-2" style="color:var(--muted)">${sortedSlips.length} payslip${sortedSlips.length>1?'s':''} available</p>` +
+    sortedSlips.map((s, i) =>
+    `<div class="row"><span class="k">${monthName(s.month)}</span>
      <span class="flex items-center gap-2"><b>${fmtINR(s.net_pay)}</b>
-     <button class="chip chip-blue" style="border:none;cursor:pointer" data-slip="${i}"><i class="fa-solid fa-download"></i> Download / Print</button></span></div>`).join('')
-    : '<p class="m-0" style="color:var(--muted)">No payslips yet.</p>';
-  document.querySelectorAll('[data-slip]').forEach(b => b.addEventListener('click', () => printSlip(slips[Number(b.dataset.slip)])));
+     <button class="chip chip-blue" style="border:none;cursor:pointer" data-slip="${i}"><i class="fa-solid fa-download"></i> View / PDF</button></span></div>`).join(''))
+    : '<p class="m-0" style="color:var(--muted)">No payslips yet. They appear here once HR finalizes your monthly payroll.</p>';
+  document.querySelectorAll('[data-slip]').forEach(b => b.addEventListener('click', () => printSlip(sortedSlips[Number(b.dataset.slip)])));
   // profile
   const rows = [
     ['Employee Code', e['Employee code']], ['Department', e.DEPARTMENT], ['Designation', e.DESIGNATION],
