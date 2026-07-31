@@ -605,8 +605,8 @@ body.no-confidential .confidential-col{display:none!important}
     <div class="card">
       <h3 class="display font-bold mt-0 mb-3"><i class="fa-solid fa-arrow-right-from-bracket" style="color:var(--brand)"></i> Issue Asset</h3>
       <div class="grid grid-cols-2 gap-3 mb-3">
-        <div><label class="lbl">Employee</label><select id="asEmp" class="inp"></select></div>
-        <div><label class="lbl">Item (from stock)</label><select id="asStock" class="inp"></select></div>
+        <div><label class="lbl">Employee</label><input id="asEmpInp" class="inp" list="asEmpDL" placeholder="Type name / code…" autocomplete="off"><datalist id="asEmpDL"></datalist><input type="hidden" id="asEmp"></div>
+        <div><label class="lbl">Item (from stock)</label><input id="asStockInp" class="inp" list="asStockDL" placeholder="Type item…" autocomplete="off"><datalist id="asStockDL"></datalist><input type="hidden" id="asStock"></div>
       </div>
       <p class="text-[11px] mb-3 -mt-1" id="asStockHint" style="color:var(--muted)"></p>
       <div class="grid grid-cols-2 gap-3 mb-3">
@@ -634,10 +634,9 @@ body.no-confidential .confidential-col{display:none!important}
         <div><label class="lbl">Brand</label><input id="stBrand" class="inp" placeholder="e.g. Dell / Nike"></div>
         <div><label class="lbl">Model / Label</label><input id="stName" class="inp" placeholder="e.g. Blue Uniform L"></div>
       </div>
-      <button id="stAddBtn" class="btn btn-ghost w-full justify-center"><i class="fa-solid fa-plus"></i> Add to Stock</button>
-      <div class="mt-4 pt-3" style="border-top:1px dashed var(--line)">
-        <div class="text-[11px] font-semibold mb-2" style="color:var(--muted)">CURRENT STOCK</div>
-        <div id="stockSummary" class="flex flex-wrap gap-1"></div>
+      <div class="flex gap-2">
+        <button id="stAddBtn" class="btn btn-ghost flex-1 justify-center"><i class="fa-solid fa-plus"></i> Add to Stock</button>
+        <button id="stViewBtn" class="btn btn-ghost justify-center" title="View current stock"><i class="fa-solid fa-boxes-stacked"></i> View Stock</button>
       </div>
     </div>
   </div>
@@ -1906,7 +1905,20 @@ function fillEmpSelects(){
   $('lvEmp').innerHTML = opts;
   $('fxEmp').innerHTML = opts;
   $('exEmp').innerHTML = opts;
-  $('asEmp').innerHTML = opts;
+  // asEmp is now a datalist input; build the list + name->code map
+  const asDL = $('asEmpDL');
+  if(asDL){
+    asDL.innerHTML = activeEmps().map(e => `<option value="${esc(e.Name)} (${esc(e['Employee code'])})">`).join('');
+    const inp = $('asEmpInp');
+    if(inp && !inp._wired){
+      inp._wired = true;
+      inp.addEventListener('input', () => {
+        const m = inp.value.match(/\(([^)]+)\)\s*$/);
+        const code = m ? m[1] : activeEmps().find(e => e.Name.toLowerCase() === inp.value.trim().toLowerCase())?.['Employee code'] || '';
+        $('asEmp').value = code;
+      });
+    }
+  }
   $('xEmp').innerHTML = opts;
   $('asFilter').innerHTML = '<option value="">All employees</option>' + opts;
   $('idEmp').innerHTML = '<option value="ALL">— All Active Employees —</option>' + opts;
@@ -4666,16 +4678,21 @@ async function loadAssets(){
   STOCK = sRes.data || [];
   fillStockDropdown();
   renderAssets();
-  renderStockCard();
 }
 function fillStockDropdown(){
-  const sel = $('asStock'); if(!sel) return;
+  const dl = $('asStockDL'); if(!dl) return;
   const avail = STOCK.filter(s => s.available_qty > 0);
-  sel.innerHTML = avail.length
-    ? avail.map(s => `<option value="${s.id}">${esc(s.asset_type)}${s.brand ? ' · ' + esc(s.brand) : ''}${s.asset_name ? ' — ' + esc(s.asset_name) : ''} (${s.available_qty} available)</option>`).join('')
-    : '<option value="">No stock — add items below first</option>';
+  const label = s => `${s.asset_type}${s.brand ? ' · ' + s.brand : ''}${s.asset_name ? ' — ' + s.asset_name : ''} (${s.available_qty} available)`;
+  dl.innerHTML = avail.map(s => `<option value="${esc(label(s))}" data-id="${s.id}">`).join('');
+  const inp = $('asStockInp');
+  if(inp){
+    inp._map = {}; avail.forEach(s => inp._map[label(s)] = s.id);
+    if(!inp._wired){
+      inp._wired = true;
+      inp.addEventListener('input', () => { $('asStock').value = inp._map[inp.value] || ''; updateStockHint(); });
+    }
+  }
   updateStockHint();
-  sel.onchange = updateStockHint;
 }
 function updateStockHint(){
   const s = STOCK.find(x => String(x.id) === String($('asStock').value));
@@ -4705,6 +4722,26 @@ function renderStockCard(){
 }
 
 // Add / restock
+$('stViewBtn') && $('stViewBtn').addEventListener('click', () => {
+  let m = document.getElementById('stockModal');
+  if(!m){ m = document.createElement('div'); m.id='stockModal'; m.className='modal'; document.body.appendChild(m); }
+  const rows = STOCK.length ? STOCK.map(s => {
+    const issued = s.total_qty - s.available_qty, low = s.available_qty === 0;
+    return `<tr>
+      <td><span class="chip chip-gray">${esc(s.asset_type)}</span></td>
+      <td>${esc(s.brand || '—')}</td><td>${esc(s.asset_name || '—')}</td>
+      <td class="text-center">${s.total_qty}</td>
+      <td class="text-center" style="color:var(--warn)">${issued}</td>
+      <td class="text-center font-bold" style="color:${low ? 'var(--bad)' : 'var(--ok)'}">${s.available_qty}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="6" class="text-center py-6" style="color:var(--muted)">No stock added yet.</td></tr>';
+  m.innerHTML = `<div class="modal-box" style="max-width:600px;max-height:80vh;overflow:auto">
+    <div class="flex items-center justify-between mb-3"><h3 class="display font-bold m-0"><i class="fa-solid fa-boxes-stacked" style="color:var(--brand)"></i> Current Stock</h3>
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('stockModal').classList.remove('show')"><i class="fa-solid fa-xmark"></i></button></div>
+    <table class="tbl" style="font-size:12px"><thead><tr><th>Type</th><th>Brand</th><th>Model / Label</th><th class="text-center">Total</th><th class="text-center">Issued</th><th class="text-center">Available</th></tr></thead><tbody>${rows}</tbody></table>
+  </div>`;
+  m.classList.add('show');
+});
 $('stAddBtn') && $('stAddBtn').addEventListener('click', async () => {
   const type = $('stType').value, name = $('stName').value.trim(), brand = $('stBrand').value.trim(), qty = Number($('stQty').value) || 0;
   if(qty < 1) return notify('Enter a quantity', 'error');
@@ -4764,7 +4801,7 @@ $('asSaveBtn').addEventListener('click', async () => {
   if(error) return notify(error.message, 'error');
   // reduce stock
   await sb.from('asset_stock').update({ available_qty: stock.available_qty - qty }).eq('id', stock.id);
-  $('asSerial').value = ''; $('asBrand').value = ''; $('asPurpose').value = ''; $('asReturnBy').value = ''; $('asQty').value = 1;
+  $('asSerial').value = ''; $('asBrand').value = ''; $('asPurpose').value = ''; $('asReturnBy').value = ''; $('asQty').value = 1; if($('asStockInp')) $('asStockInp').value=''; $('asStock').value='';
   notify('Issued — Asset ID ' + assetId, 'success');
   loadAssets();
   printGatePass(row);
