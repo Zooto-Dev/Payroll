@@ -654,6 +654,31 @@ body.no-confidential .confidential-col{display:none!important}
       </table>
     </div>
   </div>
+
+  <!-- ===== EMAIL / ACCOUNT ALLOTMENT ===== -->
+  <div class="card mt-6">
+    <h3 class="display font-bold mt-0 mb-3"><i class="fa-solid fa-envelope-circle-check" style="color:var(--brand)"></i> Email / Account Allotment</h3>
+    <div class="grid lg:grid-cols-3 gap-3 mb-3">
+      <div><label class="lbl">Employee</label><input id="emEmpInp" class="inp" list="emEmpDL" placeholder="Type name / code…" autocomplete="off"><datalist id="emEmpDL"></datalist><input type="hidden" id="emEmp"></div>
+      <div><label class="lbl">Email Address</label><input id="emEmail" class="inp" placeholder="name@zooto.in" autocomplete="off"></div>
+      <div><label class="lbl">Service</label><select id="emService" class="inp"><option>Company</option><option>Gmail</option><option>Outlook</option><option>Zoho</option><option>Other</option></select></div>
+    </div>
+    <div class="grid lg:grid-cols-3 gap-3 mb-3">
+      <div><label class="lbl">Purpose / Used For</label><input id="emPurpose" class="inp" placeholder="e.g. Purchase dept mail"></div>
+      <div><label class="lbl">Recovery Phone <span class="text-[10px]" style="color:var(--muted)">(optional)</span></label><input id="emPhone" class="inp" placeholder="98XXXXXXXX"></div>
+      <div><label class="lbl">Recovery Email <span class="text-[10px]" style="color:var(--muted)">(optional)</span></label><input id="emRecovery" class="inp" placeholder="backup@…"></div>
+    </div>
+    <div class="flex items-end gap-3 mb-4">
+      <div style="flex:1"><label class="lbl">Remarks</label><input id="emRemarks" class="inp" placeholder="Any note…"></div>
+      <button id="emAddBtn" class="btn btn-primary justify-center"><i class="fa-solid fa-plus"></i> Allot Email</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="tbl" id="emTable">
+        <thead><tr><th>Employee</th><th>Email</th><th>Service</th><th>Purpose</th><th>Recovery</th><th>Issued</th><th>Status</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <!-- ================= COMPLIANCE ================= -->
@@ -3492,6 +3517,13 @@ document.body.addEventListener('click', async e => {
   if(act === 'ex-appr'){ await sb.from('expenses').update({ status:'APPROVED' }).eq('id', el.dataset.id); if($('page-approvals').classList.contains('show')) loadApprovals(); else loadExpenses(); }
   if(act === 'ex-rej'){ await sb.from('expenses').update({ status:'REJECTED' }).eq('id', el.dataset.id); if($('page-approvals').classList.contains('show')) loadApprovals(); else loadExpenses(); }
   if(act === 'ex-paid'){ await sb.from('expenses').update({ status:'PAID' }).eq('id', el.dataset.id); notify('Reimbursement marked paid', 'success'); loadExpenses(); }
+  if(act === 'em-revoke'){
+    const ok = await nxConfirm('Revoke this email/account?\nIt will be marked REVOKED (record kept).', 'Revoke Email');
+    if(!ok) return;
+    await sb.from('email_accounts').update({ status:'REVOKED', revoked_on: todayISO() }).eq('id', el.dataset.id);
+    notify('Email revoked', 'success'); loadEmails();
+    return;
+  }
   if(act === 'as-pass'){
     const a = ASSETS.find(x => String(x.id) === String(el.dataset.id));
     if(a) printGatePass(a);
@@ -4678,7 +4710,61 @@ async function loadAssets(){
   STOCK = sRes.data || [];
   fillStockDropdown();
   renderAssets();
+  loadEmails();
 }
+let EMAILS = [];
+async function loadEmails(){
+  const { data } = await sb.from('email_accounts').select('*').order('created_at', { ascending:false });
+  EMAILS = data || [];
+  // employee datalist for the email form
+  const dl = $('emEmpDL');
+  if(dl){
+    dl.innerHTML = activeEmps().map(e => `<option value="${esc(e.Name)} (${esc(e['Employee code'])})">`).join('');
+    const inp = $('emEmpInp');
+    if(inp && !inp._wired){
+      inp._wired = true;
+      inp.addEventListener('input', () => {
+        const m = inp.value.match(/\(([^)]+)\)\s*$/);
+        $('emEmp').value = m ? m[1] : (activeEmps().find(e => e.Name.toLowerCase() === inp.value.trim().toLowerCase())?.['Employee code'] || '');
+      });
+    }
+  }
+  renderEmails();
+}
+function renderEmails(){
+  const tb = $('emTable') && $('emTable').querySelector('tbody');
+  if(!tb) return;
+  tb.innerHTML = EMAILS.length ? EMAILS.map(e => {
+    const emp = EMP.find(x => x['Employee code'] === e.employee_code);
+    const active = e.status === 'ACTIVE';
+    const rec = [e.recovery_phone, e.recovery_email].filter(Boolean).join(' · ') || '—';
+    return `<tr>
+      <td>${emp ? esc(emp.Name) : esc(e.employee_code || '—')}<div class="text-[10px]" style="color:var(--muted)">${esc(e.employee_code||'')}</div></td>
+      <td class="font-mono text-[11px]">${esc(e.email)}</td>
+      <td><span class="chip chip-gray">${esc(e.service||'—')}</span></td>
+      <td>${esc(e.purpose||'—')}</td>
+      <td class="text-[11px]">${esc(rec)}</td>
+      <td>${fmtDate(e.issued_on)}</td>
+      <td><span class="chip ${active?'chip-ok':'chip-bad'}">${esc(e.status)}</span></td>
+      <td>${active ? `<button class="btn btn-ghost btn-sm" data-act="em-revoke" data-id="${e.id}"><i class="fa-solid fa-ban"></i> Revoke</button>` : ''}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="8" class="text-center py-6" style="color:var(--muted)">No emails allotted yet.</td></tr>';
+}
+$('emAddBtn') && $('emAddBtn').addEventListener('click', async () => {
+  const email = $('emEmail').value.trim();
+  if(!email || !email.includes('@')) return notify('Enter a valid email address', 'error');
+  const row = {
+    employee_code: $('emEmp').value || null, email, service: $('emService').value,
+    purpose: $('emPurpose').value || null, recovery_phone: $('emPhone').value || null,
+    recovery_email: $('emRecovery').value || null, remarks: $('emRemarks').value || null,
+    issued_by: (ME_EMAIL || 'admin')
+  };
+  const { error } = await sb.from('email_accounts').insert([row]);
+  if(error) return notify(error.message, 'error');
+  ['emEmail','emPurpose','emPhone','emRecovery','emRemarks','emEmpInp'].forEach(id => { if($(id)) $(id).value=''; });
+  $('emEmp').value = '';
+  notify('Email allotted', 'success'); loadEmails();
+});
 function fillStockDropdown(){
   const dl = $('asStockDL'); if(!dl) return;
   const avail = STOCK.filter(s => s.available_qty > 0);
