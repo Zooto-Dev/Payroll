@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <style>
 /* ===== NEXUS CINEMATIC SPLASH ===== */
@@ -102,6 +103,12 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 /* ---------- Components ---------- */
 .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px}
 .stat-num{font-family:'Space Grotesk',sans-serif;font-size:30px;font-weight:700;line-height:1.1}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;align-items:center;gap:14px;box-shadow:0 1px 2px rgba(15,23,42,.04);transition:box-shadow .15s,transform .15s}
+.kpi:hover{box-shadow:0 6px 18px rgba(15,23,42,.08);transform:translateY(-1px)}
+.kpi-ic{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.kpi-lbl{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.kpi-num{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;line-height:1.15}
+.kpi-sub{font-size:10px;color:var(--muted);margin-top:1px}
 .btn{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:10px;font-weight:600;font-size:13px;cursor:pointer;border:1px solid transparent;transition:all .15s}
 .btn-primary{background:var(--brand);color:#fff}
 .btn-primary:hover{background:var(--brand-hover)}
@@ -270,12 +277,54 @@ body.no-confidential .confidential-col{display:none!important}
 <div class="page show" id="page-dashboard">
   <div id="dashNoSalary" class="mb-4"></div>
   <div id="dashIncomplete" class="mb-4"></div>
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-    <div class="card" style="cursor:pointer" onclick="showAttList('present')" title="Click to see who is present"><p class="lbl m-0">Present Today <i class="fa-solid fa-arrow-up-right-from-square text-[9px]" style="opacity:.4"></i></p><div class="stat-num" style="color:var(--ok)" id="dPresent">—</div></div>
-    <div class="card" style="cursor:pointer" onclick="showAttList('late')" title="Click to see who is late"><p class="lbl m-0">Late Today <i class="fa-solid fa-arrow-up-right-from-square text-[9px]" style="opacity:.4"></i></p><div class="stat-num" style="color:var(--warn)" id="dLate">—</div></div>
-    <div class="card" style="cursor:pointer" onclick="showAttList('absent')" title="Click to see who is absent"><p class="lbl m-0">Absent Today <i class="fa-solid fa-arrow-up-right-from-square text-[9px]" style="opacity:.4"></i></p><div class="stat-num" style="color:var(--bad)" id="dAbsent">—</div></div>
-    <div class="card"><p class="lbl m-0">Last Payroll (Net)</p><div class="stat-num money" style="color:var(--brand)" id="dPayroll">—</div></div>
+
+  <!-- KPI ROW -->
+  <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+    <div class="kpi" style="cursor:pointer" onclick="showAttList('present')">
+      <div class="kpi-ic" style="background:#dcfce7;color:#16a34a"><i class="fa-solid fa-user-check"></i></div>
+      <div><div class="kpi-lbl">Present Today</div><div class="kpi-num" id="dPresent">—</div><div class="kpi-sub" id="dPresentPct">—</div></div>
+    </div>
+    <div class="kpi" style="cursor:pointer" onclick="showAttList('late')">
+      <div class="kpi-ic" style="background:#fef3c7;color:#d97706"><i class="fa-solid fa-clock"></i></div>
+      <div><div class="kpi-lbl">Late Today</div><div class="kpi-num" id="dLate">—</div><div class="kpi-sub">after 10:00 AM</div></div>
+    </div>
+    <div class="kpi" style="cursor:pointer" onclick="showAttList('absent')">
+      <div class="kpi-ic" style="background:#fee2e2;color:#dc2626"><i class="fa-solid fa-user-xmark"></i></div>
+      <div><div class="kpi-lbl">Absent Today</div><div class="kpi-num" id="dAbsent">—</div><div class="kpi-sub" id="dAbsentPct">—</div></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-ic" style="background:#dbeafe;color:#2563eb"><i class="fa-solid fa-users"></i></div>
+      <div><div class="kpi-lbl">Total Active</div><div class="kpi-num" id="dTotal">—</div><div class="kpi-sub" id="dDeptCount">—</div></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-ic" style="background:#ede9fe;color:#7c3aed"><i class="fa-solid fa-indian-rupee-sign"></i></div>
+      <div><div class="kpi-lbl">Last Payroll (Net)</div><div class="kpi-num money" id="dPayroll" style="font-size:22px">—</div><div class="kpi-sub" id="dPayrollMonth">—</div></div>
+    </div>
   </div>
+
+  <!-- CHARTS ROW -->
+  <div class="grid lg:grid-cols-3 gap-4 mt-4">
+    <div class="card">
+      <h3 class="display font-bold m-0 mb-3 text-sm">Today's Attendance</h3>
+      <div style="height:200px;position:relative"><canvas id="chAtt"></canvas></div>
+    </div>
+    <div class="card lg:col-span-2">
+      <h3 class="display font-bold m-0 mb-3 text-sm">Attendance Trend — Last 14 Days</h3>
+      <div style="height:200px;position:relative"><canvas id="chTrend"></canvas></div>
+    </div>
+  </div>
+
+  <div class="grid lg:grid-cols-2 gap-4 mt-4">
+    <div class="card">
+      <h3 class="display font-bold m-0 mb-3 text-sm">Headcount by Department</h3>
+      <div style="height:220px;position:relative"><canvas id="chDept"></canvas></div>
+    </div>
+    <div class="card">
+      <h3 class="display font-bold m-0 mb-3 text-sm">Payroll Cost — Last 6 Months</h3>
+      <div style="height:220px;position:relative"><canvas id="chPay"></canvas></div>
+    </div>
+  </div>
+
   <div class="grid lg:grid-cols-2 gap-4 mt-4">
     <div class="card">
       <div class="flex items-center justify-between mb-3">
@@ -2070,7 +2119,73 @@ function renderNoSalaryCard(){
         </div>`).join('')}</div>
     </div>` : '';
 }
+let _dashCharts = {};
+function _destroyChart(k){ if(_dashCharts[k]){ _dashCharts[k].destroy(); _dashCharts[k] = null; } }
+function buildDashCharts(todayRows, total, late, monthRows, slips){
+  if(typeof Chart === 'undefined') return;
+  Chart.defaults.font.family = "Inter, sans-serif";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = '#64748b';
+  const present = todayRows.length, onTime = present - late, absent = Math.max(0, total - present);
+
+  // 1) Today's attendance donut
+  _destroyChart('att');
+  if($('chAtt')) _dashCharts.att = new Chart($('chAtt'), {
+    type: 'doughnut',
+    data: { labels: ['On time', 'Late', 'Absent'], datasets: [{ data: [onTime, late, absent], backgroundColor: ['#16a34a','#d97706','#dc2626'], borderWidth: 0 }] },
+    options: { cutout: '65%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12 } } }, maintainAspectRatio: false }
+  });
+
+  // 2) 14-day attendance trend (present count per day) — from this month's rows
+  _destroyChart('trend');
+  const byDay = {};
+  monthRows.forEach(r => { /* r has no date here */ });
+  // we need dates; fetch handled separately below via window._trendData
+  const td = window._trendData || { labels: [], present: [], late: [] };
+  if($('chTrend')) _dashCharts.trend = new Chart($('chTrend'), {
+    type: 'line',
+    data: { labels: td.labels, datasets: [
+      { label:'Present', data: td.present, borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.08)', fill:true, tension:.35, pointRadius:2 },
+      { label:'Late', data: td.late, borderColor:'#d97706', backgroundColor:'transparent', tension:.35, pointRadius:2 }
+    ]},
+    options: { plugins: { legend: { position:'top', labels:{ boxWidth:10 } } }, scales: { y: { beginAtZero:true, ticks:{ precision:0 } } }, maintainAspectRatio:false }
+  });
+
+  // 3) Headcount by department
+  _destroyChart('dept');
+  const deptCount = {};
+  activeEmps().forEach(e => { const d = e.DEPARTMENT || 'Unassigned'; deptCount[d] = (deptCount[d]||0)+1; });
+  const dEntries = Object.entries(deptCount).sort((a,b) => b[1]-a[1]).slice(0,10);
+  if($('chDept')) _dashCharts.dept = new Chart($('chDept'), {
+    type: 'bar',
+    data: { labels: dEntries.map(x=>x[0]), datasets: [{ data: dEntries.map(x=>x[1]), backgroundColor:'#2563eb', borderRadius:5 }] },
+    options: { indexAxis:'y', plugins:{ legend:{ display:false } }, scales:{ x:{ beginAtZero:true, ticks:{ precision:0 } } }, maintainAspectRatio:false }
+  });
+
+  // 4) Payroll cost last 6 months
+  _destroyChart('pay');
+  const payByMonth = {};
+  slips.forEach(s => { payByMonth[s.month] = (payByMonth[s.month]||0) + Number(s.net_pay||0); });
+  const pmonths = Object.keys(payByMonth).sort().slice(-6);
+  if($('chPay')) _dashCharts.pay = new Chart($('chPay'), {
+    type: 'bar',
+    data: { labels: pmonths.map(m => (monthLabel ? monthLabel(m) : m)), datasets: [{ data: pmonths.map(m => payByMonth[m]), backgroundColor:'#7c3aed', borderRadius:5 }] },
+    options: { plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: c => '₹' + c.raw.toLocaleString('en-IN') } } }, scales:{ y:{ beginAtZero:true, ticks:{ callback: v => '₹' + (v/1000) + 'k' } } }, maintainAspectRatio:false }
+  });
+}
+async function loadTrendData(){
+  // 14-day present/late counts
+  const end = new Date(); const start = new Date(); start.setDate(end.getDate() - 13);
+  const s = start.toISOString().slice(0,10), e = end.toISOString().slice(0,10);
+  const { data } = await sb.from('attendance').select('date, is_late, in_time').gte('date', s).lte('date', e);
+  const days = {};
+  for(let i=0;i<14;i++){ const d=new Date(start); d.setDate(start.getDate()+i); const iso=d.toISOString().slice(0,10); days[iso]={p:0,l:0}; }
+  (data||[]).forEach(r => { if(days[r.date]){ days[r.date].p++; if(isRowLate(r)) days[r.date].l++; } });
+  const labels = Object.keys(days).map(d => d.slice(8)+'/'+d.slice(5,7));
+  window._trendData = { labels, present: Object.values(days).map(x=>x.p), late: Object.values(days).map(x=>x.l) };
+}
 async function loadDashboard(){
+  await loadTrendData();
   renderNoSalaryCard();
   renderIncompleteCard();
   loadEngagement();
@@ -2095,12 +2210,25 @@ async function loadDashboard(){
     $('dLate').innerText = late;
     $('dAbsent').innerText = Math.max(0, total - rows.length);
 
+    // KPI extras
+    const presentPct = total ? Math.round(rows.length / total * 100) : 0;
+    if($('dPresentPct')) $('dPresentPct').innerText = presentPct + '% of ' + total;
+    if($('dAbsentPct')) $('dAbsentPct').innerText = (total ? Math.round((total-rows.length)/total*100) : 0) + '% of ' + total;
+    if($('dTotal')) $('dTotal').innerText = total;
+    const deptSet = new Set(activeEmps().map(e => e.DEPARTMENT).filter(Boolean));
+    if($('dDeptCount')) $('dDeptCount').innerText = deptSet.size + ' departments';
+
     const slips = slipRes.data || [];
+    let lastMonth = null;
     if(slips.length){
-      const lastMonth = slips[0].month;
+      lastMonth = slips[0].month;
       const sum = slips.filter(s => s.month === lastMonth).reduce((a,s) => a + Number(s.net_pay||0), 0);
       $('dPayroll').innerText = fmtINR(sum);
-    } else $('dPayroll').innerText = '—';
+      if($('dPayrollMonth')) $('dPayrollMonth').innerText = monthLabel ? monthLabel(lastMonth) : lastMonth;
+    } else { $('dPayroll').innerText = '—'; }
+
+    // ===== CHARTS =====
+    buildDashCharts(rows, total, late, monthRes.data || [], slips);
 
     $('dPunchList').innerHTML = rows.length ? rows.map(r => {
       const isLate = isRowLate(r);
