@@ -234,10 +234,35 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <option value="SUGGESTION">Suggestion — a problem you see + your solutions</option>
           <option value="KAIZEN">Kaizen — improvement idea (reward if approved)</option>
         </select>
-        <label class="lbl">Subject</label>
+        <label class="lbl" id="fbSubjLbl">Subject / Kaizen Title</label>
         <input id="fbSubject" class="inp mb-3" placeholder="Short title">
-        <label class="lbl">Details</label>
-        <textarea id="fbDetails" class="inp mb-3" rows="3" placeholder="Describe the issue / idea…"></textarea>
+
+        <!-- Kaizen-only rich fields -->
+        <div id="fbKaizenWrap" class="hidden">
+          <label class="lbl">Current Problem</label>
+          <textarea id="kzProblem" class="inp mb-3" rows="2" placeholder="Abhi kya dikkat hai…"></textarea>
+          <label class="lbl">Proposed Solution</label>
+          <textarea id="kzSolution" class="inp mb-3" rows="2" placeholder="Aapka sujhaav / hal…"></textarea>
+          <label class="lbl">Expected Benefits (select all that apply)</label>
+          <div id="kzBenefits" class="mb-3" style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" class="kz-benefit" value="Cost Saving"> Cost Saving</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" class="kz-benefit" value="Time Saving"> Time Saving</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" class="kz-benefit" value="Quality Improvement"> Quality Improvement</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" class="kz-benefit" value="Productivity Improvement"> Productivity Improvement</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" class="kz-benefit" value="Safety Improvement"> Safety Improvement</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" class="kz-benefit" value="Other"> Other</label>
+          </div>
+          <label class="lbl">Attachment (optional photo)</label>
+          <input id="kzAttach" type="file" accept="image/*" class="inp mb-3">
+          <label class="lbl">Additional Remarks</label>
+          <textarea id="kzRemarks" class="inp mb-3" rows="2" placeholder="Aur kuch kehna ho…"></textarea>
+        </div>
+
+        <!-- Grievance/Suggestion details -->
+        <div id="fbDetailsWrap">
+          <label class="lbl">Details</label>
+          <textarea id="fbDetails" class="inp mb-3" rows="3" placeholder="Describe the issue / idea…"></textarea>
+        </div>
         <div id="fbSolWrap" class="hidden">
           <label class="lbl">Your 2–3 Best Solutions</label>
           <textarea id="fbSolutions" class="inp mb-3" rows="3" placeholder="1. …&#10;2. …&#10;3. …"></textarea>
@@ -617,7 +642,11 @@ $('exBtn').addEventListener('click', async () => {
 /* ---------- Grievance / Suggestion / Kaizen ---------- */
 $('fbType').addEventListener('change', () => {
   const t = $('fbType').value;
-  $('fbSolWrap').classList.toggle('hidden', t === 'GRIEVANCE');
+  const isKz = t === 'KAIZEN';
+  $('fbKaizenWrap').classList.toggle('hidden', !isKz);
+  $('fbDetailsWrap').classList.toggle('hidden', isKz);        // kaizen uses its own problem/solution fields
+  $('fbSolWrap').classList.toggle('hidden', t === 'GRIEVANCE' || isKz);
+  $('fbSubjLbl').innerText = isKz ? 'Kaizen Title' : 'Subject';
 });
 async function loadFeedback(){
   try{
@@ -636,15 +665,35 @@ $('fbBtn').addEventListener('click', async () => {
   const btn = $('fbBtn');
   btn.innerHTML = '<div class="loader-ring"></div> Submitting…'; btn.disabled = true;
   try{
+    const isKz = $('fbType').value === 'KAIZEN';
+    let attachUrl = null;
+    if(isKz){
+      const file = ($('kzAttach').files || [])[0];
+      if(file){
+        try{
+          const path = 'kaizen/' + CODE + '_' + Date.now() + '.jpg';
+          const up = await sb.storage.from('attendance-photos').upload(path, file, { contentType: file.type, upsert:true });
+          if(!up.error) attachUrl = supabaseUrl + '/storage/v1/object/public/attendance-photos/' + path;
+        }catch(e){}
+      }
+    }
+    const benefits = Array.from(document.querySelectorAll('.kz-benefit:checked')).map(c => c.value).join(', ');
     const { data, error } = await sb.rpc('ess_submit_feedback', {
       p_code: CODE, p_phone: PHONE, p_type: $('fbType').value,
-      p_subject: $('fbSubject').value, p_details: $('fbDetails').value,
-      p_solutions: $('fbType').value === 'GRIEVANCE' ? '' : $('fbSolutions').value
+      p_subject: $('fbSubject').value,
+      p_details: isKz ? '' : $('fbDetails').value,
+      p_solutions: (isKz || $('fbType').value === 'GRIEVANCE') ? '' : $('fbSolutions').value,
+      p_kz_problem: isKz ? $('kzProblem').value : null,
+      p_kz_solution: isKz ? $('kzSolution').value : null,
+      p_kz_benefits: isKz ? benefits : null,
+      p_kz_attachment: attachUrl,
+      p_kz_remarks: isKz ? $('kzRemarks').value : null
     });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
-    notify($('fbType').value === 'KAIZEN' ? 'Kaizen submitted — reward on approval!' : 'Submitted — HR will review it');
+    notify(isKz ? 'Kaizen submitted — reward on approval!' : 'Submitted — HR will review it');
     $('fbSubject').value = ''; $('fbDetails').value = ''; $('fbSolutions').value = '';
+    if(isKz){ $('kzProblem').value=''; $('kzSolution').value=''; $('kzRemarks').value=''; $('kzAttach').value=''; document.querySelectorAll('.kz-benefit').forEach(c=>c.checked=false); }
     loadFeedback();
   }catch(err){ notify(err.message); }
   finally{ btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit'; btn.disabled = false; }
