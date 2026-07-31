@@ -271,9 +271,9 @@ body.no-confidential .confidential-col{display:none!important}
   <div id="dashNoSalary" class="mb-4"></div>
   <div id="dashIncomplete" class="mb-4"></div>
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-    <div class="card"><p class="lbl m-0">Present Today</p><div class="stat-num" style="color:var(--ok)" id="dPresent">—</div></div>
-    <div class="card"><p class="lbl m-0">Late Today</p><div class="stat-num" style="color:var(--warn)" id="dLate">—</div></div>
-    <div class="card"><p class="lbl m-0">Absent Today</p><div class="stat-num" style="color:var(--bad)" id="dAbsent">—</div></div>
+    <div class="card" style="cursor:pointer" onclick="showAttList('present')" title="Click to see who is present"><p class="lbl m-0">Present Today <i class="fa-solid fa-arrow-up-right-from-square text-[9px]" style="opacity:.4"></i></p><div class="stat-num" style="color:var(--ok)" id="dPresent">—</div></div>
+    <div class="card" style="cursor:pointer" onclick="showAttList('late')" title="Click to see who is late"><p class="lbl m-0">Late Today <i class="fa-solid fa-arrow-up-right-from-square text-[9px]" style="opacity:.4"></i></p><div class="stat-num" style="color:var(--warn)" id="dLate">—</div></div>
+    <div class="card" style="cursor:pointer" onclick="showAttList('absent')" title="Click to see who is absent"><p class="lbl m-0">Absent Today <i class="fa-solid fa-arrow-up-right-from-square text-[9px]" style="opacity:.4"></i></p><div class="stat-num" style="color:var(--bad)" id="dAbsent">—</div></div>
     <div class="card"><p class="lbl m-0">Last Payroll (Net)</p><div class="stat-num money" style="color:var(--brand)" id="dPayroll">—</div></div>
   </div>
   <div class="grid lg:grid-cols-2 gap-4 mt-4">
@@ -1398,6 +1398,76 @@ function applyPerms(){
 }
 const PAGE_ICONS = { dashboard:'gauge', employees:'users', attendance:'calendar-check', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', idcards:'id-card', approvals:'clipboard-check', voice:'comments', settings:'gear' };
 function initials(em){ return em.split('@')[0].replace(/[^a-z0-9]/gi, ' ').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'A'; }
+function showAttList(kind){
+  const rows = window._todayAtt || [];
+  const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
+  let title = '', list = [];
+  if(kind === 'present'){
+    title = 'Present Today';
+    list = rows.map(r => ({ code:r.employee_code, name: r.Name || nameOf(r.employee_code), time: (r.in_time||'').replace(' LATE',''), late: (r.in_time||'').includes('LATE'), photo: r.in_photo_url }));
+  } else if(kind === 'late'){
+    title = 'Late Today';
+    list = rows.filter(r => (r.in_time||'').includes('LATE')).map(r => ({ code:r.employee_code, name: r.Name || nameOf(r.employee_code), time: (r.in_time||'').replace(' LATE',''), late:true, photo: r.in_photo_url }));
+  } else {
+    title = 'Absent Today';
+    const present = new Set(rows.map(r => r.employee_code));
+    list = activeEmps().filter(e => !present.has(e['Employee code'])).map(e => ({ code:e['Employee code'], name:e.Name, dept:e.DEPARTMENT, absent:true }));
+  }
+  const body = list.length ? list.map(x => `
+    <div class="flex items-center gap-3 p-2 rounded-lg" style="border:1px solid var(--line)">
+      ${x.photo ? `<img src="${esc(x.photo)}" style="width:34px;height:34px;border-radius:50%;object-fit:cover">` : `<div style="width:34px;height:34px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">${esc((x.name||'?').charAt(0).toUpperCase())}</div>`}
+      <div style="flex:1">
+        <div class="text-sm font-semibold">${esc(x.name)} <span style="color:var(--muted);font-weight:400">(${esc(x.code)})</span></div>
+        <div class="text-[11px]" style="color:var(--muted)">${x.absent ? esc(x.dept||'—') : ('In: ' + esc(x.time||'—') + (x.late ? ' · <span style=\'color:var(--warn)\'>LATE</span>' : ''))}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="closeAttList();openEmpModal('${esc(x.code)}')"><i class="fa-solid fa-user"></i></button>
+    </div>`).join('') : '<p style="color:var(--muted);text-align:center;padding:20px">No one in this list.</p>';
+  let m = document.getElementById('attListModal');
+  if(!m){ m = document.createElement('div'); m.id = 'attListModal'; m.className = 'modal'; document.body.appendChild(m); }
+  m.innerHTML = `<div class="modal-box" style="max-width:460px;max-height:80vh;overflow:auto">
+    <div class="flex items-center justify-between mb-3"><h3 class="display font-bold m-0">${title} <span class="chip chip-gray">${list.length}</span></h3>
+    <button class="btn btn-ghost btn-sm" onclick="closeAttList()"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="space-y-2">${body}</div>
+    <div class="mt-3 text-right"><button class="btn btn-ghost btn-sm" onclick="exportAttList('${kind}')"><i class="fa-solid fa-download"></i> Export CSV</button></div>
+  </div>`;
+  m.classList.add('show');
+}
+function closeAttList(){ const m = document.getElementById('attListModal'); if(m) m.classList.remove('show'); }
+function nxAskImpact(){
+  return new Promise(resolve => {
+    let m = document.getElementById('impactModal');
+    if(!m){ m = document.createElement('div'); m.id='impactModal'; m.className='modal'; document.body.appendChild(m); }
+    m.innerHTML = `<div class="modal-box" style="max-width:360px">
+      <h3 class="display font-bold m-0 mb-1">Estimated Impact</h3>
+      <p class="text-xs mb-3" style="color:var(--muted)">Aapke hisaab se is Kaizen ka asar kitna hai?</p>
+      <div class="flex flex-col gap-2">
+        <button class="btn btn-ghost" data-imp="LOW" style="justify-content:flex-start"><span class="chip chip-gray">LOW</span> &nbsp;Chhota sudhaar</button>
+        <button class="btn btn-ghost" data-imp="MEDIUM" style="justify-content:flex-start"><span class="chip chip-warn">MEDIUM</span> &nbsp;Achha sudhaar</button>
+        <button class="btn btn-ghost" data-imp="HIGH" style="justify-content:flex-start"><span class="chip chip-ok">HIGH</span> &nbsp;Bada sudhaar</button>
+      </div>
+      <div class="mt-3 text-right"><button class="btn btn-ghost btn-sm" id="impCancel">Cancel</button></div>
+    </div>`;
+    m.classList.add('show');
+    m.querySelectorAll('[data-imp]').forEach(b => b.onclick = () => { m.classList.remove('show'); resolve(b.dataset.imp); });
+    m.querySelector('#impCancel').onclick = () => { m.classList.remove('show'); resolve(null); };
+  });
+}
+function exportAttList(kind){
+  const rows = window._todayAtt || [];
+  const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
+  let data = [];
+  if(kind === 'absent'){
+    const present = new Set(rows.map(r => r.employee_code));
+    data = activeEmps().filter(e => !present.has(e['Employee code'])).map(e => [e['Employee code'], e.Name, e.DEPARTMENT||'', 'ABSENT']);
+  } else {
+    let src2 = kind === 'late' ? rows.filter(r => (r.in_time||'').includes('LATE')) : rows;
+    data = src2.map(r => [r.employee_code, r.Name||nameOf(r.employee_code), (r.in_time||'').replace(' LATE',''), (r.in_time||'').includes('LATE')?'LATE':'ON TIME']);
+  }
+  const csv = 'Code,Name,Info,Status\n' + data.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv' }));
+  a.download = kind + '_' + todayISO() + '.csv'; a.click();
+}
 const _empPhotoCache = {};
 async function loadEmpPhoto(code){
   try{
@@ -1971,6 +2041,7 @@ async function loadDashboard(){
     const rows = attRes.data || [];
     const total = activeEmps().length;
     const late = rows.filter(r => (r.in_time||'').includes('LATE')).length;
+    window._todayAtt = rows; // for the click-through lists
     $('dPresent').innerText = rows.length;
     $('dLate').innerText = late;
     $('dAbsent').innerText = Math.max(0, total - rows.length);
@@ -3167,11 +3238,15 @@ document.body.addEventListener('click', async e => {
     loadVoice();
   }
   if(act === 'vb-kapprove'){
-    const amt = Number(await nxAsk({ title:'Kaizen Reward', msg:'Reward amount (₹) — will be added as "Kaizen Reward" in the next payroll:', input:true, placeholder:'500', okText:'Approve' }));
+    // Step 1: choose the estimated impact
+    const impact = await nxAskImpact();
+    if(!impact) return;
+    // Step 2: enter the reward amount manually (you decide, based on the impact)
+    const amt = Number(await nxAsk({ title:'Kaizen Reward — ' + impact + ' impact', msg:'Reward amount (₹) — added as "Kaizen Reward" in the next payroll.\nYou decide the amount based on the idea.', input:true, placeholder:'500', okText:'Approve' }));
     if(!amt || amt <= 0) return;
     const note = (await nxPrompt('Approval note (optional):', 'Approve')) || '';
     const code = el.dataset.code;
-    await sb.from('feedback').update({ status:'APPROVED', reward: amt, admin_note: note }).eq('id', el.dataset.id);
+    await sb.from('feedback').update({ status:'APPROVED', reward: amt, impact: impact, admin_note: note }).eq('id', el.dataset.id);
     const p = PROFILES[code] || {};
     const sal = Object.assign({}, p.salary || {}, { pendingReward: (Number((p.salary||{}).pendingReward)||0) + amt });
     await sb.from('hr_profiles').upsert({ employee_code: code, salary: sal }, { onConflict: 'employee_code' });
@@ -4993,6 +5068,12 @@ async function loadVoice(){
     </div>
     <div class="font-semibold text-sm mb-1">${esc(f.subject)}</div>
     ${f.details ? `<div class="text-xs mb-1" style="color:#334155;white-space:pre-wrap">${esc(f.details)}</div>` : ''}
+    ${f.kz_problem ? `<div class="text-xs mb-1"><b>Problem:</b> <span style="white-space:pre-wrap">${esc(f.kz_problem)}</span></div>` : ''}
+    ${f.kz_solution ? `<div class="text-xs mb-1 p-2 rounded" style="background:#eff6ff"><b>Proposed solution:</b><br><span style="white-space:pre-wrap">${esc(f.kz_solution)}</span></div>` : ''}
+    ${f.kz_benefits ? `<div class="text-[11px] mb-1"><b>Benefits:</b> ${esc(f.kz_benefits)}</div>` : ''}
+    ${f.impact ? `<div class="text-[11px] mb-1"><b>Impact:</b> <span class="chip ${f.impact==='HIGH'?'chip-ok':f.impact==='MEDIUM'?'chip-warn':'chip-gray'}">${esc(f.impact)}</span></div>` : ''}
+    ${f.kz_attachment ? `<div class="text-[11px] mb-1"><a href="${esc(f.kz_attachment)}" target="_blank" style="color:var(--brand)"><i class="fa-solid fa-paperclip"></i> View attachment</a></div>` : ''}
+    ${f.kz_remarks ? `<div class="text-[11px] mb-1" style="color:var(--muted)"><b>Remarks:</b> ${esc(f.kz_remarks)}</div>` : ''}
     ${f.solutions ? `<div class="text-xs mb-1 p-2 rounded" style="background:#eff6ff"><b>Proposed solutions:</b><br><span style="white-space:pre-wrap">${esc(f.solutions)}</span></div>` : ''}
     ${f.admin_note ? `<div class="text-[11px] mb-1" style="color:var(--muted)"><b>Note:</b> ${esc(f.admin_note)}</div>` : ''}
     <div class="text-[10px] mb-2" style="color:var(--muted)">${fmtDate(f.created_at.slice(0,10))}</div>
