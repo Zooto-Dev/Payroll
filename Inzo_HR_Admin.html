@@ -4683,10 +4683,25 @@ function updateStockHint(){
   if(s && $('asBrand') && !$('asBrand').value) $('asBrand').value = s.brand || '';
 }
 function renderStockCard(){
-  // show a compact stock summary in the asFilter card header area if present
   const host = document.getElementById('stockSummary');
   if(!host) return;
-  host.innerHTML = STOCK.length ? STOCK.map(s => `<span class="chip ${s.available_qty>0?'chip-ok':'chip-bad'}" style="margin:2px" title="${s.available_qty} of ${s.total_qty}">${esc(s.asset_type)}${s.brand?' '+esc(s.brand):''}${s.asset_name?' '+esc(s.asset_name):''}: ${s.available_qty}/${s.total_qty}</span>`).join(' ') : '<span class="text-xs" style="color:var(--muted)">No stock added yet.</span>';
+  if(!STOCK.length){ host.innerHTML = '<p class="text-xs m-0" style="color:var(--muted)">No stock added yet.</p>'; return; }
+  const rows = STOCK.map(s => {
+    const issued = s.total_qty - s.available_qty;
+    const low = s.available_qty === 0;
+    return `<tr>
+      <td><span class="chip chip-gray">${esc(s.asset_type)}</span></td>
+      <td>${esc(s.brand || '—')}</td>
+      <td>${esc(s.asset_name || '—')}</td>
+      <td class="text-center">${s.total_qty}</td>
+      <td class="text-center" style="color:var(--warn)">${issued}</td>
+      <td class="text-center font-bold" style="color:${low ? 'var(--bad)' : 'var(--ok)'}">${s.available_qty}</td>
+    </tr>`;
+  }).join('');
+  host.innerHTML = `<div style="overflow-x:auto"><table class="tbl" style="font-size:12px;margin:0">
+    <thead><tr><th>Type</th><th>Brand</th><th>Model / Label</th><th class="text-center">Total</th><th class="text-center">Issued</th><th class="text-center">Available</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
 }
 
 // Add / restock
