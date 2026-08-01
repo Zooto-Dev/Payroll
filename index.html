@@ -1346,11 +1346,8 @@ function nxConfirm(msg, title){
             const todayStr = offlineProcessData ? offlineProcessData.todayStr : `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}-${String(localDate.getDate()).padStart(2, '0')}`;
             const timeStr = offlineProcessData ? offlineProcessData.timeStr : `${String(localDate.getHours()).padStart(2, '0')}:${String(localDate.getMinutes()).padStart(2, '0')}:${String(localDate.getSeconds()).padStart(2, '0')}`;
             
-            // LATE MARK LOGIC — department based
-            //   Store / Production : late after 09:30
-            //   Everyone else      : late after 10:00
-            const _dept = String((empData && empData.DEPARTMENT) || '').toUpperCase();
-            const lateCutoff = (_dept.includes('STORE') || _dept.includes('PRODUCTION')) ? "09:30:00" : "10:00:00";
+            // LATE MARK LOGIC — late if punched in after 10:00 (same rule for everyone)
+            const lateCutoff = "10:00:00";
             const isLate = timeStr > lateCutoff;
 
             let imageBase64 = offlineProcessData ? offlineProcessData.imageBase64 : null;
@@ -1994,7 +1991,7 @@ function nxConfirm(msg, title){
                 return;
             }
 
-            const empName = document.getElementById('regName').value.trim();
+            const empName = document.getElementById('regName').value.trim().toUpperCase();
             const empCode = document.getElementById('regCode').value.trim().toUpperCase();
             const empDOJ = document.getElementById('regDOJ').value;
             const empDept = document.getElementById('regDept').value;
