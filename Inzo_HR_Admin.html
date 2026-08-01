@@ -1029,6 +1029,9 @@ body.no-confidential .confidential-col{display:none!important}
       <datalist id="mgrDL"></datalist>
       <div><label class="lbl">Emergency Contact</label><input id="epEmName" class="inp" placeholder="Name"></div>
       <div><label class="lbl">Emergency Phone</label><input id="epEmPhone" class="inp"></div>
+      <div><label class="lbl">Status</label><select id="epStatus" class="inp"><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive / Exited</option></select></div>
+      <div><label class="lbl">Exit Date <span class="text-[10px]" style="color:var(--muted)">(set to offboard)</span></label><input id="epExitDate" type="date" class="inp"></div>
+      <div class="col-span-1"><label class="lbl">Exit Reason</label><input id="epExitReason" class="inp" placeholder="Resigned / Terminated…"></div>
     </div>
     <div id="epSalarySection">
     <h4 class="display font-bold mt-5 mb-2">Salary Structure (Monthly) <span class="text-[10px] font-normal" style="color:var(--muted)">components are managed in Settings</span></h4>
@@ -2367,6 +2370,7 @@ function renderEmployees(filter){
   }).join('') : '<tr><td colspan="8" class="text-center py-8" style="color:var(--muted)">No employees found.</td></tr>';
 }
 $('empSearch').addEventListener('input', e => renderEmployees(e.target.value));
+$('empShowExited') && $('empShowExited').addEventListener('change', () => renderEmployees($('empSearch').value));
 function updateAePreview(){
   const mgmt = $('aeCat').value === 'mgmt';
   $('aeSkillWrap').classList.toggle('hidden', mgmt);
@@ -2457,7 +2461,12 @@ $('aeSaveBtn').addEventListener('click', async () => {
   finally{ btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Add Employee'; btn.disabled = false; }
 });
 
+function _wireExitAuto(){
+  const ex = document.getElementById('epExitDate');
+  if(ex && !ex._wired){ ex._wired = true; ex.addEventListener('change', () => { if(ex.value) document.getElementById('epStatus').value = 'INACTIVE'; }); }
+}
 async function openEmpModal(code){
+  _wireExitAuto();
   const e = EMP.find(x => x['Employee code'] === code); if(!e) return;
   const p = PROFILES[code] || {};
   $('epCode').value = code;
@@ -2472,6 +2481,9 @@ async function openEmpModal(code){
   $('epDeptSel').innerHTML = window.nxDeptOpts(e.DEPARTMENT || '');
   $('epDesigSel').innerHTML = window.nxDesigOpts(e.DESIGNATION || '');
   $('epFather').value = p.father_name || ''; $('epDOB').value = p.dob || ''; $('epGender').value = p.gender || '';
+  $('epStatus').value = String(e.Status).toUpperCase() === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
+  $('epExitDate').value = p.exit_date || '';
+  $('epExitReason').value = p.exit_reason || '';
   const dept2 = String(e.DEPARTMENT || '').toUpperCase();
   $('mgrDL').innerHTML = EMP.filter(x => String(x.DEPARTMENT || '').toUpperCase() === dept2
     && /MANAGER|EXECUTIVE|INCHARGE|SUPERVISOR|CEO|DIRECTOR/i.test(String(x.DESIGNATION || ''))
@@ -2692,12 +2704,15 @@ $('epSaveBtn').addEventListener('click', async () => {
       grade: $('epGrade').value, employment_type: $('epType').value,
       reporting_manager: $('epManager').value,
       emergency_name: $('epEmName').value, emergency_phone: $('epEmPhone').value,
-      gender: $('epGender').value || null
+      gender: $('epGender').value || null,
+      exit_date: $('epExitDate').value || null, exit_reason: $('epExitReason').value || null
     };
     const { error } = await sb.from('hr_profiles').upsert(row, { onConflict: 'employee_code' });
     if(error) throw error;
-    // employees master: department / designation
-    const empUpd = { DEPARTMENT: $('epDeptSel').value || null, DESIGNATION: $('epDesigSel').value || null };
+    // if an exit date is set, force status INACTIVE
+    const newStatus = ($('epExitDate').value || $('epStatus').value === 'INACTIVE') ? 'INACTIVE' : 'ACTIVE';
+    // employees master: department / designation / status
+    const empUpd = { DEPARTMENT: $('epDeptSel').value || null, DESIGNATION: $('epDesigSel').value || null, Status: newStatus };
     const { error: e2 } = await sb.from('employees').update(empUpd).eq('Employee code', $('epCode').value);
     if(e2) throw e2;
     const empRow = EMP.find(x => x['Employee code'] === $('epCode').value);
