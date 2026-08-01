@@ -659,19 +659,25 @@ $('fbType').addEventListener('change', () => {
 });
 async function loadMyAssets(){
   const host = $('assetBox'); if(!host) return;
+  const codeU = String(CODE || '').trim().toUpperCase();
+  if(!codeU){ setTimeout(loadMyAssets, 600); return; }   // CODE not ready yet, retry shortly
   try{
-    const codeU = String(CODE || '').trim().toUpperCase();
-    const { data, error } = await sb.from('assets').select('*').ilike('employee_code', codeU).order('created_at', { ascending:false });
-    if(error){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Could not load.</p>'; return; }
-    // fallback: if exact ilike returned nothing, pull all and match case-insensitively
-    let raw = data || [];
-    if(!raw.length){
+    // fetch this employee's assets directly (small payload, fast on mobile)
+    let resp = await sb.from('assets').select('*').eq('employee_code', CODE).order('created_at', { ascending:false });
+    if(resp.error){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--bad)">Load error: ' + esc(resp.error.message||'unknown') + '</p>'; return; }
+    let mine = resp.data || [];
+    // case fallback: if the stored code differs in case, pull all and match
+    if(!mine.length){
       const all = await sb.from('assets').select('*').order('created_at', { ascending:false });
-      raw = (all.data || []).filter(r => String(r.employee_code||'').trim().toUpperCase() === codeU);
+      if(all.error){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--bad)">Load error: ' + esc(all.error.message||'unknown') + '</p>'; return; }
+      mine = (all.data || []).filter(r => String(r.employee_code||'').trim().toUpperCase() === codeU);
     }
-    // everything currently held (not returned)
-    const rows = raw.filter(r => String(r.status||'').toUpperCase() !== 'RETURNED');
-    if(!rows.length){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">No assets issued to you.</p>'; return; }
+    const rows = mine.filter(r => String(r.status||'').toUpperCase() !== 'RETURNED');
+    if(!rows.length){
+      host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">No assets issued to you.</p>' +
+        (mine.length ? '' : '<p class="m-0 text-[10px]" style="color:var(--muted)">Logged in as: ' + esc(codeU) + '</p>');
+      return;
+    }
     // group pending items by issue_group
     const pending = rows.filter(r => r.ack_status === 'PENDING_ACK');
     const groups = {};
