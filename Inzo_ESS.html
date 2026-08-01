@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Nexus — My HR</title><link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
@@ -657,10 +660,17 @@ $('fbType').addEventListener('change', () => {
 async function loadMyAssets(){
   const host = $('assetBox'); if(!host) return;
   try{
-    const { data, error } = await sb.from('assets').select('*').eq('employee_code', CODE).order('created_at', { ascending:false });
+    const codeU = String(CODE || '').trim().toUpperCase();
+    const { data, error } = await sb.from('assets').select('*').ilike('employee_code', codeU).order('created_at', { ascending:false });
     if(error){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Could not load.</p>'; return; }
+    // fallback: if exact ilike returned nothing, pull all and match case-insensitively
+    let raw = data || [];
+    if(!raw.length){
+      const all = await sb.from('assets').select('*').order('created_at', { ascending:false });
+      raw = (all.data || []).filter(r => String(r.employee_code||'').trim().toUpperCase() === codeU);
+    }
     // everything currently held (not returned)
-    const rows = (data || []).filter(r => String(r.status||'').toUpperCase() !== 'RETURNED');
+    const rows = raw.filter(r => String(r.status||'').toUpperCase() !== 'RETURNED');
     if(!rows.length){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">No assets issued to you.</p>'; return; }
     // group pending items by issue_group
     const pending = rows.filter(r => r.ack_status === 'PENDING_ACK');
