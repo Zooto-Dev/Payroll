@@ -618,6 +618,20 @@ body.no-confidential .confidential-col{display:none!important}
         <div><label class="lbl">Issue Date</label><input id="asDate" type="date" class="inp"></div>
         <div><label class="lbl">Return By</label><input id="asReturnBy" type="date" class="inp"></div>
       </div>
+      <div id="asAccWrap" class="mb-3 hidden">
+        <label class="lbl">Included Accessories <span class="text-[10px]" style="color:var(--muted)">(with laptop/mobile)</span></label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px"><input type="checkbox" class="as-acc" value="Charger"> Charger</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px"><input type="checkbox" class="as-acc" value="SIM"> SIM</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px"><input type="checkbox" class="as-acc" value="Bag"> Bag</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px"><input type="checkbox" class="as-acc" value="Mouse"> Mouse</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px"><input type="checkbox" class="as-acc" value="Headphone"> Headphone</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px"><input type="checkbox" class="as-acc" value="Cable"> Cable</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px"><input type="checkbox" class="as-acc" value="Adapter"> Adapter</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px"><input type="checkbox" class="as-acc" value="Cover"> Cover</label>
+        </div>
+        <input id="asAccOther" class="inp mt-2" placeholder="Other accessories… (comma separated)">
+      </div>
       <label class="lbl">Purpose / Remarks</label>
       <input id="asPurpose" class="inp mb-4" placeholder="e.g. Field work / Official use">
       <button id="asSaveBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i> Issue Asset</button>
@@ -4785,6 +4799,9 @@ function updateStockHint(){
   const s = STOCK.find(x => String(x.id) === String($('asStock').value));
   $('asStockHint').innerText = s ? `${s.available_qty} available of ${s.total_qty} total` : '';
   if(s && $('asBrand') && !$('asBrand').value) $('asBrand').value = s.brand || '';
+  // accessories only for laptop / mobile
+  const isPC = s && ['LAPTOP','MOBILE'].includes((s.asset_type||'').toUpperCase());
+  if($('asAccWrap')) $('asAccWrap').classList.toggle('hidden', !isPC);
 }
 function renderStockCard(){
   const host = document.getElementById('stockSummary');
@@ -4879,6 +4896,12 @@ $('asSaveBtn').addEventListener('click', async () => {
   const row = {
     employee_code: $('asEmp').value, asset_type: stock.asset_type, asset_name: stock.asset_name || stock.asset_type,
     brand: $('asBrand').value || stock.brand || null,
+    accessories: (function(){
+      const acc = Array.from(document.querySelectorAll('.as-acc:checked')).map(c => c.value);
+      const other = ($('asAccOther').value || '').trim();
+      if(other) acc.push(other);
+      return acc.length ? acc.join(', ') : null;
+    })(),
     serial_no: $('asSerial').value, issue_date: $('asDate').value || todayISO(),
     pass_id: assetId, quantity: qty, stock_id: stock.id,
     expected_return: $('asReturnBy').value || null,
@@ -4888,7 +4911,7 @@ $('asSaveBtn').addEventListener('click', async () => {
   if(error) return notify(error.message, 'error');
   // reduce stock
   await sb.from('asset_stock').update({ available_qty: stock.available_qty - qty }).eq('id', stock.id);
-  $('asSerial').value = ''; $('asBrand').value = ''; $('asPurpose').value = ''; $('asReturnBy').value = ''; $('asQty').value = 1; if($('asStockInp')) $('asStockInp').value=''; $('asStock').value='';
+  $('asSerial').value = ''; $('asBrand').value = ''; $('asPurpose').value = ''; $('asReturnBy').value = ''; $('asQty').value = 1; if($('asStockInp')) $('asStockInp').value=''; $('asStock').value=''; document.querySelectorAll('.as-acc').forEach(c=>c.checked=false); if($('asAccOther')) $('asAccOther').value='';
   notify('Issued — Asset ID ' + assetId, 'success');
   loadAssets();
   // Gate pass only for high-value items that leave the premises (laptop / mobile)
@@ -4898,47 +4921,52 @@ $('asSaveBtn').addEventListener('click', async () => {
 
 function printGatePass(a){
   const emp = EMP.find(e => e['Employee code'] === a.employee_code) || {};
-  const dept = emp.DEPARTMENT || '—', desig = emp.DESIGNATION || '—';
+  const dept = emp.DEPARTMENT || '—';
+  const acc = a.accessories ? a.accessories : '';
+  // one compact gate-pass card (9 fit on an A4 as a 3x3 grid)
+  const card = `
+    <div class="gp">
+      <div class="gp-hd">
+        <div><b>ZOOTO FASHION</b><div class="gp-sub">Gate Pass</div></div>
+        <div class="gp-id">${a.pass_id}</div>
+      </div>
+      <div class="gp-bd">
+        <div class="gp-r"><span>Name</span><b>${emp.Name || a.employee_code}</b></div>
+        <div class="gp-r"><span>Code / Dept</span><b>${a.employee_code} · ${dept}</b></div>
+        <div class="gp-r"><span>Item</span><b>${a.asset_type}${a.brand ? ' · ' + a.brand : ''}</b></div>
+        <div class="gp-r"><span>Model/Sr.</span><b>${a.serial_no || '—'}</b></div>
+        ${acc ? `<div class="gp-r"><span>Accessories</span><b>${acc}</b></div>` : ''}
+        <div class="gp-r"><span>Date</span><b>${a.issue_date}${a.expected_return ? ' → ' + a.expected_return : ''}</b></div>
+      </div>
+      <div class="gp-sg">
+        <div><div class="ln"></div>Employee</div>
+        <div><div class="ln"></div>Issued By</div>
+        <div><div class="ln"></div>Security</div>
+      </div>
+    </div>`;
+
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Gate Pass ${a.pass_id}</title>
   <style>
-    *{font-family:Arial,sans-serif;box-sizing:border-box}
-    body{margin:0;padding:24px;color:#0f172a}
-    .pass{max-width:640px;margin:0 auto;border:2px solid #0f172a;border-radius:12px;overflow:hidden}
-    .hd{background:#0f172a;color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
-    .hd h1{margin:0;font-size:18px;letter-spacing:.05em}
-    .hd .id{font-size:13px;background:#fff;color:#0f172a;padding:4px 10px;border-radius:6px;font-weight:700}
-    .bd{padding:20px}
-    .row{display:flex;border-bottom:1px solid #e2e8f0;padding:8px 0}
-    .row .k{width:150px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
-    .row .v{flex:1;font-weight:600;font-size:14px}
-    .sign{display:flex;justify-content:space-between;margin-top:36px}
-    .sign div{text-align:center;font-size:12px;color:#475569}
-    .sign .line{border-top:1px solid #0f172a;width:160px;margin-bottom:4px;padding-top:34px}
-    .note{margin-top:16px;font-size:11px;color:#64748b;border-top:1px dashed #cbd5e1;padding-top:10px}
-    .stamp{text-align:center;margin-top:8px}
-    @media print{ .noprint{display:none} body{padding:0} }
+    *{font-family:Arial,sans-serif;box-sizing:border-box;margin:0;padding:0}
+    body{padding:8mm;color:#0f172a}
+    .sheet{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4mm}
+    .gp{border:1.5px solid #0f172a;border-radius:6px;overflow:hidden;height:88mm;display:flex;flex-direction:column;page-break-inside:avoid}
+    .gp-hd{background:#0f172a;color:#fff;padding:6px 8px;display:flex;justify-content:space-between;align-items:center}
+    .gp-hd b{font-size:12px;letter-spacing:.03em}
+    .gp-sub{font-size:8px;opacity:.85}
+    .gp-id{font-size:10px;font-weight:700;background:#fff;color:#0f172a;padding:2px 6px;border-radius:4px}
+    .gp-bd{padding:7px 8px;flex:1}
+    .gp-r{display:flex;font-size:10px;padding:3px 0;border-bottom:1px dotted #cbd5e1;line-height:1.3}
+    .gp-r span{width:64px;color:#64748b;flex-shrink:0}
+    .gp-r b{flex:1;font-weight:600;word-break:break-word}
+    .gp-sg{display:flex;justify-content:space-between;padding:6px 8px 8px;gap:4px}
+    .gp-sg div{text-align:center;font-size:8px;color:#475569;flex:1}
+    .gp-sg .ln{border-top:1px solid #0f172a;margin-bottom:2px;padding-top:20px}
+    .noprint{text-align:center;margin-top:10px}
+    @media print{ .noprint{display:none} body{padding:6mm} }
   </style></head><body>
-  <div class="pass">
-    <div class="hd">
-      <div><h1>ZOOTO FASHION — MATERIAL GATE PASS</h1><div style="font-size:11px;opacity:.85;margin-top:2px">Returnable / Non-Returnable Asset Issue</div></div>
-      <div style="text-align:right"><div style="font-size:9px;opacity:.75;color:#0f172a;background:#fff;padding:2px 6px 0;border-radius:6px 6px 0 0">ASSET ID</div><div class="id" style="border-radius:0 0 6px 6px">${a.pass_id}</div></div>
-    </div>
-    <div class="bd">
-      <div class="row"><div class="k">Issued To</div><div class="v">${emp.Name || a.employee_code} (${a.employee_code})</div></div>
-      <div class="row"><div class="k">Department</div><div class="v">${dept} &nbsp;•&nbsp; ${desig}</div></div>
-      <div class="row"><div class="k">Asset</div><div class="v">${a.asset_type}${a.brand ? ' — ' + a.brand : ''}${a.asset_name && a.asset_name !== a.asset_type ? ' ' + a.asset_name : ''}</div></div>
-      <div class="row"><div class="k">Model / Serial</div><div class="v">${a.serial_no || '—'} &nbsp;•&nbsp; Qty: ${a.quantity || 1}</div></div>
-      <div class="row"><div class="k">Issue Date</div><div class="v">${a.issue_date}${a.expected_return ? ' &nbsp;•&nbsp; Return by: ' + a.expected_return : ' &nbsp;•&nbsp; Non-returnable'}</div></div>
-      ${a.purpose ? `<div class="row"><div class="k">Purpose</div><div class="v">${a.purpose}</div></div>` : ''}
-      <div class="sign">
-        <div><div class="line"></div>Employee Signature</div>
-        <div><div class="line"></div>Issued By / Store</div>
-        <div><div class="line"></div>Security / Gate</div>
-      </div>
-      <div class="note">This gate pass authorises the above employee to carry the listed asset out of the premises. Security must verify the Asset ID (${a.pass_id}) and asset before allowing exit. Keep this pass for records; produce on demand.</div>
-    </div>
-  </div>
-  <div class="stamp noprint" style="margin-top:16px"><button onclick="window.print()" style="padding:10px 20px;background:#0f172a;color:#fff;border:none;border-radius:8px;cursor:pointer">Print Gate Pass</button></div>
+  <div class="sheet">${card}</div>
+  <div class="noprint"><button onclick="window.print()" style="padding:10px 20px;background:#0f172a;color:#fff;border:none;border-radius:8px;cursor:pointer">Print Gate Pass</button></div>
   <script>window.onload=()=>setTimeout(()=>window.print(),400)<\/script>
   </body></html>`;
   const w = window.open('', '_blank');
