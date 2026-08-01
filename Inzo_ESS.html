@@ -657,9 +657,10 @@ $('fbType').addEventListener('change', () => {
 async function loadMyAssets(){
   const host = $('assetBox'); if(!host) return;
   try{
-    const { data, error } = await sb.from('assets').select('*').eq('employee_code', CODE).eq('status','ISSUED').order('created_at', { ascending:false });
+    const { data, error } = await sb.from('assets').select('*').eq('employee_code', CODE).order('created_at', { ascending:false });
     if(error){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Could not load.</p>'; return; }
-    const rows = data || [];
+    // everything currently held (not returned)
+    const rows = (data || []).filter(r => String(r.status||'').toUpperCase() !== 'RETURNED');
     if(!rows.length){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">No assets issued to you.</p>'; return; }
     // group pending items by issue_group
     const pending = rows.filter(r => r.ack_status === 'PENDING_ACK');
