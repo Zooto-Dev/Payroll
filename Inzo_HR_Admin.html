@@ -634,8 +634,10 @@ body.no-confidential .confidential-col{display:none!important}
       </div>
       <label class="lbl">Purpose / Remarks</label>
       <input id="asPurpose" class="inp mb-4" placeholder="e.g. Field work / Official use">
-      <button id="asSaveBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i> Issue Asset</button>
-      <p class="text-[10px] mt-2 text-center" style="color:var(--muted)"><i class="fa-solid fa-circle-info"></i> Gate pass auto-prints only for Laptop &amp; Mobile</p>
+      <button id="asAddListBtn" class="btn btn-ghost w-full justify-center mb-2"><i class="fa-solid fa-cart-plus"></i> Add Item to List</button>
+      <div id="asCart" class="mb-2"></div>
+      <button id="asSaveBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i> Issue All to Employee</button>
+      <p class="text-[10px] mt-2 text-center" style="color:var(--muted)"><i class="fa-solid fa-circle-info"></i> Add one or more items, then issue together. Employee confirms receipt in their portal.</p>
     </div>
 
     <div class="card">
@@ -4874,7 +4876,7 @@ function renderAssets(){
       <td>${esc(a.serial_no || a.asset_name || '—')}</td>
       <td>${a.quantity || 1}</td>
       <td>${fmtDate(a.issue_date)}</td><td>${a.return_date ? fmtDate(a.return_date) : '—'}</td>
-      <td><span class="chip ${issued ? 'chip-warn' : 'chip-ok'}">${esc(a.status)}</span>${a.return_condition && a.return_condition !== 'OK' ? ' <span class="chip chip-bad">'+esc(a.return_condition)+'</span>' : ''}</td>
+      <td><span class="chip ${issued ? 'chip-warn' : 'chip-ok'}">${esc(a.status)}</span>${a.ack_status === 'PENDING_ACK' ? ' <span class="chip chip-blue" title="Waiting for employee to confirm receipt">Pending Ack</span>' : (a.ack_date ? ' <span class="chip chip-ok" title="Employee confirmed">Received</span>' : '')}${a.return_condition && a.return_condition !== 'OK' ? ' <span class="chip chip-bad">'+esc(a.return_condition)+'</span>' : ''}</td>
       <td class="flex gap-1">
         ${(a.pass_id && ['LAPTOP','MOBILE'].includes((a.asset_type||'').toUpperCase())) ? `<button class="btn btn-ghost btn-sm" data-act="as-pass" data-id="${a.id}" title="Reprint gate pass"><i class="fa-solid fa-print"></i></button>` : ''}
         ${issued ? `<button class="btn btn-ghost btn-sm" data-act="as-return" data-id="${a.id}"><i class="fa-solid fa-rotate-left"></i> Return</button>` : ''}
@@ -4883,40 +4885,84 @@ function renderAssets(){
   }).join('') : '<tr><td colspan="10" class="text-center py-8" style="color:var(--muted)">No assets issued.</td></tr>';
 }
 $('asFilter').addEventListener('change', renderAssets);
+
+// ===== Multi-item issue cart =====
+let ISSUE_CART = [];
+function renderCart(){
+  const host = $('asCart'); if(!host) return;
+  if(!ISSUE_CART.length){ host.innerHTML = ''; return; }
+  host.innerHTML = `<div style="border:1px solid var(--line);border-radius:10px;overflow:hidden">
+    <div class="text-[11px] font-semibold px-2 py-1" style="background:#f8fafc;color:var(--muted)">ITEMS TO ISSUE (${ISSUE_CART.length})</div>
+    ${ISSUE_CART.map((c,i) => `<div class="flex items-center justify-between px-2 py-1 text-xs" style="border-top:1px solid var(--line)">
+      <span>${esc(c.asset_type)}${c.brand?' · '+esc(c.brand):''}${c.serial_no?' · '+esc(c.serial_no):''} <b>×${c.quantity}</b>${c.accessories?' <span style="color:var(--muted)">('+esc(c.accessories)+')</span>':''}</span>
+      <button class="btn btn-ghost btn-sm" onclick="removeCartItem(${i})"><i class="fa-solid fa-xmark" style="color:var(--bad)"></i></button>
+    </div>`).join('')}
+  </div>`;
+}
+function removeCartItem(i){ ISSUE_CART.splice(i,1); renderCart(); }
+function readIssueForm(){
+  const stock = STOCK.find(s => String(s.id) === String($('asStock').value));
+  if(!stock){ notify('Pick an item from stock', 'error'); return null; }
+  const qty = Number($('asQty').value) || 1;
+  // check available minus what's already in cart for this stock item
+  const inCart = ISSUE_CART.filter(c => c.stock_id === stock.id).reduce((a,c)=>a+c.quantity,0);
+  if(qty + inCart > stock.available_qty){ notify('Only ' + stock.available_qty + ' available (‑' + inCart + ' already in list)', 'error'); return null; }
+  const acc = Array.from(document.querySelectorAll('.as-acc:checked')).map(c => c.value);
+  const other = ($('asAccOther').value || '').trim(); if(other) acc.push(other);
+  return {
+    stock_id: stock.id, asset_type: stock.asset_type, asset_name: stock.asset_name || stock.asset_type,
+    brand: $('asBrand').value || stock.brand || null, serial_no: $('asSerial').value || null,
+    quantity: qty, expected_return: $('asReturnBy').value || null,
+    accessories: acc.length ? acc.join(', ') : null
+  };
+}
+function clearItemFields(){
+  $('asSerial').value=''; $('asBrand').value=''; $('asReturnBy').value=''; $('asQty').value=1;
+  if($('asStockInp')) $('asStockInp').value=''; $('asStock').value='';
+  document.querySelectorAll('.as-acc').forEach(c=>c.checked=false); if($('asAccOther')) $('asAccOther').value='';
+  if($('asAccWrap')) $('asAccWrap').classList.add('hidden');
+}
+$('asAddListBtn') && $('asAddListBtn').addEventListener('click', () => {
+  const item = readIssueForm(); if(!item) return;
+  ISSUE_CART.push(item); renderCart(); clearItemFields();
+  notify('Added to list', 'success');
+});
+
 $('asSaveBtn').addEventListener('click', async () => {
   if(!$('asEmp').value) return notify('Please select an employee', 'error');
-  const stock = STOCK.find(s => String(s.id) === String($('asStock').value));
-  if(!stock) return notify('Pick an item from stock (add stock first if empty)', 'error');
-  const qty = Number($('asQty').value) || 1;
-  if(qty > stock.available_qty) return notify('Only ' + stock.available_qty + ' available in stock', 'error');
+  // if the form has an item not yet added, add it automatically
+  if($('asStock').value){ const it = readIssueForm(); if(it){ ISSUE_CART.push(it); } }
+  if(!ISSUE_CART.length) return notify('Add at least one item to issue', 'error');
 
+  const empCode = $('asEmp').value;
+  const group = 'IG-' + Date.now();
   const yr = new Date().getFullYear();
   const { count } = await sb.from('assets').select('id', { count:'exact', head:true }).like('pass_id', 'AST-' + yr + '-%');
-  const assetId = 'AST-' + yr + '-' + String((count || 0) + 1).padStart(4, '0');
-  const row = {
-    employee_code: $('asEmp').value, asset_type: stock.asset_type, asset_name: stock.asset_name || stock.asset_type,
-    brand: $('asBrand').value || stock.brand || null,
-    accessories: (function(){
-      const acc = Array.from(document.querySelectorAll('.as-acc:checked')).map(c => c.value);
-      const other = ($('asAccOther').value || '').trim();
-      if(other) acc.push(other);
-      return acc.length ? acc.join(', ') : null;
-    })(),
-    serial_no: $('asSerial').value, issue_date: $('asDate').value || todayISO(),
-    pass_id: assetId, quantity: qty, stock_id: stock.id,
-    expected_return: $('asReturnBy').value || null,
-    purpose: $('asPurpose').value || null, issued_by: (ME_EMAIL || 'admin')
-  };
-  const { error } = await sb.from('assets').insert([row]);
+  let seq = (count || 0);
+  const purpose = $('asPurpose').value || null;
+  const rows = ISSUE_CART.map(c => {
+    seq++;
+    return {
+      employee_code: empCode, asset_type: c.asset_type, asset_name: c.asset_name,
+      brand: c.brand, accessories: c.accessories, serial_no: c.serial_no,
+      issue_date: $('asDate').value || todayISO(), pass_id: 'AST-' + yr + '-' + String(seq).padStart(4,'0'),
+      quantity: c.quantity, stock_id: c.stock_id, expected_return: c.expected_return,
+      purpose, issued_by: (ME_EMAIL || 'admin'),
+      issue_group: group, ack_status: 'PENDING_ACK'
+    };
+  });
+  const { error } = await sb.from('assets').insert(rows);
   if(error) return notify(error.message, 'error');
-  // reduce stock
-  await sb.from('asset_stock').update({ available_qty: stock.available_qty - qty }).eq('id', stock.id);
-  $('asSerial').value = ''; $('asBrand').value = ''; $('asPurpose').value = ''; $('asReturnBy').value = ''; $('asQty').value = 1; if($('asStockInp')) $('asStockInp').value=''; $('asStock').value=''; document.querySelectorAll('.as-acc').forEach(c=>c.checked=false); if($('asAccOther')) $('asAccOther').value='';
-  notify('Issued — Asset ID ' + assetId, 'success');
+  // reduce stock per item
+  for(const c of ISSUE_CART){
+    const s = STOCK.find(x => x.id === c.stock_id);
+    if(s) await sb.from('asset_stock').update({ available_qty: s.available_qty - c.quantity }).eq('id', s.id);
+  }
+  const pcItems = rows.filter(r => ['LAPTOP','MOBILE'].includes((r.asset_type||'').toUpperCase()));
+  notify(rows.length + ' item(s) issued — waiting for employee to confirm receipt', 'success');
+  ISSUE_CART = []; renderCart(); clearItemFields(); $('asPurpose').value=''; $('asEmpInp').value=''; $('asEmp').value='';
   loadAssets();
-  // Gate pass only for high-value items that leave the premises (laptop / mobile)
-  const PASS_TYPES = ['LAPTOP', 'MOBILE'];
-  if(PASS_TYPES.includes((stock.asset_type || '').toUpperCase())) printGatePass(row);
+  pcItems.forEach(printGatePass);   // gate pass for each laptop/mobile
 });
 
 function printGatePass(a){
