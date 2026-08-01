@@ -361,6 +361,7 @@ body.no-confidential .confidential-col{display:none!important}
       <input id="empSearch" class="inp" style="max-width:280px" placeholder="Search name / code / department…">
       <div class="flex items-center gap-2">
         <span class="chip chip-gray" id="empCount">—</span>
+        <label class="text-[11px] flex items-center gap-1" style="color:var(--muted);cursor:pointer" title="Include exited/inactive employees"><input type="checkbox" id="empShowExited"> Show exited</label>
         <button id="empFormBtn" class="btn btn-ghost btn-sm" title="Print a blank joining form for the employee to fill"><i class="fa-solid fa-file-lines"></i> Blank Form</button>
         <button id="empImportBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-file-import"></i> Import</button>
         <button id="empAddBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-user-plus"></i> Add Employee</button>
@@ -1481,7 +1482,7 @@ function isSuper(){
 }
 function normPerm(v){
   if(Array.isArray(v)) return { pages: v, approve: { leave:true, ot:true, expense:true, advance:true }, finalize: false, confidential: false };
-  return Object.assign({ pages: ALL_PAGES.filter(x => x !== 'settings'), approve: { leave:true, ot:true, expense:true, advance:true }, finalize: false, confidential: false, dept: '', desig: '' }, v || {});
+  return Object.assign({ pages: ALL_PAGES.filter(x => x !== 'settings'), approve: { leave:true, ot:true, expense:true, advance:true }, finalize: false, confidential: false, manualAtt: false, dept: '', desig: '' }, v || {});
 }
 function canSeeConfidential(){
   if(isSuper()) return true;
@@ -1517,6 +1518,7 @@ function roleCEO(){ const r = myEmpRole().desig; return isSuper() || r.includes(
 // Accounts Manager only
 function roleAcctMgr(){ const r = myEmpRole(); return isSuper() || (r.desig.includes('MANAGER') && r.dept.includes('ACCOUNT')); }
 function canFinalize(){ return isSuper() || ((SETTINGS.adminPerms || {})[ME_EMAIL] ? myPerm().finalize === true : true); }
+function canManualAtt(){ return isSuper() || ((SETTINGS.adminPerms || {})[ME_EMAIL] ? myPerm().manualAtt === true : true); }
 function applyPerms(){
   const allowed = allowedPages();
   document.querySelectorAll('.nav-item[data-page]').forEach(b => {
@@ -1524,6 +1526,9 @@ function applyPerms(){
     if(pg === 'adminctl'){ b.classList.toggle('hidden', !isSuper()); return; }
     b.classList.toggle('hidden', !!(allowed && !allowed.includes(pg)));
   });
+  // manual attendance correction: hide button if this admin isn't allowed
+  const mb = document.getElementById('attFixBtn');
+  if(mb) mb.classList.toggle('hidden', !canManualAtt());
 }
 const PAGE_ICONS = { dashboard:'gauge', employees:'users', attendance:'calendar-check', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', idcards:'id-card', approvals:'clipboard-check', voice:'comments', settings:'gear' };
 function isRowLate(r){ return r.is_late === true || String(r.in_time||'').toUpperCase().includes('LATE'); }
@@ -1711,7 +1716,7 @@ async function renderAdminCtl(){
       <th>User</th><th>Role</th><th>Department</th><th>Designation</th><th>Pages</th>
       <th style="text-align:center">Leave<br>Approve</th><th style="text-align:center">OT<br>Approve</th>
       <th style="text-align:center">Expense<br>Approve</th><th style="text-align:center">Advance<br>Add</th>
-      <th style="text-align:center">Payroll<br>Finalize</th><th style="text-align:center">See Salary /<br>Confidential</th><th></th>
+      <th style="text-align:center">Payroll<br>Finalize</th><th style="text-align:center">See Salary /<br>Confidential</th><th style="text-align:center">Manual<br>Attendance</th><th></th>
     </tr></thead>
     <tbody>${everyone.map(em => { const p = normPerm(perms[em]); const isSup = supers.includes(em.toLowerCase()); return `
       <tr${isSup ? ' style="background:#fffdf5"' : ''}>
@@ -1736,6 +1741,7 @@ async function renderAdminCtl(){
         <td style="text-align:center">${sw(em, 'advance', p.approve.advance !== false)}</td>
         <td style="text-align:center">${sw(em, 'finalize', p.finalize === true)}</td>
         <td style="text-align:center">${sw(em, 'confidential', p.confidential === true)}</td>
+        <td style="text-align:center">${sw(em, 'manualAtt', p.manualAtt === true)}</td>
         <td><div class="flex gap-1">
           <button class="btn btn-ghost btn-sm" data-act="ac-pwd" data-em="${esc(em)}" title="Reset login password (super admin only)"><i class="fa-solid fa-key"></i></button>
           <button class="btn btn-danger btn-sm" data-act="ac-del" data-em="${esc(em)}" title="Remove from admin list"><i class="fa-solid fa-trash"></i></button>
@@ -1783,11 +1789,12 @@ document.addEventListener('change', async e => {
   const em = e.target.dataset.em, k = e.target.dataset.k, on = e.target.checked;
   SETTINGS.adminPerms = SETTINGS.adminPerms || {};
   const p = normPerm(SETTINGS.adminPerms[em]);
-  if(k === 'finalize') p.finalize = on; else if(k === 'confidential') p.confidential = on; else p.approve[k] = on;
+  if(k === 'finalize') p.finalize = on; else if(k === 'confidential') p.confidential = on; else if(k === 'manualAtt') p.manualAtt = on; else p.approve[k] = on;
   SETTINGS.adminPerms[em] = p;
   const { error } = await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
   if(error) return notify(error.message, 'error');
-  notify((k === 'finalize' ? 'Payroll finalize' : k + ' approval') + (on ? ' allowed' : ' blocked') + ' for ' + em, 'success');
+  const lbl = k === 'finalize' ? 'Payroll finalize' : k === 'confidential' ? 'Confidential access' : k === 'manualAtt' ? 'Manual attendance' : (k + ' approval');
+  notify(lbl + (on ? ' allowed' : ' blocked') + ' for ' + em, 'success');
 });
 function acShowPages(email, selected){
   $('acWho').innerText = email;
@@ -2413,7 +2420,7 @@ $('empAddBtn').addEventListener('click', () => {
   $('addEmpModal').classList.add('show');
 });
 $('aeSaveBtn').addEventListener('click', async () => {
-  const name = $('aeName').value.trim(), code = $('aeCode').value.trim().toUpperCase();
+  const name = $('aeName').value.trim().toUpperCase(), code = $('aeCode').value.trim().toUpperCase();
   if(name && code){
     var aeOTAllowed = await nxConfirm('Kya "' + name + '" ko overtime allowed hai?\n\nOK = YES (OT milega)\nCancel = NO (OT kabhi nahi)', 'Overtime Allowed?');
   }
@@ -4217,7 +4224,7 @@ function impParse(text){
     const c = parseLine(lines[i]);
     const get = k => idx[k] >= 0 ? (c[idx[k]] || '') : '';
     const code = get('Employee Code').toUpperCase();
-    const r = { line: i + 1, code, name: get('Name'), dept: get('Department').toUpperCase(), desig: get('Designation'),
+    const r = { line: i + 1, code, name: get('Name').toUpperCase(), dept: get('Department').toUpperCase(), desig: get('Designation'),
       doj: impParseDate(get('DOJ')), dob: impParseDate(get('DOB')), phone: get('Phone').replace(/\D/g, ''),
       pline: get('Line'), skillRaw: get('Skill Category'), skill: skillMap[norm(get('Skill Category'))] || '',
       wtype: norm(get('Salary Type')) === 'custom' ? 'custom' : (get('Skill Category') ? 'category' : (norm(get('Salary Type')) === 'category' ? 'category' : 'custom')),
@@ -4608,7 +4615,10 @@ $('lvSaveBtn').addEventListener('click', async () => {
 });
 
 /* ---------------- MANUAL PUNCH ---------------- */
-$('attFixBtn').addEventListener('click', () => { $('fxDate').value = todayISO(); $('fixModal').classList.add('show'); });
+$('attFixBtn').addEventListener('click', () => {
+  if(!canManualAtt()) return notify('You do not have access to manual attendance correction', 'error');
+  $('fxDate').value = todayISO(); $('fixModal').classList.add('show');
+});
 $('fxSaveBtn').addEventListener('click', async () => {
   const code = $('fxEmp').value, date = $('fxDate').value, inT = $('fxIn').value, outT = $('fxOut').value;
   if(!code || !date) return notify('Employee and date are required', 'error');
