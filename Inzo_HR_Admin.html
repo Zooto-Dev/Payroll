@@ -4963,7 +4963,7 @@ $('asSaveBtn').addEventListener('click', async () => {
       issue_date: $('asDate').value || todayISO(), pass_id: 'AST-' + yr + '-' + String(seq).padStart(4,'0'),
       quantity: c.quantity, stock_id: c.stock_id, expected_return: c.expected_return,
       purpose, issued_by: (ME_EMAIL || 'admin'),
-      issue_group: group, ack_status: 'PENDING_ACK'
+      issue_group: group, ack_status: 'PENDING_ACK', status: 'ISSUED'
     };
   });
   const { error } = await sb.from('assets').insert(rows);
