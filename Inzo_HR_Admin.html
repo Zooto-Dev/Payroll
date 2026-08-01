@@ -620,7 +620,8 @@ body.no-confidential .confidential-col{display:none!important}
       </div>
       <label class="lbl">Purpose / Remarks</label>
       <input id="asPurpose" class="inp mb-4" placeholder="e.g. Field work / Official use">
-      <button id="asSaveBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i> Issue &amp; Print Gate Pass</button>
+      <button id="asSaveBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i> Issue Asset</button>
+      <p class="text-[10px] mt-2 text-center" style="color:var(--muted)"><i class="fa-solid fa-circle-info"></i> Gate pass auto-prints only for Laptop &amp; Mobile</p>
     </div>
 
     <div class="card">
@@ -4858,7 +4859,7 @@ function renderAssets(){
       <td>${fmtDate(a.issue_date)}</td><td>${a.return_date ? fmtDate(a.return_date) : '—'}</td>
       <td><span class="chip ${issued ? 'chip-warn' : 'chip-ok'}">${esc(a.status)}</span>${a.return_condition && a.return_condition !== 'OK' ? ' <span class="chip chip-bad">'+esc(a.return_condition)+'</span>' : ''}</td>
       <td class="flex gap-1">
-        ${a.pass_id ? `<button class="btn btn-ghost btn-sm" data-act="as-pass" data-id="${a.id}" title="Reprint gate pass"><i class="fa-solid fa-print"></i></button>` : ''}
+        ${(a.pass_id && ['LAPTOP','MOBILE'].includes((a.asset_type||'').toUpperCase())) ? `<button class="btn btn-ghost btn-sm" data-act="as-pass" data-id="${a.id}" title="Reprint gate pass"><i class="fa-solid fa-print"></i></button>` : ''}
         ${issued ? `<button class="btn btn-ghost btn-sm" data-act="as-return" data-id="${a.id}"><i class="fa-solid fa-rotate-left"></i> Return</button>` : ''}
       </td>
     </tr>`;
@@ -4890,7 +4891,9 @@ $('asSaveBtn').addEventListener('click', async () => {
   $('asSerial').value = ''; $('asBrand').value = ''; $('asPurpose').value = ''; $('asReturnBy').value = ''; $('asQty').value = 1; if($('asStockInp')) $('asStockInp').value=''; $('asStock').value='';
   notify('Issued — Asset ID ' + assetId, 'success');
   loadAssets();
-  printGatePass(row);
+  // Gate pass only for high-value items that leave the premises (laptop / mobile)
+  const PASS_TYPES = ['LAPTOP', 'MOBILE'];
+  if(PASS_TYPES.includes((stock.asset_type || '').toUpperCase())) printGatePass(row);
 });
 
 function printGatePass(a){
