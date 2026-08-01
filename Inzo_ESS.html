@@ -166,6 +166,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <div id="attBox"></div>
       </div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-indian-rupee-sign" style="color:var(--brand)"></i> My Payslips</h3><div id="payBox"></div></div>
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-boxes-stacked" style="color:var(--brand)"></i> My Assets</h3><div id="assetBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-calendar-check" style="color:var(--warn)"></i> Holidays This Year</h3><div id="holBox" class="text-sm space-y-1"></div></div>
     </div>
 
@@ -496,6 +497,7 @@ function render(){
   renderResign();
   renderOT();
   loadFeedback();
+  loadMyAssets();
   // calendar
   CAL_CACHE = {}; CAL_YM = new Date().toISOString().slice(0,7);
   renderCalendar();
@@ -652,6 +654,44 @@ $('fbType').addEventListener('change', () => {
   $('fbSolWrap').classList.toggle('hidden', t === 'GRIEVANCE' || isKz);
   $('fbSubjLbl').innerText = isKz ? 'Kaizen Title' : 'Subject';
 });
+async function loadMyAssets(){
+  const host = $('assetBox'); if(!host) return;
+  try{
+    const { data, error } = await sb.from('assets').select('*').eq('employee_code', CODE).eq('status','ISSUED').order('created_at', { ascending:false });
+    if(error){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Could not load.</p>'; return; }
+    const rows = data || [];
+    if(!rows.length){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">No assets issued to you.</p>'; return; }
+    // group pending items by issue_group
+    const pending = rows.filter(r => r.ack_status === 'PENDING_ACK');
+    const groups = {};
+    pending.forEach(r => { (groups[r.issue_group || ('single-'+r.id)] = groups[r.issue_group || ('single-'+r.id)] || []).push(r); });
+    const confirmed = rows.filter(r => r.ack_status !== 'PENDING_ACK');
+
+    let html = '';
+    Object.entries(groups).forEach(([grp, items]) => {
+      html += `<div class="mb-3 p-2 rounded-lg" style="border:1px solid #fde68a;background:#fffbeb">
+        <div class="text-[11px] font-semibold mb-1" style="color:#b45309"><i class="fa-solid fa-hourglass-half"></i> Please confirm you received:</div>
+        ${items.map(a => `<div class="text-xs py-1" style="border-bottom:1px dashed #fde68a">
+          <b>${esc(a.asset_type)}</b>${a.brand?' · '+esc(a.brand):''}${a.serial_no?' · '+esc(a.serial_no):''} ×${a.quantity||1}
+          ${a.accessories?`<div class="text-[10px]" style="color:var(--muted)">With: ${esc(a.accessories)}</div>`:''}
+        </div>`).join('')}
+        <button class="btn btn-primary btn-sm w-full justify-center mt-2" data-ackgrp="${esc(grp)}"><i class="fa-solid fa-check"></i> Yes, I Received These</button>
+      </div>`;
+    });
+    if(confirmed.length){
+      html += `<div class="text-[11px] font-semibold mb-1" style="color:var(--muted)">HELD BY ME</div>`;
+      html += confirmed.map(a => `<div class="row"><span class="k">${esc(a.asset_type)}${a.brand?' · '+esc(a.brand):''}${a.serial_no?' · '+esc(a.serial_no):''}</span><span class="chip chip-ok">Received</span></div>`).join('');
+    }
+    host.innerHTML = html || '<p class="m-0 text-xs" style="color:var(--muted)">No assets.</p>';
+    host.querySelectorAll('[data-ackgrp]').forEach(b => b.addEventListener('click', async () => {
+      b.disabled = true; b.innerHTML = '<div class="loader-ring"></div> Confirming…';
+      const { error } = await sb.rpc('ess_ack_assets', { p_code: CODE, p_group: b.dataset.ackgrp });
+      if(error){ notify(error.message); b.disabled = false; return; }
+      notify('Thank you — receipt confirmed');
+      loadMyAssets();
+    }));
+  }catch(e){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Could not load.</p>'; }
+}
 async function loadFeedback(){
   try{
     const { data, error } = await sb.rpc('ess_get_feedback', { p_code: CODE, p_phone: PHONE });
