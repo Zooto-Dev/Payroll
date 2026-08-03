@@ -629,7 +629,7 @@ setTimeout(nxHideSplash, 7000); // failsafe
         
         let matchConfidence = 0; 
         let currentTarget = null;
-        const CONFIDENCE_THRESHOLD = 80;
+        const CONFIDENCE_THRESHOLD = 50;  // one good scan is enough (0.42 match + ambiguity guard already strict)
 
         let currentFacingMode = 'user';
         let mediaStream = null;
@@ -1122,7 +1122,7 @@ function nxConfirm(msg, title){
                             matchConfidence += 55;
                         } else {
                             currentTarget = match.label;
-                            matchConfidence = 45;
+                            matchConfidence = 55;   // a confident first match punches right away
                         }
 
                         verifyUI.classList.remove('opacity-0');
@@ -1408,8 +1408,12 @@ function nxConfirm(msg, title){
                 try {
                     const fileName = `corp_photos/${empCode}_${Date.now()}.jpg`;
                     const blob = dataURItoBlob(imageBase64);
-                    const { error } = await supabaseClient.storage.from('attendance-photos').upload(fileName, blob, { contentType: 'image/jpeg', cacheControl: '86400' });
-                    if (!error) photoUrl = supabaseUrl + '/storage/v1/object/public/attendance-photos/' + fileName;
+                    // race the upload against a 4s timeout so a slow network never blocks the punch
+                    const uploadP = supabaseClient.storage.from('attendance-photos').upload(fileName, blob, { contentType: 'image/jpeg', cacheControl: '86400' });
+                    const timeoutP = new Promise(res => setTimeout(() => res({ _timeout: true }), 4000));
+                    const result = await Promise.race([uploadP, timeoutP]);
+                    if (result && !result._timeout && !result.error) photoUrl = supabaseUrl + '/storage/v1/object/public/attendance-photos/' + fileName;
+                    // if it timed out, we punch without a photo rather than making the person wait
                 } catch(e) {
                     console.warn("Photo upload warning:", e);
                 }
@@ -1511,7 +1515,7 @@ function nxConfirm(msg, title){
                         }
                     }
                     const finalInTime = timeStr; // keep the time clean; LATE goes in its own column
-                    const { error: insertErr } = await supabaseClient.from('attendance').insert([{ 
+                    const insertP = supabaseClient.from('attendance').insert([{ 
                         employee_code: empCode, 
                         Name: empName, 
                         date: todayStr, 
@@ -1519,9 +1523,19 @@ function nxConfirm(msg, title){
                         is_late: isLate,
                         in_photo_url: photoUrl 
                     }]);
-                    
-                    if (insertErr) throw insertErr;
-                    setLocalPunch(empCode, todayStr, 'in', finalInTime);  // remember locally (offline-safe)
+                    const insTimeout = new Promise(res => setTimeout(() => res({ _timeout: true }), 6000));
+                    const insRes = await Promise.race([insertP, insTimeout]);
+                    if (insRes && insRes._timeout) {
+                        // slow network: keep the punch locally + queue it, show success so the person can leave
+                        setLocalPunch(empCode, todayStr, 'in', finalInTime);
+                        let pend = JSON.parse(localStorage.getItem('pending_punches') || '[]');
+                        pend.push({ type:'IN', empCode, empName, date: todayStr, in_time: finalInTime, is_late: isLate });
+                        localStorage.setItem('pending_punches', JSON.stringify(pend));
+                    } else if (insRes && insRes.error) {
+                        throw insRes.error;
+                    } else {
+                        setLocalPunch(empCode, todayStr, 'in', finalInTime);  // remember locally (offline-safe)
+                    }
                     successMessage = speakName(empName) + ", aapka punch in safal raha.";
                     if(isLate && !offlineProcessData) successMessage += " Dhyan rahe, aap late hain.";
                 }
@@ -1549,23 +1563,24 @@ function nxConfirm(msg, title){
             notify("Internet disconnected. Ready for offline punches.", "error");
         });
 
-        window.addEventListener('online', async () => {
-            document.getElementById('offlineBanner').classList.add('hidden');
+        async function flushPendingPunches(silent){
             let pending = JSON.parse(localStorage.getItem('pending_punches') || '[]');
             if (pending.length === 0) return;
-            
-            notify(`Syncing ${pending.length} offline records...`, "info");
+            if(!silent) notify(`Syncing ${pending.length} offline records...`, "info");
             let remaining = [];
             for(let p of pending) {
-                try {
-                    await recordAttendance(p.empCode, p);
-                } catch(e) {
-                    remaining.push(p);
-                }
+                try { await recordAttendance(p.empCode, p); }
+                catch(e) { remaining.push(p); }
             }
             localStorage.setItem('pending_punches', JSON.stringify(remaining));
-            if(remaining.length === 0) notify("All offline data synced!", "success");
+            if(!silent && remaining.length === 0) notify("All offline data synced!", "success");
+        }
+        window.addEventListener('online', () => {
+            document.getElementById('offlineBanner').classList.add('hidden');
+            flushPendingPunches(false);
         });
+        // also flush every 45s in case the network was just slow (no offline/online event fired)
+        setInterval(() => { if(navigator.onLine) flushPendingPunches(true); }, 45000);
 
         // --- STREAMING_CHUNK: Presentation ---
         function showSuccessUI(empData, empName, imgSrc, timeStr, punchType) {
