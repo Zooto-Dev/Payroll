@@ -140,6 +140,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     </div>
 
     <div class="page show" id="p-home">
+      <div id="kaizenCongrats"></div>
       <div class="grid grid-cols-2 gap-3 mb-3">
         <div class="card m-0"><p class="lbl m-0">Present (This Month)</p><div class="display text-2xl font-bold" style="color:var(--ok)" id="stPresent">—</div></div>
         <div class="card m-0"><p class="lbl m-0">Last Net Pay</p><div class="display text-2xl font-bold" style="color:var(--brand)" id="stNet">—</div></div>
@@ -374,6 +375,73 @@ nxLoadConfig().then(c => {
 const $ = id => document.getElementById(id);
 let D = null, CODE = '', PHONE = '';
 
+const LEAVE_LABELS_ESS = { EL:'Earned Leave', CL:'Casual Leave', SL:'Sick Leave', ML:'Maternity Leave', PL:'Paternity Leave', LWP:'Leave Without Pay' };
+async function buildLeaveTypes(){
+  let types = ['EL'];
+  try{
+    const { data } = await sb.from('company_settings').select('data').eq('id', 1).single();
+    const lt = data && data.data && data.data.leaveTypes;
+    if(lt && lt.length) types = lt.slice();
+  }catch(e){}
+  types = types.concat(['LWP']);
+  const sel = $('lvType');
+  if(sel) sel.innerHTML = types.map(t => `<option value="${t}">${LEAVE_LABELS_ESS[t]||t}</option>`).join('');
+}
+/* Kaizen celebration */
+const KZ_CSS = `
+<style id="kzStyle">
+@keyframes kzPop{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.03)}100%{transform:scale(1);opacity:1}}
+@keyframes kzFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes kzFall{0%{transform:translateY(-20px) rotate(0);opacity:1}100%{transform:translateY(320px) rotate(360deg);opacity:0}}
+.kz-card{position:relative;overflow:hidden;border-radius:18px;padding:20px;margin-bottom:14px;color:#fff;
+  background:linear-gradient(135deg,#7c3aed,#4f46e5 55%,#2563eb);box-shadow:0 12px 30px rgba(79,70,229,.35);animation:kzPop .5s ease}
+.kz-emoji{font-size:34px;animation:kzFloat 2.5s ease-in-out infinite;display:inline-block}
+.kz-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:19px;margin:6px 0 2px}
+.kz-sub{font-size:13px;opacity:.95}
+.kz-reward{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);
+  padding:6px 12px;border-radius:999px;font-weight:700;margin-top:10px;font-size:14px}
+.kz-confetti{position:absolute;top:0;width:8px;height:12px;border-radius:2px;animation:kzFall linear infinite}
+.kz-x{position:absolute;top:10px;right:12px;cursor:pointer;opacity:.8;font-size:16px}
+</style>`;
+if(!document.getElementById('kzStyle')) document.head.insertAdjacentHTML('beforeend', KZ_CSS);
+
+async function loadKaizenCongrats(){
+  const host = $('kaizenCongrats'); if(!host) return;
+  let approved = [];
+  try{
+    const { data } = await sb.rpc('ess_get_feedback', { p_code: CODE, p_phone: PHONE });
+    approved = (data || []).filter(f => f.type === 'KAIZEN' && f.status === 'APPROVED');
+  }catch(e){ return; }
+  if(!approved.length){ host.innerHTML = ''; return; }
+  // show ones the user hasn't dismissed yet
+  let seen = [];
+  try{ seen = JSON.parse(localStorage.getItem('kz_seen_' + CODE) || '[]'); }catch(e){}
+  const fresh = approved.filter(f => !seen.includes(f.id));
+  const show = fresh.length ? fresh : approved.slice(0,1);  // if all seen, still show the latest quietly
+
+  host.innerHTML = show.map(f => {
+    const confetti = Array.from({length:14}).map((_,i)=>{
+      const colors=['#fbbf24','#f472b6','#34d399','#60a5fa','#fff'];
+      return `<span class="kz-confetti" style="left:${(i*7)+3}%;background:${colors[i%5]};animation-duration:${2+(i%4)*0.6}s;animation-delay:${(i%5)*0.3}s"></span>`;
+    }).join('');
+    return `<div class="kz-card">
+      ${confetti}
+      <span class="kz-x" onclick="dismissKaizen(${f.id})"><i class="fa-solid fa-xmark"></i></span>
+      <div class="kz-emoji">🎉</div>
+      <div class="kz-title">Congratulations, ${esc((D.employee&&D.employee.name)||'').split(' ')[0]||'Team'}!</div>
+      <div class="kz-sub">Aapka Kaizen <b>"${esc(f.subject||'idea')}"</b> approve ho gaya. Shukriya behtar sochne ke liye! 👏</div>
+      ${f.reward ? `<div class="kz-reward"><i class="fa-solid fa-gift"></i> Reward: ₹${Number(f.reward).toLocaleString('en-IN')} — next payroll mein</div>` : ''}
+      ${f.impact ? `<div class="kz-sub" style="margin-top:6px">Impact rated: <b>${esc(f.impact)}</b></div>` : ''}
+    </div>`;
+  }).join('');
+}
+function dismissKaizen(id){
+  let seen = [];
+  try{ seen = JSON.parse(localStorage.getItem('kz_seen_' + CODE) || '[]'); }catch(e){}
+  if(!seen.includes(id)) seen.push(id);
+  localStorage.setItem('kz_seen_' + CODE, JSON.stringify(seen));
+  loadKaizenCongrats();
+}
 function nxConfirm(msg, title){
   return new Promise(resolve => {
     const m = document.getElementById('nxAskModal');
@@ -458,6 +526,8 @@ $('loginBtn').addEventListener('click', async () => {
     if(error) throw error;
     if(data && data.error) return notify(data.error);
     D = data;
+    buildLeaveTypes();
+    loadKaizenCongrats();
     sb.rpc('ess_line_today', { p_code: CODE, p_phone: PHONE }).then(({ data: ld }) => {
       if(ld && ld.lines && ld.lines.length) $('tabTeam').classList.remove('hidden');
     }).catch(() => {});
@@ -835,13 +905,35 @@ $('otBtn').addEventListener('click', async () => {
   finally{ btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Request OT Approval'; btn.disabled = false; }
 });
 
-function renderLeaveBalance(){
+async function renderLeaveBalance(){
+  const host = $('lvBalChips'); if(!host) return;
+  let S = {};
+  try{ const { data } = await sb.from('company_settings').select('data').eq('id',1).single(); S = (data && data.data) || {}; }catch(e){}
+  const types = (S.leaveTypes && S.leaveTypes.length) ? S.leaveTypes : ['EL'];
+  const monthly = S.leaveMode === 'monthly';
   const c = D.company || {};
-  const ent = { CL: Number(c.cl)||0, SL: Number(c.sl)||0, EL: Number(c.el)||0 };
-  const used = { CL:0, SL:0, EL:0 };
-  (D.leaves||[]).forEach(L => { if(L.status === 'APPROVED' && used[L.leave_type] !== undefined) used[L.leave_type] += Number(L.days); });
-  $('lvBalChips').innerHTML = ['CL','SL','EL'].map(t =>
-    `<span class="chip chip-blue">${t}: ${Math.max(0, ent[t]-used[t])} / ${ent[t]} left</span>`).join('');
+  const annualEnt = { CL: Number(c.cl)||0, SL: Number(c.sl)||0, EL: Number(c.el)||0, ML:0, PL:0 };
+
+  if(monthly){
+    // No carry-forward: this month you have (accrual) days, minus leave taken THIS month.
+    const ym = new Date().toISOString().slice(0,7);
+    const accrual = Number(S.accrual) || 1;
+    const usedThisMonth = {};
+    (D.leaves||[]).forEach(L => {
+      if(L.status === 'APPROVED' && String(L.from_date||'').startsWith(ym) && L.leave_type !== 'LWP')
+        usedThisMonth[L.leave_type] = (usedThisMonth[L.leave_type]||0) + Number(L.days);
+    });
+    // in monthly mode the accrual is a single shared pool this month
+    const usedTotal = Object.values(usedThisMonth).reduce((a,b)=>a+b,0);
+    host.innerHTML = `<span class="chip chip-blue">This month: ${Math.max(0, accrual - usedTotal)} / ${accrual} leave left</span>` +
+      `<span class="chip chip-gray" style="margin-left:6px">No carry-forward</span>`;
+  } else {
+    const used = {};
+    (D.leaves||[]).forEach(L => { if(L.status === 'APPROVED') used[L.leave_type] = (used[L.leave_type]||0) + Number(L.days); });
+    host.innerHTML = types.filter(t => annualEnt[t] !== undefined).map(t =>
+      `<span class="chip chip-blue">${t}: ${Math.max(0, (annualEnt[t]||0)-(used[t]||0))} / ${annualEnt[t]||0} left</span>`).join('')
+      || '<span class="chip chip-gray">Leave balance managed by HR</span>';
+  }
 }
 
 function renderLeaves(){
