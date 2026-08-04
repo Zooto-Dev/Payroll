@@ -368,6 +368,7 @@ body.no-confidential .confidential-col{display:none!important}
         <span class="chip chip-gray" id="empCount">—</span>
         <label class="text-[11px] flex items-center gap-1" style="color:var(--muted);cursor:pointer" title="Include exited/inactive employees"><input type="checkbox" id="empShowExited"> Show exited</label>
         <button id="empFormBtn" class="btn btn-ghost btn-sm" title="Print a blank joining form for the employee to fill"><i class="fa-solid fa-file-lines"></i> Blank Form</button>
+        <button id="empExportBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-file-export"></i> Export</button>
         <button id="empImportBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-file-import"></i> Import</button>
         <button id="empAddBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-user-plus"></i> Add Employee</button>
       </div>
@@ -4279,13 +4280,37 @@ $('empFormBtn').addEventListener('click', () => {
 });
 
 /* ---------------- Employee bulk import ---------------- */
-const IMP_COLS = ['Employee Code','Name','Department','Designation','DOJ','DOB','Phone','Line','Skill Category','Salary Type','Monthly Gross','Bank Name','Account No','IFSC','PAN','UAN','ESI No','Father Name','Gender','Address'];
+const IMP_COLS = ['Employee Code','Name','Department','Designation','Unit','DOJ','DOB','Phone','Line','Skill Category','Salary Type','Monthly Gross','Bank Name','Account No','IFSC','PAN','UAN','ESI No','Father Name','Gender','Marital Status','Blood Group','Emergency Name','Emergency Phone','Address'];
 let IMP_ROWS = [];
 $('empImportBtn').addEventListener('click', () => { $('impPaste').value = ''; $('impPreview').innerHTML = ''; $('impGoBtn').classList.add('hidden'); IMP_ROWS = []; $('impModal').classList.add('show'); });
+
+$('empExportBtn').addEventListener('click', () => {
+  const showExited = $('empShowExited') && $('empShowExited').checked;
+  const list = EMP.filter(e => showExited || String(e.Status).toUpperCase() === 'ACTIVE');
+  if(!list.length) return notify('No employees to export', 'error');
+  const canSal = canSeeConfidential();
+  const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
+  const fmtD = d => d ? String(d).split('-').reverse().join('/') : '';   // yyyy-mm-dd -> dd/mm/yyyy
+  const header = ['Employee Code','Name','Department','Designation','Unit','Status','DOJ','DOB','Phone','Line',
+    'Skill Category','Salary Type','Monthly Gross','Salary Status','Bank Name','Account No','IFSC','PAN','UAN','ESI No',
+    'Father Name','Gender','Marital Status','Blood Group','Emergency Name','Emergency Phone','Address'];
+  const lines = [header.join(',')];
+  list.forEach(e => {
+    const code = e['Employee code']; const p = PROFILES[code] || {};
+    const sal = (p.salary || {});
+    const gross = canSal ? (salaryApproved(code) ? Object.values(empSalary(code)).reduce((a,b)=>a+b,0) : Object.values((function(){const s={};getSettings().earnComps.forEach(c=>s[c.k]=Number((sal.earn||{})[c.k])||0);return s;})()).reduce((a,b)=>a+b,0)) : '';
+    const row = [code, e.Name, e.DEPARTMENT, e.DESIGNATION, e.UNIT||'', e.Status, fmtD(e.DOJ), fmtD(p.dob), p.phone, e.LINE||'',
+      sal.skill||'', sal.wageType||'', canSal?gross:'', canSal?(p.salary_status||'APPROVED'):'', p.bank_name, p.account_no, p.ifsc, p.pan, p.uan, p.esi_no,
+      p.father_name, p.gender, p.marital_status, p.blood_group, p.emergency_name, p.emergency_phone, p.address];
+    lines.push(row.map(q).join(','));
+  });
+  dlText('Employees_' + todayISO() + '.csv', lines.join('\n'), 'text/csv');
+  notify('Exported ' + list.length + ' employee(s)' + (canSal ? '' : ' (salary hidden — no access)'), 'success');
+});
 $('impTplBtn').addEventListener('click', () => {
   dlText('Employee_Import_Template.csv', IMP_COLS.join(',') + '\n' +
-    'W-101,Ramesh Kumar,PRODUCTION,Operator,01/04/2024,15/08/1995,9876543210,Line 1,Skilled,CATEGORY,,SBI,12345678901,SBIN0001234,ABCDE1234F,,,"Suresh Kumar",Male,"Manesar, Gurugram"\n' +
-    'M-201,Priya Sharma,ACCOUNTS,Manager,10/01/2023,20/02/1990,9876500000,,,CUSTOM,45000,HDFC,98765432109,HDFC0000123,FGHIJ5678K,,,,Female,', 'text/csv');
+    'W-101,Ramesh Kumar,PRODUCTION,Operator,Unit 1,01/04/2024,15/08/1995,9876543210,Line 1,Skilled,CATEGORY,,SBI,12345678901,SBIN0001234,ABCDE1234F,100123456789,1234567890,"Suresh Kumar",Male,Married,B+,"Sunita Kumar",9876500011,"Manesar, Gurugram"\n' +
+    'M-201,Priya Sharma,ACCOUNTS,Manager,Unit 1,10/01/2023,20/02/1990,9876500000,,,CUSTOM,45000,HDFC,98765432109,HDFC0000123,FGHIJ5678K,,,"Raj Sharma",Female,Single,O+,"Raj Sharma",9876500022,"Sector 14, Gurugram"', 'text/csv');
 });
 $('impFile').addEventListener('change', e => {
   const f = e.target.files[0]; if(!f) return;
@@ -4337,7 +4362,8 @@ function impParse(text){
       wtype: norm(get('Salary Type')) === 'custom' ? 'custom' : (get('Skill Category') ? 'category' : (norm(get('Salary Type')) === 'category' ? 'category' : 'custom')),
       gross: Number(String(get('Monthly Gross')).replace(/[,\s₹]/g, '')) || 0,
       bank: get('Bank Name'), acc: get('Account No'), ifsc: get('IFSC').toUpperCase(), pan: get('PAN').toUpperCase(),
-      uan: get('UAN'), esi: get('ESI No'), father: get('Father Name'), gender: get('Gender'), addr: get('Address'), errs: [] };
+      uan: get('UAN'), esi: get('ESI No'), father: get('Father Name'), gender: get('Gender'), addr: get('Address'),
+      unit: get('Unit'), marital: get('Marital Status'), blood: get('Blood Group'), emName: get('Emergency Name'), emPhone: get('Emergency Phone').replace(/\D/g,''), errs: [] };
     if(!r.code) r.errs.push('Employee Code missing');
     if(!r.name) r.errs.push('Name missing');
     if(r.code && existing.has(r.code)) r.errs.push('Code already exists in the system');
@@ -4378,19 +4404,23 @@ $('impGoBtn').addEventListener('click', async () => {
     for(let i = 0; i < ok.length; i += 50){
       const chunk = ok.slice(i, i + 50);
       const empRows = chunk.map(r => ({ Name: r.name, 'Employee code': r.code, Status: 'ACTIVE',
-        DEPARTMENT: r.dept || null, DESIGNATION: r.desig || null, DOJ: r.doj || null, LINE: r.pline || null }));
+        DEPARTMENT: r.dept || null, DESIGNATION: r.desig || null, DOJ: r.doj || null, LINE: r.pline || null, UNIT: r.unit || null }));
       const { error: e1 } = await sb.from('employees').insert(empRows);
       if(e1) throw e1;
       const profRows = chunk.map(r => {
         let earn = {};
         if(r.wtype === 'category' && r.skill) earn = splitGross(Math.round(Number(S[r.skill]) || 0));
         else if(r.gross) earn = splitGross(r.gross);
+        const hasSalary = (r.wtype === 'category' && r.skill) || r.gross;
         return { employee_code: r.code, phone: r.phone || null, dob: r.dob || null,
           father_name: r.father || null, gender: r.gender || null, address: r.addr || null,
+          marital_status: r.marital || null, blood_group: r.blood || null,
+          emergency_name: r.emName || null, emergency_phone: r.emPhone || null,
           bank_name: r.bank || null, account_no: r.acc || null, ifsc: r.ifsc || null,
           pan: r.pan || null, uan: r.uan || null, esi_no: r.esi || null,
           pf_applicable: true, esi_applicable: true, lwf_applicable: true,
           salary: { earn, ded: {}, wageType: r.wtype, skill: r.skill || '' },
+          salary_status: hasSalary ? 'PENDING' : 'APPROVED',
           basic: earn.basic || 0, hra: earn.hra || 0, conveyance: earn.conveyance || 0, special_allowance: earn.special_allowance || 0 };
       });
       const { error: e2 } = await sb.from('hr_profiles').upsert(profRows, { onConflict: 'employee_code' });
