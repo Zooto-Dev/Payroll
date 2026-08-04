@@ -394,15 +394,19 @@ const KZ_CSS = `
 @keyframes kzPop{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.03)}100%{transform:scale(1);opacity:1}}
 @keyframes kzFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 @keyframes kzFall{0%{transform:translateY(-20px) rotate(0);opacity:1}100%{transform:translateY(320px) rotate(360deg);opacity:0}}
-.kz-card{position:relative;overflow:hidden;border-radius:18px;padding:20px;margin-bottom:14px;color:#fff;
-  background:linear-gradient(135deg,#7c3aed,#4f46e5 55%,#2563eb);box-shadow:0 12px 30px rgba(79,70,229,.35);animation:kzPop .5s ease}
-.kz-emoji{font-size:34px;animation:kzFloat 2.5s ease-in-out infinite;display:inline-block}
-.kz-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:19px;margin:6px 0 2px}
-.kz-sub{font-size:13px;opacity:.95}
-.kz-reward{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);
-  padding:6px 12px;border-radius:999px;font-weight:700;margin-top:10px;font-size:14px}
-.kz-confetti{position:absolute;top:0;width:8px;height:12px;border-radius:2px;animation:kzFall linear infinite}
-.kz-x{position:absolute;top:10px;right:12px;cursor:pointer;opacity:.8;font-size:16px}
+.kz-card{position:relative;overflow:hidden;border-radius:14px;padding:18px 20px;margin-bottom:14px;
+  background:#fff;border:1px solid #e5e7eb;border-left:4px solid #4f46e5;box-shadow:0 4px 14px rgba(15,23,42,.06);animation:kzPop .4s ease}
+.kz-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.kz-badge{width:38px;height:38px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  font-size:18px;background:linear-gradient(135deg,#eef2ff,#e0e7ff);color:#4f46e5;animation:kzFloat 3s ease-in-out infinite}
+.kz-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;color:#1e293b;margin:0}
+.kz-sub{font-size:12.5px;color:#475569;line-height:1.5}
+.kz-reward{display:inline-flex;align-items:center;gap:6px;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;
+  padding:5px 11px;border-radius:8px;font-weight:600;margin-top:10px;font-size:12.5px}
+.kz-impact{display:inline-flex;align-items:center;gap:5px;background:#f8fafc;border:1px solid #e2e8f0;color:#64748b;
+  padding:5px 11px;border-radius:8px;margin-top:10px;margin-left:6px;font-size:11.5px}
+.kz-confetti{position:absolute;top:0;width:7px;height:10px;border-radius:2px;animation:kzFall linear infinite;opacity:.6}
+.kz-x{position:absolute;top:12px;right:14px;cursor:pointer;color:#cbd5e1;font-size:14px}
 </style>`;
 if(!document.getElementById('kzStyle')) document.head.insertAdjacentHTML('beforeend', KZ_CSS);
 
@@ -442,11 +446,18 @@ async function loadKaizenCongrats(){
     return `<div class="kz-card">
       ${confetti}
       <span class="kz-x" onclick="dismissKaizen(${f.id})"><i class="fa-solid fa-xmark"></i></span>
-      <div class="kz-emoji">🎉</div>
-      <div class="kz-title">Congratulations, ${esc((D.employee&&D.employee.name)||'').split(' ')[0]||'Team'}!</div>
-      <div class="kz-sub">Your Kaizen <b>"${esc(f.subject||'idea')}"</b> has been approved. Thank you for thinking better! 👏</div>
-      ${f.reward ? `<div class="kz-reward"><i class="fa-solid fa-gift"></i> Reward: ₹${Number(f.reward).toLocaleString('en-IN')} — in next payroll</div>` : ''}
-      ${f.impact ? `<div class="kz-sub" style="margin-top:6px">Impact rated: <b>${esc(f.impact)}</b></div>` : ''}
+      <div class="kz-head">
+        <div class="kz-badge">🏆</div>
+        <div>
+          <div class="kz-title">Congratulations, ${esc(((D.employee&&D.employee.Name)||'').split(' ')[0] || CODE)}!</div>
+          <div class="kz-sub" style="margin-top:1px">Your Kaizen has been approved</div>
+        </div>
+      </div>
+      <div class="kz-sub">Your suggestion <b>"${esc(f.subject||'')}"</b> was reviewed and approved. Thank you for helping us improve.</div>
+      <div>
+        ${f.reward ? `<span class="kz-reward"><i class="fa-solid fa-gift"></i> Reward ₹${Number(f.reward).toLocaleString('en-IN')} in next payroll</span>` : ''}
+        ${f.impact ? `<span class="kz-impact"><i class="fa-solid fa-chart-line"></i> ${esc(f.impact)} impact</span>` : ''}
+      </div>
     </div>`;
   }).join('');
 }
