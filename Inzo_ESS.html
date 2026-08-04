@@ -444,8 +444,8 @@ async function loadKaizenCongrats(){
       <span class="kz-x" onclick="dismissKaizen(${f.id})"><i class="fa-solid fa-xmark"></i></span>
       <div class="kz-emoji">🎉</div>
       <div class="kz-title">Congratulations, ${esc((D.employee&&D.employee.name)||'').split(' ')[0]||'Team'}!</div>
-      <div class="kz-sub">Aapka Kaizen <b>"${esc(f.subject||'idea')}"</b> approve ho gaya. Shukriya behtar sochne ke liye! 👏</div>
-      ${f.reward ? `<div class="kz-reward"><i class="fa-solid fa-gift"></i> Reward: ₹${Number(f.reward).toLocaleString('en-IN')} — next payroll mein</div>` : ''}
+      <div class="kz-sub">Your Kaizen <b>"${esc(f.subject||'idea')}"</b> has been approved. Thank you for thinking better! 👏</div>
+      ${f.reward ? `<div class="kz-reward"><i class="fa-solid fa-gift"></i> Reward: ₹${Number(f.reward).toLocaleString('en-IN')} — in next payroll</div>` : ''}
       ${f.impact ? `<div class="kz-sub" style="margin-top:6px">Impact rated: <b>${esc(f.impact)}</b></div>` : ''}
     </div>`;
   }).join('');
