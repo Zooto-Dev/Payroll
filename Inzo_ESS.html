@@ -172,6 +172,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       </div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-indian-rupee-sign" style="color:var(--brand)"></i> My Payslips</h3><div id="payBox"></div></div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-boxes-stacked" style="color:var(--brand)"></i> My Assets</h3><div id="assetBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-lightbulb" style="color:var(--brand)"></i> Kaizen Wall <span class="text-[10px] font-normal" style="color:var(--muted)">— ideas approved across the team</span></h3><div id="kaizenWall"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-calendar-check" style="color:var(--warn)"></i> Holidays This Year</h3><div id="holBox" class="text-sm space-y-1"></div></div>
     </div>
 
@@ -407,6 +408,14 @@ const KZ_CSS = `
   padding:5px 11px;border-radius:8px;margin-top:10px;margin-left:6px;font-size:11.5px}
 .kz-confetti{position:absolute;top:0;width:7px;height:10px;border-radius:2px;animation:kzFall linear infinite;opacity:.6}
 .kz-x{position:absolute;top:12px;right:14px;cursor:pointer;color:#cbd5e1;font-size:14px}
+.kz-note{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin-top:10px;font-size:12px;color:#475569;font-style:italic}
+/* Kaizen Wall */
+.kw-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid #f1f5f9}
+.kw-item:last-child{border-bottom:none}
+.kw-ic{width:30px;height:30px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;background:#eef2ff;color:#4f46e5}
+.kw-name{font-weight:600;font-size:12.5px;color:#1e293b}
+.kw-sub{font-size:11.5px;color:#64748b;line-height:1.4}
+.kw-impact{font-size:10px;padding:2px 7px;border-radius:6px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;white-space:nowrap;align-self:center}
 </style>`;
 if(!document.getElementById('kzStyle')) document.head.insertAdjacentHTML('beforeend', KZ_CSS);
 
@@ -454,10 +463,40 @@ async function loadKaizenCongrats(){
         </div>
       </div>
       <div class="kz-sub">Your suggestion <b>"${esc(f.subject||'')}"</b> was reviewed and approved. Thank you for helping us improve.</div>
+      ${f.admin_note ? `<div class="kz-note"><i class="fa-solid fa-quote-left" style="opacity:.4;margin-right:5px"></i>${esc(f.admin_note)}<div style="font-size:10px;color:#94a3b8;margin-top:3px">— HR / Management</div></div>` : ''}
       <div>
         ${f.reward ? `<span class="kz-reward"><i class="fa-solid fa-gift"></i> Reward ₹${Number(f.reward).toLocaleString('en-IN')} in next payroll</span>` : ''}
         ${f.impact ? `<span class="kz-impact"><i class="fa-solid fa-chart-line"></i> ${esc(f.impact)} impact</span>` : ''}
       </div>
+    </div>`;
+  }).join('');
+}
+async function loadKaizenWall(){
+  const host = $('kaizenWall'); if(!host) return;
+  let items = [];
+  try{
+    const { data } = await sb.from('feedback').select('*').eq('type','KAIZEN').eq('status','APPROVED').order('id',{ascending:false}).limit(15);
+    items = data || [];
+  }catch(e){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Could not load.</p>'; return; }
+  if(!items.length){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">No approved Kaizen yet. Be the first to suggest an improvement!</p>'; return; }
+  // resolve names from a light lookup (feedback has employee_code)
+  const codes = [...new Set(items.map(i => i.employee_code).filter(Boolean))];
+  let names = {};
+  try{
+    if(codes.length){
+      const { data: emps } = await sb.from('employees').select('"Employee code",Name').in('"Employee code"', codes);
+      (emps||[]).forEach(e => names[e['Employee code']] = e.Name);
+    }
+  }catch(e){}
+  host.innerHTML = items.map(f => {
+    const nm = names[f.employee_code] || f.employee_code || 'Team member';
+    return `<div class="kw-item">
+      <div class="kw-ic">💡</div>
+      <div style="flex:1">
+        <div class="kw-name">${esc(nm)}</div>
+        <div class="kw-sub">${esc(f.subject||'Improvement idea')}${f.kz_benefits?` · <span style="color:#4f46e5">${esc(f.kz_benefits)}</span>`:''}</div>
+      </div>
+      ${f.impact ? `<span class="kw-impact">${esc(f.impact)}</span>` : ''}
     </div>`;
   }).join('');
 }
@@ -554,6 +593,7 @@ $('loginBtn').addEventListener('click', async () => {
     D = data;
     buildLeaveTypes();
     loadKaizenCongrats();
+    loadKaizenWall();
     sb.rpc('ess_line_today', { p_code: CODE, p_phone: PHONE }).then(({ data: ld }) => {
       if(ld && ld.lines && ld.lines.length) $('tabTeam').classList.remove('hidden');
     }).catch(() => {});
