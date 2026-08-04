@@ -1,8 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%234f46e5'/%3E%3Ctext x='50' y='68' font-size='60' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EN%3C/text%3E%3C/svg%3E">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
     <title>Nexus Attendance</title><link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -1346,8 +1350,12 @@ function nxConfirm(msg, title){
             const todayStr = offlineProcessData ? offlineProcessData.todayStr : `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}-${String(localDate.getDate()).padStart(2, '0')}`;
             const timeStr = offlineProcessData ? offlineProcessData.timeStr : `${String(localDate.getHours()).padStart(2, '0')}:${String(localDate.getMinutes()).padStart(2, '0')}:${String(localDate.getSeconds()).padStart(2, '0')}`;
             
-            // LATE MARK LOGIC — late if punched in after 10:00 (same rule for everyone)
-            const lateCutoff = "10:00:00";
+            // LATE MARK LOGIC
+            //   Production / Planning / Store : late after 09:10
+            //   Everyone else                 : late after 10:00
+            const _dept = String((empData && empData.DEPARTMENT) || '').toUpperCase();
+            const _early = _dept.includes('PRODUCTION') || _dept.includes('PLANNING') || _dept.includes('STORE');
+            const lateCutoff = _early ? "09:10:00" : "10:00:00";
             const isLate = timeStr > lateCutoff;
 
             let imageBase64 = offlineProcessData ? offlineProcessData.imageBase64 : null;
