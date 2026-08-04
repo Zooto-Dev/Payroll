@@ -408,11 +408,25 @@ if(!document.getElementById('kzStyle')) document.head.insertAdjacentHTML('before
 
 async function loadKaizenCongrats(){
   const host = $('kaizenCongrats'); if(!host) return;
+  const codeU = String(CODE||'').trim().toUpperCase();
   let approved = [];
   try{
-    const { data } = await sb.rpc('ess_get_feedback', { p_code: CODE, p_phone: PHONE });
-    approved = (data || []).filter(f => f.type === 'KAIZEN' && f.status === 'APPROVED');
-  }catch(e){ return; }
+    // read the feedback table directly (case-insensitive on code); don't depend on the RPC
+    const { data, error } = await sb.from('feedback').select('*')
+      .ilike('employee_code', codeU).eq('type','KAIZEN').eq('status','APPROVED')
+      .order('id', { ascending:false });
+    if(error){
+      // fallback: pull all approved kaizen and match code in JS
+      const all = await sb.from('feedback').select('*').eq('type','KAIZEN').eq('status','APPROVED');
+      approved = (all.data || []).filter(f => String(f.employee_code||'').trim().toUpperCase() === codeU);
+    } else {
+      approved = data || [];
+      if(!approved.length){
+        const all = await sb.from('feedback').select('*').eq('type','KAIZEN').eq('status','APPROVED');
+        approved = (all.data || []).filter(f => String(f.employee_code||'').trim().toUpperCase() === codeU);
+      }
+    }
+  }catch(e){ host.innerHTML=''; return; }
   if(!approved.length){ host.innerHTML = ''; return; }
   // show ones the user hasn't dismissed yet
   let seen = [];
