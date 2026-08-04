@@ -351,6 +351,7 @@ body.no-confidential .confidential-col{display:none!important}
 
   <!-- ACTION-NEEDED WARNINGS (bottom) -->
   <div id="dashIncomplete" class="mt-4"></div>
+  <div id="dashSalaryApprovals" class="mt-4"></div>
   <div id="dashNoSalary" class="mt-4"></div>
 </div>
 
@@ -917,6 +918,15 @@ body.no-confidential .confidential-col{display:none!important}
           <select id="setLeaveMode" class="inp"><option value="annual">Annual quota (CL/SL/EL)</option><option value="monthly">Monthly accrual (earn per month)</option></select></div>
         <div><label class="lbl">Accrual / Month (days)</label><input id="setAccrual" type="number" step="0.5" class="inp" value="1"></div>
         <div><label class="lbl">Min days worked to earn a month's leave</label><input id="setMinDaysForLeave" type="number" class="inp" value="15" min="1" max="31" title="An employee must attend at least this many days in a month to earn that month's leave. Below this, they won't appear in the Unused-Leave list."></div>
+        <div class="lg:col-span-2"><label class="lbl">Leave Types Offered <span class="text-[10px]" style="color:var(--muted)">(only ticked types show in the leave form)</span></label>
+          <div id="setLeaveTypes" style="display:flex;flex-wrap:wrap;gap:10px;padding:8px 0">
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px"><input type="checkbox" class="lt-opt" value="EL"> Earned Leave (EL)</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px"><input type="checkbox" class="lt-opt" value="CL"> Casual Leave (CL)</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px"><input type="checkbox" class="lt-opt" value="SL"> Sick Leave (SL)</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px"><input type="checkbox" class="lt-opt" value="ML"> Maternity (ML)</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px"><input type="checkbox" class="lt-opt" value="PL"> Paternity (PL)</label>
+          </div>
+        </div>
 
         <div><label class="lbl">OT Departments (ESS apply)</label><input id="setOTDepts" class="inp" value="PLANNING,PRODUCTION" title="Comma separated. Employees of these departments can request OT from ESS."></div>
         <div><label class="lbl">CL / Year</label><input id="setCL" type="number" class="inp" value="7"></div>
@@ -1036,6 +1046,7 @@ body.no-confidential .confidential-col{display:none!important}
     </div>
     <div id="epSalarySection">
     <h4 class="display font-bold mt-5 mb-2">Salary Structure (Monthly) <span class="text-[10px] font-normal" style="color:var(--muted)">components are managed in Settings</span></h4>
+    <div id="epSalStatus" class="mb-2"></div>
     <div class="mb-3">
       <label class="lbl">Salary Type</label>
       <select id="epWageType" class="inp">
@@ -1417,7 +1428,13 @@ function empDeductions(code){
   getSettings().dedComps.forEach(c => { out[c.k] = Number(ded[c.k])||0; });
   return out;
 }
+function salaryApproved(code){
+  const p = PROFILES[code] || {};
+  // treat missing status as approved (legacy), only 'PENDING' blocks
+  return String(p.salary_status || 'APPROVED').toUpperCase() !== 'PENDING';
+}
 function grossOf(code){
+  if(!salaryApproved(code)) return 0;   // unapproved salary = not counted (kept out of payroll)
   const s = empSalary(code);
   return Object.values(s).reduce((a,b) => a + b, 0);
 }
@@ -1440,11 +1457,14 @@ function isLateFor(inTime, s){
   const [th,tm] = t.split(':').map(Number);
   return (th*60+tm) > cut;
 }
-// Late rule: late if punched in after 10:00 (same for everyone).
+// Late rule: Production/Planning/Store late after 09:10, everyone else after 10:00.
 function isLateByDept(inTime, dept){
   if(!inTime) return false;
+  const d = String(dept||'').toUpperCase();
+  const early = d.includes('PRODUCTION') || d.includes('PLANNING') || d.includes('STORE');
+  const cut = early ? (9*60+10) : (10*60);
   const [th,tm] = inTime.substring(0,5).split(':').map(Number);
-  return (th*60+tm) > (10*60);  // after 10:00
+  return (th*60+tm) > cut;
 }
 function hoursOf(hhmm){
   if(!hhmm) return 0;
@@ -1452,6 +1472,13 @@ function hoursOf(hhmm){
   return (h||0) + (m||0)/60;
 }
 const PAID_LEAVES = ['CL','SL','EL','ML','PL'];
+const LEAVE_LABELS = { EL:'Earned Leave (Paid)', CL:'Casual Leave (Paid)', SL:'Sick Leave (Paid)', ML:'Maternity Leave (Paid)', PL:'Paternity Leave (Paid)', LWP:'Leave Without Pay' };
+function offeredLeaveTypes(){ const t = (SETTINGS && SETTINGS.leaveTypes && SETTINGS.leaveTypes.length) ? SETTINGS.leaveTypes.slice() : ['EL']; return t; }
+function buildLeaveTypeOptions(){
+  const types = offeredLeaveTypes().concat(['LWP']);   // LWP always allowed
+  const sel = document.getElementById('lvType');
+  if(sel) sel.innerHTML = types.map(t => `<option value="${t}">${LEAVE_LABELS[t]||t}</option>`).join('');
+}
 
 /* ---------------- Auth ---------------- */
 $('loginBtn').addEventListener('click', async () => {
@@ -1513,6 +1540,11 @@ function adminRoleOf(email){
 }
 function myEmpRole(){ return adminRoleOf(ME_EMAIL); }
 function isHRAdmin(){ const d = adminRoleOf(ME_EMAIL).dept; return isSuper() || d.includes('ADMIN') || d.includes('HR') || d.includes('HUMAN'); }
+// Only the CEO can approve salaries: designation "Chief Executive Officer" OR kartik@zootofashion.com
+function isCEO(){
+  if(String(ME_EMAIL||'').toLowerCase() === 'kartik@zootofashion.com') return true;
+  return String(adminRoleOf(ME_EMAIL).desig || '').includes('CHIEF EXECUTIVE');
+}
 // CEO-only actions (super admins always allowed — system owner)
 function roleCEO(){ const r = myEmpRole().desig; return isSuper() || r.includes('CEO') || r.includes('CHIEF EXECUTIVE') || r.includes('MANAGING DIRECTOR'); }
 // Accounts Manager only
@@ -1887,6 +1919,7 @@ async function enterApp(){
   const { data: { session } } = await sb.auth.getSession();
   ME_EMAIL = ((session && session.user && session.user.email) || '').toLowerCase();
   await loadCore();
+  buildLeaveTypeOptions();
   applyPerms();
   if(isSuper()){ const b = document.getElementById('navAdminCtl'); if(b) b.classList.remove('hidden'); }
   applyConfidential();
@@ -2160,6 +2193,56 @@ function renderDeptWise(rows){
     </div>`;
   }).join('') : '<p style="color:var(--muted)">No data yet.</p>';
 }
+function renderSalaryApprovals(){
+  const host = document.getElementById('dashSalaryApprovals');
+  if(!host) return;
+  if(!isCEO()){ host.innerHTML = ''; return; }   // only the CEO sees/acts on approvals
+  const pend = activeEmps().filter(e => String((PROFILES[e['Employee code']]||{}).salary_status||'').toUpperCase() === 'PENDING');
+  if(!pend.length){ host.innerHTML = ''; return; }
+  host.innerHTML = `<div class="card" style="border-left:3px solid var(--brand)">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-indian-rupee-sign" style="color:var(--brand)"></i> Salary Approvals Pending <span class="chip chip-warn">${pend.length}</span></h3>
+      <button class="btn btn-primary btn-sm" onclick="approveAllSalaries()"><i class="fa-solid fa-check-double"></i> Approve All</button>
+    </div>
+    <div style="max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:12px">
+      <table class="tbl" style="font-size:12px;margin:0">
+        <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Gross (₹)</th><th>Submitted by</th><th></th></tr></thead>
+        <tbody>${pend.map(e => {
+          const code = e['Employee code']; const p = PROFILES[code]||{};
+          const s = empSalary(code); const gross = Object.values(s).reduce((a,b)=>a+b,0);
+          return `<tr>
+            <td class="font-mono">${esc(code)}</td>
+            <td class="font-semibold">${esc(e.Name)}</td>
+            <td>${esc(e.DEPARTMENT||'—')}</td>
+            <td class="money">₹${gross.toLocaleString('en-IN')}</td>
+            <td class="text-[11px]">${esc(p.salary_submitted_by||'—')}</td>
+            <td class="flex gap-1">
+              <button class="btn btn-primary btn-sm" data-act="sal-approve" data-code="${esc(code)}"><i class="fa-solid fa-check"></i> Approve</button>
+              <button class="btn btn-ghost btn-sm" data-act="sal-view" data-code="${esc(code)}"><i class="fa-solid fa-eye"></i></button>
+            </td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+async function approveSalary(code){
+  await sb.from('hr_profiles').update({ salary_status:'APPROVED', salary_approved_by: ME_EMAIL, salary_approved_at: new Date().toISOString() }).eq('employee_code', code);
+  if(PROFILES[code]) PROFILES[code].salary_status = 'APPROVED';
+  notify('Salary approved', 'success');
+  renderSalaryApprovals(); renderNoSalaryCard && renderNoSalaryCard();
+}
+async function approveAllSalaries(){
+  const pend = activeEmps().filter(e => String((PROFILES[e['Employee code']]||{}).salary_status||'').toUpperCase() === 'PENDING');
+  if(!pend.length) return;
+  const ok = await nxConfirm('Approve salary for all ' + pend.length + ' pending employee(s)?', 'Bulk Approve');
+  if(!ok) return;
+  const codes = pend.map(e => e['Employee code']);
+  await sb.from('hr_profiles').update({ salary_status:'APPROVED', salary_approved_by: ME_EMAIL, salary_approved_at: new Date().toISOString() }).in('employee_code', codes);
+  codes.forEach(c => { if(PROFILES[c]) PROFILES[c].salary_status = 'APPROVED'; });
+  notify(codes.length + ' salaries approved', 'success');
+  renderSalaryApprovals();
+}
 function renderIncompleteCard(){
   const host = document.getElementById('dashIncomplete');
   if(!host) return;
@@ -2282,6 +2365,7 @@ async function loadDashboard(){
   await loadTrendData();
   renderNoSalaryCard();
   renderIncompleteCard();
+  renderSalaryApprovals();
   loadEngagement();
   renderSetupChecklist();
   renderLeaveDecisions();
@@ -2489,6 +2573,12 @@ async function openEmpModal(code){
   $('epDesigSel').innerHTML = window.nxDesigOpts(e.DESIGNATION || '');
   $('epFather').value = p.father_name || ''; $('epDOB').value = p.dob || ''; $('epGender').value = p.gender || '';
   $('epStatus').value = String(e.Status).toUpperCase() === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
+  const salSt = String(p.salary_status || 'APPROVED').toUpperCase();
+  if($('epSalStatus')){
+    $('epSalStatus').innerHTML = salSt === 'PENDING'
+      ? '<span class="chip chip-warn"><i class="fa-solid fa-hourglass-half"></i> Salary pending CEO approval</span>' + (isCEO() ? ' <button class="btn btn-primary btn-sm" onclick="approveSalary(\''+code+'\').then(()=>openEmpModal(\''+code+'\'))"><i class="fa-solid fa-check"></i> Approve now</button>' : '')
+      : (p.salary_approved_at ? '<span class="chip chip-ok"><i class="fa-solid fa-circle-check"></i> Salary approved</span>' : '');
+  }
   $('epExitDate').value = p.exit_date || '';
   $('epExitReason').value = p.exit_reason || '';
   const dept2 = String(e.DEPARTMENT || '').toUpperCase();
@@ -2700,6 +2790,9 @@ $('epSaveBtn').addEventListener('click', async () => {
       phone: $('epPhone').value, email: $('epEmail').value, father_name: $('epFather').value,
       dob: $('epDOB').value || null, address: $('epAddr').value,
       salary: { earn, ded, wageType: $('epWageType').value, skill: $('epSkill').value, otAllowed: $('epOT').checked, payMode: 'bank', pendingArrear: Number(((PROFILES[$('epCode').value]||{}).salary||{}).pendingArrear)||0 },
+      salary_status: isCEO() ? 'APPROVED' : 'PENDING',
+      salary_submitted_by: ME_EMAIL, salary_submitted_at: new Date().toISOString(),
+      salary_approved_by: isCEO() ? ME_EMAIL : null, salary_approved_at: isCEO() ? new Date().toISOString() : null,
       basic: Number(earn.basic)||0, hra: Number(earn.hra)||0,
       conveyance: Number(earn.conveyance)||0, special_allowance: Number(earn.special_allowance)||0,
       pf_applicable: $('epPF').checked, esi_applicable: $('epESI').checked, pt_applicable: $('epPT').checked,
@@ -2869,6 +2962,7 @@ async function runPayroll(){
   PAY_MONTH = ym;
   const btn = $('payRunBtn');
   btn.innerHTML = '<div class="loader-ring"></div> Calculating…'; btn.disabled = true;
+  window._payPendingNote = '';
   try{
     const S = getSettings();
     const rows = await fetchMonthAttendance(ym);
@@ -2913,7 +3007,8 @@ async function runPayroll(){
       return out;
     }
 
-    PAY_ROWS = activeEmps().map(e => {
+    const _skippedPending = activeEmps().filter(e => !salaryApproved(e['Employee code']));
+    PAY_ROWS = activeEmps().filter(e => salaryApproved(e['Employee code'])).map(e => {
       const code = e['Employee code'];
       const p = PROFILES[code] || {};
       const days = attMap[code] || {};
@@ -3050,6 +3145,9 @@ async function runPayroll(){
     $('payFinalizeBtn').classList.remove('hidden');
     $('payPrintAllBtn').classList.remove('hidden');
     $('payBankBtn').classList.remove('hidden');
+    if(_skippedPending.length){
+      notify(_skippedPending.length + ' employee(s) skipped — salary pending CEO approval: ' + _skippedPending.slice(0,5).map(e=>e.Name).join(', ') + (_skippedPending.length>5?' +more':''), 'error');
+    }
   }catch(err){ notify(err.message, 'error'); }
   finally{ btn.innerHTML = '<i class="fa-solid fa-calculator"></i> Calculate Payroll'; btn.disabled = false; }
 }
@@ -3556,6 +3654,8 @@ document.body.addEventListener('click', async e => {
   if(act === 'ex-appr'){ await sb.from('expenses').update({ status:'APPROVED' }).eq('id', el.dataset.id); if($('page-approvals').classList.contains('show')) loadApprovals(); else loadExpenses(); }
   if(act === 'ex-rej'){ await sb.from('expenses').update({ status:'REJECTED' }).eq('id', el.dataset.id); if($('page-approvals').classList.contains('show')) loadApprovals(); else loadExpenses(); }
   if(act === 'ex-paid'){ await sb.from('expenses').update({ status:'PAID' }).eq('id', el.dataset.id); notify('Reimbursement marked paid', 'success'); loadExpenses(); }
+  if(act === 'sal-approve'){ await approveSalary(el.dataset.code); return; }
+  if(act === 'sal-view'){ openEmpModal(el.dataset.code); return; }
   if(act === 'em-revoke'){
     const ok = await nxConfirm('Revoke this email/account?\nIt will be marked REVOKED (record kept).', 'Revoke Email');
     if(!ok) return;
@@ -4047,6 +4147,8 @@ function fillSettingsForm(){
   renderUnits(); populateDLs();
   $('setLeaveMode').value = S.leaveMode; $('setAccrual').value = S.accrual; $('setOTDepts').value = S.otDepts;
   $('setMinDaysForLeave').value = S.minDaysForLeave || 15;
+  const offered = (S.leaveTypes && S.leaveTypes.length) ? S.leaveTypes : ['EL'];
+  document.querySelectorAll('.lt-opt').forEach(c => c.checked = offered.includes(c.value));
   EARN_EDIT = null; DED_EDIT = null;
   renderCompMgr();
 }
@@ -4073,6 +4175,7 @@ $('setSaveBtn').addEventListener('click', async () => {
       desigs: $('setDesigs').value.split('\n').map(s => s.trim()).filter(Boolean),
       leaveMode: $('setLeaveMode').value, accrual: Number($('setAccrual').value)||1, sandwich: false, otDepts: $('setOTDepts').value,
       minDaysForLeave: Number($('setMinDaysForLeave').value)||15,
+      leaveTypes: (function(){ const a = Array.from(document.querySelectorAll('.lt-opt:checked')).map(c=>c.value); return a.length ? a : ['EL']; })(),
       earnComps: EARN_EDIT || getSettings().earnComps,
       dedComps: DED_EDIT || getSettings().dedComps
     };
