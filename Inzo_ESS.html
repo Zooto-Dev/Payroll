@@ -463,7 +463,7 @@ async function loadKaizenCongrats(){
         </div>
       </div>
       <div class="kz-sub">Your suggestion <b>"${esc(f.subject||'')}"</b> was reviewed and approved. Thank you for helping us improve.</div>
-      ${f.admin_note ? `<div class="kz-note"><i class="fa-solid fa-quote-left" style="opacity:.4;margin-right:5px"></i>${esc(f.admin_note)}<div style="font-size:10px;color:#94a3b8;margin-top:3px">— HR / Management</div></div>` : ''}
+      ${f.admin_note ? `<div class="kz-note"><i class="fa-solid fa-quote-left" style="opacity:.4;margin-right:5px"></i>${esc(f.admin_note)}<div style="font-size:10px;color:#94a3b8;margin-top:3px">— CEO</div></div>` : ''}
       <div>
         ${f.reward ? `<span class="kz-reward"><i class="fa-solid fa-gift"></i> Reward ₹${Number(f.reward).toLocaleString('en-IN')} in next payroll</span>` : ''}
         ${f.impact ? `<span class="kz-impact"><i class="fa-solid fa-chart-line"></i> ${esc(f.impact)} impact</span>` : ''}
