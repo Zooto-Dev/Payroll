@@ -1354,7 +1354,8 @@ function nxConfirm(msg, title){
             //   Production / Planning / Store : late after 09:10
             //   Everyone else                 : late after 10:00
             const _dept = String((empData && empData.DEPARTMENT) || '').toUpperCase();
-            const _early = _dept.includes('PRODUCTION') || _dept.includes('PLANNING') || _dept.includes('STORE');
+            const _earlyList = String((window.NX_SETTINGS && window.NX_SETTINGS.earlyDepts) || 'PRODUCTION,PLANNING,STORE').toUpperCase().split(',').map(s=>s.trim()).filter(Boolean);
+            const _early = _earlyList.some(x => _dept.includes(x));
             const lateCutoff = _early ? "09:10:00" : "10:00:00";
             const isLate = timeStr > lateCutoff;
 
