@@ -173,6 +173,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-indian-rupee-sign" style="color:var(--brand)"></i> My Payslips</h3><div id="payBox"></div></div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-boxes-stacked" style="color:var(--brand)"></i> My Assets</h3><div id="assetBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-lightbulb" style="color:var(--brand)"></i> Kaizen Wall <span class="text-[10px] font-normal" style="color:var(--muted)">— ideas approved across the team</span></h3><div id="kaizenWall"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-cake-candles" style="color:var(--brand)"></i> Birthdays & Anniversaries <span class="text-[10px] font-normal" style="color:var(--muted)">— this week</span></h3><div id="bdayBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-envelope-open-text" style="color:var(--brand)"></i> My Wishes <span class="text-[10px] font-normal" style="color:var(--muted)">— messages for you</span></h3><div id="myWishesBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-calendar-check" style="color:var(--warn)"></i> Holidays This Year</h3><div id="holBox" class="text-sm space-y-1"></div></div>
     </div>
 
@@ -321,6 +323,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
   <div style="background:#fff;border-radius:16px;padding:20px;width:100%;max-width:360px;box-shadow:0 20px 50px rgba(15,23,42,.25)">
     <h3 id="nxAskTitle" style="font-weight:700;margin:0 0 8px;font-size:16px">Confirm</h3>
     <p id="nxAskMsg" style="font-size:14px;color:#475569;margin:0 0 14px;white-space:pre-line"></p>
+    <input id="nxAskInput" class="inp" style="display:none;margin:0 0 14px" placeholder="Type here…">
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button id="nxAskCancel" class="btn btn-ghost btn-sm">Cancel</button>
       <button id="nxAskOk" class="btn btn-primary btn-sm">OK</button>
@@ -416,6 +419,18 @@ const KZ_CSS = `
 .kw-name{font-weight:600;font-size:12.5px;color:#1e293b}
 .kw-sub{font-size:11.5px;color:#64748b;line-height:1.4}
 .kw-impact{font-size:10px;padding:2px 7px;border-radius:6px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;white-space:nowrap;align-self:center}
+.bd-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f1f5f9}
+.bd-item:last-child{border-bottom:none}
+.bd-ic{width:34px;height:34px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px}
+.bd-name{font-weight:600;font-size:12.5px;color:#1e293b}
+.bd-sub{font-size:11px;color:#64748b}
+.bd-wish{margin-left:auto;font-size:11px;padding:5px 11px;border-radius:8px;background:var(--brand);color:#fff;border:none;cursor:pointer;white-space:nowrap}
+.bd-wish:disabled{background:#e2e8f0;color:#94a3b8;cursor:default}
+.wish-item{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.wish-from{font-weight:600;font-size:12px;color:#1e293b}
+.wish-msg{font-size:12px;color:#475569;margin-top:2px}
+.wish-reply{font-size:11px;color:#15803d;margin-top:5px;padding-top:5px;border-top:1px dashed #cbd5e1}
+.wish-replybtn{font-size:11px;color:var(--brand);cursor:pointer;margin-top:5px;display:inline-block}
 </style>`;
 if(!document.getElementById('kzStyle')) document.head.insertAdjacentHTML('beforeend', KZ_CSS);
 
@@ -471,6 +486,91 @@ async function loadKaizenCongrats(){
     </div>`;
   }).join('');
 }
+function _mmdd(d){ if(!d) return null; const s=String(d); const m=s.match(/(\d{4})-(\d{2})-(\d{2})/); if(m) return m[2]+'-'+m[3]; const m2=s.match(/(\d{2})\/(\d{2})\/(\d{4})/); if(m2) return m2[2]+'-'+m2[1]; return null; }
+function _within7(mmdd){
+  if(!mmdd) return -1;
+  const now = new Date();
+  for(let i=0;i<7;i++){ const d=new Date(now); d.setDate(now.getDate()+i);
+    const t=String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    if(t===mmdd) return i;
+  }
+  return -1;
+}
+async function loadBirthdays(){
+  const host = $('bdayBox'); if(!host) return;
+  let rows = [];
+  try{
+    const [empRes, profRes] = await Promise.all([
+      sb.from('employees').select('"Employee code",Name,DOJ,DEPARTMENT,Status'),
+      sb.from('hr_profiles').select('employee_code,dob')
+    ]);
+    const dobMap = {}; (profRes.data||[]).forEach(p => dobMap[p.employee_code]=p.dob);
+    (empRes.data||[]).forEach(e => {
+      if(String(e.Status||'').toUpperCase()!=='ACTIVE') return;
+      const code = e['Employee code'];
+      const bMM = _mmdd(dobMap[code]); const aMM = _mmdd(e.DOJ);
+      const bIn = _within7(bMM), aIn = _within7(aMM);
+      if(bIn>=0) rows.push({ code, name:e.Name, dept:e.DEPARTMENT, occasion:'BIRTHDAY', inDays:bIn });
+      if(aIn>=0 && e.DOJ) rows.push({ code, name:e.Name, dept:e.DEPARTMENT, occasion:'ANNIVERSARY', inDays:aIn });
+    });
+    rows.sort((a,b)=>a.inDays-b.inDays);
+  }catch(e){ host.innerHTML='<p class="m-0 text-xs" style="color:var(--muted)">Could not load.</p>'; return; }
+  if(!rows.length){ host.innerHTML='<p class="m-0 text-xs" style="color:var(--muted)">No birthdays or anniversaries this week.</p>'; return; }
+  // which ones have I already wished?
+  let wished = new Set();
+  try{
+    const { data } = await sb.from('wishes').select('to_code,occasion').eq('from_code', CODE).gte('created_at', new Date(Date.now()-8*864e5).toISOString());
+    (data||[]).forEach(w => wished.add(w.to_code+'|'+w.occasion));
+  }catch(e){}
+  host.innerHTML = rows.map(r => {
+    const isMe = r.code === CODE;
+    const when = r.inDays===0?'Today':(r.inDays===1?'Tomorrow':'in '+r.inDays+' days');
+    const ic = r.occasion==='BIRTHDAY'?'🎂':'🎉';
+    const bg = r.occasion==='BIRTHDAY'?'#fef3c7':'#e0e7ff';
+    const alreadyWished = wished.has(r.code+'|'+r.occasion);
+    return `<div class="bd-item">
+      <div class="bd-ic" style="background:${bg}">${ic}</div>
+      <div><div class="bd-name">${esc(r.name)}${isMe?' (You)':''}</div>
+        <div class="bd-sub">${r.occasion==='BIRTHDAY'?'Birthday':'Work Anniversary'} · ${when}${r.dept?' · '+esc(r.dept):''}</div></div>
+      ${isMe ? '' : `<button class="bd-wish" ${alreadyWished?'disabled':''} onclick="openWish('${esc(r.code)}','${esc(r.name)}','${r.occasion}')">${alreadyWished?'Wished ✓':'Wish'}</button>`}
+    </div>`;
+  }).join('');
+}
+function openWish(toCode, toName, occasion){
+  const preset = occasion==='BIRTHDAY' ? 'Happy Birthday' : 'Congratulations on your work anniversary';
+  nxPrompt(`Send a wish to ${toName}:`, 'Send Wish', preset).then(async msg => {
+    if(!msg) return;
+    const myName = (D.employee&&D.employee.Name) || CODE;
+    const { error } = await sb.from('wishes').insert([{ to_code: toCode, from_code: CODE, from_name: myName, occasion, message: msg }]);
+    if(error) return notify(error.message);
+    notify('Wish sent to ' + toName + ' 🎉');
+    loadBirthdays();
+  });
+}
+async function loadMyWishes(){
+  const host = $('myWishesBox'); if(!host) return;
+  let rows = [];
+  try{
+    const { data } = await sb.from('wishes').select('*').eq('to_code', CODE).order('created_at',{ascending:false}).limit(20);
+    rows = data || [];
+  }catch(e){ host.innerHTML='<p class="m-0 text-xs" style="color:var(--muted)">Could not load.</p>'; return; }
+  if(!rows.length){ host.innerHTML='<p class="m-0 text-xs" style="color:var(--muted)">No wishes yet.</p>'; return; }
+  host.innerHTML = rows.map(w => `<div class="wish-item">
+    <div class="wish-from">${esc(w.from_name||w.from_code)} <span style="font-weight:400;color:#94a3b8;font-size:10px">· ${w.occasion==='BIRTHDAY'?'🎂 Birthday':'🎉 Anniversary'}</span></div>
+    <div class="wish-msg">${esc(w.message||'')}</div>
+    ${w.reply ? `<div class="wish-reply"><i class="fa-solid fa-reply" style="opacity:.5"></i> You replied: ${esc(w.reply)}</div>`
+      : `<span class="wish-replybtn" onclick="replyWish(${w.id},'${esc(w.from_name||w.from_code)}')"><i class="fa-solid fa-reply"></i> Reply / Say thanks</span>`}
+  </div>`).join('');
+}
+function replyWish(id, fromName){
+  nxPrompt(`Reply to ${fromName}:`, 'Reply', 'Thank you so much!').then(async r => {
+    if(!r) return;
+    const { error } = await sb.from('wishes').update({ reply: r, reply_at: new Date().toISOString() }).eq('id', id);
+    if(error) return notify(error.message);
+    notify('Reply sent 💬');
+    loadMyWishes();
+  });
+}
 async function loadKaizenWall(){
   const host = $('kaizenWall'); if(!host) return;
   let items = [];
@@ -519,6 +619,20 @@ function nxConfirm(msg, title){
   });
 }
 function nxInfo(msg, title){ return nxConfirm(msg, title); }
+function nxPrompt(msg, title, preset){
+  return new Promise(resolve => {
+    const m = document.getElementById('nxAskModal');
+    document.getElementById('nxAskTitle').innerText = title || 'Enter';
+    document.getElementById('nxAskMsg').innerText = msg || '';
+    const inp = document.getElementById('nxAskInput');
+    inp.style.display = 'block'; inp.value = preset || '';
+    m.style.display = 'flex';
+    setTimeout(() => { inp.focus(); inp.select(); }, 50);
+    const done = v => { m.style.display = 'none'; inp.style.display = 'none'; ok.onclick = null; cancel.onclick = null; resolve(v); };
+    const ok = document.getElementById('nxAskOk'), cancel = document.getElementById('nxAskCancel');
+    ok.onclick = () => done(inp.value.trim()); cancel.onclick = () => done(null);
+  });
+}
 function notify(msg){
   const t = document.createElement('div');
   t.className = 'toast'; t.textContent = msg;
@@ -594,6 +708,8 @@ $('loginBtn').addEventListener('click', async () => {
     buildLeaveTypes();
     loadKaizenCongrats();
     loadKaizenWall();
+    loadBirthdays();
+    loadMyWishes();
     sb.rpc('ess_line_today', { p_code: CODE, p_phone: PHONE }).then(({ data: ld }) => {
       if(ld && ld.lines && ld.lines.length) $('tabTeam').classList.remove('hidden');
     }).catch(() => {});
