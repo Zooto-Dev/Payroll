@@ -911,6 +911,7 @@ body.no-confidential .confidential-col{display:none!important}
           <select id="setWeekOff" class="inp"><option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option></select>
         </div>
         <div><label class="lbl">Lates = Half Day LOP</label><input id="setLates" type="number" class="inp" value="3" title="Half-day LOP after this many lates"></div>
+        <div class="lg:col-span-2"><label class="lbl">Early Late-Cutoff Departments <span class="text-[10px]" style="color:var(--muted)">(late after 09:10; others after 10:00)</span></label><input id="setEarlyDepts" class="inp" value="PRODUCTION,PLANNING,STORE" title="Comma separated department names. Employees in these departments are marked late after 09:10 instead of 10:00."></div>
         <div><label class="lbl">Min days/week to earn Weekly Off</label><input id="setMinWO" type="number" class="inp" value="4" min="1" max="6" title="Weekly off is paid only if this many days were attended in the week before it"></div>
         <div><label class="lbl">PF % (of Basic)</label><input id="setPF" type="number" step="0.01" class="inp" value="12"></div>
         <div><label class="lbl">PF Basic Cap (₹, 0 = no cap)</label><input id="setPFCap" type="number" class="inp" value="15000"></div>
@@ -1463,11 +1464,12 @@ function isLateFor(inTime, s){
   const [th,tm] = t.split(':').map(Number);
   return (th*60+tm) > cut;
 }
-// Late rule: Production/Planning/Store late after 09:10, everyone else after 10:00.
+// Late rule: "early" departments (from Settings) late after 09:10, everyone else after 10:00.
 function isLateByDept(inTime, dept){
   if(!inTime) return false;
   const d = String(dept||'').toUpperCase();
-  const early = d.includes('PRODUCTION') || d.includes('PLANNING') || d.includes('STORE');
+  const earlyList = String((SETTINGS && SETTINGS.earlyDepts) || 'PRODUCTION,PLANNING,STORE').toUpperCase().split(',').map(s=>s.trim()).filter(Boolean);
+  const early = earlyList.some(x => d.includes(x));
   const cut = early ? (9*60+10) : (10*60);
   const [th,tm] = inTime.substring(0,5).split(':').map(Number);
   return (th*60+tm) > cut;
@@ -3025,7 +3027,7 @@ async function runPayroll(){
         const r = days[x.iso];
         if(r && !x.isWO && !x.isH){
           present++;
-          if(isLateFor(r.in_time, sh)) lates++;
+          if(isRowLate(r)) lates++;   // uses the is_late column set at punch time (dept-based 09:10/10:00)
         }
       });
       // OT = strictly approval-based (approved by CEO). A normal long day does NOT earn OT.
@@ -4142,6 +4144,7 @@ function fillSettingsForm(){
   $('setEmail').value = S.email; $('setCIN').value = S.cin; $('setHR').value = S.hr; $('setHRDesig').value = S.hrDesig;
   $('setProbation').value = S.probation; $('setNotice').value = S.notice;
   $('setWeekOff').value = S.weekOff; $('setLates').value = S.latesHalf; $('setMinWO').value = S.minWO || 4;
+  $('setEarlyDepts').value = S.earlyDepts || 'PRODUCTION,PLANNING,STORE';
   $('setPF').value = S.pfPct; $('setPFCap').value = S.pfCap;
   $('setESI').value = S.esiPct; $('setESILimit').value = S.esiLimit; $('setPT').value = S.pt;
   $('setOTMult').value = S.otMult; $('setOTAfter').value = S.otAfter;
@@ -4167,6 +4170,7 @@ $('setSaveBtn').addEventListener('click', async () => {
       email: $('setEmail').value, cin: $('setCIN').value, hr: $('setHR').value, hrDesig: $('setHRDesig').value,
       probation: Number($('setProbation').value)||6, notice: Number($('setNotice').value)||30,
       weekOff: Number($('setWeekOff').value), latesHalf: Number($('setLates').value)||3, minWO: Number($('setMinWO').value)||4,
+      earlyDepts: $('setEarlyDepts').value || 'PRODUCTION,PLANNING,STORE',
       pfPct: Number($('setPF').value)||0, pfCap: Number($('setPFCap').value)||0,
       esiPct: Number($('setESI').value)||0, esiLimit: Number($('setESILimit').value)||0, pt: Number($('setPT').value)||0,
       otMult: Number($('setOTMult').value)||1, otAfter: Number($('setOTAfter').value)||30,
