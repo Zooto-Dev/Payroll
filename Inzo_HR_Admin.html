@@ -1067,6 +1067,11 @@ body.no-confidential .confidential-col{display:none!important}
       <div style="flex:1"><label class="lbl">Monthly CTC (₹) — auto-structure</label><input id="epCTC" type="number" class="inp" placeholder="35000"></div>
       <button id="epCTCBtn" class="btn btn-primary btn-sm" style="padding:9px 14px"><i class="fa-solid fa-wand-magic-sparkles"></i> Build from CTC</button>
     </div>
+    <div class="mb-3 p-3 rounded-xl flex items-end gap-2" style="background:#eef2ff;border:1px solid #c7d2fe">
+      <div style="flex:1"><label class="lbl">Enter Monthly CTC (₹) — auto-splits Basic 50% + HRA + allowances</label>
+        <input id="epCTCInput" type="number" class="inp" placeholder="e.g. 25000"></div>
+      <button type="button" class="btn btn-primary btn-sm" onclick="fillFromCTC()"><i class="fa-solid fa-wand-magic-sparkles"></i> Auto-fill</button>
+    </div>
     <div class="grid grid-cols-4 gap-3" id="epSalWrap"></div>
     <div class="mt-3 p-3 rounded-xl" style="background:#f8fafc;border:1px solid var(--line)">
       <div class="flex items-center justify-between">
@@ -2646,6 +2651,16 @@ async function openEmpModal(code){
   $('empModal').classList.add('show');
 }
 // standard split: Basic 50%, HRA 25%, remainder in Special Allowance (Code on Wages compliant)
+function fillFromCTC(){
+  const ctc = Number($('epCTCInput').value) || 0;
+  if(!ctc) return notify('Enter a CTC amount first', 'error');
+  const gross = ctcToGross(ctc);          // strip employer PF/ESI/LWF to get gross
+  const alloc = splitGross(gross);        // Basic = 50% of gross, HRA 25%, rest to allowance
+  document.querySelectorAll('#epSalWrap .sal-part').forEach(i => { i.value = alloc[i.dataset.comp] || 0; i.readOnly = false; });
+  if($('epWageType')) $('epWageType').value = 'custom';
+  updateGrossPreview();
+  notify('Filled from CTC ₹' + ctc.toLocaleString('en-IN') + ' → Gross ₹' + gross.toLocaleString('en-IN'), 'success');
+}
 function splitGross(g){
   const S = getSettings();
   const alloc = {};
@@ -2774,9 +2789,13 @@ function updateGrossPreview(){
   const mwRate = skill ? Number(S[skill])||0 : 0;
   const mwNote = (mwRate > 0 && g > 0 && g < mwRate)
     ? ` <span class="chip chip-bad"><i class="fa-solid fa-triangle-exclamation"></i> Below minimum wage (₹${mwRate.toLocaleString('en-IN')})</span>` : '';
-  $('epCTCInfo').innerHTML = `Employer side (per govt rules): PF ${fmtINR(er.erPF)} + ESI ${fmtINR(er.erESI)} + LWF ${fmtINR(er.erLWF)}
-    &nbsp;→&nbsp; <b style="color:var(--ink)">Total CTC: <span class="money">${fmtINR(g + er.total)}</span></b>${esiNote}${mwNote}
-    <br>Employee-side deductions will be: PF ${fmtINR($('epPF').checked ? Math.round(Math.min(currentPFWages(), Number(S.pfCap)||Infinity) * Number(S.pfPct) / 100) : 0)} • ESI ${fmtINR(eeESI)} • LWF ${fmtINR($('epLWF').checked ? lwfEE(g) : 0)} (0.2%, capped)`;
+  const eePF = $('epPF').checked ? Math.round(Math.min(currentPFWages(), Number(S.pfCap)||Infinity) * Number(S.pfPct) / 100) : 0;
+  const eeLWF = $('epLWF').checked ? lwfEE(g) : 0;
+  const totalCTC = g + er.total;
+  const basic50 = Math.round(g * 0.5);
+  $('epCTCInfo').innerHTML = `<b style="color:var(--ink)">Total CTC: <span class="money">${fmtINR(totalCTC)}</span></b> &nbsp;=&nbsp; Gross ${fmtINR(g)} + Employer PF ${fmtINR(er.erPF)} + ESI ${fmtINR(er.erESI)} + LWF ${fmtINR(er.erLWF)}${esiNote}${mwNote}
+    <br><span style="color:var(--muted)">Basic (50% of gross): <b>${fmtINR(basic50)}</b> · Employer PF is 12% of Basic (capped ₹${(Number(S.pfCap)||15000).toLocaleString('en-IN')}), ESI 3.25% of gross${g > Number(S.esiLimit) ? ' (N/A here)' : ''}, LWF 0.2% capped ₹${Number(S.lwfE)||35}</span>
+    <br>Employee deductions: PF ${fmtINR(eePF)} • ESI ${fmtINR(eeESI)} • LWF ${fmtINR(eeLWF)} &nbsp;→&nbsp; <b>Take-home ≈ ${fmtINR(g - eePF - eeESI - eeLWF)}</b>`;
 }
 ['epPF','epESI','epPT','epLWF'].forEach(id => document.addEventListener('DOMContentLoaded', () => {}) || null);
 $('epPF').addEventListener('change', updateGrossPreview);
@@ -4551,12 +4570,16 @@ $('mwApplyBtn').addEventListener('click', async () => {
       if(!rate) continue;
       const alloc = splitGross(rate);
       const sal = Object.assign({}, p.salary, { earn: alloc, wageType: 'category' });
-      const upd = { salary: sal, basic: alloc.basic||0, hra: alloc.hra||0, conveyance: alloc.conveyance||0, special_allowance: alloc.special_allowance||0 };
+      const upd = { salary: sal, basic: alloc.basic||0, hra: alloc.hra||0, conveyance: alloc.conveyance||0, special_allowance: alloc.special_allowance||0,
+        salary_status: isCEO() ? 'APPROVED' : 'PENDING',
+        salary_submitted_by: ME_EMAIL, salary_submitted_at: new Date().toISOString(),
+        salary_approved_by: isCEO() ? ME_EMAIL : null, salary_approved_at: isCEO() ? new Date().toISOString() : null };
       const { error } = await sb.from('hr_profiles').update(upd).eq('employee_code', p.employee_code);
       if(!error){ Object.assign(PROFILES[p.employee_code], upd); done++; }
     }
-    notify(`Minimum wage rates applied to ${done} worker(s)`, 'success');
+    notify(`Minimum wage rates applied to ${done} worker(s)` + (isCEO() ? '' : ' — sent to CEO for approval'), 'success');
     renderEmployees($('empSearch').value);
+    if(typeof renderSalaryApprovals === 'function') renderSalaryApprovals();
   }catch(err){ notify(err.message, 'error'); }
   finally{ btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Apply Rates to All Category Workers'; btn.disabled = false; }
 });
@@ -6006,12 +6029,16 @@ document.body.addEventListener('click', async e => {
       });
       arrears = Math.max(0, Math.round(arrears));
       const sal = Object.assign({}, p.salary || {}, { earn: newEarn, pendingArrear: (Number((p.salary||{}).pendingArrear)||0) + arrears });
-      const upd = { salary: sal, basic: newEarn.basic||0, hra: newEarn.hra||0, conveyance: newEarn.conveyance||0, special_allowance: newEarn.special_allowance||0 };
+      const reviserIsCEO = isCEO();
+      const upd = { salary: sal, basic: newEarn.basic||0, hra: newEarn.hra||0, conveyance: newEarn.conveyance||0, special_allowance: newEarn.special_allowance||0,
+        salary_status: reviserIsCEO ? 'APPROVED' : 'PENDING',
+        salary_submitted_by: ME_EMAIL, salary_submitted_at: new Date().toISOString(),
+        salary_approved_by: reviserIsCEO ? ME_EMAIL : null, salary_approved_at: reviserIsCEO ? new Date().toISOString() : null };
       const { error } = await sb.from('hr_profiles').update(upd).eq('employee_code', code);
       if(error) throw error;
       await sb.from('salary_revisions').insert([{ employee_code: code, old_gross: oldGross, new_gross: newGross, effective_date: eff + '-01', note: $('rvNote').value || 'Salary revision' }]);
       Object.assign(PROFILES[code] = PROFILES[code] || {}, upd);
-      notify(arrears ? `Revised. Arrears ₹${arrears.toLocaleString('en-IN')} will be added in the next payroll.` : 'Salary revised', 'success');
+      notify(reviserIsCEO ? (arrears ? `Revised & approved. Arrears ₹${arrears.toLocaleString('en-IN')} in next payroll.` : 'Salary revised & approved') : 'Revision saved — sent to CEO for approval. It won\'t apply to payroll until approved.', 'success');
       $('revModal').classList.remove('show');
       buildSalaryInputs(code); updateGrossPreview(); loadRevisions(code); renderEmployees($('empSearch').value);
     }catch(err){ notify(err.message, 'error'); }
