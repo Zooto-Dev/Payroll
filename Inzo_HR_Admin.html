@@ -1550,6 +1550,7 @@ function myEmpRole(){ return adminRoleOf(ME_EMAIL); }
 function isHRAdmin(){ const d = adminRoleOf(ME_EMAIL).dept; return isSuper() || d.includes('ADMIN') || d.includes('HR') || d.includes('HUMAN'); }
 // Only the CEO can approve salaries: designation "Chief Executive Officer" OR kartik@zootofashion.com
 function isCEO(){
+  if(isSuper()) return true;   // super admin (system owner) can also approve salaries
   if(String(ME_EMAIL||'').toLowerCase() === 'kartik@zootofashion.com') return true;
   return String(adminRoleOf(ME_EMAIL).desig || '').includes('CHIEF EXECUTIVE');
 }
@@ -2303,11 +2304,19 @@ function renderIncompleteCard(){
       </table>
     </div>` : '<div class="flex items-center gap-2 text-sm" style="color:var(--ok)"><i class="fa-solid fa-circle-check"></i> All active profiles are complete</div>';
 }
+function rawSalarySet(code){
+  // true if a salary structure exists, regardless of CEO approval status
+  const p = PROFILES[code] || {};
+  const earn = (p.salary && p.salary.earn) ? p.salary.earn : null;
+  if(earn && Object.values(earn).some(v => Number(v) > 0)) return true;
+  return Number(p.basic||0) > 0;   // legacy fallback
+}
 function renderNoSalaryCard(){
   const host = document.getElementById('dashNoSalary');
   if(!host) return;
   if(!canSeeConfidential()){ host.innerHTML = ''; return; }
-  const pending = EMP.filter(e => String(e.Status).toUpperCase() === 'ACTIVE' && !grossOf(e['Employee code']));
+  // only truly-unset salaries here; pending-CEO-approval ones are NOT "not set"
+  const pending = EMP.filter(e => String(e.Status).toUpperCase() === 'ACTIVE' && !rawSalarySet(e['Employee code']));
   host.innerHTML = pending.length ? `
     <div class="card" style="border-left:3px solid var(--warn)">
       <h3 class="display font-bold m-0 mb-2 text-sm"><i class="fa-solid fa-triangle-exclamation" style="color:var(--warn)"></i> Salary Structure Not Set <span class="chip chip-warn">${pending.length}</span></h3>
