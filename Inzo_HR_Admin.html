@@ -1024,6 +1024,8 @@ body.no-confidential .confidential-col{display:none!important}
         <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style="background:var(--brand)" id="epAvatar">?</div>
         <div><div class="font-bold" id="epNameShow">—</div><div class="text-xs" style="color:var(--muted)" id="epMetaShow">—</div></div>
       </div>
+      <div><label class="lbl">Full Name</label><input id="epName" class="inp" style="text-transform:uppercase"></div>
+      <div><label class="lbl">Date of Joining</label><input id="epDOJ" type="date" class="inp"></div>
       <div><label class="lbl">Phone</label><input id="epPhone" class="inp"></div>
       <div><label class="lbl">Email</label><input id="epEmail" class="inp"></div>
       <div><label class="lbl">Department</label><select id="epDeptSel" class="inp"></select></div>
@@ -2598,6 +2600,8 @@ async function openEmpModal(code){
   loadEmpPhoto(code);
   $('epNameShow').innerText = e.Name;
   $('epMetaShow').innerText = `${code} • ${e.DEPARTMENT || '—'} • ${e.DESIGNATION || '—'} • DOJ: ${e.DOJ || '—'}`;
+  $('epName').value = e.Name || '';
+  $('epDOJ').value = (e.DOJ && /^\d{4}-\d{2}-\d{2}/.test(e.DOJ)) ? e.DOJ.substring(0,10) : '';
   $('epPhone').value = p.phone || ''; $('epEmail').value = p.email || '';
   populateDLs();
   $('epDeptSel').innerHTML = window.nxDeptOpts(e.DEPARTMENT || '');
@@ -2844,6 +2848,10 @@ $('epSaveBtn').addEventListener('click', async () => {
     const newStatus = ($('epExitDate').value || $('epStatus').value === 'INACTIVE') ? 'INACTIVE' : 'ACTIVE';
     // employees master: department / designation / status
     const empUpd = { DEPARTMENT: $('epDeptSel').value || null, DESIGNATION: $('epDesigSel').value || null, Status: newStatus };
+    // Name + DOJ corrections
+    const newName = $('epName').value.trim().toUpperCase();
+    if(newName) empUpd.Name = newName;
+    if($('epDOJ').value) empUpd.DOJ = $('epDOJ').value;
     const { error: e2 } = await sb.from('employees').update(empUpd).eq('Employee code', $('epCode').value);
     if(e2) throw e2;
     const empRow = EMP.find(x => x['Employee code'] === $('epCode').value);
