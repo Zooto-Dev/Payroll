@@ -1329,7 +1329,20 @@ function nxConfirm(msg, title){
                 localStorage.setItem('today_punches', JSON.stringify(trimmed));
             }catch(e){}
         }
+        let _punchInProgress = false;   // global lock: only one punch may run at a time
+        // Public entry point: wraps the core so the lock is ALWAYS released, on any exit path.
         async function recordAttendance(empCode, offlineProcessData = null) {
+            if (offlineProcessData) { return _recordAttendanceCore(empCode, offlineProcessData); }
+            if (_punchInProgress) { return; }              // a punch is already mid-flight -> ignore this one
+            _punchInProgress = true;
+            lastPunchTime.set(empCode, Date.now());        // block a racing call immediately (before any await)
+            try {
+                return await _recordAttendanceCore(empCode, offlineProcessData);
+            } finally {
+                _punchInProgress = false;                  // always release, whatever happened
+            }
+        }
+        async function _recordAttendanceCore(empCode, offlineProcessData = null) {
             if(!offlineProcessData) {
                 notify("Verifying data...", "info");
                 setSystemStatus('loading');
@@ -1339,7 +1352,7 @@ function nxConfirm(msg, title){
             const empName = empData['Name'] || empData['name'] || empData['employee_name'] || empData['Employee Name'] || 'Employee';
 
             const now = Date.now();
-            if (!offlineProcessData && lastPunchTime.has(empCode) && (now - lastPunchTime.get(empCode)) < 60000) {
+            if (!offlineProcessData && lastPunchTime.has(empCode) && (now - lastPunchTime.get(empCode)) < 60000 && (now - lastPunchTime.get(empCode)) > 1500) {
                 notify("Attendance recently recorded.", "error");
                 speakText(speakName(empName) + ", aapki haziri abhi kuch der pehle hi lag chuki hai.");
                 resumeScanning();
@@ -1523,6 +1536,15 @@ function nxConfirm(msg, title){
                             }
                         }
                     }
+                    // FINAL double-punch guard: re-check right before inserting (a record may have
+                    // appeared during the photo upload). If today already has a row, don't insert again.
+                    try {
+                        const recheck = await supabaseClient.from('attendance').select('id').eq('employee_code', empCode).eq('date', todayStr).limit(1);
+                        if (recheck.data && recheck.data.length > 0) {
+                            if(!offlineProcessData){ notify(empName + ' — already marked present today.', 'info'); resumeScanning(); }
+                            return;
+                        }
+                    } catch(e){ /* if recheck fails (net), fall through; the lock already prevents local races */ }
                     const finalInTime = timeStr; // keep the time clean; LATE goes in its own column
                     const insertP = supabaseClient.from('attendance').insert([{ 
                         employee_code: empCode, 
