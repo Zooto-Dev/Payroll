@@ -2210,15 +2210,19 @@ function renderSalaryApprovals(){
   host.innerHTML = `<div class="card" style="border-left:3px solid var(--brand)">
     <div class="flex items-center justify-between mb-2">
       <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-indian-rupee-sign" style="color:var(--brand)"></i> Salary Approvals Pending <span class="chip chip-warn">${pend.length}</span></h3>
-      <button class="btn btn-primary btn-sm" onclick="approveAllSalaries()"><i class="fa-solid fa-check-double"></i> Approve All</button>
+      <div class="flex gap-2">
+        <button class="btn btn-ghost btn-sm" onclick="approveSelectedSalaries()"><i class="fa-solid fa-check"></i> Approve Selected</button>
+        <button class="btn btn-primary btn-sm" onclick="approveAllSalaries()"><i class="fa-solid fa-check-double"></i> Approve All</button>
+      </div>
     </div>
     <div style="max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:12px">
       <table class="tbl" style="font-size:12px;margin:0">
-        <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Gross (₹)</th><th>Submitted by</th><th></th></tr></thead>
+        <thead><tr><th style="width:30px"><input type="checkbox" id="salSelAll" onclick="document.querySelectorAll('.sal-cb').forEach(c=>c.checked=this.checked)"></th><th>Code</th><th>Name</th><th>Department</th><th>Gross (₹)</th><th>Submitted by</th><th></th></tr></thead>
         <tbody>${pend.map(e => {
           const code = e['Employee code']; const p = PROFILES[code]||{};
           const s = empSalary(code); const gross = Object.values(s).reduce((a,b)=>a+b,0);
           return `<tr>
+            <td><input type="checkbox" class="sal-cb" value="${esc(code)}"></td>
             <td class="font-mono">${esc(code)}</td>
             <td class="font-semibold">${esc(e.Name)}</td>
             <td>${esc(e.DEPARTMENT||'—')}</td>
@@ -2233,6 +2237,16 @@ function renderSalaryApprovals(){
       </table>
     </div>
   </div>`;
+}
+async function approveSelectedSalaries(){
+  const codes = Array.from(document.querySelectorAll('.sal-cb:checked')).map(c => c.value);
+  if(!codes.length) return notify('Select at least one employee (tick the boxes)', 'error');
+  const ok = await nxConfirm('Approve salary for ' + codes.length + ' selected employee(s)?', 'Approve Selected');
+  if(!ok) return;
+  await sb.from('hr_profiles').update({ salary_status:'APPROVED', salary_approved_by: ME_EMAIL, salary_approved_at: new Date().toISOString() }).in('employee_code', codes);
+  codes.forEach(c => { if(PROFILES[c]) PROFILES[c].salary_status = 'APPROVED'; });
+  notify(codes.length + ' salaries approved', 'success');
+  renderSalaryApprovals();
 }
 async function approveSalary(code){
   await sb.from('hr_profiles').update({ salary_status:'APPROVED', salary_approved_by: ME_EMAIL, salary_approved_at: new Date().toISOString() }).eq('employee_code', code);
