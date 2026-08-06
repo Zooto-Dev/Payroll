@@ -528,7 +528,7 @@
                         </div>
                         
                         <button type="button" id="captureFaceBtn" class="w-full py-3 mt-3 bg-slate-800 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 hover:bg-slate-700 transition-colors">
-                            <i class="fa-solid fa-camera"></i> Scan & Capture Face
+                            <i class="fa-solid fa-camera"></i> Scan &amp; Capture Face (take 3)
                         </button>
                     </div>
 
@@ -866,16 +866,19 @@ function nxConfirm(msg, title){
                 data.forEach(emp => {
                     try {
                         if (emp.Descriptor) {
-                            const descArray = JSON.parse(emp.Descriptor);
-                            const float32Desc = new Float32Array(descArray);
-                            labeledFaceDescriptors.push(new faceapi.LabeledFaceDescriptors(emp['Employee code'], [float32Desc]));
+                            const parsed = JSON.parse(emp.Descriptor);
+                            // parsed can be a single descriptor [128 floats] OR an array of descriptors [[128],[128]...]
+                            const descList = (Array.isArray(parsed) && Array.isArray(parsed[0]))
+                                ? parsed.map(d => new Float32Array(d))       // multi-photo
+                                : [new Float32Array(parsed)];                // legacy single
+                            labeledFaceDescriptors.push(new faceapi.LabeledFaceDescriptors(emp['Employee code'], descList));
                             employeeDataMap.set(emp['Employee code'], emp);
                         }
                     } catch(e) {}
                 });
 
                 if(labeledFaceDescriptors.length > 0) {
-                    faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.42); 
+                    faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.50); 
                     if (!isSilent) {
                         updateLoading(100, "System Ready");
                         
@@ -1107,26 +1110,35 @@ function nxConfirm(msg, title){
                     const match = faceMatcher.findBestMatch(detection.descriptor);
                     if(NX_DEBUG) hud('detect:' + (_t1-_t0).toFixed(0) + ' desc:' + (_t2-_t1).toFixed(0) + 'ms  best:' + match.label + ' dist:' + match.distance.toFixed(3) + ' conf:' + matchConfidence);
 
-                    // ambiguity guard in ONE pass: find best & second-best distance without extra allocs
-                    let best = 1e9, second = 1e9;
-                    for (let li = 0; li < labeledFaceDescriptors.length; li++) {
-                        const ds = labeledFaceDescriptors[li].descriptors;
-                        for (let di = 0; di < ds.length; di++) {
-                            const dd = faceapi.euclideanDistance(ds[di], detection.descriptor);
-                            if (dd < best) { second = best; best = dd; }
-                            else if (dd < second) { second = dd; }
+                    const CONFIDENT = 0.42;   // clearly this person -> one scan is enough
+                    const STRICT    = 0.50;   // outer limit; between 0.42 and 0.50 is the "grey zone"
+                    // Compute best & second-best distance so we can guarantee it's not someone else.
+                    let ambiguous = false, greyZone = false, matchOk = false;
+                    if (match.label !== 'unknown' && match.distance < STRICT) {
+                        let best = 1e9, second = 1e9, secondLabel = null, bestLabel = null;
+                        for (let li = 0; li < labeledFaceDescriptors.length; li++) {
+                            const lbl = labeledFaceDescriptors[li].label;
+                            const ds = labeledFaceDescriptors[li].descriptors;
+                            for (let di = 0; di < ds.length; di++) {
+                                const dd = faceapi.euclideanDistance(ds[di], detection.descriptor);
+                                if (dd < best) { second = best; secondLabel = bestLabel; best = dd; bestLabel = lbl; }
+                                else if (dd < second && lbl !== bestLabel) { second = dd; secondLabel = lbl; }
+                            }
                         }
+                        greyZone = best >= CONFIDENT;                 // borderline match
+                        // Require a clear gap to the NEXT DIFFERENT person. Wider gap in the grey zone.
+                        const needGap = greyZone ? 0.14 : 0.10;
+                        ambiguous = (secondLabel && secondLabel !== bestLabel) ? ((second - best) < needGap) : false;
+                        matchOk = !ambiguous;
                     }
-                    const ambiguous = (second - best) < 0.10; // two people too close -> refuse (no wrong punch)
 
-                    const STRICT = 0.42;
-                    if (match.label !== 'unknown' && match.distance < STRICT && !ambiguous) {
+                    if (matchOk) {
 
                         if (currentTarget === match.label) {
-                            matchConfidence += 55;
+                            matchConfidence += greyZone ? 40 : 55;   // grey zone needs TWO frames; confident needs one
                         } else {
                             currentTarget = match.label;
-                            matchConfidence = 55;   // a confident first match punches right away
+                            matchConfidence = greyZone ? 40 : 55;     // grey zone starts at 40 -> won't punch on first frame
                         }
 
                         verifyUI.classList.remove('opacity-0');
@@ -1407,16 +1419,29 @@ function nxConfirm(msg, title){
             }
 
             const saveOfflineTask = () => {
+                // decide IN vs OUT from the locally-remembered punch (works with no internet)
+                const lp = getLocalPunch(empCode, todayStr) || {};
+                let punchType;
+                if (!lp.in) punchType = 'IN';
+                else if (!lp.out) punchType = 'OUT';
+                else {
+                    // already both IN and OUT locally today -> block a third punch
+                    notify(empName + " — already punched in & out today.", "info");
+                    resumeScanning();
+                    return;
+                }
                 let pending = JSON.parse(localStorage.getItem('pending_punches') || '[]');
-                pending.push({ empCode, todayStr, timeStr, imageBase64 });
+                pending.push({ empCode, todayStr, timeStr, imageBase64, type: punchType, is_late: isLate, empName });
                 localStorage.setItem('pending_punches', JSON.stringify(pending));
-                
-                notify("Saved Offline (Connection Failed)", "info");
+                // remember locally so the next scan gives the correct next action
+                setLocalPunch(empCode, todayStr, punchType === 'IN' ? 'in' : 'out', timeStr);
+
+                notify("Saved Offline — will sync when online", "info");
                 lastPunchTime.set(empCode, now);
-                let msg = empName + ", aapka punch offline save ho gaya hai.";
-                if(isLate) msg += " Dhyan rahe, aap late hain.";
+                let msg = empName + (punchType === 'IN' ? ", aapki entry offline save ho gayi hai." : ", aapka out offline save ho gaya hai.");
+                if(punchType === 'IN' && isLate) msg += " Dhyan rahe, aap late hain.";
                 speakText(msg);
-                showSuccessUI(empData, empName, imageBase64, timeStr, "OFFLINE");
+                showSuccessUI(empData, empName, imageBase64, timeStr, punchType === 'IN' ? "IN (OFFLINE)" : "OUT (OFFLINE)");
             };
 
             // OFFLINE LOGIC (Fast check)
@@ -1460,7 +1485,7 @@ function nxConfirm(msg, title){
                 let punchType = "IN";
                 let successMessage = "";
 
-                const MIN_OUT_GAP_MS = 3 * 60 * 60 * 1000; // 3 hours minimum before punch-out
+                const MIN_OUT_GAP_MS = 60 * 60 * 1000; // 1 hour minimum before punch-out (was 3h — blocked early/half-day exits)
                 if (records && records.length > 0) {
                     let record = records[0];
                     if (!record.out_time) {
@@ -1598,6 +1623,8 @@ function nxConfirm(msg, title){
             let pending = JSON.parse(localStorage.getItem('pending_punches') || '[]');
             if (pending.length === 0) return;
             if(!silent) notify(`Syncing ${pending.length} offline records...`, "info");
+            // process INs first, then OUTs, so every OUT finds its IN already on the server
+            pending.sort((a,b) => (a.type==='OUT'?1:0) - (b.type==='OUT'?1:0));
             let remaining = [];
             for(let p of pending) {
                 try { await recordAttendance(p.empCode, p); }
@@ -1677,6 +1704,8 @@ function nxConfirm(msg, title){
         let adminStream = null;
         let adminCanvas = null;
         let newEmpDescriptor = null;
+        let newEmpDescriptors = [];   // collect multiple photos for a stronger match
+        const REG_MIN_PHOTOS = 3;
         let adminFacingMode = 'user'; // Tracks admin camera state
 
         // UI Toggles
@@ -1932,6 +1961,7 @@ function nxConfirm(msg, title){
             nxFillEnrollForm();
             document.getElementById('regCode').value = '';
             newEmpDescriptor = null;
+            newEmpDescriptors = [];
             faceStatus.className = "text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded text-[10px]";
             faceStatus.innerText = "Not Captured";
             saveEmpBtn.disabled = true;
@@ -2009,24 +2039,33 @@ function nxConfirm(msg, title){
                     notify('Registration rejected: ' + q.reason + '. ' + q.tip, 'error');
                     const ctx = adminCanvas.getContext('2d');
                     ctx.clearRect(0,0, adminCanvas.width, adminCanvas.height);
-                    btn.innerHTML = `<i class="fa-solid fa-camera"></i> Scan & Capture Face`;
+                    btn.innerHTML = `<i class="fa-solid fa-camera"></i> Scan &amp; Capture Face (take 3)`;
                     return;
                 }
                 newEmpDescriptor = detection.descriptor;
+                newEmpDescriptors.push(Array.from(detection.descriptor));   // add this photo
                 const resizedDetections = faceapi.resizeResults(detection, { width: adminVideo.clientWidth, height: adminVideo.clientHeight });
                 const ctx = adminCanvas.getContext('2d');
                 ctx.clearRect(0,0, adminCanvas.width, adminCanvas.height);
                 faceapi.draw.drawDetections(adminCanvas, resizedDetections);
-                faceStatus.className = "text-emerald-600 font-bold bg-emerald-100 px-2 py-0.5 rounded text-[10px]";
-                faceStatus.innerHTML = `<i class="fa-solid fa-check-circle"></i> Good quality — Captured`;
-                saveEmpBtn.disabled = false;
-                notify("Face captured — good quality!", "success");
+                const got = newEmpDescriptors.length;
+                if (got < REG_MIN_PHOTOS) {
+                    faceStatus.className = "text-amber-600 font-bold bg-amber-100 px-2 py-0.5 rounded text-[10px]";
+                    faceStatus.innerHTML = `<i class="fa-solid fa-camera"></i> Photo ${got}/${REG_MIN_PHOTOS} — capture ${REG_MIN_PHOTOS-got} more`;
+                    saveEmpBtn.disabled = true;
+                    notify(`Photo ${got} captured — take ${REG_MIN_PHOTOS-got} more from slightly different angles`, "info");
+                } else {
+                    faceStatus.className = "text-emerald-600 font-bold bg-emerald-100 px-2 py-0.5 rounded text-[10px]";
+                    faceStatus.innerHTML = `<i class="fa-solid fa-check-circle"></i> ${got} photos captured — ready to save`;
+                    saveEmpBtn.disabled = false;
+                    notify(`${got} photos captured — you can save now, or add more for even better accuracy`, "success");
+                }
             } else {
                 notify("No face detected. Look directly at the camera.", "error");
                 const ctx = adminCanvas.getContext('2d');
                 ctx.clearRect(0,0, adminCanvas.width, adminCanvas.height);
             }
-            btn.innerHTML = `<i class="fa-solid fa-camera"></i> Scan & Capture Face`;
+            btn.innerHTML = `<i class="fa-solid fa-camera"></i> Scan &amp; Capture Face (take 3)`;
         });
 
         // Save Employee to DB
@@ -2054,12 +2093,16 @@ function nxConfirm(msg, title){
             btn.disabled = true;
 
             try {
-                const descriptorArray = Array.from(newEmpDescriptor);
+                // save ALL captured photos (array of descriptors) for a stronger match;
+                // fall back to the single one if somehow only that exists
+                const descriptorPayload = (newEmpDescriptors && newEmpDescriptors.length)
+                    ? newEmpDescriptors
+                    : [Array.from(newEmpDescriptor)];
                 const salary = nxBuildSalary();
                 const row = {
                     Name: empName,
                     'Employee code': empCode,
-                    Descriptor: JSON.stringify(descriptorArray),
+                    Descriptor: JSON.stringify(descriptorPayload),
                     Status: 'Active',
                     DEPARTMENT: empDept || null,
                     DESIGNATION: empDesig || null,
