@@ -1114,6 +1114,7 @@ body.no-confidential .confidential-col{display:none!important}
     <h4 class="display font-bold mt-4 mb-2">Statutory Deductions & Tax</h4>
     <div class="grid grid-cols-2 gap-3 mb-2">
       <div class="col-span-2"><label class="flex items-center gap-2 text-sm"><input type="checkbox" id="epOT"> Overtime allowed for this employee</label></div>
+      <div class="col-span-2"><label class="flex items-center gap-2 text-sm"><input type="checkbox" id="epEssAtt"> Allow this employee to mark attendance from their ESS portal <span class="text-[10px]" style="color:var(--muted)">(for field / remote staff who can't use the face kiosk)</span></label></div>
       <div class="col-span-2 flex items-center gap-2 flex-wrap">
         <button type="button" id="epPwResetBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-key"></i> Reset ESS Password (back to mobile number)</button>
         <span class="text-[10px]" style="color:var(--muted)">Employee forgot the ESS password? This resets it — the registered mobile number becomes the password again.</span>
@@ -2705,6 +2706,7 @@ async function openEmpModal(code){
   $('epLWF').checked = p.lwf_applicable !== false;
   $('epRegime').value = p.tax_regime || 'none'; $('epDecl').value = p.tax_declarations || 0;
   $('epOT').checked = (p.salary && p.salary.otAllowed) !== false;
+  $('epEssAtt').checked = p.ess_attendance === true;
   loadRevisions(code);
   checkFaceStatus(code);
   $('epBank').value = p.bank_name || ''; $('epAcc').value = p.account_no || ''; $('epIFSC').value = p.ifsc || '';
@@ -2928,7 +2930,8 @@ $('epSaveBtn').addEventListener('click', async () => {
       reporting_manager: $('epManager').value,
       emergency_name: $('epEmName').value, emergency_phone: $('epEmPhone').value,
       gender: $('epGender').value || null,
-      exit_date: $('epExitDate').value || null, exit_reason: $('epExitReason').value || null
+      exit_date: $('epExitDate').value || null, exit_reason: $('epExitReason').value || null,
+      ess_attendance: $('epEssAtt').checked
     };
     const { error } = await sb.from('hr_profiles').upsert(row, { onConflict: 'employee_code' });
     if(error) throw error;
@@ -6150,8 +6153,22 @@ async function loadApprovals(){
       </div>
     </div>`;
   }).join('') : '<p class="m-0 text-xs" style="color:var(--muted)">Nothing pending.</p>';
-  $('apExp').innerHTML = (ex.data||[]).length ? ex.data.map(x =>
-    item(`${esc(nameOf(x.employee_code))} — ${esc(x.category)} ${fmtINR(x.amount)}`, `${fmtDate(x.expense_date)}${x.note ? ' • ' + esc(x.note) : ''}`, 'ex-appr', 'ex-rej', x.id)).join('')
+  $('apExp').innerHTML = (ex.data||[]).length ? ex.data.map(x => {
+    const bills = (x.bill_files && x.bill_files.length)
+      ? x.bill_files.map((p2, ri) => `<button class="btn btn-ghost btn-sm" data-act="ex-receipt" data-path="${esc(p2)}"><i class="fa-solid fa-paperclip"></i> Bill ${x.bill_files.length>1?(ri+1):''}</button>`).join(' ')
+      : '<span class="text-[10px]" style="color:var(--muted)"><i class="fa-solid fa-ban"></i> No bill attached</span>';
+    return `<div class="p-2 rounded-lg" style="background:#f8fafc;margin-bottom:6px">
+      <div class="flex items-center justify-between">
+        <div><div class="font-semibold text-xs">${esc(nameOf(x.employee_code))} — ${esc(x.category)} ${fmtINR(x.amount)}</div>
+          <div class="text-[10px]" style="color:var(--muted)">${fmtDate(x.expense_date)}${x.note ? ' • ' + esc(x.note) : ''}</div></div>
+        <div style="white-space:nowrap">
+          <button class="btn btn-ghost btn-sm" data-act="ex-appr" data-id="${x.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
+          <button class="btn btn-danger btn-sm" data-act="ex-rej" data-id="${x.id}"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+      </div>
+      <div class="mt-1">${bills}</div>
+    </div>`;
+  }).join('')
     : '<p class="m-0 text-xs" style="color:var(--muted)">Nothing pending.</p>';
   const n = (lv.data||[]).length + (ot.data||[]).length + (ex.data||[]).length;
   $('apprBadge').innerText = n;
