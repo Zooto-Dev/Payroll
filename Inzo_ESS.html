@@ -142,6 +142,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 
     <div class="page show" id="p-home">
       <div id="kaizenCongrats"></div>
+      <div id="essPunchCard"></div>
       <div class="grid grid-cols-2 gap-3 mb-3">
         <div class="card m-0"><p class="lbl m-0">Present (This Month)</p><div class="display text-2xl font-bold" style="color:var(--ok)" id="stPresent">—</div></div>
         <div class="card m-0"><p class="lbl m-0">Last Net Pay</p><div class="display text-2xl font-bold" style="color:var(--brand)" id="stNet">—</div></div>
@@ -381,6 +382,18 @@ const $ = id => document.getElementById(id);
 let D = null, CODE = '', PHONE = '';
 
 const LEAVE_LABELS_ESS = { EL:'Earned Leave', CL:'Casual Leave', SL:'Sick Leave', ML:'Maternity Leave', PL:'Paternity Leave', LWP:'Leave Without Pay' };
+if(!document.getElementById('epPunchStyle')){
+  document.head.insertAdjacentHTML('beforeend', `<style id="epPunchStyle">
+  .ep-card{background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;border-radius:14px;padding:16px 18px;margin-bottom:14px;box-shadow:0 8px 20px rgba(79,70,229,.25)}
+  .ep-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .ep-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px}
+  .ep-sub{font-size:12px;opacity:.9;margin-top:2px}
+  .ep-btn{border:none;border-radius:10px;padding:11px 20px;font-weight:700;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+  .ep-in{background:#fff;color:#4f46e5}
+  .ep-out{background:#fbbf24;color:#78350f}
+  .ep-done{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);padding:8px 14px;border-radius:10px;font-weight:600;font-size:13px}
+  </style>`);
+}
 async function buildLeaveTypes(){
   let types = ['EL'];
   try{
@@ -434,6 +447,66 @@ const KZ_CSS = `
 </style>`;
 if(!document.getElementById('kzStyle')) document.head.insertAdjacentHTML('beforeend', KZ_CSS);
 
+async function loadEssPunch(){
+  const host = $('essPunchCard'); if(!host) return;
+  // check if this employee is allowed to self-mark attendance
+  let allowed = false;
+  try{
+    const { data } = await sb.from('hr_profiles').select('ess_attendance').eq('employee_code', CODE).single();
+    allowed = data && data.ess_attendance === true;
+  }catch(e){ allowed = false; }
+  if(!allowed){ host.innerHTML = ''; return; }
+
+  const today = new Date().toISOString().slice(0,10);
+  let rec = null;
+  try{
+    const { data } = await sb.from('attendance').select('*').eq('employee_code', CODE).eq('date', today).limit(1);
+    rec = (data && data[0]) || null;
+  }catch(e){}
+
+  const now = new Date();
+  const timeStr = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  let inner;
+  if(!rec){
+    inner = `<div class="ep-row"><div><div class="ep-title">Mark your attendance</div><div class="ep-sub">You haven't punched in today</div></div>
+      <button class="ep-btn ep-in" onclick="essPunch('IN')"><i class="fa-solid fa-right-to-bracket"></i> Punch In</button></div>`;
+  } else if(rec && !rec.out_time){
+    const inT = (rec.in_time||'').substring(0,5);
+    inner = `<div class="ep-row"><div><div class="ep-title">You're punched in</div><div class="ep-sub">In at ${esc(inT)} · mark out when leaving</div></div>
+      <button class="ep-btn ep-out" onclick="essPunch('OUT')"><i class="fa-solid fa-right-from-bracket"></i> Punch Out</button></div>`;
+  } else {
+    const inT = (rec.in_time||'').substring(0,5), outT = (rec.out_time||'').substring(0,5);
+    inner = `<div class="ep-row"><div><div class="ep-title">Attendance done ✓</div><div class="ep-sub">In ${esc(inT)} · Out ${esc(outT)}</div></div>
+      <span class="ep-done"><i class="fa-solid fa-circle-check"></i> Complete</span></div>`;
+  }
+  host.innerHTML = `<div class="ep-card">${inner}</div>`;
+}
+async function essPunch(type){
+  const today = new Date().toISOString().slice(0,10);
+  const now = new Date();
+  const timeStr = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':00';
+  try{
+    if(type === 'IN'){
+      // guard: don't double punch-in
+      const { data: ex } = await sb.from('attendance').select('id').eq('employee_code', CODE).eq('date', today).limit(1);
+      if(ex && ex.length){ notify('Already punched in today'); loadEssPunch(); return; }
+      const { error } = await sb.from('attendance').insert([{ employee_code: CODE, Name: (D.employee&&D.employee.Name)||CODE, date: today, in_time: timeStr }]);
+      if(error) throw error;
+      notify('Punched in at ' + timeStr.substring(0,5) + ' ✓');
+    } else {
+      const { data: recs } = await sb.from('attendance').select('*').eq('employee_code', CODE).eq('date', today).limit(1);
+      if(!recs || !recs.length){ notify('No punch-in found for today'); loadEssPunch(); return; }
+      const r = recs[0];
+      let ms = new Date(today+'T'+timeStr) - new Date(today+'T'+(r.in_time||'00:00:00').substring(0,8));
+      if(ms<0) ms+=86400000;
+      const th = String(Math.floor(ms/3600000)).padStart(2,'0')+':'+String(Math.floor((ms%3600000)/60000)).padStart(2,'0')+':00';
+      const { error } = await sb.from('attendance').update({ out_time: timeStr, total_hours: th }).eq('id', r.id);
+      if(error) throw error;
+      notify('Punched out at ' + timeStr.substring(0,5) + ' ✓');
+    }
+  }catch(err){ notify(err.message || 'Punch failed'); }
+  loadEssPunch();
+}
 async function loadKaizenCongrats(){
   const host = $('kaizenCongrats'); if(!host) return;
   const codeU = String(CODE||'').trim().toUpperCase();
@@ -706,6 +779,7 @@ $('loginBtn').addEventListener('click', async () => {
     if(data && data.error) return notify(data.error);
     D = data;
     buildLeaveTypes();
+    loadEssPunch();
     loadKaizenCongrats();
     loadKaizenWall();
     loadBirthdays();
