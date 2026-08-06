@@ -93,6 +93,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .nav-item:hover{color:var(--ink);background:#f1f5f9}
 .nav-item.active{color:#fff;background:var(--brand)}
 .nav-item.active:hover{color:#fff;background:var(--brand)}
+body.not-super .super-only{display:none !important;}
 .nav-sec{display:flex;align-items:center;justify-content:space-between;width:calc(100% - 20px);margin:8px 10px 0;padding:9px 10px;border:none;background:transparent;font-size:9.5px;font-weight:700;letter-spacing:.12em;color:#94a3b8;cursor:pointer;border-radius:8px;font-family:'Inter',sans-serif}
 .nav-sec:hover{background:#f8fafc;color:#475569}
 .nav-sec i{transition:transform .2s;font-size:10px}
@@ -369,7 +370,7 @@ body.no-confidential .confidential-col{display:none!important}
         <span class="chip chip-gray" id="empCount">—</span>
         <label class="text-[11px] flex items-center gap-1" style="color:var(--muted);cursor:pointer" title="Include exited/inactive employees"><input type="checkbox" id="empShowExited"> Show exited</label>
         <button id="empFormBtn" class="btn btn-ghost btn-sm" title="Print a blank joining form for the employee to fill"><i class="fa-solid fa-file-lines"></i> Blank Form</button>
-        <button id="empExportBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-file-export"></i> Export</button>
+        <button id="empExportBtn" class="btn btn-ghost btn-sm super-only"><i class="fa-solid fa-file-export"></i> Export</button>
         <button id="empImportBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-file-import"></i> Import</button>
         <button id="empAddBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-user-plus"></i> Add Employee</button>
       </div>
@@ -388,7 +389,7 @@ body.no-confidential .confidential-col{display:none!important}
   <div class="card mb-4 flex items-center gap-3 flex-wrap">
     <div><label class="lbl">Month</label><input type="month" id="attMonth" class="inp"></div>
     <button id="attLoadBtn" class="btn btn-primary mt-4"><i class="fa-solid fa-rotate"></i> Load Register</button>
-    <button id="attCsvBtn" class="btn btn-ghost mt-4"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+    <button id="attCsvBtn" class="btn btn-ghost mt-4 super-only"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
     <button id="attFixBtn" class="btn btn-ghost mt-4"><i class="fa-solid fa-user-clock"></i> Manual Punch / Fix</button>
     <div class="ml-auto mt-4 flex gap-2 text-[11px] items-center flex-wrap">
       <span class="chip c-P">P Present</span><span class="chip c-L">L Late</span><span class="chip c-A">A Absent</span><span class="chip c-WO">WO Week Off</span><span class="chip c-H">H Holiday</span><span class="chip c-LV">LV Leave</span>
@@ -425,7 +426,7 @@ body.no-confidential .confidential-col{display:none!important}
       </div>
       <div><label class="lbl">Employee (optional)</label><input id="whEmp" class="inp" placeholder="Code or name — blank = all" list="whEmpDL" style="min-width:180px"><datalist id="whEmpDL"></datalist></div>
       <button id="whLoadBtn" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Load</button>
-      <button id="whExportBtn" class="btn btn-ghost"><i class="fa-solid fa-file-csv"></i> Export</button>
+      <button id="whExportBtn" class="btn btn-ghost super-only"><i class="fa-solid fa-file-csv"></i> Export</button>
       <div class="ml-auto flex items-end"><div><label class="lbl">Std hrs/day</label><input type="number" id="whStd" class="inp" value="8" step="0.5" style="max-width:90px"></div></div>
     </div>
   </div>
@@ -546,7 +547,7 @@ body.no-confidential .confidential-col{display:none!important}
     <button id="payRunBtn" class="btn btn-primary"><i class="fa-solid fa-calculator"></i> Calculate Payroll</button>
     <button id="payFinalizeBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-lock"></i> Finalize & Save All</button>
     <button id="payPrintAllBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-print"></i> Print All Payslips</button>
-    <button id="payBankBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-building-columns"></i> Bank Advice</button>
+    <button id="payBankBtn" class="btn btn-ghost hidden super-only"><i class="fa-solid fa-building-columns"></i> Bank Advice</button>
     <div class="ml-auto text-right">
       <p class="lbl m-0">Total Net Payable</p>
       <div class="stat-num money" style="color:var(--brand)" id="payTotal">₹0</div>
@@ -775,7 +776,7 @@ body.no-confidential .confidential-col{display:none!important}
       <h3 class="display font-bold m-0"><i class="fa-solid fa-stopwatch" style="color:var(--brand)"></i> OT Report <span class="text-[10px] font-normal" style="color:var(--muted)">approved overtime — paid separately from salary</span></h3>
       <input type="month" id="otrMonth" class="inp" style="max-width:170px;margin-left:auto">
       <button id="otrLoadBtn" class="btn btn-primary btn-sm">Load</button>
-      <button id="otrCsvBtn" class="btn btn-ghost btn-sm hidden"><i class="fa-solid fa-download"></i> CSV</button>
+      <button id="otrCsvBtn" class="btn btn-ghost btn-sm hidden super-only"><i class="fa-solid fa-download"></i> CSV</button>
     </div>
     <div id="otrWrap"><p class="text-xs m-0" style="color:var(--muted)">Pick a month and click Load.</p></div>
   </div>
@@ -1210,6 +1211,22 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">Date of Birth</label><input id="aeDOB" type="date" class="inp"></div>
       <div id="aeLineWrap"><label class="lbl">Production Line</label><select id="aeLine" class="inp"></select></div>
       <div><label class="lbl">Reporting Manager</label><input id="aeMgr" class="inp" list="mgrDL" placeholder="Select after department"></div>
+      <div><label class="lbl">Phone</label><input id="aePhone" class="inp" placeholder="10-digit"></div>
+      <div><label class="lbl">Email</label><input id="aeEmail" class="inp" placeholder="name@company"></div>
+      <div><label class="lbl">Father's Name</label><input id="aeFather" class="inp"></div>
+      <div><label class="lbl">Gender</label><select id="aeGender" class="inp"><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+      <div><label class="lbl">Employment Type</label><select id="aeEmpType" class="inp"><option>Permanent</option><option>Contract</option><option>Probation</option><option>Intern</option><option>Temporary</option></select></div>
+      <div><label class="lbl">Emergency Contact</label><input id="aeEmergency" class="inp" placeholder="Phone"></div>
+      <div class="col-span-2"><label class="lbl">Address</label><input id="aeAddress" class="inp"></div>
+    </div>
+    <div class="grid grid-cols-2 gap-3" style="margin-bottom:8px">
+      <div class="col-span-2"><label class="lbl" style="font-weight:600;color:var(--ink)">Bank & Statutory <span class="text-[10px] font-normal" style="color:var(--muted)">(optional — can fill later in profile)</span></label></div>
+      <div><label class="lbl">Bank Name</label><input id="aeBank" class="inp"></div>
+      <div><label class="lbl">Account No</label><input id="aeAcc" class="inp"></div>
+      <div><label class="lbl">IFSC</label><input id="aeIFSC" class="inp" style="text-transform:uppercase"></div>
+      <div><label class="lbl">PAN</label><input id="aePAN" class="inp" style="text-transform:uppercase"></div>
+      <div><label class="lbl">UAN (PF)</label><input id="aeUAN" class="inp"></div>
+      <div><label class="lbl">ESI No</label><input id="aeESI" class="inp"></div>
     </div>
     <div id="aeSalaryBlock">
     <div class="grid grid-cols-2 gap-3" style="margin-bottom:8px">
@@ -1600,6 +1617,7 @@ function roleAcctMgr(){ const r = myEmpRole(); return isSuper() || (r.desig.incl
 function canFinalize(){ return isSuper() || ((SETTINGS.adminPerms || {})[ME_EMAIL] ? myPerm().finalize === true : true); }
 function canManualAtt(){ return isSuper() || ((SETTINGS.adminPerms || {})[ME_EMAIL] ? myPerm().manualAtt === true : true); }
 function applyPerms(){
+  document.body.classList.toggle('not-super', !isSuper());   // export buttons are super-admin only
   const allowed = allowedPages();
   document.querySelectorAll('.nav-item[data-page]').forEach(b => {
     const pg = b.dataset.page;
@@ -1644,7 +1662,7 @@ function showAttList(kind){
     <div class="flex items-center justify-between mb-3"><h3 class="display font-bold m-0">${title} <span class="chip chip-gray">${list.length}</span></h3>
     <button class="btn btn-ghost btn-sm" onclick="closeAttList()"><i class="fa-solid fa-xmark"></i></button></div>
     <div class="space-y-2">${body}</div>
-    <div class="mt-3 text-right"><button class="btn btn-ghost btn-sm" onclick="exportAttList('${kind}')"><i class="fa-solid fa-download"></i> Export CSV</button></div>
+    <div class="mt-3 text-right">${isSuper() ? `<button class="btn btn-ghost btn-sm" onclick="exportAttList('${kind}')"><i class="fa-solid fa-download"></i> Export CSV</button>` : ''}</div>
   </div>`;
   m.classList.add('show');
 }
@@ -2567,6 +2585,10 @@ $('empAddBtn').addEventListener('click', () => {
   updateAePreview();
   $('aeName').value = ''; $('aeDept').value = ''; $('aeDesig').value = '';
   $('aeDOJ').value = todayISO(); $('aeDOB').value = '';
+  ['aePhone','aeEmail','aeFather','aeAddress','aeEmergency','aeBank','aeAcc','aeIFSC','aePAN','aeUAN','aeESI'].forEach(id => { if($(id)) $(id).value = ''; });
+  if($('aeGender')) $('aeGender').value = '';
+  if($('aeEmpType')) $('aeEmpType').value = 'Permanent';
+  if($('aeMgr')) $('aeMgr').value = '';
   let code;
   do { code = 'EMP-' + Math.floor(1000 + Math.random() * 9000); } while (EMP.some(e => e['Employee code'] === code));
   $('aeCode').value = code;
@@ -2587,6 +2609,7 @@ $('aeSaveBtn').addEventListener('click', async () => {
     const { error } = await sb.from('employees').insert([{
       Name: name, 'Employee code': code, Status: 'Active',
       DEPARTMENT: $('aeDept').value, DESIGNATION: $('aeDesig').value, DOJ: $('aeDOJ').value,
+      UNIT: ($('aeUnit') && $('aeUnit').value) || null,
       LINE: ($('aeCat').value === 'mgmt') ? null : ($('aeLine').value || null)
     }]);
     if(error) throw error;
@@ -2607,6 +2630,19 @@ $('aeSaveBtn').addEventListener('click', async () => {
     const prof = { employee_code: code, dob: $('aeDOB').value || null,
       pf_applicable: true, esi_applicable: true, lwf_applicable: true,
       reporting_manager: $('aeMgr').value || null,
+      phone: ($('aePhone').value||'').replace(/\D/g,'') || null,
+      email: $('aeEmail').value.trim() || null,
+      father_name: $('aeFather').value.trim().toUpperCase() || null,
+      gender: $('aeGender').value || null,
+      address: $('aeAddress').value.trim() || null,
+      emergency_phone: ($('aeEmergency').value||'').replace(/\D/g,'') || null,
+      employment_type: $('aeEmpType').value || null,
+      bank_name: $('aeBank').value.trim() || null,
+      account_no: $('aeAcc').value.trim() || null,
+      ifsc: $('aeIFSC').value.trim().toUpperCase() || null,
+      pan: $('aePAN').value.trim().toUpperCase() || null,
+      uan: $('aeUAN').value.trim() || null,
+      esi_no: $('aeESI').value.trim() || null,
       otAllowed: aeOTAllowed };
     // only write a salary structure if this admin is allowed to see/set salary
     if(salaryAllowed){
@@ -5479,8 +5515,8 @@ $('cmpLoadBtn').addEventListener('click', async () => {
     <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
       <h3 class="display font-bold m-0">PF Challan — ${monthLabel(ym)} <span class="text-xs font-normal" style="color:var(--muted)">(${pfRows.length} members)</span></h3>
       <div class="no-print">
-        <button class="btn btn-ghost btn-sm" data-act="cmp-ecr"><i class="fa-solid fa-file-export"></i> ECR File (.txt)</button>
-        <button class="btn btn-ghost btn-sm" data-act="cmp-pfcsv"><i class="fa-solid fa-file-csv"></i> CSV</button>
+        <button class="btn btn-ghost btn-sm super-only" data-act="cmp-ecr"><i class="fa-solid fa-file-export"></i> ECR File (.txt)</button>
+        <button class="btn btn-ghost btn-sm super-only" data-act="cmp-pfcsv"><i class="fa-solid fa-file-csv"></i> CSV</button>
         <button class="btn btn-ghost btn-sm" data-act="cmp-print" data-card="pfCard"><i class="fa-solid fa-print"></i></button>
       </div>
     </div>
@@ -5502,7 +5538,7 @@ $('cmpLoadBtn').addEventListener('click', async () => {
     <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
       <h3 class="display font-bold m-0">ESIC Contribution — ${monthLabel(ym)} <span class="text-xs font-normal" style="color:var(--muted)">(${esiRows.length} IPs)</span></h3>
       <div class="no-print">
-        <button class="btn btn-ghost btn-sm" data-act="cmp-esicsv"><i class="fa-solid fa-file-csv"></i> CSV</button>
+        <button class="btn btn-ghost btn-sm super-only" data-act="cmp-esicsv"><i class="fa-solid fa-file-csv"></i> CSV</button>
         <button class="btn btn-ghost btn-sm" data-act="cmp-print" data-card="esiCard"><i class="fa-solid fa-print"></i></button>
       </div>
     </div>
@@ -5515,7 +5551,7 @@ $('cmpLoadBtn').addEventListener('click', async () => {
     <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
       <h3 class="display font-bold m-0">TDS Report — ${monthLabel(ym)}</h3>
       <div class="no-print">
-        <button class="btn btn-ghost btn-sm" data-act="cmp-tdscsv"><i class="fa-solid fa-file-csv"></i> CSV</button>
+        <button class="btn btn-ghost btn-sm super-only" data-act="cmp-tdscsv"><i class="fa-solid fa-file-csv"></i> CSV</button>
         <button class="btn btn-ghost btn-sm" data-act="cmp-print" data-card="tdsCard"><i class="fa-solid fa-print"></i></button>
       </div>
     </div>
@@ -5544,7 +5580,7 @@ $('cmpLoadBtn').addEventListener('click', async () => {
     <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
       <h3 class="display font-bold m-0">Employer Contribution Register — ${monthLabel(ym)}</h3>
       <div class="no-print">
-        <button class="btn btn-ghost btn-sm" data-act="cmp-ercsv"><i class="fa-solid fa-file-csv"></i> CSV</button>
+        <button class="btn btn-ghost btn-sm super-only" data-act="cmp-ercsv"><i class="fa-solid fa-file-csv"></i> CSV</button>
         <button class="btn btn-ghost btn-sm" data-act="cmp-print" data-card="erCard"><i class="fa-solid fa-print"></i></button>
       </div>
     </div>
@@ -6046,7 +6082,8 @@ async function loadVoice(){
     ${f.kz_solution ? `<div class="text-xs mb-1 p-2 rounded" style="background:#eff6ff"><b>Proposed solution:</b><br><span style="white-space:pre-wrap">${esc(f.kz_solution)}</span></div>` : ''}
     ${f.kz_benefits ? `<div class="text-[11px] mb-1"><b>Benefits:</b> ${esc(f.kz_benefits)}</div>` : ''}
     ${f.impact ? `<div class="text-[11px] mb-1"><b>Impact:</b> <span class="chip ${f.impact==='HIGH'?'chip-ok':f.impact==='MEDIUM'?'chip-warn':'chip-gray'}">${esc(f.impact)}</span></div>` : ''}
-    ${f.kz_attachment ? `<div class="text-[11px] mb-1"><a href="${esc(f.kz_attachment)}" target="_blank" style="color:var(--brand)"><i class="fa-solid fa-paperclip"></i> View attachment</a></div>` : ''}
+    ${f.kz_attachment ? `<div class="mb-2"><div class="text-[11px] mb-1" style="color:var(--muted)"><i class="fa-solid fa-paperclip"></i> Attachment:</div>
+      <a href="${esc(f.kz_attachment)}" target="_blank"><img src="${esc(f.kz_attachment)}" style="max-height:140px;border-radius:8px;border:1px solid var(--line);cursor:pointer" onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('a'),{href:this.src,target:'_blank',innerHTML:'<i class=\'fa-solid fa-file-image\'></i> Open attachment',style:'color:var(--brand);font-size:12px'}))"></a></div>` : ''}
     ${f.kz_remarks ? `<div class="text-[11px] mb-1" style="color:var(--muted)"><b>Remarks:</b> ${esc(f.kz_remarks)}</div>` : ''}
     ${f.solutions ? `<div class="text-xs mb-1 p-2 rounded" style="background:#eff6ff"><b>Proposed solutions:</b><br><span style="white-space:pre-wrap">${esc(f.solutions)}</span></div>` : ''}
     ${f.admin_note ? `<div class="text-[11px] mb-1" style="color:var(--muted)"><b>Note:</b> ${esc(f.admin_note)}</div>` : ''}
