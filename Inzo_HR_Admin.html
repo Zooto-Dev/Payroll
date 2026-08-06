@@ -240,6 +240,7 @@ body.no-confidential .confidential-col{display:none!important}
     <div class="nav-group" id="g2">
       <button class="nav-item" data-page="employees"><i class="fa-solid fa-users"></i> Employees</button>
       <button class="nav-item" data-page="attendance"><i class="fa-solid fa-calendar-days"></i> Attendance</button>
+      <button class="nav-item" data-page="workhours"><i class="fa-solid fa-business-time"></i> Work Hours</button>
       <button class="nav-item" data-page="shifts"><i class="fa-solid fa-clock-rotate-left"></i> Shifts</button>
       <button class="nav-item" data-page="leaves"><i class="fa-solid fa-umbrella-beach"></i> Leaves</button>
       <button class="nav-item" data-page="approvals"><i class="fa-solid fa-clipboard-check"></i> Approvals <span id="apprBadge" class="chip chip-warn hidden" style="margin-left:auto;font-size:9px;padding:1px 6px">0</span></button>
@@ -389,10 +390,6 @@ body.no-confidential .confidential-col{display:none!important}
     <button id="attLoadBtn" class="btn btn-primary mt-4"><i class="fa-solid fa-rotate"></i> Load Register</button>
     <button id="attCsvBtn" class="btn btn-ghost mt-4"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
     <button id="attFixBtn" class="btn btn-ghost mt-4"><i class="fa-solid fa-user-clock"></i> Manual Punch / Fix</button>
-    <div class="mt-4 flex items-end gap-2" style="border-left:1px solid var(--line);padding-left:12px">
-      <div><label class="lbl">Daily Hours View</label><input type="date" id="attViewDate" class="inp"></div>
-      <button id="attViewBtn" class="btn btn-ghost"><i class="fa-solid fa-table"></i> View Hours</button>
-    </div>
     <div class="ml-auto mt-4 flex gap-2 text-[11px] items-center flex-wrap">
       <span class="chip c-P">P Present</span><span class="chip c-L">L Late</span><span class="chip c-A">A Absent</span><span class="chip c-WO">WO Week Off</span><span class="chip c-H">H Holiday</span><span class="chip c-LV">LV Leave</span>
     </div>
@@ -405,8 +402,34 @@ body.no-confidential .confidential-col{display:none!important}
     <div id="deployBars" class="grid lg:grid-cols-2 gap-x-6 gap-y-2 mb-3"></div>
     <div id="deployLogs"></div>
   </div>
-  <div class="card mb-4 hidden" id="attHoursWrap"></div>
   <div class="card reg-wrap" id="attRegisterWrap"><p style="color:var(--muted)">Select month and load the register.</p></div>
+</div>
+
+<!-- ================= WORK HOURS ================= -->
+<div class="page" id="page-workhours">
+  <div class="card mb-4">
+    <div class="flex items-end gap-3 flex-wrap">
+      <div>
+        <label class="lbl">View</label>
+        <select id="whMode" class="inp" style="min-width:150px">
+          <option value="day">Single Date</option>
+          <option value="month">Whole Month</option>
+          <option value="range">Date Range</option>
+        </select>
+      </div>
+      <div id="whDayWrap"><label class="lbl">Date</label><input type="date" id="whDate" class="inp"></div>
+      <div id="whMonthWrap" class="hidden"><label class="lbl">Month</label><input type="month" id="whMonth" class="inp"></div>
+      <div id="whRangeWrap" class="hidden flex items-end gap-2">
+        <div><label class="lbl">From</label><input type="date" id="whFrom" class="inp"></div>
+        <div><label class="lbl">To</label><input type="date" id="whTo" class="inp"></div>
+      </div>
+      <div><label class="lbl">Employee (optional)</label><input id="whEmp" class="inp" placeholder="Code or name — blank = all" list="whEmpDL" style="min-width:180px"><datalist id="whEmpDL"></datalist></div>
+      <button id="whLoadBtn" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Load</button>
+      <button id="whExportBtn" class="btn btn-ghost"><i class="fa-solid fa-file-csv"></i> Export</button>
+      <div class="ml-auto flex items-end"><div><label class="lbl">Std hrs/day</label><input type="number" id="whStd" class="inp" value="8" step="0.5" style="max-width:90px"></div></div>
+    </div>
+  </div>
+  <div class="card" id="whResult"><p style="color:var(--muted)">Choose a view and click Load to see worked hours, excess (overtime) hours and totals.</p></div>
 </div>
 
 <!-- ================= SHIFTS ================= -->
@@ -1285,23 +1308,23 @@ body.no-confidential .confidential-col{display:none!important}
 
 <!-- ================= MANUAL PUNCH MODAL -->
 <div class="modal" id="fixModal">
-  <div class="modal-box" style="max-width:460px">
+  <div class="modal-box" style="max-width:600px">
     <div class="flex items-center justify-between mb-4">
       <h3 class="display font-bold text-lg m-0">Manual Punch / Fix</h3>
       <button class="btn btn-ghost btn-sm" data-close="fixModal"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <label class="lbl">Employee</label><select id="fxEmp" class="inp mb-3"></select>
-    <label class="lbl flex items-center gap-2" style="cursor:pointer"><input type="checkbox" id="fxRange"> Apply to a date range (multiple days)</label>
-    <div class="grid grid-cols-2 gap-3 mt-1 mb-3">
-      <div><label class="lbl" id="fxDateLbl">Date</label><input id="fxDate" type="date" class="inp"></div>
-      <div id="fxDateEndWrap" class="hidden"><label class="lbl">To Date</label><input id="fxDateEnd" type="date" class="inp"></div>
+
+    <div class="flex items-center justify-between mb-2">
+      <span class="font-semibold text-sm">Days to add / fix</span>
+      <div class="flex gap-2">
+        <button type="button" id="fxAddRow" class="btn btn-ghost btn-sm"><i class="fa-solid fa-plus"></i> Add Day</button>
+        <button type="button" id="fxFillRange" class="btn btn-ghost btn-sm"><i class="fa-solid fa-calendar-week"></i> Fill Range</button>
+      </div>
     </div>
-    <div class="grid grid-cols-2 gap-3">
-      <div><label class="lbl">In Time</label><input id="fxIn" type="time" class="inp"></div>
-      <div><label class="lbl">Out Time (optional)</label><input id="fxOut" type="time" class="inp"></div>
-    </div>
-    <p class="text-[11px] mt-2" style="color:var(--muted)">If a record already exists for a day it is updated (missing-punch fix), otherwise created. Late is applied automatically by department rule. Range mode skips weekly-offs? No — it applies to every day in the range, so use it for continuous corrections.</p>
-    <button id="fxSaveBtn" class="btn btn-primary w-full justify-center mt-4"><i class="fa-solid fa-floppy-disk"></i> Save Punch</button>
+    <div id="fxRows" style="max-height:44vh;overflow:auto"></div>
+    <p class="text-[11px] mt-2" style="color:var(--muted)">Each row is one day with its own In/Out time — so different days can have different timings. If a record exists it's updated, else created. Late is auto-applied by department rule.</p>
+    <button id="fxSaveBtn" class="btn btn-primary w-full justify-center mt-4"><i class="fa-solid fa-floppy-disk"></i> Save All Days</button>
   </div>
 </div>
 <div id="printArea"></div>
@@ -1523,7 +1546,7 @@ $('loginBtn').addEventListener('click', async () => {
 $('loginPass').addEventListener('keydown', e => { if(e.key === 'Enter') $('loginBtn').click(); });
 $('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
 
-const ALL_PAGES = ['dashboard','employees','attendance','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','letters','idcards','approvals','voice','settings'];
+const ALL_PAGES = ['dashboard','employees','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','letters','idcards','approvals','voice','settings'];
 let ME_EMAIL = '';
 let FACE_CODES = new Set();
 function isSuper(){
@@ -2036,7 +2059,7 @@ function fillEmpSelects(){
 }
 
 /* ---------------- Router ---------------- */
-const TITLES = { dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', adminctl:'Admin Control Panel' };
+const TITLES = { dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', adminctl:'Admin Control Panel' };
 const _ov = document.createElement('div'); _ov.id = 'navOverlay'; document.body.appendChild(_ov);
 const _sb = document.querySelector('.sidebar');
 $('navToggle').addEventListener('click', () => { _sb.classList.toggle('open'); _ov.style.display = _sb.classList.contains('open') ? 'block' : 'none'; });
@@ -2060,6 +2083,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if(page === 'approvals') loadApprovals();
     if(page === 'voice') loadVoice();
     if(page === 'attendance') loadDeployment();
+    if(page === 'workhours') whInit();
     if(page === 'expenses') loadExpenses();
     if(page === 'assets') loadAssets();
     if(page === 'exits') loadExits();
@@ -2939,8 +2963,7 @@ function buildDayStatus(ym, rows){
   return { attMap, dayMeta, dim };
 }
 
-/* ---------------- Daily Hours View ---------------- */
-$('attViewBtn').addEventListener('click', loadHoursView);
+/* ---------------- Work Hours page ---------------- */
 function hmsToHours(t){
   if(!t) return 0;
   const p = String(t).split(':').map(Number);
@@ -2951,67 +2974,105 @@ function fmtHrs(h){
   const hh = Math.floor(h), mm = Math.round((h-hh)*60);
   return hh + 'h ' + String(mm).padStart(2,'0') + 'm';
 }
-async function loadHoursView(){
-  const date = $('attViewDate').value || todayISO();
-  const wrap = $('attHoursWrap');
-  wrap.classList.remove('hidden');
-  wrap.innerHTML = '<p style="color:var(--muted)">Loading\u2026</p>';
+function whToggle(){
+  const m = $('whMode').value;
+  $('whDayWrap').classList.toggle('hidden', m !== 'day');
+  $('whMonthWrap').classList.toggle('hidden', m !== 'month');
+  $('whRangeWrap').classList.toggle('hidden', m !== 'range');
+}
+function whInit(){
+  if($('whMode')._wired) return; $('whMode')._wired = true;
+  $('whMode').addEventListener('change', whToggle);
+  $('whLoadBtn').addEventListener('click', loadWorkHours);
+  $('whExportBtn').addEventListener('click', exportWorkHours);
+  $('whDate').value = todayISO();
+  $('whMonth').value = todayISO().slice(0,7);
+  $('whFrom').value = todayISO(); $('whTo').value = todayISO();
+  // employee datalist
+  $('whEmpDL').innerHTML = activeEmps().map(e => `<option value="${esc(e['Employee code'])} — ${esc(e.Name)}">`).join('');
+  whToggle();
+}
+function whDateBounds(){
+  const m = $('whMode').value;
+  if(m === 'day'){ const d = $('whDate').value || todayISO(); return [d, d]; }
+  if(m === 'month'){
+    const ym = $('whMonth').value || todayISO().slice(0,7);
+    const [y,mo] = ym.split('-').map(Number);
+    const last = new Date(y, mo, 0).getDate();
+    return [ym+'-01', ym+'-'+String(last).padStart(2,'0')];
+  }
+  return [$('whFrom').value, $('whTo').value];
+}
+async function loadWorkHours(){
+  const [from, to] = whDateBounds();
+  if(!from || !to) return notify('Select the date(s) first', 'error');
+  if(to < from) return notify('End date is before start date', 'error');
+  const empFilter = ($('whEmp').value || '').split('\u2014')[0].trim().toUpperCase();
+  const std = Number($('whStd').value) || 8;
+  const host = $('whResult');
+  host.innerHTML = '<p style="color:var(--muted)">Loading\u2026</p>';
   try{
-    const { data, error } = await sb.from('attendance').select('*').eq('date', date).order('employee_code');
+    let q = sb.from('attendance').select('*').gte('date', from).lte('date', to).order('date').order('employee_code');
+    const { data, error } = await q;
     if(error) throw error;
-    const rows = data || [];
-    if(!rows.length){ wrap.innerHTML = `<p style="color:var(--muted)">No attendance for ${date}.</p>`; return; }
-    const stdHours = Number((getSettings().stdWorkHours)) || 8;
-    let totExcess = 0;
-    const body = rows.map(r => {
+    let rows = data || [];
+    if(empFilter) rows = rows.filter(r => String(r.employee_code||'').toUpperCase() === empFilter);
+    if(!rows.length){ host.innerHTML = `<p style="color:var(--muted)">No attendance found for this selection.</p>`; return; }
+
+    const multiDay = from !== to;
+    let gTotal = 0, gExcess = 0, gDays = 0;
+    const build = r => {
       const code = r.employee_code;
       const emp = EMP.find(e => e['Employee code'] === code) || {};
       const inT = cleanInTime(r);
       const outT = r.out_time ? String(r.out_time).substring(0,5) : '';
       let worked = hmsToHours(r.total_hours);
-      if((!worked || worked<=0) && inT && outT){
-        let ms = new Date(date+'T'+outT+':00') - new Date(date+'T'+inT+':00');
-        if(ms<0) ms+=86400000; worked = ms/3600000;
-      }
-      const excess = worked > stdHours ? (worked - stdHours) : 0;
-      totExcess += excess;
-      return `<tr>
-        <td class="font-mono">${esc(code)}</td>
-        <td class="font-semibold">${esc(emp.Name || r.Name || code)}</td>
-        <td>${inT || '\u2014'}${isRowLate(r) && inT ? ' <span class="chip c-L" style="font-size:9px">L</span>' : ''}</td>
-        <td>${outT || '<span style=\'color:var(--bad)\'>missing</span>'}</td>
-        <td>${fmtHrs(worked)}</td>
-        <td style="color:${excess>0?'var(--ok)':'var(--muted)'}">${excess>0?fmtHrs(excess):'\u2014'}</td>
-      </tr>`;
-    }).join('');
-    wrap.innerHTML = `
+      if((!worked || worked<=0) && inT && outT){ let ms = new Date(r.date+'T'+outT+':00') - new Date(r.date+'T'+inT+':00'); if(ms<0) ms+=86400000; worked = ms/3600000; }
+      const excess = worked > std ? (worked - std) : 0;
+      gTotal += worked; gExcess += excess; if(worked>0) gDays++;
+      return { code, name: emp.Name || r.Name || code, date: r.date, inT, outT, worked, excess, late: isRowLate(r) };
+    };
+    const items = rows.map(build);
+
+    const rowsHtml = items.map(x => `<tr>
+      ${multiDay ? `<td>${x.date}</td>` : ''}
+      <td class="font-mono">${esc(x.code)}</td>
+      <td class="font-semibold">${esc(x.name)}</td>
+      <td>${x.inT || '\u2014'}${x.late && x.inT ? ' <span class="chip c-L" style="font-size:9px">L</span>' : ''}</td>
+      <td>${x.outT || '<span style=\'color:var(--bad)\'>missing</span>'}</td>
+      <td>${fmtHrs(x.worked)}</td>
+      <td style="color:${x.excess>0?'var(--ok)':'var(--muted)'};font-weight:${x.excess>0?'600':'400'}">${x.excess>0?fmtHrs(x.excess):'\u2014'}</td>
+    </tr>`).join('');
+
+    window._whData = { items, multiDay, from, to };
+    host.innerHTML = `
       <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <h3 class="display font-bold m-0"><i class="fa-solid fa-clock" style="color:var(--brand)"></i> Daily Hours \u2014 ${date} <span class="chip chip-blue">${rows.length}</span></h3>
-        <div class="flex gap-2 items-center">
-          <span class="text-xs" style="color:var(--muted)">Std hours/day: <b>${stdHours}h</b> \u00b7 Total excess: <b style="color:var(--ok)">${fmtHrs(totExcess)}</b></span>
-          <button class="btn btn-ghost btn-sm" onclick="exportHoursView('${date}')"><i class="fa-solid fa-file-csv"></i> Export</button>
+        <h3 class="display font-bold m-0"><i class="fa-solid fa-business-time" style="color:var(--brand)"></i> ${multiDay ? `Work Hours \u00b7 ${from} to ${to}` : `Work Hours \u00b7 ${from}`}</h3>
+        <div class="flex gap-4 text-xs" style="color:var(--muted)">
+          <span>Records: <b style="color:var(--ink)">${items.length}</b></span>
+          <span>Total worked: <b style="color:var(--ink)">${fmtHrs(gTotal)}</b></span>
+          <span>Total excess (OT): <b style="color:var(--ok)">${fmtHrs(gExcess)}</b></span>
         </div>
       </div>
-      <div style="overflow-x:auto"><table class="tbl">
-        <thead><tr><th>Employee Code</th><th>Employee Name</th><th>In Time</th><th>Out Time</th><th>Total Hours</th><th>Excess Hours</th></tr></thead>
-        <tbody>${body}</tbody>
+      <div style="overflow-x:auto;max-height:70vh;overflow-y:auto"><table class="tbl">
+        <thead style="position:sticky;top:0;background:#fff;z-index:1"><tr>
+          ${multiDay ? '<th>Date</th>' : ''}
+          <th>Employee Code</th><th>Employee Name</th><th>In Time</th><th>Out Time</th><th>Total Hours</th><th>Excess Hours</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
       </table></div>`;
-    window._hoursViewData = { date, rows, stdHours };
-  }catch(err){ wrap.innerHTML = `<p style="color:var(--bad)">Error: ${esc(err.message)}</p>`; }
+  }catch(err){ host.innerHTML = `<p style="color:var(--bad)">Error: ${esc(err.message)}</p>`; }
 }
-function exportHoursView(date){
-  const d = window._hoursViewData; if(!d) return;
+function exportWorkHours(){
+  const d = window._whData; if(!d || !d.items.length) return notify('Load data first', 'error');
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
-  const lines = ['Employee Code,Employee Name,In Time,Out Time,Total Hours,Excess Hours'];
-  d.rows.forEach(r => {
-    const emp = EMP.find(e => e['Employee code'] === r.employee_code) || {};
-    const inT = cleanInTime(r), outT = r.out_time ? String(r.out_time).substring(0,5) : '';
-    let worked = hmsToHours(r.total_hours);
-    if((!worked||worked<=0) && inT && outT){ let ms=new Date(date+'T'+outT+':00')-new Date(date+'T'+inT+':00'); if(ms<0) ms+=86400000; worked=ms/3600000; }
-    const excess = worked > d.stdHours ? worked - d.stdHours : 0;
-    lines.push([r.employee_code, emp.Name||r.Name||r.employee_code, inT||'', outT||'', worked.toFixed(2), excess.toFixed(2)].map(q).join(','));
+  const head = (d.multiDay ? ['Date'] : []).concat(['Employee Code','Employee Name','In Time','Out Time','Total Hours','Excess Hours']);
+  const lines = [head.join(',')];
+  d.items.forEach(x => {
+    const base = d.multiDay ? [x.date] : [];
+    lines.push(base.concat([x.code, x.name, x.inT||'', x.outT||'', x.worked.toFixed(2), x.excess.toFixed(2)]).map(q).join(','));
   });
-  dlText('Daily_Hours_'+date+'.csv', lines.join('\n'), 'text/csv');
+  dlText('Work_Hours_'+d.from+(d.multiDay?('_to_'+d.to):'')+'.csv', lines.join('\n'), 'text/csv');
 }
 
 /* ---------------- Attendance Register ---------------- */
@@ -4916,82 +4977,92 @@ $('lvSaveBtn').addEventListener('click', async () => {
 /* ---------------- MANUAL PUNCH ---------------- */
 $('attFixBtn').addEventListener('click', () => {
   if(!canManualAtt()) return notify('You do not have access to manual attendance correction', 'error');
-  $('fxDate').value = todayISO(); $('fixModal').classList.add('show');
+  $('fxRows').innerHTML = '';
+  fxAddRow(todayISO());
+  $('fixModal').classList.add('show');
 });
-$('fxRange').addEventListener('change', function(){
-  $('fxDateEndWrap').classList.toggle('hidden', !this.checked);
-  $('fxDateLbl').innerText = this.checked ? 'From Date' : 'Date';
-  if(this.checked && !$('fxDateEnd').value) $('fxDateEnd').value = $('fxDate').value;
+function fxAddRow(date, inV, outV){
+  const id = 'fxr_' + Math.random().toString(36).slice(2,8);
+  const div = document.createElement('div');
+  div.className = 'flex items-end gap-2 mb-2';
+  div.dataset.row = '1';
+  div.innerHTML = `
+    <div style="flex:1.2"><label class="lbl">Date</label><input type="date" class="inp fx-date" value="${date||''}"></div>
+    <div style="flex:1"><label class="lbl">In</label><input type="time" class="inp fx-in" value="${inV||''}"></div>
+    <div style="flex:1"><label class="lbl">Out</label><input type="time" class="inp fx-out" value="${outV||''}"></div>
+    <button type="button" class="btn btn-ghost btn-sm" style="color:var(--bad)" onclick="this.closest('[data-row]').remove()"><i class="fa-solid fa-trash"></i></button>`;
+  $('fxRows').appendChild(div);
+}
+$('fxAddRow').addEventListener('click', () => {
+  // default the new row's date to the day after the last row
+  const dates = Array.from(document.querySelectorAll('#fxRows .fx-date')).map(i=>i.value).filter(Boolean).sort();
+  let next = todayISO();
+  if(dates.length){ const d = new Date(dates[dates.length-1]+'T00:00:00'); d.setDate(d.getDate()+1); next = d.toISOString().slice(0,10); }
+  fxAddRow(next);
 });
+$('fxFillRange').addEventListener('click', async () => {
+  const from = await nxPrompt('Range START date (YYYY-MM-DD):', 'Fill Range');
+  if(!from) return;
+  const to = await nxPrompt('Range END date (YYYY-MM-DD):', 'Fill Range');
+  if(!to) return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return notify('Use date format YYYY-MM-DD', 'error');
+  if(to < from) return notify('End date is before start date', 'error');
+  let d = new Date(from+'T00:00:00'); const end = new Date(to+'T00:00:00');
+  const existing = new Set(Array.from(document.querySelectorAll('#fxRows .fx-date')).map(i=>i.value));
+  let added = 0;
+  while(d <= end){
+    const ds = d.toISOString().slice(0,10);
+    if(!existing.has(ds)){ fxAddRow(ds); added++; }
+    d.setDate(d.getDate()+1);
+  }
+  notify(`Added ${added} day rows — now set each day's In/Out time`, 'success');
+});
+
 $('fxSaveBtn').addEventListener('click', async () => {
-  const code = $('fxEmp').value, inT = $('fxIn').value, outT = $('fxOut').value;
-  const isRange = $('fxRange').checked;
-  const startDate = $('fxDate').value;
-  const endDate = isRange ? $('fxDateEnd').value : startDate;
-  if(!code || !startDate) return notify('Employee and date are required', 'error');
-  if(isRange && !endDate) return notify('Select the To Date for the range', 'error');
-  if(isRange && endDate < startDate) return notify('To Date cannot be before From Date', 'error');
-  if(!inT && !outT) return notify('Enter at least one time (In or Out)', 'error');
+  const code = $('fxEmp').value;
+  if(!code) return notify('Select an employee', 'error');
+  const rows = Array.from(document.querySelectorAll('#fxRows [data-row]')).map(r => ({
+    date: r.querySelector('.fx-date').value,
+    inT: r.querySelector('.fx-in').value,
+    outT: r.querySelector('.fx-out').value
+  })).filter(r => r.date && (r.inT || r.outT));
+  if(!rows.length) return notify('Add at least one day with a time', 'error');
   const btn = $('fxSaveBtn');
   btn.innerHTML = '<div class="loader-ring"></div> Saving…'; btn.disabled = true;
 
-  // apply the same in/out to one date
-  async function applyPunchForDate(date){
+  async function applyOne(date, inT, outT){
     const emp = EMP.find(e => e['Employee code'] === code);
     const { data: recs } = await sb.from('attendance').select('*').eq('employee_code', code).eq('date', date);
     const upd = {};
     if(inT){
       const inFull = inT + ':00';
       const emp0 = EMP.find(x => x['Employee code'] === code) || {};
-      upd.in_time = inFull;
-      upd.is_late = isLateByDept(inFull, emp0.DEPARTMENT);
+      upd.in_time = inFull; upd.is_late = isLateByDept(inFull, emp0.DEPARTMENT);
     }
     if(outT) upd.out_time = outT + ':00';
     if(recs && recs.length){
       const r = recs[0];
-      const finalIn = upd.in_time || r.in_time;
-      const finalOut = upd.out_time || r.out_time;
-      if(finalIn && finalOut){
-        let ms = new Date(date + 'T' + finalOut.substring(0,8)) - new Date(date + 'T' + finalIn.substring(0,8));
-        if(ms < 0) ms += 86400000;
-        upd.total_hours = String(Math.floor(ms/3600000)).padStart(2,'0') + ':' + String(Math.floor((ms%3600000)/60000)).padStart(2,'0') + ':00';
-      }
-      const { error } = await sb.from('attendance').update(upd).eq('id', r.id);
-      if(error) throw error;
-      return 'updated';
+      const fi = upd.in_time || r.in_time, fo = upd.out_time || r.out_time;
+      if(fi && fo){ let ms = new Date(date+'T'+fo.substring(0,8)) - new Date(date+'T'+fi.substring(0,8)); if(ms<0) ms+=86400000;
+        upd.total_hours = String(Math.floor(ms/3600000)).padStart(2,'0')+':'+String(Math.floor((ms%3600000)/60000)).padStart(2,'0')+':00'; }
+      const { error } = await sb.from('attendance').update(upd).eq('id', r.id); if(error) throw error; return 'updated';
     } else {
-      if(!inT) return 'skipped';   // can't create a new record without an In time
+      if(!inT) return 'skipped';
       const row = { employee_code: code, Name: emp ? emp.Name : code, date, in_time: upd.in_time, is_late: upd.is_late };
-      if(upd.out_time){
-        row.out_time = upd.out_time;
-        let ms = new Date(date + 'T' + upd.out_time) - new Date(date + 'T' + inT + ':00');
-        if(ms < 0) ms += 86400000;
-        row.total_hours = String(Math.floor(ms/3600000)).padStart(2,'0') + ':' + String(Math.floor((ms%3600000)/60000)).padStart(2,'0') + ':00';
-      }
-      const { error } = await sb.from('attendance').insert([row]);
-      if(error) throw error;
-      return 'added';
+      if(upd.out_time){ row.out_time = upd.out_time; let ms = new Date(date+'T'+upd.out_time) - new Date(date+'T'+inT+':00'); if(ms<0) ms+=86400000;
+        row.total_hours = String(Math.floor(ms/3600000)).padStart(2,'0')+':'+String(Math.floor((ms%3600000)/60000)).padStart(2,'0')+':00'; }
+      const { error } = await sb.from('attendance').insert([row]); if(error) throw error; return 'added';
     }
   }
 
   try{
-    // build the list of dates
-    const dates = [];
-    let d = new Date(startDate + 'T00:00:00');
-    const end = new Date(endDate + 'T00:00:00');
-    while(d <= end){ dates.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()+1); }
-
     let done = 0, skipped = 0;
-    for(const dt of dates){
-      const res = await applyPunchForDate(dt);
-      if(res === 'skipped') skipped++; else done++;
-    }
+    for(const r of rows){ const res = await applyOne(r.date, r.inT, r.outT); if(res==='skipped') skipped++; else done++; }
     $('fixModal').classList.remove('show');
-    $('fxRange').checked = false; $('fxDateEndWrap').classList.add('hidden'); $('fxDateLbl').innerText = 'Date';
-    notify(isRange ? `Applied to ${done} day(s)${skipped?` (${skipped} skipped — needed In time)`:''}` : 'Punch saved', 'success');
+    notify(`Saved ${done} day(s)${skipped?` (${skipped} skipped — needed In time)`:''}`, 'success');
     if($('attRegisterWrap') && $('attRegisterWrap').querySelector('table')) loadRegister();
   }catch(err){ notify(err.message, 'error'); }
-  finally{ btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Punch'; btn.disabled = false; }
+  finally{ btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save All Days'; btn.disabled = false; }
 });
 
 /* ---------------- DOCUMENTS ---------------- */
