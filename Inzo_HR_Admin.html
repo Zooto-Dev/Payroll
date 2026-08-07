@@ -240,6 +240,7 @@ body.no-confidential .confidential-col{display:none!important}
     <button class="nav-sec" data-group="g2"><span>WORKFORCE</span><i class="fa-solid fa-chevron-down"></i></button>
     <div class="nav-group" id="g2">
       <button class="nav-item" data-page="employees"><i class="fa-solid fa-users"></i> Employees</button>
+      <button class="nav-item" data-page="hiring"><i class="fa-solid fa-user-tie"></i> Hiring</button>
       <button class="nav-item" data-page="attendance"><i class="fa-solid fa-calendar-days"></i> Attendance</button>
       <button class="nav-item" data-page="workhours"><i class="fa-solid fa-business-time"></i> Work Hours</button>
       <button class="nav-item" data-page="shifts"><i class="fa-solid fa-clock-rotate-left"></i> Shifts</button>
@@ -382,6 +383,27 @@ body.no-confidential .confidential-col{display:none!important}
       </table>
     </div>
   </div>
+</div>
+
+<!-- ================= HIRING ================= -->
+<div class="page" id="page-hiring">
+  <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+    <div class="flex gap-2 items-center flex-wrap">
+      <button id="hrAddBtn" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Add Candidate</button>
+      <select id="hrStageFilter" class="inp" style="max-width:180px">
+        <option value="">All stages</option>
+        <option value="APPLIED">Applied</option>
+        <option value="SHORTLISTED">Shortlisted</option>
+        <option value="INTERVIEW">Interview</option>
+        <option value="SELECTED">Selected</option>
+        <option value="OFFERED">Offered</option>
+        <option value="JOINED">Joined</option>
+        <option value="REJECTED">Rejected</option>
+      </select>
+    </div>
+    <div class="flex gap-3 text-xs" id="hrStats" style="color:var(--muted)"></div>
+  </div>
+  <div id="hrBoard"><p style="color:var(--muted)">Loading…</p></div>
 </div>
 
 <!-- ================= ATTENDANCE ================= -->
@@ -1198,30 +1220,32 @@ body.no-confidential .confidential-col{display:none!important}
       <h3 class="display font-bold text-lg m-0">Add Employee</h3>
       <button class="btn btn-ghost btn-sm" data-close="addEmpModal"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <label class="lbl">Full Name</label><input id="aeName" class="inp mb-3" placeholder="Full name">
-    <label class="lbl">Unit / Location</label>
-    <select id="aeUnit" class="inp mb-3"></select>
-    <label class="lbl">Employee Code <span class="text-[10px]" style="color:var(--muted)">(auto from unit — editable)</span></label>
-    <input id="aeCode" class="inp mb-3" style="text-transform:uppercase">
-    <div class="grid grid-cols-2 gap-3">
-      <div><label class="lbl">Department</label><select id="aeDept" class="inp"></select></div>
-      <div><label class="lbl">Designation</label><select id="aeDesig" class="inp"></select></div>
-    </div>
-    <div class="grid grid-cols-2 gap-3" style="margin-top:12px;margin-bottom:8px">
-      <div><label class="lbl">Date of Joining</label><input id="aeDOJ" type="date" class="inp"></div>
+    <div class="text-[11px] font-bold uppercase tracking-wide mb-2" style="color:var(--brand)">Personal</div>
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="col-span-2"><label class="lbl">Full Name</label><input id="aeName" class="inp" placeholder="Full name" style="text-transform:uppercase"></div>
+      <div><label class="lbl">Father's Name</label><input id="aeFather" class="inp"></div>
       <div><label class="lbl">Date of Birth</label><input id="aeDOB" type="date" class="inp"></div>
-      <div id="aeLineWrap"><label class="lbl">Production Line</label><select id="aeLine" class="inp"></select></div>
-      <div><label class="lbl">Reporting Manager</label><input id="aeMgr" class="inp" list="mgrDL" placeholder="Select after department"></div>
+      <div><label class="lbl">Gender</label><select id="aeGender" class="inp"><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></div>
       <div><label class="lbl">Phone</label><input id="aePhone" class="inp" placeholder="10-digit"></div>
       <div><label class="lbl">Email</label><input id="aeEmail" class="inp" placeholder="name@company"></div>
-      <div><label class="lbl">Father's Name</label><input id="aeFather" class="inp"></div>
-      <div><label class="lbl">Gender</label><select id="aeGender" class="inp"><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></div>
-      <div><label class="lbl">Employment Type</label><select id="aeEmpType" class="inp"><option>Permanent</option><option>Contract</option><option>Probation</option><option>Intern</option><option>Temporary</option></select></div>
       <div><label class="lbl">Emergency Contact</label><input id="aeEmergency" class="inp" placeholder="Phone"></div>
       <div class="col-span-2"><label class="lbl">Address</label><input id="aeAddress" class="inp"></div>
     </div>
-    <div class="grid grid-cols-2 gap-3" style="margin-bottom:8px">
-      <div class="col-span-2"><label class="lbl" style="font-weight:600;color:var(--ink)">Bank & Statutory <span class="text-[10px] font-normal" style="color:var(--muted)">(optional — can fill later in profile)</span></label></div>
+
+    <div class="text-[11px] font-bold uppercase tracking-wide mb-2" style="color:var(--brand)">Job Details</div>
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div><label class="lbl">Unit / Location</label><select id="aeUnit" class="inp"></select></div>
+      <div><label class="lbl">Employee Code <span class="text-[10px]" style="color:var(--muted)">(auto)</span></label><input id="aeCode" class="inp" style="text-transform:uppercase"></div>
+      <div><label class="lbl">Department</label><select id="aeDept" class="inp"></select></div>
+      <div><label class="lbl">Designation</label><select id="aeDesig" class="inp"></select></div>
+      <div><label class="lbl">Date of Joining</label><input id="aeDOJ" type="date" class="inp"></div>
+      <div><label class="lbl">Employment Type</label><select id="aeEmpType" class="inp"><option>Permanent</option><option>Contract</option><option>Probation</option><option>Trainee</option><option>Intern</option><option>Piece Rate</option></select></div>
+      <div id="aeLineWrap"><label class="lbl">Production Line</label><select id="aeLine" class="inp"></select></div>
+      <div><label class="lbl">Reporting Manager</label><input id="aeMgr" class="inp" list="mgrDL" placeholder="Select after department"></div>
+    </div>
+
+    <div class="text-[11px] font-bold uppercase tracking-wide mb-2" style="color:var(--brand)">Bank & Statutory <span class="text-[10px] font-normal" style="color:var(--muted)">(optional — can fill later)</span></div>
+    <div class="grid grid-cols-2 gap-3 mb-4">
       <div><label class="lbl">Bank Name</label><input id="aeBank" class="inp"></div>
       <div><label class="lbl">Account No</label><input id="aeAcc" class="inp"></div>
       <div><label class="lbl">IFSC</label><input id="aeIFSC" class="inp" style="text-transform:uppercase"></div>
@@ -1230,6 +1254,7 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">ESI No</label><input id="aeESI" class="inp"></div>
     </div>
     <div id="aeSalaryBlock">
+    <div class="text-[11px] font-bold uppercase tracking-wide mb-2" style="color:var(--brand)">Salary</div>
     <div class="grid grid-cols-2 gap-3" style="margin-bottom:8px">
       <div><label class="lbl">Employee Category</label>
         <select id="aeCat" class="inp">
@@ -1325,6 +1350,30 @@ body.no-confidential .confidential-col{display:none!important}
 </div>
 
 <!-- ================= MANUAL PUNCH MODAL -->
+<!-- ================= CANDIDATE MODAL ================= -->
+<div class="modal" id="candModal">
+  <div class="modal-box" style="max-width:560px">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="display font-bold text-lg m-0" id="candTitle">Add Candidate</h3>
+      <button class="btn btn-ghost btn-sm" data-close="candModal"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <input type="hidden" id="candId">
+    <div class="text-[11px] font-bold uppercase tracking-wide mb-2" style="color:var(--brand)">Candidate</div>
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <div class="col-span-2"><label class="lbl">Full Name</label><input id="candName" class="inp" style="text-transform:uppercase"></div>
+      <div><label class="lbl">Phone</label><input id="candPhone" class="inp"></div>
+      <div><label class="lbl">Email</label><input id="candEmail" class="inp"></div>
+      <div><label class="lbl">Position Applied</label><input id="candPos" class="inp"></div>
+      <div><label class="lbl">Department</label><select id="candDept" class="inp"></select></div>
+      <div><label class="lbl">Source</label><select id="candSource" class="inp"><option>Referral</option><option>Walk-in</option><option>Job Portal</option><option>Agency</option><option>Other</option></select></div>
+      <div><label class="lbl">Experience</label><input id="candExp" class="inp" placeholder="e.g. 3 yrs"></div>
+      <div><label class="lbl">Expected Salary (₹)</label><input id="candExpSal" type="number" class="inp"></div>
+    </div>
+    <div id="candStageBox"></div>
+    <button id="candSaveBtn" class="btn btn-primary w-full justify-center mt-4"><i class="fa-solid fa-floppy-disk"></i> Save Candidate</button>
+  </div>
+</div>
+
 <!-- ================= KAIZEN SCORING MODAL ================= -->
 <div class="modal" id="kzScoreModal">
   <div class="modal-box" style="max-width:560px">
@@ -1599,7 +1648,7 @@ $('loginBtn').addEventListener('click', async () => {
 $('loginPass').addEventListener('keydown', e => { if(e.key === 'Enter') $('loginBtn').click(); });
 $('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
 
-const ALL_PAGES = ['dashboard','employees','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','letters','idcards','approvals','voice','settings'];
+const ALL_PAGES = ['dashboard','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','letters','idcards','approvals','voice','settings'];
 let ME_EMAIL = '';
 let FACE_CODES = new Set();
 function isSuper(){
@@ -2189,7 +2238,7 @@ function fillEmpSelects(){
 }
 
 /* ---------------- Router ---------------- */
-const TITLES = { dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', adminctl:'Admin Control Panel' };
+const TITLES = { dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', adminctl:'Admin Control Panel' };
 const _ov = document.createElement('div'); _ov.id = 'navOverlay'; document.body.appendChild(_ov);
 const _sb = document.querySelector('.sidebar');
 $('navToggle').addEventListener('click', () => { _sb.classList.toggle('open'); _ov.style.display = _sb.classList.contains('open') ? 'block' : 'none'; });
@@ -2214,6 +2263,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if(page === 'voice') loadVoice();
     if(page === 'attendance') loadDeployment();
     if(page === 'workhours') whInit();
+    if(page === 'hiring') loadHiring();
     if(page === 'expenses') loadExpenses();
     if(page === 'assets') loadAssets();
     if(page === 'exits') loadExits();
@@ -3111,6 +3161,173 @@ function buildDayStatus(ym, rows){
     dayMeta.push({ d, iso, isWO: dow === Number(S.weekOff), isH: holSet.has(iso) });
   }
   return { attMap, dayMeta, dim };
+}
+
+/* ---------------- Hiring / Recruitment ---------------- */
+const HR_STAGES = [
+  { k:'APPLIED',     label:'Applied',     color:'#64748b' },
+  { k:'SHORTLISTED', label:'Shortlisted', color:'#0ea5e9' },
+  { k:'INTERVIEW',   label:'Interview',   color:'#8b5cf6' },
+  { k:'SELECTED',    label:'Selected',    color:'#f59e0b' },
+  { k:'OFFERED',     label:'Offered',     color:'#6366f1' },
+  { k:'JOINED',      label:'Joined',      color:'#16a34a' },
+  { k:'REJECTED',    label:'Rejected',    color:'#dc2626' },
+];
+let CANDIDATES = [];
+async function loadHiring(){
+  const host = $('hrBoard'); if(!host) return;
+  host.innerHTML = '<p style="color:var(--muted)">Loading…</p>';
+  try{
+    const { data, error } = await sb.from('candidates').select('*').order('created_at', { ascending:false });
+    if(error) throw error;
+    CANDIDATES = data || [];
+  }catch(err){ host.innerHTML = `<p style="color:var(--bad)">Error: ${esc(err.message)}</p>`; return; }
+  // populate dept dropdown in modal
+  if($('candDept')) $('candDept').innerHTML = '<option value="">—</option>' + (window.nxDeptOpts ? window.nxDeptOpts('') : '');
+  renderHiring();
+}
+function renderHiring(){
+  const host = $('hrBoard'); if(!host) return;
+  const filter = $('hrStageFilter').value;
+  // stats
+  const counts = {}; HR_STAGES.forEach(s => counts[s.k] = 0);
+  CANDIDATES.forEach(c => { if(counts[c.stage]!==undefined) counts[c.stage]++; });
+  $('hrStats').innerHTML = HR_STAGES.map(s => `<span><b style="color:${s.color}">${counts[s.k]}</b> ${s.label}</span>`).join('');
+
+  const stages = filter ? HR_STAGES.filter(s => s.k === filter) : HR_STAGES;
+  host.innerHTML = `<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px">
+    ${stages.map(s => {
+      const list = CANDIDATES.filter(c => c.stage === s.k);
+      return `<div style="min-width:250px;flex:1">
+        <div style="font-weight:700;font-size:12px;padding:8px 10px;border-radius:8px 8px 0 0;background:${s.color};color:#fff">${s.label} (${list.length})</div>
+        <div style="background:#f8fafc;border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;padding:8px;min-height:80px;max-height:65vh;overflow-y:auto">
+          ${list.length ? list.map(c => `
+            <div class="card" style="padding:10px;margin-bottom:8px;cursor:pointer" onclick="openCand('${c.id}')">
+              <div class="font-semibold text-sm">${esc(c.name)}</div>
+              <div class="text-[11px]" style="color:var(--muted)">${esc(c.position||'—')}${c.department?' · '+esc(c.department):''}</div>
+              ${c.phone?`<div class="text-[10px]" style="color:var(--muted)"><i class="fa-solid fa-phone"></i> ${esc(c.phone)}</div>`:''}
+              ${c.interview_score?`<span class="chip chip-blue" style="font-size:9px;margin-top:4px">Score ${c.interview_score}</span>`:''}
+              ${c.stage==='JOINED' && c.employee_code?`<span class="chip chip-ok" style="font-size:9px;margin-top:4px">${esc(c.employee_code)}</span>`:''}
+            </div>`).join('') : '<p class="text-[11px] m-0" style="color:var(--muted);text-align:center;padding:10px">None</p>'}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+function candStageActions(c){
+  // show next-step buttons + fields based on current stage
+  const id = c.id;
+  const moves = {
+    APPLIED:     [['SHORTLISTED','Shortlist','chip-blue'], ['REJECTED','Reject','chip-bad']],
+    SHORTLISTED: [['INTERVIEW','Schedule Interview','chip-blue'], ['REJECTED','Reject','chip-bad']],
+    INTERVIEW:   [['SELECTED','Mark Selected','chip-warn'], ['REJECTED','Reject','chip-bad']],
+    SELECTED:    [['OFFERED','Send Offer','chip-blue'], ['REJECTED','Reject','chip-bad']],
+    OFFERED:     [['JOINED','Mark Joined','chip-ok'], ['REJECTED','Declined','chip-bad']],
+    JOINED:      [],
+    REJECTED:    [['APPLIED','Reopen','chip-gray']],
+  };
+  let html = `<div class="text-[11px] font-bold uppercase tracking-wide mb-2 mt-3" style="color:var(--brand)">Stage: ${esc(c.stage)}</div>`;
+  // stage-specific fields
+  if(c.stage === 'INTERVIEW' || c.stage === 'SHORTLISTED'){
+    html += `<div class="grid grid-cols-2 gap-3 mb-2">
+      <div><label class="lbl">Interview Date</label><input id="candIvDate" type="date" class="inp" value="${c.interview_date||''}"></div>
+      <div><label class="lbl">Interview Score (/100)</label><input id="candIvScore" type="number" class="inp" value="${c.interview_score||''}"></div>
+      <div class="col-span-2"><label class="lbl">Interview Notes</label><input id="candIvNotes" class="inp" value="${esc(c.interview_notes||'')}"></div>
+    </div>`;
+  }
+  if(c.stage === 'SELECTED' || c.stage === 'OFFERED'){
+    html += `<div class="grid grid-cols-2 gap-3 mb-2">
+      <div><label class="lbl">Offered Salary (₹)</label><input id="candOffSal" type="number" class="inp" value="${c.offered_salary||''}"></div>
+      <div><label class="lbl">Offer / Join Date</label><input id="candJoinDate" type="date" class="inp" value="${c.join_date||c.offer_date||''}"></div>
+    </div>`;
+  }
+  html += `<div class="flex gap-2 flex-wrap">${(moves[c.stage]||[]).map(m =>
+    `<button class="btn btn-ghost btn-sm" onclick="moveCandidate('${id}','${m[0]}')"><span class="chip ${m[2]}" style="font-size:10px">${m[1]}</span></button>`).join('')}</div>`;
+  if(c.stage === 'OFFERED' || c.stage === 'JOINED'){
+    html += `<div class="mt-2 p-2 rounded" style="background:#f0fdf4;border:1px solid #bbf7d0">
+      <div class="text-[11px] mb-1" style="color:#15803d"><b>Ready to onboard?</b> Convert this candidate into an employee.</div>
+      <button class="btn btn-primary btn-sm" onclick="convertCandidate('${id}')"><i class="fa-solid fa-user-check"></i> Convert to Employee</button></div>`;
+  }
+  return html;
+}
+$('hrAddBtn').addEventListener('click', () => openCand(null));
+$('hrStageFilter').addEventListener('change', renderHiring);
+function openCand(id){
+  const c = id ? CANDIDATES.find(x => String(x.id) === String(id)) : null;
+  $('candId').value = c ? c.id : '';
+  $('candTitle').innerText = c ? c.name : 'Add Candidate';
+  $('candName').value = c ? c.name : '';
+  $('candPhone').value = c ? (c.phone||'') : '';
+  $('candEmail').value = c ? (c.email||'') : '';
+  $('candPos').value = c ? (c.position||'') : '';
+  if($('candDept')) $('candDept').value = c ? (c.department||'') : '';
+  $('candSource').value = c ? (c.source||'Referral') : 'Referral';
+  $('candExp').value = c ? (c.experience||'') : '';
+  $('candExpSal').value = c ? (c.expected_salary||'') : '';
+  $('candStageBox').innerHTML = c ? candStageActions(c) : '<p class="text-[11px] mt-2" style="color:var(--muted)">Save first, then move through interview stages.</p>';
+  $('candModal').classList.add('show');
+}
+$('candSaveBtn').addEventListener('click', async () => {
+  const name = $('candName').value.trim().toUpperCase();
+  if(!name) return notify('Candidate name is required', 'error');
+  const row = {
+    name, phone: $('candPhone').value.trim()||null, email: $('candEmail').value.trim()||null,
+    position: $('candPos').value.trim()||null, department: $('candDept').value||null,
+    source: $('candSource').value||null, experience: $('candExp').value.trim()||null,
+    expected_salary: Number($('candExpSal').value)||null, updated_at: new Date().toISOString()
+  };
+  // pull stage-specific fields if present
+  if($('candIvDate')) row.interview_date = $('candIvDate').value||null;
+  if($('candIvScore')) row.interview_score = Number($('candIvScore').value)||null;
+  if($('candIvNotes')) row.interview_notes = $('candIvNotes').value||null;
+  if($('candOffSal')) row.offered_salary = Number($('candOffSal').value)||null;
+  if($('candJoinDate')) row.join_date = $('candJoinDate').value||null;
+  const id = $('candId').value;
+  try{
+    if(id){ await sb.from('candidates').update(row).eq('id', id); }
+    else { row.stage = 'APPLIED'; row.created_by = ME_EMAIL; await sb.from('candidates').insert([row]); }
+    $('candModal').classList.remove('show');
+    notify('Candidate saved', 'success');
+    loadHiring();
+  }catch(err){ notify(err.message, 'error'); }
+});
+async function moveCandidate(id, stage){
+  const upd = { stage, updated_at: new Date().toISOString() };
+  if(stage === 'REJECTED'){
+    const reason = await nxPrompt('Reason for rejection (recorded, not deleted):', 'Reject Candidate');
+    if(reason === null) return;
+    upd.rejection_reason = reason || 'Not specified';
+  }
+  // capture any open stage fields before moving
+  if($('candIvDate')) upd.interview_date = $('candIvDate').value||null;
+  if($('candIvScore')) upd.interview_score = Number($('candIvScore').value)||null;
+  if($('candIvNotes')) upd.interview_notes = $('candIvNotes').value||null;
+  if($('candOffSal')) upd.offered_salary = Number($('candOffSal').value)||null;
+  if($('candJoinDate')){ upd.join_date = $('candJoinDate').value||null; if(stage==='OFFERED') upd.offer_date = $('candJoinDate').value||null; }
+  try{
+    await sb.from('candidates').update(upd).eq('id', id);
+    $('candModal').classList.remove('show');
+    notify('Moved to ' + stage, 'success');
+    loadHiring();
+  }catch(err){ notify(err.message, 'error'); }
+}
+async function convertCandidate(id){
+  const c = CANDIDATES.find(x => String(x.id) === String(id));
+  if(!c) return;
+  if(!(await nxConfirm(`Convert ${c.name} into an employee? This opens the Add Employee form pre-filled.`, 'Convert to Employee'))) return;
+  $('candModal').classList.remove('show');
+  // open Add Employee and pre-fill from the candidate
+  $('empAddBtn').click();
+  setTimeout(() => {
+    if($('aeName')) $('aeName').value = c.name;
+    if($('aePhone')) $('aePhone').value = c.phone||'';
+    if($('aeEmail')) $('aeEmail').value = c.email||'';
+    if($('aeDesig') && c.position){ /* designation is a select; leave for user to pick */ }
+    if($('aeDOJ') && c.join_date) $('aeDOJ').value = c.join_date;
+    if($('aeCTC') && c.offered_salary){ $('aeCat').value='mgmt'; if(typeof updateAePreview==='function') updateAePreview(); $('aeCTC').value = c.offered_salary; }
+    notify('Fill the remaining details and Add. After adding, mark the candidate as Joined.', 'info');
+    window._convertingCandidate = c.id;
+  }, 200);
 }
 
 /* ---------------- Work Hours page ---------------- */
