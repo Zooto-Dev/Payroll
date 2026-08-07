@@ -1108,7 +1108,12 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">Shift</label><select id="epShift" class="inp"></select></div>
       <div><label class="lbl">Grade</label><input id="epGrade" class="inp" placeholder="A / B / Worker"></div>
       <div><label class="lbl">Employment Type</label>
-        <select id="epType" class="inp"><option>Permanent</option><option>Contract</option><option>Probation</option><option>Trainee</option><option>Piece Rate</option></select></div>
+        <select id="epType" class="inp" onchange="epContractorToggle()"><option>Permanent</option><option>Contract</option><option>Probation</option><option>Trainee</option><option>Piece Rate</option></select></div>
+      <div id="epContractorWrap" class="hidden col-span-2"><div class="grid grid-cols-2 gap-3 p-2 rounded-lg" style="background:#fffbeb;border:1px solid #fde68a">
+        <div class="col-span-2 text-[11px]" style="color:#92400e"><i class="fa-solid fa-triangle-exclamation"></i> <b>Contract employee</b> — paid by the contractor, excluded from company payroll.</div>
+        <div><label class="lbl">Contractor Name</label><input id="epContractor" class="inp"></div>
+        <div><label class="lbl">Contractor Phone</label><input id="epContractorPh" class="inp"></div>
+      </div></div>
       <div><label class="lbl">Skill Category (min wage)</label>
         <select id="epSkill" class="inp"><option value="">Not applicable</option><option value="mw1">Unskilled</option><option value="mw2">Semi-Skilled</option><option value="mw3">Skilled</option><option value="mw4">Highly Skilled</option></select></div>
       <div id="epLineWrap"><label class="lbl">Production Line</label><select id="epLine" class="inp"></select></div>
@@ -1252,11 +1257,16 @@ body.no-confidential .confidential-col{display:none!important}
     <div class="text-[11px] font-bold uppercase tracking-wide mb-2" style="color:var(--brand)">Job Details</div>
     <div class="grid grid-cols-2 gap-3 mb-4">
       <div><label class="lbl">Unit / Location</label><select id="aeUnit" class="inp"></select></div>
-      <div><label class="lbl">Employee Code <span class="text-[10px]" style="color:var(--muted)">(auto)</span></label><input id="aeCode" class="inp" style="text-transform:uppercase"></div>
+      <div><label class="lbl">Employee Code <span class="text-[10px]" style="color:var(--muted)">(auto from unit)</span></label><input id="aeCode" class="inp" style="text-transform:uppercase;background:#f8fafc" readonly></div>
       <div><label class="lbl">Department</label><select id="aeDept" class="inp"></select></div>
       <div><label class="lbl">Designation</label><select id="aeDesig" class="inp"></select></div>
       <div><label class="lbl">Date of Joining</label><input id="aeDOJ" type="date" class="inp"></div>
-      <div><label class="lbl">Employment Type</label><select id="aeEmpType" class="inp"><option>Permanent</option><option>Contract</option><option>Probation</option><option>Trainee</option><option>Intern</option><option>Piece Rate</option></select></div>
+      <div><label class="lbl">Employment Type</label><select id="aeEmpType" class="inp" onchange="aeContractorToggle()"><option>Permanent</option><option>Contract</option><option>Probation</option><option>Trainee</option><option>Intern</option><option>Piece Rate</option></select></div>
+      <div id="aeContractorWrap" class="hidden col-span-2"><div class="grid grid-cols-2 gap-3 p-2 rounded-lg" style="background:#fffbeb;border:1px solid #fde68a">
+        <div class="col-span-2 text-[11px]" style="color:#92400e"><i class="fa-solid fa-triangle-exclamation"></i> <b>Contract employee</b> — paid by the contractor, will NOT appear in company payroll.</div>
+        <div><label class="lbl">Contractor Name</label><input id="aeContractor" class="inp"></div>
+        <div><label class="lbl">Contractor Phone</label><input id="aeContractorPh" class="inp"></div>
+      </div></div>
       <div id="aeLineWrap"><label class="lbl">Production Line</label><select id="aeLine" class="inp"></select></div>
       <div><label class="lbl">Reporting Manager</label><input id="aeMgr" class="inp" list="mgrDL" placeholder="Select after department"></div>
     </div>
@@ -2743,6 +2753,14 @@ function renderEmployees(filter){
 }
 $('empSearch').addEventListener('input', e => renderEmployees(e.target.value));
 $('empShowExited') && $('empShowExited').addEventListener('change', () => renderEmployees($('empSearch').value));
+function epContractorToggle(){
+  const isContract = $('epType').value === 'Contract';
+  if($('epContractorWrap')) $('epContractorWrap').classList.toggle('hidden', !isContract);
+}
+function aeContractorToggle(){
+  const isContract = $('aeEmpType').value === 'Contract';
+  $('aeContractorWrap').classList.toggle('hidden', !isContract);
+}
 function updateAePreview(){
   const mgmt = $('aeCat').value === 'mgmt';
   $('aeSkillWrap').classList.toggle('hidden', mgmt);
@@ -2777,7 +2795,8 @@ $('empAddBtn').addEventListener('click', () => {
   updateAePreview();
   $('aeName').value = ''; $('aeDept').value = ''; $('aeDesig').value = '';
   $('aeDOJ').value = todayISO(); $('aeDOB').value = '';
-  ['aePhone','aeEmail','aeFather','aeAddress','aeEmergency','aeBank','aeAcc','aeIFSC','aePAN','aeUAN','aeESI'].forEach(id => { if($(id)) $(id).value = ''; });
+  ['aePhone','aeEmail','aeFather','aeAddress','aeEmergency','aeBank','aeAcc','aeIFSC','aePAN','aeUAN','aeESI','aeContractor','aeContractorPh'].forEach(id => { if($(id)) $(id).value = ''; });
+  if($('aeContractorWrap')) $('aeContractorWrap').classList.add('hidden');
   if($('aeGender')) $('aeGender').value = '';
   if($('aeEmpType')) $('aeEmpType').value = 'Permanent';
   if($('aeMgr')) $('aeMgr').value = '';
@@ -2829,6 +2848,8 @@ $('aeSaveBtn').addEventListener('click', async () => {
       address: $('aeAddress').value.trim() || null,
       emergency_phone: ($('aeEmergency').value||'').replace(/\D/g,'') || null,
       employment_type: $('aeEmpType').value || null,
+      contractor_name: ($('aeEmpType').value === 'Contract' ? ($('aeContractor').value.trim() || null) : null),
+      contractor_phone: ($('aeEmpType').value === 'Contract' ? (($('aeContractorPh').value||'').replace(/\D/g,'') || null) : null),
       bank_name: $('aeBank').value.trim() || null,
       account_no: $('aeAcc').value.trim() || null,
       ifsc: $('aeIFSC').value.trim().toUpperCase() || null,
@@ -2904,6 +2925,8 @@ async function openEmpModal(code){
   $('epPAN').value = p.pan || ''; $('epUAN').value = p.uan || ''; $('epESINo').value = p.esi_no || '';
   if(p.shift_id) $('epShift').value = p.shift_id;
   $('epGrade').value = p.grade || ''; $('epType').value = p.employment_type || 'Permanent';
+  $('epContractor').value = p.contractor_name || ''; $('epContractorPh').value = p.contractor_phone || '';
+  epContractorToggle();
   $('epSkill').value = (p.salary && p.salary.skill) || '';
   renderLines(); $('epLine').value = e.LINE || '';
   $('epManager').value = p.reporting_manager || '';
@@ -3003,6 +3026,15 @@ document.addEventListener('change', async e => {
   }
   if(e.target && e.target.id === 'aeUnit'){
     if(e.target.value) $('aeCode').value = nextCodeFor(e.target.value);
+    return;
+  }
+  if(e.target && e.target.id === 'aeLine'){
+    // auto-fill Reporting Manager with the selected line's supervisor
+    const ln = LINES.find(l => String(l.name).trim().toLowerCase() === String(e.target.value||'').trim().toLowerCase());
+    if(ln && ln.supervisor_code){
+      const sup = EMP.find(x => x['Employee code'] === ln.supervisor_code);
+      if(sup && $('aeMgr')) $('aeMgr').value = sup.Name;
+    }
     return;
   }
   if(e.target && e.target.id === 'epSkill'){ if($('epWageType').value === 'category') applyCategorySalary(); else updateGrossPreview(); }
@@ -3118,6 +3150,8 @@ $('epSaveBtn').addEventListener('click', async () => {
       pan: $('epPAN').value, uan: $('epUAN').value, esi_no: $('epESINo').value,
       shift_id: Number($('epShift').value) || null,
       grade: $('epGrade').value, employment_type: $('epType').value,
+      contractor_name: ($('epType').value === 'Contract' ? ($('epContractor').value.trim() || null) : null),
+      contractor_phone: ($('epType').value === 'Contract' ? (($('epContractorPh').value||'').replace(/\D/g,'') || null) : null),
       reporting_manager: $('epManager').value,
       emergency_name: $('epEmName').value, emergency_phone: $('epEmPhone').value,
       gender: $('epGender').value || null,
@@ -3791,8 +3825,10 @@ async function runPayroll(){
       return out;
     }
 
-    const _skippedPending = activeEmps().filter(e => !salaryApproved(e['Employee code']));
-    PAY_ROWS = activeEmps().filter(e => salaryApproved(e['Employee code'])).map(e => {
+    const isContractEmp = code => ((PROFILES[code]||{}).employment_type === 'Contract');
+    const _skippedContract = activeEmps().filter(e => isContractEmp(e['Employee code']));
+    const _skippedPending = activeEmps().filter(e => !isContractEmp(e['Employee code']) && !salaryApproved(e['Employee code']));
+    PAY_ROWS = activeEmps().filter(e => !isContractEmp(e['Employee code']) && salaryApproved(e['Employee code'])).map(e => {
       const code = e['Employee code'];
       const p = PROFILES[code] || {};
       const days = attMap[code] || {};
@@ -3929,6 +3965,9 @@ async function runPayroll(){
     $('payFinalizeBtn').classList.remove('hidden');
     $('payPrintAllBtn').classList.remove('hidden');
     $('payBankBtn').classList.remove('hidden');
+    if(_skippedContract.length){
+      notify(_skippedContract.length + ' contract employee(s) excluded from payroll (paid by contractor)', 'info');
+    }
     if(_skippedPending.length){
       notify(_skippedPending.length + ' employee(s) skipped — salary pending CEO approval: ' + _skippedPending.slice(0,5).map(e=>e.Name).join(', ') + (_skippedPending.length>5?' +more':''), 'error');
     }
@@ -5153,8 +5192,8 @@ function impParse(text){
     if(!r.name) r.errs.push('Name missing');
     if(!r.unitRaw) r.errs.push('Unit missing (code auto-generates from Unit)');
     else if(!r.unitCode) r.errs.push('Unit "'+r.unitRaw+'" not found — add it in Settings → Units first');
-    if(r.doj === undefined) r.errs.push('DOJ date invalid');
-    if(r.dob === undefined) r.errs.push('DOB date invalid');
+    if(r.doj === undefined) r.doj = null;   // unreadable date -> keep blank, don't block the row
+    if(r.dob === undefined) r.dob = null;
     rows.push(r);
   }
   return { rows };
