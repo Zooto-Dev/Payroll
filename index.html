@@ -1110,7 +1110,9 @@ function nxConfirm(msg, title){
                     }
                     statusText.innerText = 'SCANNING';
 
+                    _gpuErrStreak = 0;   // a full successful detection = GPU healthy
                     const match = faceMatcher.findBestMatch(detection.descriptor);
+                    if (match.label !== 'unknown' && detection.landmarks) trackBlink(match.label, detection.landmarks);
                     if(NX_DEBUG) hud('detect:' + (_t1-_t0).toFixed(0) + ' desc:' + (_t2-_t1).toFixed(0) + 'ms  best:' + match.label + ' dist:' + match.distance.toFixed(3) + ' conf:' + matchConfidence);
 
                     const CONFIDENT = 0.42;   // clearly this person -> one scan is enough
@@ -1153,32 +1155,42 @@ function nxConfirm(msg, title){
                             // screen shown from a distance -> quietly ignore, keep scanning
                         } else if (matchConfidence >= CONFIDENCE_THRESHOLD) {
                             window.lastFaceBox = detection.detection.box; // for the cropped snapshot
+                            let gateMode = 'blink';                     // default: blink liveness (free, no model)
+                            let liveProb = null;
                             if (antiSpoofSession) {
                                 isDetecting = false; // pause scanning while the model decides
-                                let liveProb = 1;
-                                try { liveProb = await antiSpoofVerdict(detection.detection.box); }
-                                catch(spoofErr){ console.warn('anti-spoof skipped:', spoofErr && spoofErr.message); liveProb = 1; }
-                                if (liveProb >= AS_THRESHOLD) {
-                                    verifyUI.classList.add('opacity-0');
-                                    reticle.classList.remove('detecting');
-                                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                                    scannerWrapper.classList.remove('active-scan');
-                                    await recordAttendance(match.label);
-                                    return;
+                                try {
+                                    liveProb = await antiSpoofVerdict(detection.detection.box);
+                                    gateMode = 'model';
+                                    _gpuErrStreak = 0;                  // model ran fine -> GPU healthy
+                                } catch(spoofErr){
+                                    // FAIL-CLOSED: a broken/crashed model NEVER auto-passes.
+                                    console.warn('anti-spoof engine error -> falling back to blink:', spoofErr && spoofErr.message);
+                                    gateMode = 'blink';
+                                    gpuTrouble();                        // may be a lost WebGL context
                                 }
-                                // photo / screen detected -> silently ignore, no punch, no message
-                                spoofStrike(match.label);
-                                resetScanState();
-                                isDetecting = true; // resume scanning
-                            } else {
-                                // model missing -> punch anyway (red banner already warns the admin)
+                            }
+                            const modelSaysReal = (gateMode === 'model' && liveProb >= AS_THRESHOLD);
+                            const blinkSaysReal = (gateMode === 'blink' && blinkedRecently(match.label));
+                            if (modelSaysReal || blinkSaysReal) {
                                 isDetecting = false;
                                 verifyUI.classList.add('opacity-0');
                                 reticle.classList.remove('detecting');
                                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                                 scannerWrapper.classList.remove('active-scan');
+                                _lastPunchActivity = Date.now();
                                 await recordAttendance(match.label);
                                 return;
+                            }
+                            if (gateMode === 'model') {
+                                // AI model says photo/screen -> ignore, log a strike
+                                spoofStrike(match.label);
+                                resetScanState();
+                                isDetecting = true;
+                            } else {
+                                // blink mode: person recognised but no blink seen yet -> ask and keep scanning
+                                blinkHint();
+                                isDetecting = true;
                             }
                         }
                     } else {
@@ -1189,6 +1201,7 @@ function nxConfirm(msg, title){
                 }
               } catch(err) {
                 console.warn('scan frame skipped:', err && err.message);
+                gpuTrouble();   // repeated failures = lost WebGL context -> auto-restart the engine
                 // if the camera stream died, revive it
                 if(!video.videoWidth && isDetecting){ try{ await startCamera(); }catch(e){} }
               }
@@ -1204,6 +1217,43 @@ function nxConfirm(msg, title){
             const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
             return (d(eye[1], eye[5]) + d(eye[2], eye[4])) / (2 * d(eye[0], eye[3]));
         }
+        // per-person blink tracker: a printed photo / static screen image can never blink
+        const _blink = { label: null, closed: false, blinkedAt: 0, hintAt: 0 };
+        function trackBlink(label, landmarks){
+            try{
+                if (_blink.label !== label){ _blink.label = label; _blink.closed = false; _blink.blinkedAt = 0; }
+                const L = eyeAspectRatio(landmarks.getLeftEye());
+                const R = eyeAspectRatio(landmarks.getRightEye());
+                const ear = (L + R) / 2;
+                if (ear < 0.21) _blink.closed = true;                       // eyes closed
+                else if (_blink.closed && ear > 0.26){                      // reopened -> a real blink
+                    _blink.closed = false; _blink.blinkedAt = Date.now();
+                }
+            }catch(e){}
+        }
+        function blinkedRecently(label){
+            return _blink.label === label && (Date.now() - _blink.blinkedAt) < 8000;
+        }
+        function blinkHint(){
+            const nowT = Date.now();
+            if (nowT - _blink.hintAt > 3000){
+                _blink.hintAt = nowT;
+                notify('Palak jhapkaiye — photo se punch nahi hota', 'info');
+            }
+        }
+        // GPU health: repeated frame failures = WebGL context lost -> auto-recover by reloading
+        let _gpuErrStreak = 0, _lastPunchActivity = Date.now();
+        function gpuTrouble(){
+            _gpuErrStreak++;
+            if (_gpuErrStreak >= 6 && !_punchInProgress){
+                try{ notify('Camera engine restart ho raha hai…', 'info'); }catch(e){}
+                setTimeout(() => location.reload(), 800);   // queue is safe in localStorage
+            }
+        }
+        // preventive: reload every 6h at an idle moment so long-running GPU memory never builds up
+        setInterval(() => {
+            if (!_punchInProgress && Date.now() - _lastPunchActivity > 3 * 60 * 1000) location.reload();
+        }, 6 * 60 * 60 * 1000);
         /* ============ AI ANTI-SPOOFING (MiniFASNet, silent) ============
            A neural network trained on tens of thousands of real faces vs
            printed photos / phone screens / video replays. It reads the actual
@@ -1239,7 +1289,7 @@ function nxConfirm(msg, title){
                 try {
                     const b = document.createElement('div');
                     b.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#dc2626;color:#fff;font-size:12px;text-align:center;padding:6px;z-index:9999';
-                    b.textContent = 'ANTI-SPOOFING OFF — upload anti_spoof.onnx next to this file in the repository';
+                    b.textContent = 'AI anti-spoof model missing — BLINK-CHECK mode active (upload anti_spoof.onnx for stronger protection)';
                     document.body.appendChild(b);
                 } catch(_) {}
             }
