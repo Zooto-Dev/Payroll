@@ -45,8 +45,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .money{font-family:'Space Grotesk',sans-serif;font-variant-numeric:tabular-nums}
 
 /* ---------- Shell ---------- */
-.sidebar{width:230px;min-height:100vh;background:#ffffff;border-right:1px solid var(--line);position:fixed;left:0;top:0;display:flex;flex-direction:column;z-index:40}
-.main{margin-left:230px;min-height:100vh;display:flex;flex-direction:column}
+.sidebar{width:198px;min-height:100vh;background:#ffffff;border-right:1px solid var(--line);position:fixed;left:0;top:0;display:flex;flex-direction:column;z-index:40}
+.main{margin-left:198px;min-height:100vh;display:flex;flex-direction:column}
 /* switches */
 .sw{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0}
 .sw input{opacity:0;width:0;height:0}
@@ -88,13 +88,13 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
   .tbl{min-width:560px}
   #pageTitle{font-size:17px!important;padding-left:44px}
 }
-.nav-item{display:flex;align-items:center;gap:12px;padding:11px 18px;margin:2px 10px;border-radius:10px;color:#64748b;cursor:pointer;font-weight:500;transition:all .15s;border:none;background:transparent;width:calc(100% - 20px);text-align:left;font-size:13.5px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 12px;margin:1px 8px;border-radius:9px;color:#64748b;cursor:pointer;font-weight:500;transition:all .15s;border:none;background:transparent;width:calc(100% - 16px);text-align:left;font-size:13px}
 .nav-item i{width:18px;text-align:center}
 .nav-item:hover{color:var(--ink);background:#f1f5f9}
 .nav-item.active{color:#fff;background:var(--brand)}
 .nav-item.active:hover{color:#fff;background:var(--brand)}
 body.not-super .super-only{display:none !important;}
-.nav-sec{display:flex;align-items:center;justify-content:space-between;width:calc(100% - 20px);margin:8px 10px 0;padding:9px 10px;border:none;background:transparent;font-size:9.5px;font-weight:700;letter-spacing:.12em;color:#94a3b8;cursor:pointer;border-radius:8px;font-family:'Inter',sans-serif}
+.nav-sec{display:flex;align-items:center;justify-content:space-between;width:calc(100% - 16px);margin:6px 8px 0;padding:7px 9px;border:none;background:transparent;font-size:9.5px;font-weight:700;letter-spacing:.12em;color:#94a3b8;cursor:pointer;border-radius:8px;font-family:'Inter',sans-serif}
 .nav-sec:hover{background:#f8fafc;color:#475569}
 .nav-sec i{transition:transform .2s;font-size:10px}
 .nav-group{overflow:hidden;max-height:400px;transition:max-height .25s ease}
@@ -139,8 +139,8 @@ body.not-super .super-only{display:none !important;}
 /* Hiring board */
 .hr-stat{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:#fff;border:1px solid var(--line);border-radius:999px}
 .hr-stat b{color:var(--brand)}
-.hr-board{display:flex;gap:14px;overflow-x:auto;padding-bottom:10px}
-.hr-col{min-width:240px;flex:1;background:#f8fafc;border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;max-height:70vh}
+.hr-board{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:12px;padding-bottom:10px}
+.hr-col{background:#f8fafc;border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;max-height:56vh;min-height:140px}
 .hr-col-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;font-size:12px;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line)}
 .hr-count{background:var(--brand-soft);color:var(--brand);font-size:11px;padding:2px 9px;border-radius:999px}
 .hr-col.is-joined .hr-count{background:#ecfdf5;color:#047857}
@@ -174,7 +174,7 @@ body.not-super .super-only{display:none !important;}
 .c-LV{background:#f5f3ff;color:#7c3aed;font-weight:700}
 
 /* ---------- Toast ---------- */
-#toastWrap{position:fixed;bottom:22px;right:22px;z-index:100;display:flex;flex-direction:column;gap:8px}
+#toastWrap{position:fixed;bottom:22px;right:22px;z-index:99000;display:flex;flex-direction:column;gap:8px}
 .toast{background:var(--ink);color:#fff;padding:11px 16px;border-radius:12px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:9px;box-shadow:0 10px 25px rgba(0,0,0,.2);animation:tin .25s ease}
 body.no-confidential .confidential-col{display:none!important}
 @keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -407,7 +407,7 @@ body.no-confidential .confidential-col{display:none!important}
   <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
     <div class="flex gap-2 items-center flex-wrap">
       <button id="hrAddBtn" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Add Candidate</button>
-      <select id="hrStageFilter" class="inp" style="max-width:180px">
+      <select id="hrStageFilter" class="inp" style="width:170px">
         <option value="">All stages</option>
         <option value="APPLIED">Applied</option>
         <option value="SHORTLISTED">Shortlisted</option>
@@ -2289,6 +2289,18 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
   });
 });
 document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => $(b.dataset.close).classList.remove('show')));
+/* Modal stacking: whichever modal is shown LAST always sits on top (fixes popup-behind-popup) */
+let _nxZTop = 60;
+new MutationObserver(muts => {
+  muts.forEach(m => {
+    const el = m.target;
+    if(el.classList && el.classList.contains('modal') && el.classList.contains('show')){
+      _nxZTop = Math.min(_nxZTop + 1, 98000);
+      el.style.zIndex = _nxZTop;
+    }
+  });
+}).observe(document.body, { attributes:true, subtree:true, attributeFilter:['class'] });
+
 document.querySelectorAll('.nav-sec[data-group]').forEach(h => h.addEventListener('click', () => {
   h.classList.toggle('collapsed');
   $(h.dataset.group).classList.toggle('collapsed');
