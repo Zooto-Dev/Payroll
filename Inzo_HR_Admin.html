@@ -1325,6 +1325,41 @@ body.no-confidential .confidential-col{display:none!important}
 </div>
 
 <!-- ================= MANUAL PUNCH MODAL -->
+<!-- ================= KAIZEN SCORING MODAL ================= -->
+<div class="modal" id="kzScoreModal">
+  <div class="modal-box" style="max-width:560px">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="display font-bold text-lg m-0">Kaizen Scorecard</h3>
+      <button class="btn btn-ghost btn-sm" data-close="kzScoreModal"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <p class="text-xs mb-3" style="color:var(--muted)">Score each parameter — the total (out of 100) decides the grade &amp; reward automatically, so it's fair and objective.</p>
+    <div id="kzScoreRows"></div>
+    <div class="mt-3 p-3 rounded-xl" style="background:#f8fafc;border:1px solid var(--line)">
+      <div class="flex items-center justify-between">
+        <span class="font-semibold">Total Score</span>
+        <span class="display font-bold text-xl" id="kzTotal">0 / 100</span>
+      </div>
+      <div class="flex items-center justify-between mt-2">
+        <span class="text-sm" style="color:var(--muted)">Grade</span>
+        <span id="kzGrade" class="chip chip-gray">—</span>
+      </div>
+      <div class="flex items-center justify-between mt-2">
+        <span class="text-sm" style="color:var(--muted)">Suggested Reward</span>
+        <span class="money font-bold" id="kzReward">₹0</span>
+      </div>
+      <div class="mt-2">
+        <label class="lbl">Final Reward (₹) — edit if needed, 0 = recognition only</label>
+        <input id="kzRewardInput" type="number" class="inp" value="0">
+      </div>
+      <div class="mt-2">
+        <label class="lbl">Completion note (optional)</label>
+        <input id="kzNote" class="inp" placeholder="Great work / what was achieved">
+      </div>
+    </div>
+    <button id="kzScoreSave" class="btn btn-primary w-full justify-center mt-4"><i class="fa-solid fa-award"></i> Complete &amp; Reward</button>
+  </div>
+</div>
+
 <div class="modal" id="fixModal">
   <div class="modal-box" style="max-width:600px">
     <div class="flex items-center justify-between mb-4">
@@ -1668,6 +1703,82 @@ function showAttList(kind){
   m.classList.add('show');
 }
 function closeAttList(){ const m = document.getElementById('attListModal'); if(m) m.classList.remove('show'); }
+const KZ_PARAMS = [
+  { k:'cost',    label:'Cost Saving',            max:20 },
+  { k:'prod',    label:'Productivity',           max:20 },
+  { k:'quality', label:'Quality Improvement',    max:15 },
+  { k:'safety',  label:'Safety Improvement',     max:15 },
+  { k:'time',    label:'Time Saving',            max:10 },
+  { k:'ease',    label:'Ease of Implementation', max:10 },
+  { k:'sustain', label:'Sustainability',         max:10 },
+];
+// score -> grade + suggested reward
+function kzGradeReward(score){
+  if(score >= 90) return { grade:'Outstanding', chip:'chip-ok', reward:5000 };
+  if(score >= 75) return { grade:'Excellent',   chip:'chip-ok', reward:2000 };
+  if(score >= 60) return { grade:'Very Good',   chip:'chip-blue', reward:1000 };
+  if(score >= 40) return { grade:'Good',        chip:'chip-warn', reward:500 };
+  return { grade:'Not Qualified', chip:'chip-gray', reward:0 };
+}
+function kzImpactFromScore(score){ return score >= 75 ? 'HIGH' : score >= 50 ? 'MEDIUM' : 'LOW'; }
+let _kzScoreTarget = null;   // { id, code, note }
+function openKzScore(id, code, existingNote){
+  _kzScoreTarget = { id, code, note: existingNote || '' };
+  $('kzScoreRows').innerHTML = KZ_PARAMS.map(p => `
+    <div class="mb-2">
+      <div class="flex items-center justify-between text-sm mb-1">
+        <span>${p.label} <span style="color:var(--muted)">(max ${p.max})</span></span>
+        <span class="font-bold" id="kzv_${p.k}">0</span>
+      </div>
+      <input type="range" min="0" max="${p.max}" value="0" class="kz-slider" data-k="${p.k}" style="width:100%" oninput="kzRecalc()">
+    </div>`).join('');
+  $('kzNote').value = _kzScoreTarget.note;
+  $('kzRewardInput').value = 0;
+  kzRecalc();
+  $('kzScoreModal').classList.add('show');
+}
+function kzRecalc(){
+  let total = 0;
+  document.querySelectorAll('.kz-slider').forEach(s => {
+    total += Number(s.value)||0;
+    const lbl = document.getElementById('kzv_' + s.dataset.k);
+    if(lbl) lbl.innerText = s.value;
+  });
+  const gr = kzGradeReward(total);
+  $('kzTotal').innerText = total + ' / 100';
+  $('kzGrade').innerText = gr.grade;
+  $('kzGrade').className = 'chip ' + gr.chip;
+  $('kzReward').innerText = fmtINR(gr.reward);
+  $('kzRewardInput').value = gr.reward;
+  window._kzTotal = total;
+}
+document.addEventListener('click', async (e) => {
+  if(!(e.target.closest && e.target.closest('#kzScoreSave'))) return;
+  if(!_kzScoreTarget) return;
+  const total = window._kzTotal || 0;
+  const gr = kzGradeReward(total);
+  const impact = kzImpactFromScore(total);
+  const amt = Number($('kzRewardInput').value) || 0;
+  const scores = {};
+  document.querySelectorAll('.kz-slider').forEach(s => scores[s.dataset.k] = Number(s.value)||0);
+  const note = $('kzNote').value || _kzScoreTarget.note || '';
+  const gradeNote = `[Score ${total}/100 · ${gr.grade}] ` + note;
+  const { id, code } = _kzScoreTarget;
+  const btn = $('kzScoreSave'); btn.innerHTML = '<div class="loader-ring"></div> Saving…'; btn.disabled = true;
+  try{
+    await sb.from('feedback').update({ kz_stage:'COMPLETED', kz_completed_at: new Date().toISOString(), reward: amt, impact: impact, kz_score: total, admin_note: gradeNote }).eq('id', id);
+    if(amt > 0){
+      const p = PROFILES[code] || {};
+      const sal = Object.assign({}, p.salary || {}, { pendingReward: (Number((p.salary||{}).pendingReward)||0) + amt });
+      await sb.from('hr_profiles').upsert({ employee_code: code, salary: sal }, { onConflict: 'employee_code' });
+      if(PROFILES[code]) PROFILES[code].salary = sal; else PROFILES[code] = { employee_code: code, salary: sal };
+    }
+    $('kzScoreModal').classList.remove('show');
+    notify(amt > 0 ? `Kaizen completed — ${gr.grade}, ${fmtINR(amt)} reward in next payroll` : `Kaizen completed — ${gr.grade} (recognition)`, 'success');
+    loadVoice();
+  }catch(err){ notify(err.message, 'error'); }
+  finally{ btn.innerHTML = '<i class="fa-solid fa-award"></i> Complete & Reward'; btn.disabled = false; }
+});
 function nxAskImpact(){
   return new Promise(resolve => {
     let m = document.getElementById('impactModal');
@@ -3868,25 +3979,8 @@ document.body.addEventListener('click', async e => {
     loadVoice();
   }
   if(act === 'vb-kcomplete'){
-    // STEP 2 — after execution: rate the impact; a cash reward is OPTIONAL (recognition-only is fine).
-    const impact = await nxAskImpact();
-    if(!impact) return;
-    const amtRaw = await nxAsk({ title:'Complete Kaizen — ' + impact + ' impact', msg:'Cash reward (₹) is OPTIONAL — leave blank / 0 for recognition only.\nIf you enter an amount it will be added as "Kaizen Reward" in the next payroll.', input:true, placeholder:'0 = recognition only', okText:'Complete' });
-    if(amtRaw === null) return;   // cancelled
-    const amt = Number(amtRaw) || 0;
-    const note = (await nxPrompt('Completion note (optional):', 'Complete Kaizen')) || '';
-    const code = el.dataset.code;
-    const existingNote = el.dataset.note || '';
-    const finalNote = note || existingNote;
-    await sb.from('feedback').update({ kz_stage:'COMPLETED', kz_completed_at: new Date().toISOString(), reward: amt, impact: impact, admin_note: finalNote }).eq('id', el.dataset.id);
-    if(amt > 0){
-      const p = PROFILES[code] || {};
-      const sal = Object.assign({}, p.salary || {}, { pendingReward: (Number((p.salary||{}).pendingReward)||0) + amt });
-      await sb.from('hr_profiles').upsert({ employee_code: code, salary: sal }, { onConflict: 'employee_code' });
-      if(PROFILES[code]) PROFILES[code].salary = sal; else PROFILES[code] = { employee_code: code, salary: sal };
-    }
-    notify(amt > 0 ? `Kaizen completed — ${fmtINR(amt)} reward in next payroll` : 'Kaizen completed — recognised (no cash reward)', 'success');
-    loadVoice();
+    // STEP 2 — open the objective scorecard; grade + reward come from the score.
+    openKzScore(el.dataset.id, el.dataset.code, el.dataset.note || '');
   }
   if(act === 'ex-receipt'){
     const { data, error } = await sb.storage.from('expense-bills').createSignedUrl(el.dataset.path, 120);
