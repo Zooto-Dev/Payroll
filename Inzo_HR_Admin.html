@@ -136,6 +136,23 @@ body.not-super .super-only{display:none !important;}
 .chip-bad{background:#fef2f2;color:#b91c1c}
 .chip-gray{background:#f1f5f9;color:#475569}
 .chip-blue{background:var(--brand-soft);color:var(--brand)}
+/* Hiring board */
+.hr-stat{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:#fff;border:1px solid var(--line);border-radius:999px}
+.hr-stat b{color:var(--brand)}
+.hr-board{display:flex;gap:14px;overflow-x:auto;padding-bottom:10px}
+.hr-col{min-width:240px;flex:1;background:#f8fafc;border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;max-height:70vh}
+.hr-col-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;font-size:12px;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line)}
+.hr-count{background:var(--brand-soft);color:var(--brand);font-size:11px;padding:2px 9px;border-radius:999px}
+.hr-col.is-joined .hr-count{background:#ecfdf5;color:#047857}
+.hr-col.is-rejected .hr-count{background:#fef2f2;color:#b91c1c}
+.hr-col-body{padding:10px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:8px}
+.hr-cand{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;transition:box-shadow .15s,border-color .15s,transform .1s}
+.hr-cand:hover{box-shadow:0 4px 14px rgba(15,23,42,.08);border-color:var(--brand);transform:translateY(-1px)}
+.hr-cand-name{font-weight:700;font-size:13.5px;color:var(--ink)}
+.hr-cand-role{font-size:11.5px;color:var(--muted);margin-top:2px}
+.hr-cand-meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;font-size:10.5px;color:var(--muted)}
+.hr-cand-meta .hr-emp{color:#047857;font-weight:600}
+.hr-empty{text-align:center;font-size:11px;color:#94a3b8;padding:16px 0}
 
 /* ---------- Modal ---------- */
 .modal{position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
@@ -3165,13 +3182,13 @@ function buildDayStatus(ym, rows){
 
 /* ---------------- Hiring / Recruitment ---------------- */
 const HR_STAGES = [
-  { k:'APPLIED',     label:'Applied',     color:'#64748b' },
-  { k:'SHORTLISTED', label:'Shortlisted', color:'#0ea5e9' },
-  { k:'INTERVIEW',   label:'Interview',   color:'#8b5cf6' },
-  { k:'SELECTED',    label:'Selected',    color:'#f59e0b' },
-  { k:'OFFERED',     label:'Offered',     color:'#6366f1' },
-  { k:'JOINED',      label:'Joined',      color:'#16a34a' },
-  { k:'REJECTED',    label:'Rejected',    color:'#dc2626' },
+  { k:'APPLIED',     label:'Applied' },
+  { k:'SHORTLISTED', label:'Shortlisted' },
+  { k:'INTERVIEW',   label:'Interview' },
+  { k:'SELECTED',    label:'Selected' },
+  { k:'OFFERED',     label:'Offered' },
+  { k:'JOINED',      label:'Joined' },
+  { k:'REJECTED',    label:'Rejected' },
 ];
 let CANDIDATES = [];
 async function loadHiring(){
@@ -3192,23 +3209,26 @@ function renderHiring(){
   // stats
   const counts = {}; HR_STAGES.forEach(s => counts[s.k] = 0);
   CANDIDATES.forEach(c => { if(counts[c.stage]!==undefined) counts[c.stage]++; });
-  $('hrStats').innerHTML = HR_STAGES.map(s => `<span><b style="color:${s.color}">${counts[s.k]}</b> ${s.label}</span>`).join('');
+  $('hrStats').innerHTML = HR_STAGES.map(s => `<span class="hr-stat"><b>${counts[s.k]}</b> ${s.label}</span>`).join('');
 
   const stages = filter ? HR_STAGES.filter(s => s.k === filter) : HR_STAGES;
-  host.innerHTML = `<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px">
+  host.innerHTML = `<div class="hr-board">
     ${stages.map(s => {
       const list = CANDIDATES.filter(c => c.stage === s.k);
-      return `<div style="min-width:250px;flex:1">
-        <div style="font-weight:700;font-size:12px;padding:8px 10px;border-radius:8px 8px 0 0;background:${s.color};color:#fff">${s.label} (${list.length})</div>
-        <div style="background:#f8fafc;border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;padding:8px;min-height:80px;max-height:65vh;overflow-y:auto">
+      const tone = s.k === 'JOINED' ? 'is-joined' : s.k === 'REJECTED' ? 'is-rejected' : '';
+      return `<div class="hr-col ${tone}">
+        <div class="hr-col-head"><span>${s.label}</span><span class="hr-count">${list.length}</span></div>
+        <div class="hr-col-body">
           ${list.length ? list.map(c => `
-            <div class="card" style="padding:10px;margin-bottom:8px;cursor:pointer" onclick="openCand('${c.id}')">
-              <div class="font-semibold text-sm">${esc(c.name)}</div>
-              <div class="text-[11px]" style="color:var(--muted)">${esc(c.position||'—')}${c.department?' · '+esc(c.department):''}</div>
-              ${c.phone?`<div class="text-[10px]" style="color:var(--muted)"><i class="fa-solid fa-phone"></i> ${esc(c.phone)}</div>`:''}
-              ${c.interview_score?`<span class="chip chip-blue" style="font-size:9px;margin-top:4px">Score ${c.interview_score}</span>`:''}
-              ${c.stage==='JOINED' && c.employee_code?`<span class="chip chip-ok" style="font-size:9px;margin-top:4px">${esc(c.employee_code)}</span>`:''}
-            </div>`).join('') : '<p class="text-[11px] m-0" style="color:var(--muted);text-align:center;padding:10px">None</p>'}
+            <div class="hr-cand" onclick="openCand('${c.id}')">
+              <div class="hr-cand-name">${esc(c.name)}</div>
+              <div class="hr-cand-role">${esc(c.position||'Role not set')}${c.department?' · '+esc(c.department):''}</div>
+              <div class="hr-cand-meta">
+                ${c.phone?`<span><i class="fa-solid fa-phone"></i> ${esc(c.phone)}</span>`:''}
+                ${c.interview_score?`<span><i class="fa-solid fa-star"></i> ${c.interview_score}</span>`:''}
+                ${c.stage==='JOINED' && c.employee_code?`<span class="hr-emp"><i class="fa-solid fa-id-badge"></i> ${esc(c.employee_code)}</span>`:''}
+              </div>
+            </div>`).join('') : '<div class="hr-empty">No candidates</div>'}
         </div>
       </div>`;
     }).join('')}
@@ -3218,15 +3238,15 @@ function candStageActions(c){
   // show next-step buttons + fields based on current stage
   const id = c.id;
   const moves = {
-    APPLIED:     [['SHORTLISTED','Shortlist','chip-blue'], ['REJECTED','Reject','chip-bad']],
-    SHORTLISTED: [['INTERVIEW','Schedule Interview','chip-blue'], ['REJECTED','Reject','chip-bad']],
-    INTERVIEW:   [['SELECTED','Mark Selected','chip-warn'], ['REJECTED','Reject','chip-bad']],
-    SELECTED:    [['OFFERED','Send Offer','chip-blue'], ['REJECTED','Reject','chip-bad']],
-    OFFERED:     [['JOINED','Mark Joined','chip-ok'], ['REJECTED','Declined','chip-bad']],
+    APPLIED:     [['SHORTLISTED','Shortlist','primary'], ['REJECTED','Reject','danger']],
+    SHORTLISTED: [['INTERVIEW','Schedule Interview','primary'], ['REJECTED','Reject','danger']],
+    INTERVIEW:   [['SELECTED','Mark Selected','primary'], ['REJECTED','Reject','danger']],
+    SELECTED:    [['OFFERED','Send Offer','primary'], ['REJECTED','Reject','danger']],
+    OFFERED:     [['JOINED','Mark Joined','primary'], ['REJECTED','Declined','danger']],
     JOINED:      [],
-    REJECTED:    [['APPLIED','Reopen','chip-gray']],
+    REJECTED:    [['APPLIED','Reopen','ghost']],
   };
-  let html = `<div class="text-[11px] font-bold uppercase tracking-wide mb-2 mt-3" style="color:var(--brand)">Stage: ${esc(c.stage)}</div>`;
+  let html = `<div class="text-[11px] font-bold uppercase tracking-wide mb-2 mt-3" style="color:var(--brand)">Current Stage — ${esc(c.stage)}</div>`;
   // stage-specific fields
   if(c.stage === 'INTERVIEW' || c.stage === 'SHORTLISTED'){
     html += `<div class="grid grid-cols-2 gap-3 mb-2">
@@ -3242,7 +3262,7 @@ function candStageActions(c){
     </div>`;
   }
   html += `<div class="flex gap-2 flex-wrap">${(moves[c.stage]||[]).map(m =>
-    `<button class="btn btn-ghost btn-sm" onclick="moveCandidate('${id}','${m[0]}')"><span class="chip ${m[2]}" style="font-size:10px">${m[1]}</span></button>`).join('')}</div>`;
+    `<button class="btn btn-${m[2]} btn-sm" onclick="moveCandidate('${id}','${m[0]}')">${m[1]}</button>`).join('')}</div>`;
   if(c.stage === 'OFFERED' || c.stage === 'JOINED'){
     html += `<div class="mt-2 p-2 rounded" style="background:#f0fdf4;border:1px solid #bbf7d0">
       <div class="text-[11px] mb-1" style="color:#15803d"><b>Ready to onboard?</b> Convert this candidate into an employee.</div>
