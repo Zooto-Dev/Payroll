@@ -302,6 +302,9 @@
         <div id="offlineBanner" class="hidden w-full bg-red-500 text-white text-[10px] font-bold text-center py-1.5 uppercase tracking-widest shadow-inner z-50">
             <i class="fa-solid fa-wifi-slash mr-1"></i> Offline Mode - Data will be saved locally
         </div>
+        <div id="pendingBadge" class="hidden w-full text-[10px] font-bold text-center py-1.5 uppercase tracking-widest z-50" style="background:#f59e0b;color:#78350f;cursor:pointer" onclick="flushPendingPunches(false)">
+            <i class="fa-solid fa-cloud-arrow-up mr-1"></i> <span id="pendingCount">0</span> punches waiting to sync — tap to sync now
+        </div>
 
         <!-- Device Auth State -->
         <div id="authDeviceState" class="hidden flex-col items-center justify-center py-16 px-6 text-center flex-grow">
@@ -1341,6 +1344,33 @@ function nxConfirm(msg, title){
                 localStorage.setItem('today_punches', JSON.stringify(trimmed));
             }catch(e){}
         }
+        function queuePunch(item){
+            let pending = JSON.parse(localStorage.getItem('pending_punches') || '[]');
+            pending.push(item);
+            try{
+                localStorage.setItem('pending_punches', JSON.stringify(pending));
+            }catch(e){
+                // storage full (many queued photos): drop the PHOTOS but never the punches
+                pending = pending.map(p => { const q = Object.assign({}, p); delete q.imageBase64; return q; });
+                try{ localStorage.setItem('pending_punches', JSON.stringify(pending)); }catch(e2){}
+            }
+            updatePendingBadge();
+        }
+        // pull today's server records into the local map so IN/OUT decisions stay right
+        // even if the kiosk phone restarts or its local data was cleared
+        async function refreshTodayCache(){
+            if(!navigator.onLine || !supabaseClient) return;
+            try{
+                const d = new Date();
+                const day = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+                const { data } = await supabaseClient.from('attendance').select('employee_code,in_time,out_time').eq('date', day);
+                (data || []).forEach(r => {
+                    const lp = getLocalPunch(r.employee_code, day) || {};
+                    if(r.in_time && !lp.in) setLocalPunch(r.employee_code, day, 'in', String(r.in_time).substring(0,8));
+                    if(r.out_time && !lp.out) setLocalPunch(r.employee_code, day, 'out', String(r.out_time).substring(0,8));
+                });
+            }catch(e){}
+        }
         let _punchInProgress = false;   // global lock: only one punch may run at a time
         // Public entry point: wraps the core so the lock is ALWAYS released, on any exit path.
         async function recordAttendance(empCode, offlineProcessData = null) {
@@ -1372,8 +1402,12 @@ function nxConfirm(msg, title){
             }
 
             const localDate = new Date();
-            const todayStr = offlineProcessData ? offlineProcessData.todayStr : `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}-${String(localDate.getDate()).padStart(2, '0')}`;
-            const timeStr = offlineProcessData ? offlineProcessData.timeStr : `${String(localDate.getHours()).padStart(2, '0')}:${String(localDate.getMinutes()).padStart(2, '0')}:${String(localDate.getSeconds()).padStart(2, '0')}`;
+            const _nowDate = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}-${String(localDate.getDate()).padStart(2, '0')}`;
+            const _nowTime = `${String(localDate.getHours()).padStart(2, '0')}:${String(localDate.getMinutes()).padStart(2, '0')}:${String(localDate.getSeconds()).padStart(2, '0')}`;
+            // tolerant: accept BOTH new (todayStr/timeStr) and old (date/in_time/out_time) queued shapes,
+            // so punches stuck in the old queue on kiosk phones are rescued and synced.
+            const todayStr = offlineProcessData ? (offlineProcessData.todayStr || offlineProcessData.date || _nowDate) : _nowDate;
+            const timeStr = offlineProcessData ? (offlineProcessData.timeStr || offlineProcessData.in_time || offlineProcessData.out_time || _nowTime) : _nowTime;
             
             // LATE MARK LOGIC
             //   Production / Planning / Store : late after 09:10
@@ -1419,33 +1453,67 @@ function nxConfirm(msg, title){
             }
 
             const saveOfflineTask = () => {
-                // decide IN vs OUT from the locally-remembered punch (works with no internet)
+                // INSTANT PUNCH: decide IN vs OUT locally, confirm in under a second,
+                // and sync to the server in the background. The person NEVER waits for the network.
                 const lp = getLocalPunch(empCode, todayStr) || {};
                 let punchType;
-                if (!lp.in) punchType = 'IN';
-                else if (!lp.out) punchType = 'OUT';
-                else {
-                    // already both IN and OUT locally today -> block a third punch
+                if (!lp.in) {
+                    // line manpower check from the local today-map (instant, no network)
+                    const myLine = empData && empData.LINE ? String(empData.LINE).trim().toLowerCase() : '';
+                    if (myLine && (window.productionLines || []).length) {
+                        const lineDef = window.productionLines.find(l => String(l.name).trim().toLowerCase() === myLine);
+                        if (lineDef && Number(lineDef.capacity) > 0) {
+                            let m = {}; try{ m = (JSON.parse(localStorage.getItem('today_punches') || '{}')[todayStr]) || {}; }catch(e){}
+                            let lineCount = 0;
+                            Object.keys(m).forEach(c => {
+                                if(!m[c] || !m[c].in) return;
+                                const e2 = employeeDataMap.get(c);
+                                if (e2 && String(e2.LINE || '').trim().toLowerCase() === myLine) lineCount++;
+                            });
+                            if (lineCount >= Number(lineDef.capacity)) {
+                                notify('Manpower full on ' + lineDef.name + ' (' + lineCount + '/' + lineDef.capacity + '). Attendance not marked.', 'error');
+                                speakText(speakName(empName) + ', ' + lineDef.name + ' par manpower full ho chuki hai. Aapki attendance nahi lagi.');
+                                queuePunch({ type:'LOG', empCode, empName, todayStr, timeStr, line: lineDef.name });
+                                resumeScanning();
+                                return;
+                            }
+                        }
+                    }
+                    punchType = 'IN';
+                }
+                else if (!lp.out) {
+                    // OUT only after the minimum gap (1 hour) — same rule as before
+                    const inMs = new Date(todayStr + 'T' + String(lp.in).substring(0,8)).getTime();
+                    const nowMs2 = new Date(todayStr + 'T' + timeStr).getTime();
+                    if (nowMs2 - inMs < 60 * 60 * 1000) {
+                        notify(empName + ', aapka punch pehle se laga hua hai.', 'info');
+                        speakText(speakName(empName) + ', aapka punch pehle se laga hua hai.');
+                        resumeScanning();
+                        return;
+                    }
+                    punchType = 'OUT';
+                } else {
                     notify(empName + " — already punched in & out today.", "info");
+                    speakText(speakName(empName) + ', aaj ki aapki shift puri ho chuki hai.');
                     resumeScanning();
                     return;
                 }
-                let pending = JSON.parse(localStorage.getItem('pending_punches') || '[]');
-                pending.push({ empCode, todayStr, timeStr, imageBase64, type: punchType, is_late: isLate, empName });
-                localStorage.setItem('pending_punches', JSON.stringify(pending));
+                queuePunch({ empCode, todayStr, timeStr, imageBase64, type: punchType, is_late: isLate, empName });
                 // remember locally so the next scan gives the correct next action
                 setLocalPunch(empCode, todayStr, punchType === 'IN' ? 'in' : 'out', timeStr);
 
-                notify("Saved Offline — will sync when online", "info");
                 lastPunchTime.set(empCode, now);
-                let msg = empName + (punchType === 'IN' ? ", aapki entry offline save ho gayi hai." : ", aapka out offline save ho gaya hai.");
+                let msg = speakName(empName) + (punchType === 'IN' ? ", aapka punch in safal raha." : ", aapka punch out safal raha.");
                 if(punchType === 'IN' && isLate) msg += " Dhyan rahe, aap late hain.";
                 speakText(msg);
-                showSuccessUI(empData, empName, imageBase64, timeStr, punchType === 'IN' ? "IN (OFFLINE)" : "OUT (OFFLINE)");
+                showSuccessUI(empData, empName, imageBase64, timeStr, navigator.onLine ? punchType : punchType + " (OFFLINE)");
+                // push to the server within seconds (background — the person has already left)
+                if (navigator.onLine) setTimeout(() => flushPendingPunches(true), 1200);
             };
 
-            // OFFLINE LOGIC (Fast check)
-            if (!navigator.onLine && !offlineProcessData) {
+            // INSTANT MODE: every live scan confirms locally in <1s. The network-touching
+            // logic below now runs ONLY for background sync (offlineProcessData items).
+            if (!offlineProcessData) {
                 saveOfflineTask();
                 return;
             }
@@ -1512,10 +1580,8 @@ function nxConfirm(msg, title){
                             const u = await supabaseClient.from('attendance').update({ out_time: timeStr, out_photo_url: photoUrl, total_hours: totalStr }).eq('id', record.id);
                             updateErr = u.error;
                         } else {
-                            // local-only in-record (server was offline at in-time). Queue the out-punch instead.
-                            let pend = JSON.parse(localStorage.getItem('pending_punches') || '[]');
-                            pend.push({ type:'OUT', empCode, date: todayStr, out_time: timeStr, total_hours: totalStr });
-                            localStorage.setItem('pending_punches', JSON.stringify(pend));
+                            // local-only in-record (server was offline at in-time). Queue the out-punch with the sync's field names.
+                            queuePunch({ type:'OUT', empCode, empName, todayStr: todayStr, timeStr: timeStr, imageBase64 });
                         }
                         setLocalPunch(empCode, todayStr, 'out', timeStr);
                         if (updateErr) throw updateErr;
@@ -1579,14 +1645,14 @@ function nxConfirm(msg, title){
                         is_late: isLate,
                         in_photo_url: photoUrl 
                     }]);
-                    const insTimeout = new Promise(res => setTimeout(() => res({ _timeout: true }), 6000));
+                    const insTimeout = new Promise(res => setTimeout(() => res({ _timeout: true }), 12000));
                     const insRes = await Promise.race([insertP, insTimeout]);
                     if (insRes && insRes._timeout) {
-                        // slow network: keep the punch locally + queue it, show success so the person can leave
+                        // slow network: queue with the SAME field names the sync uses (todayStr/timeStr!)
                         setLocalPunch(empCode, todayStr, 'in', finalInTime);
                         let pend = JSON.parse(localStorage.getItem('pending_punches') || '[]');
-                        pend.push({ type:'IN', empCode, empName, date: todayStr, in_time: finalInTime, is_late: isLate });
-                        localStorage.setItem('pending_punches', JSON.stringify(pend));
+                        queuePunch({ type:'IN', empCode, empName, todayStr: todayStr, timeStr: finalInTime, is_late: isLate, imageBase64 });
+                        punchType = "IN (SYNC PENDING)";
                     } else if (insRes && insRes.error) {
                         throw insRes.error;
                     } else {
@@ -1619,26 +1685,58 @@ function nxConfirm(msg, title){
             notify("Internet disconnected. Ready for offline punches.", "error");
         });
 
-        async function flushPendingPunches(silent){
-            let pending = JSON.parse(localStorage.getItem('pending_punches') || '[]');
-            if (pending.length === 0) return;
-            if(!silent) notify(`Syncing ${pending.length} offline records...`, "info");
-            // process INs first, then OUTs, so every OUT finds its IN already on the server
-            pending.sort((a,b) => (a.type==='OUT'?1:0) - (b.type==='OUT'?1:0));
-            let remaining = [];
-            for(let p of pending) {
-                try { await recordAttendance(p.empCode, p); }
-                catch(e) { remaining.push(p); }
-            }
-            localStorage.setItem('pending_punches', JSON.stringify(remaining));
-            if(!silent && remaining.length === 0) notify("All offline data synced!", "success");
+        function updatePendingBadge(){
+            try{
+                const n = (JSON.parse(localStorage.getItem('pending_punches') || '[]')).length;
+                const b = document.getElementById('pendingBadge');
+                if(b){ b.classList.toggle('hidden', n === 0); const c = document.getElementById('pendingCount'); if(c) c.innerText = n; }
+            }catch(e){}
         }
+        let _flushBusy = false;
+        async function flushPendingPunches(silent){
+            if(_flushBusy) return; _flushBusy = true;
+            try{
+                let pending = JSON.parse(localStorage.getItem('pending_punches') || '[]');
+                if (pending.length === 0) { updatePendingBadge(); return; }
+                if(!silent) notify(`Syncing ${pending.length} offline records...`, "info");
+                // process INs first, then OUTs, so every OUT finds its IN already on the server
+                pending.sort((a,b) => (a.type==='OUT'?1:0) - (b.type==='OUT'?1:0));
+                for(let i = 0; i < pending.length; i++){
+                    const p = pending[i];
+                    try {
+                        if(p.type === 'LOG'){
+                            await supabaseClient.from('deployment_logs').insert([{ employee_code: p.empCode, name: p.empName, line: p.line, date: p.todayStr, time: p.timeStr, status: 'MANPOWER_FULL' }]);
+                        } else {
+                            await recordAttendance(p.empCode, p);
+                        }
+                        // success -> remove THIS item immediately and persist (a mid-way close never re-runs or loses others)
+                        const cur = JSON.parse(localStorage.getItem('pending_punches') || '[]');
+                        const idx = cur.findIndex(x => JSON.stringify(x) === JSON.stringify(p));
+                        if(idx > -1){ cur.splice(idx, 1); localStorage.setItem('pending_punches', JSON.stringify(cur)); }
+                    } catch(e) {
+                        // keep it; count the attempt so a permanently-bad item is visible, never silently dropped
+                        const cur = JSON.parse(localStorage.getItem('pending_punches') || '[]');
+                        const idx = cur.findIndex(x => JSON.stringify(x) === JSON.stringify(p));
+                        if(idx > -1){ cur[idx]._tries = (cur[idx]._tries || 0) + 1; localStorage.setItem('pending_punches', JSON.stringify(cur)); }
+                    }
+                    updatePendingBadge();
+                }
+                const left = (JSON.parse(localStorage.getItem('pending_punches') || '[]')).length;
+                if(!silent && left === 0) notify("All offline data synced!", "success");
+                if(!silent && left > 0) notify(left + " punch(es) could not sync yet — will keep retrying.", "error");
+            } finally { _flushBusy = false; updatePendingBadge(); }
+        }
+        // ask the browser to protect our stored punches from being auto-cleared
+        try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+        updatePendingBadge();
         window.addEventListener('online', () => {
             document.getElementById('offlineBanner').classList.add('hidden');
             flushPendingPunches(false);
         });
         // also flush every 45s in case the network was just slow (no offline/online event fired)
-        setInterval(() => { if(navigator.onLine) flushPendingPunches(true); }, 45000);
+        setInterval(() => { if(navigator.onLine) flushPendingPunches(true); }, 15000);
+        setInterval(refreshTodayCache, 60000);
+        setTimeout(refreshTodayCache, 4000);
 
         // --- STREAMING_CHUNK: Presentation ---
         function showSuccessUI(empData, empName, imgSrc, timeStr, punchType) {
@@ -2163,23 +2261,7 @@ function nxConfirm(msg, title){
                 document.getElementById('authDeviceState').classList.add('hidden');
                 document.getElementById('setupState').classList.remove('hidden');
                 initSystem();
-                async function syncOfflinePunches() {
-                    let pending = JSON.parse(localStorage.getItem('pending_punches') || '[]');
-                    if (pending.length === 0) return;
-                    
-                    notify(`Syncing ${pending.length} offline records...`, "info");
-                    let remaining = [];
-                    for(let p of pending) {
-                        try {
-                            await recordAttendance(p.empCode, p);
-                        } catch(e) {
-                            remaining.push(p);
-                        }
-                    }
-                    localStorage.setItem('pending_punches', JSON.stringify(remaining));
-                    if(remaining.length === 0) notify("All offline data synced!", "success");
-                }
-                setTimeout(syncOfflinePunches, 3000); // Auto-sync pending offline data on startup
+                setTimeout(() => flushPendingPunches(false), 3000); // Auto-sync pending offline data on startup (hardened flush)
             } else {
                 document.getElementById('authDeviceState').classList.remove('hidden');
                 document.getElementById('authDeviceState').classList.add('flex');
