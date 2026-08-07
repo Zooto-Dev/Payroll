@@ -1614,7 +1614,7 @@ function isCEO(){
 // CEO-only actions (super admins always allowed — system owner)
 function roleCEO(){ const r = myEmpRole().desig; return isSuper() || r.includes('CEO') || r.includes('CHIEF EXECUTIVE') || r.includes('MANAGING DIRECTOR'); }
 // Accounts Manager only
-function roleAcctMgr(){ const r = myEmpRole(); return isSuper() || (r.desig.includes('MANAGER') && r.dept.includes('ACCOUNT')); }
+function roleAcctMgr(){ const r = myEmpRole(); return isSuper() || r.dept.includes('ACCOUNT') || canSeeConfidential(); }
 function canFinalize(){ return isSuper() || ((SETTINGS.adminPerms || {})[ME_EMAIL] ? myPerm().finalize === true : true); }
 function canManualAtt(){ return isSuper() || ((SETTINGS.adminPerms || {})[ME_EMAIL] ? myPerm().manualAtt === true : true); }
 function applyPerms(){
@@ -3802,7 +3802,7 @@ document.body.addEventListener('click', async e => {
   }
   if((act === 'appr-leave' || act === 'rej-leave') && !(canApprove('leave') && roleCEO())) return notify('Only the CEO can approve leaves', 'error');
   if((act === 'ot-appr-grp' || act === 'ot-rej-grp') && !(canApprove('ot') && roleCEO())) return notify('Only the CEO can approve overtime', 'error');
-  if((act === 'appr-exp' || act === 'rej-exp' || act === 'appr-ex' || act === 'rej-ex') && !(canApprove('expense') && roleAcctMgr())) return notify('Only the Accounts Manager can approve expenses', 'error');
+  if((act === 'appr-exp' || act === 'rej-exp' || act === 'appr-ex' || act === 'rej-ex') && !(canApprove('expense') && roleAcctMgr())) return notify('Only the Accounts team can approve expenses', 'error');
   if(act === 'appr-leave'){
     await sb.from('leaves').update({ status: 'APPROVED' }).eq('id', el.dataset.id);
     notify('Leave approved', 'success');
@@ -3861,20 +3861,28 @@ document.body.addEventListener('click', async e => {
     loadVoice();
   }
   if(act === 'vb-kapprove'){
-    // Step 1: choose the estimated impact
+    // STEP 1 — just approve so the employee can start executing the idea. No reward yet.
+    const note = (await nxPrompt('Approval note (optional) — the employee can now execute this Kaizen:', 'Approve Kaizen')) || '';
+    await sb.from('feedback').update({ status:'APPROVED', kz_stage:'APPROVED', admin_note: note }).eq('id', el.dataset.id);
+    notify('Kaizen approved — employee can now execute it. Reward is given after completion.', 'success');
+    loadVoice();
+  }
+  if(act === 'vb-kcomplete'){
+    // STEP 2 — after execution: rate the impact and give the reward.
     const impact = await nxAskImpact();
     if(!impact) return;
-    // Step 2: enter the reward amount manually (you decide, based on the impact)
-    const amt = Number(await nxAsk({ title:'Kaizen Reward — ' + impact + ' impact', msg:'Reward amount (₹) — added as "Kaizen Reward" in the next payroll.\nYou decide the amount based on the idea.', input:true, placeholder:'500', okText:'Approve' }));
+    const amt = Number(await nxAsk({ title:'Kaizen Reward — ' + impact + ' impact', msg:'Reward amount (₹) — added as "Kaizen Reward" in the next payroll.\nYou decide the amount based on the executed result.', input:true, placeholder:'500', okText:'Complete & Reward' }));
     if(!amt || amt <= 0) return;
-    const note = (await nxPrompt('Approval note (optional):', 'Approve')) || '';
+    const note = (await nxPrompt('Completion note (optional):', 'Complete Kaizen')) || '';
     const code = el.dataset.code;
-    await sb.from('feedback').update({ status:'APPROVED', reward: amt, impact: impact, admin_note: note }).eq('id', el.dataset.id);
+    const existingNote = el.dataset.note || '';
+    const finalNote = note || existingNote;
+    await sb.from('feedback').update({ kz_stage:'COMPLETED', kz_completed_at: new Date().toISOString(), reward: amt, impact: impact, admin_note: finalNote }).eq('id', el.dataset.id);
     const p = PROFILES[code] || {};
     const sal = Object.assign({}, p.salary || {}, { pendingReward: (Number((p.salary||{}).pendingReward)||0) + amt });
     await sb.from('hr_profiles').upsert({ employee_code: code, salary: sal }, { onConflict: 'employee_code' });
     if(PROFILES[code]) PROFILES[code].salary = sal; else PROFILES[code] = { employee_code: code, salary: sal };
-    notify(`Kaizen approved — ${fmtINR(amt)} reward will be paid in the next payroll`, 'success');
+    notify(`Kaizen completed — ${fmtINR(amt)} reward will be paid in the next payroll`, 'success');
     loadVoice();
   }
   if(act === 'ex-receipt'){
@@ -6094,8 +6102,11 @@ async function loadVoice(){
     <div class="flex gap-1 flex-wrap">
       ${f.status === 'OPEN' ? `<button class="btn btn-ghost btn-sm" data-act="vb-review" data-id="${f.id}">In Review</button>` : ''}
       ${(f.type !== 'KAIZEN' && (f.status === 'OPEN' || f.status === 'IN_REVIEW')) ? `<button class="btn btn-ghost btn-sm" data-act="vb-resolve" data-id="${f.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i> Resolve</button>` : ''}
-      ${(f.type === 'KAIZEN' && f.status !== 'APPROVED' && f.status !== 'REJECTED') ? `<button class="btn btn-primary btn-sm" data-act="vb-kapprove" data-id="${f.id}" data-code="${esc(f.employee_code)}"><i class="fa-solid fa-award"></i> Approve + Reward</button>
+      ${(f.type === 'KAIZEN' && f.status !== 'APPROVED' && f.status !== 'REJECTED') ? `<button class="btn btn-primary btn-sm" data-act="vb-kapprove" data-id="${f.id}" data-code="${esc(f.employee_code)}"><i class="fa-solid fa-check"></i> Approve (allow execution)</button>
         <button class="btn btn-danger btn-sm" data-act="vb-reject" data-id="${f.id}">Reject</button>` : ''}
+      ${(f.type === 'KAIZEN' && f.status === 'APPROVED' && f.kz_stage !== 'COMPLETED') ? `<span class="chip chip-blue" style="align-self:center"><i class="fa-solid fa-person-running"></i> Executing</span>
+        <button class="btn btn-primary btn-sm" data-act="vb-kcomplete" data-id="${f.id}" data-code="${esc(f.employee_code)}" data-note="${esc(f.admin_note||'')}"><i class="fa-solid fa-award"></i> Mark Complete + Reward</button>` : ''}
+      ${(f.type === 'KAIZEN' && f.kz_stage === 'COMPLETED') ? `<span class="chip chip-ok" style="align-self:center"><i class="fa-solid fa-circle-check"></i> Completed${f.reward?' · '+fmtINR(f.reward):''}</span>` : ''}
     </div>
   </div>`;
   const rows = data || [];
