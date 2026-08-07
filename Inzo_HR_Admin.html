@@ -3868,21 +3868,24 @@ document.body.addEventListener('click', async e => {
     loadVoice();
   }
   if(act === 'vb-kcomplete'){
-    // STEP 2 — after execution: rate the impact and give the reward.
+    // STEP 2 — after execution: rate the impact; a cash reward is OPTIONAL (recognition-only is fine).
     const impact = await nxAskImpact();
     if(!impact) return;
-    const amt = Number(await nxAsk({ title:'Kaizen Reward — ' + impact + ' impact', msg:'Reward amount (₹) — added as "Kaizen Reward" in the next payroll.\nYou decide the amount based on the executed result.', input:true, placeholder:'500', okText:'Complete & Reward' }));
-    if(!amt || amt <= 0) return;
+    const amtRaw = await nxAsk({ title:'Complete Kaizen — ' + impact + ' impact', msg:'Cash reward (₹) is OPTIONAL — leave blank / 0 for recognition only.\nIf you enter an amount it will be added as "Kaizen Reward" in the next payroll.', input:true, placeholder:'0 = recognition only', okText:'Complete' });
+    if(amtRaw === null) return;   // cancelled
+    const amt = Number(amtRaw) || 0;
     const note = (await nxPrompt('Completion note (optional):', 'Complete Kaizen')) || '';
     const code = el.dataset.code;
     const existingNote = el.dataset.note || '';
     const finalNote = note || existingNote;
     await sb.from('feedback').update({ kz_stage:'COMPLETED', kz_completed_at: new Date().toISOString(), reward: amt, impact: impact, admin_note: finalNote }).eq('id', el.dataset.id);
-    const p = PROFILES[code] || {};
-    const sal = Object.assign({}, p.salary || {}, { pendingReward: (Number((p.salary||{}).pendingReward)||0) + amt });
-    await sb.from('hr_profiles').upsert({ employee_code: code, salary: sal }, { onConflict: 'employee_code' });
-    if(PROFILES[code]) PROFILES[code].salary = sal; else PROFILES[code] = { employee_code: code, salary: sal };
-    notify(`Kaizen completed — ${fmtINR(amt)} reward will be paid in the next payroll`, 'success');
+    if(amt > 0){
+      const p = PROFILES[code] || {};
+      const sal = Object.assign({}, p.salary || {}, { pendingReward: (Number((p.salary||{}).pendingReward)||0) + amt });
+      await sb.from('hr_profiles').upsert({ employee_code: code, salary: sal }, { onConflict: 'employee_code' });
+      if(PROFILES[code]) PROFILES[code].salary = sal; else PROFILES[code] = { employee_code: code, salary: sal };
+    }
+    notify(amt > 0 ? `Kaizen completed — ${fmtINR(amt)} reward in next payroll` : 'Kaizen completed — recognised (no cash reward)', 'success');
     loadVoice();
   }
   if(act === 'ex-receipt'){
@@ -6105,7 +6108,7 @@ async function loadVoice(){
       ${(f.type === 'KAIZEN' && f.status !== 'APPROVED' && f.status !== 'REJECTED') ? `<button class="btn btn-primary btn-sm" data-act="vb-kapprove" data-id="${f.id}" data-code="${esc(f.employee_code)}"><i class="fa-solid fa-check"></i> Approve (allow execution)</button>
         <button class="btn btn-danger btn-sm" data-act="vb-reject" data-id="${f.id}">Reject</button>` : ''}
       ${(f.type === 'KAIZEN' && f.status === 'APPROVED' && f.kz_stage !== 'COMPLETED') ? `<span class="chip chip-blue" style="align-self:center"><i class="fa-solid fa-person-running"></i> Executing</span>
-        <button class="btn btn-primary btn-sm" data-act="vb-kcomplete" data-id="${f.id}" data-code="${esc(f.employee_code)}" data-note="${esc(f.admin_note||'')}"><i class="fa-solid fa-award"></i> Mark Complete + Reward</button>` : ''}
+        <button class="btn btn-primary btn-sm" data-act="vb-kcomplete" data-id="${f.id}" data-code="${esc(f.employee_code)}" data-note="${esc(f.admin_note||'')}"><i class="fa-solid fa-award"></i> Mark Complete</button>` : ''}
       ${(f.type === 'KAIZEN' && f.kz_stage === 'COMPLETED') ? `<span class="chip chip-ok" style="align-self:center"><i class="fa-solid fa-circle-check"></i> Completed${f.reward?' · '+fmtINR(f.reward):''}</span>` : ''}
     </div>
   </div>`;
