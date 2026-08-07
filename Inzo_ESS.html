@@ -532,8 +532,8 @@ async function loadKaizenCongrats(){
   // show ones the user hasn't dismissed yet
   let seen = [];
   try{ seen = JSON.parse(localStorage.getItem('kz_seen_' + CODE) || '[]'); }catch(e){}
-  const fresh = approved.filter(f => !seen.includes(f.id));
-  const show = fresh.length ? fresh : approved.slice(0,1);  // if all seen, still show the latest quietly
+  const show = approved.filter(f => !seen.includes(f.id));  // only show ones not dismissed
+  if(!show.length){ host.innerHTML = ''; return; }
 
   host.innerHTML = show.map(f => {
     const confetti = Array.from({length:14}).map((_,i)=>{
@@ -558,6 +558,7 @@ async function loadKaizenCongrats(){
       <div>
         ${(done && f.reward > 0) ? `<span class="kz-reward"><i class="fa-solid fa-gift"></i> Reward ₹${Number(f.reward).toLocaleString('en-IN')} in next payroll</span>` : ''}
         ${(done && !(f.reward > 0)) ? `<span class="kz-reward" style="background:#eef2ff;border-color:#c7d2fe;color:#4338ca"><i class="fa-solid fa-medal"></i> Recognised for your contribution</span>` : ''}
+        ${(done && f.kz_score) ? `<span class="kz-impact"><i class="fa-solid fa-star"></i> Score ${esc(String(f.kz_score))}/100</span>` : ''}
         ${(done && f.impact) ? `<span class="kz-impact"><i class="fa-solid fa-chart-line"></i> ${esc(f.impact)} impact</span>` : ''}
       </div>
     </div>`;
