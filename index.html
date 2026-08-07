@@ -136,45 +136,46 @@
         .status-pill.left { left: 1rem; }
         .status-pill.right { right: 1rem; }
 
-        /* Minimal Reticle */
+        /* Modern corner-bracket reticle (no scan line) */
         .focus-frame {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 65%;
-            height: 55%;
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 20px;
+            width: 62%;
+            height: 52%;
             z-index: 10;
-            transition: all 0.3s ease;
+            transition: all 0.25s ease;
+            --fc: rgba(255,255,255,0.55);
         }
-        
-        /* Corner accents for the frame */
-        .focus-frame::before, .focus-frame::after {
-            content: ''; position: absolute; width: 100%; height: 100%;
-            border-radius: 20px; z-index: -1;
-        }
-        .focus-frame.detecting {
-            border-color: rgba(37, 99, 235, 0.8);
-            background: rgba(37, 99, 235, 0.05);
-            box-shadow: 0 0 30px rgba(37, 99, 235, 0.2) inset;
-        }
+        .focus-frame .c { position: absolute; width: 34px; height: 34px; border: 0 solid var(--fc); transition: border-color .25s ease; }
+        .focus-frame .tl { top: 0; left: 0;  border-top-width: 3.5px; border-left-width: 3.5px;  border-top-left-radius: 16px; }
+        .focus-frame .tr { top: 0; right: 0; border-top-width: 3.5px; border-right-width: 3.5px; border-top-right-radius: 16px; }
+        .focus-frame .bl { bottom: 0; left: 0;  border-bottom-width: 3.5px; border-left-width: 3.5px;  border-bottom-left-radius: 16px; }
+        .focus-frame .br { bottom: 0; right: 0; border-bottom-width: 3.5px; border-right-width: 3.5px; border-bottom-right-radius: 16px; }
+        .focus-frame.detecting { --fc: #3b82f6; filter: drop-shadow(0 0 8px rgba(59,130,246,.5)); }
+        .focus-frame.ok       { --fc: #10b981; filter: drop-shadow(0 0 10px rgba(16,185,129,.55)); }
+        .focus-frame.warn     { --fc: #f59e0b; filter: drop-shadow(0 0 8px rgba(245,158,11,.5)); }
+        .focus-frame.danger   { --fc: #ef4444; filter: drop-shadow(0 0 12px rgba(239,68,68,.6)); animation: frameShake .35s ease; }
+        @keyframes frameShake { 0%,100%{transform:translate(-50%,-50%)} 25%{transform:translate(calc(-50% - 6px),-50%)} 75%{transform:translate(calc(-50% + 6px),-50%)} }
+        .scan-line { display: none; }
 
-        /* Subtle Scan Line */
-        .scan-line {
-            position: absolute; 
-            width: 100%; 
-            height: 2px; 
-            background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.8), transparent);
-            box-shadow: 0 0 8px rgba(37, 99, 235, 0.5); 
-            animation: scan-anim 2.5s infinite linear;
-            z-index: 11;
-            left: 0;
-            opacity: 0;
+        /* On-camera feedback card (unknown face / spoof / blink) */
+        #feedbackCard {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(.94);
+            z-index: 30; min-width: 68%; max-width: 88%;
+            border-radius: 18px; padding: 16px 18px; text-align: center;
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,.18);
+            opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease;
         }
-        
-        .active-scan .scan-line { opacity: 1; }
+        #feedbackCard.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+        #feedbackCard .fb-icon { font-size: 30px; margin-bottom: 6px; }
+        #feedbackCard .fb-title { font-weight: 800; font-size: 15px; letter-spacing: .02em; color: #fff; }
+        #feedbackCard .fb-sub { font-size: 11.5px; color: rgba(255,255,255,.85); margin-top: 3px; }
+        #feedbackCard.fb-warn   { background: rgba(146, 64, 14, .82); }
+        #feedbackCard.fb-danger { background: rgba(153, 27, 27, .88); }
+        #feedbackCard.fb-info   { background: rgba(30, 58, 138, .85); }
 
         @keyframes scan-anim {
             0% { top: 5%; }
@@ -352,7 +353,8 @@
                 
                 <div class="absolute inset-0 z-10 pointer-events-none">
                     <div class="scan-line"></div>
-                    <div class="focus-frame" id="reticle"></div>
+                    <div class="focus-frame" id="reticle"><s class="c tl"></s><s class="c tr"></s><s class="c bl"></s><s class="c br"></s></div>
+                    <div id="feedbackCard"><div class="fb-icon" id="fbIcon"></div><div class="fb-title" id="fbTitle"></div><div class="fb-sub" id="fbSub"></div></div>
                     
                     <div class="absolute bottom-4 left-0 w-full flex flex-col items-center px-4">
                         <div id="verifyUI" class="w-full flex flex-col items-center opacity-0 transition-opacity duration-300 bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-white/10">
@@ -1056,6 +1058,7 @@ function nxConfirm(msg, title){
                 const _t1 = performance.now();
                 if (!faceBox) {
                     reticle.classList.remove('detecting');
+                    trackUnknown(false, false);   // nobody in frame -> reset the unknown timer
                     resetScanState();
                     if(isDetecting) setTimeout(() => requestAnimationFrame(scanFrame), 60);
                     return;
@@ -1113,6 +1116,7 @@ function nxConfirm(msg, title){
                     _gpuErrStreak = 0;   // a full successful detection = GPU healthy
                     const match = faceMatcher.findBestMatch(detection.descriptor);
                     if (match.label !== 'unknown' && detection.landmarks) trackBlink(match.label, detection.landmarks);
+                    trackUnknown(true, match.label !== 'unknown' && match.distance < 0.50);
                     if(NX_DEBUG) hud('detect:' + (_t1-_t0).toFixed(0) + ' desc:' + (_t2-_t1).toFixed(0) + 'ms  best:' + match.label + ' dist:' + match.distance.toFixed(3) + ' conf:' + matchConfidence);
 
                     const CONFIDENT = 0.42;   // clearly this person -> one scan is enough
@@ -1175,6 +1179,7 @@ function nxConfirm(msg, title){
                                 isDetecting = false;
                                 verifyUI.classList.add('opacity-0');
                                 reticle.classList.remove('detecting');
+                                reticle.classList.add('ok'); setTimeout(() => reticle.classList.remove('ok'), 1500);
                                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                                 scannerWrapper.classList.remove('active-scan');
                                 _lastPunchActivity = Date.now();
@@ -1182,7 +1187,9 @@ function nxConfirm(msg, title){
                                 return;
                             }
                             if (gateMode === 'model') {
-                                // AI model says photo/screen -> ignore, log a strike
+                                // AI model says photo/screen -> RED warning + strike log
+                                showFeedback('spoof', '<i class="fa-solid fa-triangle-exclamation" style="color:#fca5a5"></i>', 'Photo / Screen detect hua', 'Asli chehra dikhayein — ye koshish record ho gayi hai', 'danger', 3200);
+                                speakText('Photo ya screen se punch nahi hota. Asli chehra dikhayein.');
                                 spoofStrike(match.label);
                                 resetScanState();
                                 isDetecting = true;
@@ -1233,11 +1240,43 @@ function nxConfirm(msg, title){
         function blinkedRecently(label){
             return _blink.label === label && (Date.now() - _blink.blinkedAt) < 8000;
         }
+        // ---- on-camera feedback card (professional, self-hiding) ----
+        let _fbTimer = null, _fbLastKind = '', _fbLastAt = 0;
+        function showFeedback(kind, icon, title, sub, frameClass, holdMs){
+            const nowT = Date.now();
+            if (kind === _fbLastKind && nowT - _fbLastAt < 4000) return;   // no spam
+            _fbLastKind = kind; _fbLastAt = nowT;
+            const card = document.getElementById('feedbackCard');
+            if(!card) return;
+            document.getElementById('fbIcon').innerHTML = icon;
+            document.getElementById('fbTitle').innerText = title;
+            document.getElementById('fbSub').innerText = sub || '';
+            card.className = '';
+            card.classList.add('fb-' + (kind === 'spoof' ? 'danger' : kind === 'unknown' ? 'warn' : 'info'), 'show');
+            if (frameClass){ reticle.classList.remove('ok','warn','danger'); reticle.classList.add(frameClass); }
+            clearTimeout(_fbTimer);
+            _fbTimer = setTimeout(() => {
+                card.classList.remove('show');
+                reticle.classList.remove('ok','warn','danger');
+            }, holdMs || 2600);
+        }
         function blinkHint(){
             const nowT = Date.now();
             if (nowT - _blink.hintAt > 3000){
                 _blink.hintAt = nowT;
-                notify('Palak jhapkaiye — photo se punch nahi hota', 'info');
+                showFeedback('blink', '<i class="fa-regular fa-eye" style="color:#93c5fd"></i>', 'Ek baar palak jhapkaiye', 'Liveness check — photo se punch nahi hota', null, 2200);
+            }
+        }
+        // unknown-face tracker: a real face is visible but it matches nobody
+        let _unkSince = 0, _unkSpokeAt = 0;
+        function trackUnknown(faceVisible, matched){
+            const nowT = Date.now();
+            if (!faceVisible || matched){ _unkSince = 0; return; }
+            if (!_unkSince) _unkSince = nowT;
+            if (nowT - _unkSince > 2600){
+                showFeedback('unknown', '<i class="fa-solid fa-user-slash" style="color:#fcd34d"></i>', 'Chehra pehchana nahi gaya', 'Register nahi hai ya saaf nahi dikh raha — seedha dekhein, roshni theek karein', 'warn', 2600);
+                if (nowT - _unkSpokeAt > 10000){ _unkSpokeAt = nowT; speakText('Chehra pehchana nahi gaya. Kripya seedha dekhein.'); }
+                _unkSince = nowT;   // re-arm
             }
         }
         // GPU health: repeated frame failures = WebGL context lost -> auto-recover by reloading
