@@ -540,21 +540,24 @@ async function loadKaizenCongrats(){
       const colors=['#fbbf24','#f472b6','#34d399','#60a5fa','#fff'];
       return `<span class="kz-confetti" style="left:${(i*7)+3}%;background:${colors[i%5]};animation-duration:${2+(i%4)*0.6}s;animation-delay:${(i%5)*0.3}s"></span>`;
     }).join('');
+    const done = f.kz_stage === 'COMPLETED';
     return `<div class="kz-card">
       ${confetti}
       <span class="kz-x" onclick="dismissKaizen(${f.id})"><i class="fa-solid fa-xmark"></i></span>
       <div class="kz-head">
-        <div class="kz-badge">🏆</div>
+        <div class="kz-badge">${done ? '🏆' : '✅'}</div>
         <div>
-          <div class="kz-title">Congratulations, ${esc(((D.employee&&D.employee.Name)||'').split(' ')[0] || CODE)}!</div>
-          <div class="kz-sub" style="margin-top:1px">Your Kaizen has been approved</div>
+          <div class="kz-title">${done ? 'Congratulations' : 'Great news'}, ${esc(((D.employee&&D.employee.Name)||'').split(' ')[0] || CODE)}!</div>
+          <div class="kz-sub" style="margin-top:1px">${done ? 'Your Kaizen is completed' : 'Your Kaizen has been approved'}</div>
         </div>
       </div>
-      <div class="kz-sub">Your suggestion <b>"${esc(f.subject||'')}"</b> was reviewed and approved. Thank you for helping us improve.</div>
+      <div class="kz-sub">${done
+        ? `Your suggestion <b>"${esc(f.subject||'')}"</b> was implemented successfully. Thank you for making things better!`
+        : `Your suggestion <b>"${esc(f.subject||'')}"</b> has been approved — you can go ahead and execute it. Reward follows on completion.`}</div>
       ${f.admin_note ? `<div class="kz-note"><i class="fa-solid fa-quote-left" style="opacity:.4;margin-right:5px"></i>${esc(f.admin_note)}<div style="font-size:10px;color:#94a3b8;margin-top:3px">— CEO</div></div>` : ''}
       <div>
-        ${f.reward ? `<span class="kz-reward"><i class="fa-solid fa-gift"></i> Reward ₹${Number(f.reward).toLocaleString('en-IN')} in next payroll</span>` : ''}
-        ${f.impact ? `<span class="kz-impact"><i class="fa-solid fa-chart-line"></i> ${esc(f.impact)} impact</span>` : ''}
+        ${(done && f.reward) ? `<span class="kz-reward"><i class="fa-solid fa-gift"></i> Reward ₹${Number(f.reward).toLocaleString('en-IN')} in next payroll</span>` : ''}
+        ${(done && f.impact) ? `<span class="kz-impact"><i class="fa-solid fa-chart-line"></i> ${esc(f.impact)} impact</span>` : ''}
       </div>
     </div>`;
   }).join('');
