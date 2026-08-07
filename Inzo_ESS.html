@@ -451,16 +451,24 @@ async function loadEssPunch(){
   const host = $('essPunchCard'); if(!host) return;
   // check if this employee is allowed to self-mark attendance
   let allowed = false;
+  const codeU = String(CODE||'').trim().toUpperCase();
   try{
-    const { data } = await sb.from('hr_profiles').select('ess_attendance').eq('employee_code', CODE).single();
-    allowed = data && data.ess_attendance === true;
+    // case-insensitive match (mobile logins sometimes type the code in lowercase)
+    let { data } = await sb.from('hr_profiles').select('employee_code, ess_attendance').ilike('employee_code', codeU);
+    let row = (data || [])[0];
+    if(!row){
+      // last-resort: fetch and match in JS (covers stray spaces/odd casing)
+      const all = await sb.from('hr_profiles').select('employee_code, ess_attendance').eq('ess_attendance', true);
+      row = (all.data || []).find(r => String(r.employee_code||'').trim().toUpperCase() === codeU);
+    }
+    allowed = !!(row && row.ess_attendance === true);
   }catch(e){ allowed = false; }
   if(!allowed){ host.innerHTML = ''; return; }
 
   const today = new Date().toISOString().slice(0,10);
   let rec = null;
   try{
-    const { data } = await sb.from('attendance').select('*').eq('employee_code', CODE).eq('date', today).limit(1);
+    const { data } = await sb.from('attendance').select('*').ilike('employee_code', codeU).eq('date', today).limit(1);
     rec = (data && data[0]) || null;
   }catch(e){}
 
@@ -485,16 +493,17 @@ async function essPunch(type){
   const today = new Date().toISOString().slice(0,10);
   const now = new Date();
   const timeStr = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':00';
+  const codeU = String(CODE||'').trim().toUpperCase();   // attendance codes are stored uppercase
   try{
     if(type === 'IN'){
       // guard: don't double punch-in
-      const { data: ex } = await sb.from('attendance').select('id').eq('employee_code', CODE).eq('date', today).limit(1);
+      const { data: ex } = await sb.from('attendance').select('id').ilike('employee_code', codeU).eq('date', today).limit(1);
       if(ex && ex.length){ notify('Already punched in today'); loadEssPunch(); return; }
-      const { error } = await sb.from('attendance').insert([{ employee_code: CODE, Name: (D.employee&&D.employee.Name)||CODE, date: today, in_time: timeStr }]);
+      const { error } = await sb.from('attendance').insert([{ employee_code: codeU, Name: (D.employee&&D.employee.Name)||codeU, date: today, in_time: timeStr }]);
       if(error) throw error;
       notify('Punched in at ' + timeStr.substring(0,5) + ' ✓');
     } else {
-      const { data: recs } = await sb.from('attendance').select('*').eq('employee_code', CODE).eq('date', today).limit(1);
+      const { data: recs } = await sb.from('attendance').select('*').ilike('employee_code', codeU).eq('date', today).limit(1);
       if(!recs || !recs.length){ notify('No punch-in found for today'); loadEssPunch(); return; }
       const r = recs[0];
       let ms = new Date(today+'T'+timeStr) - new Date(today+'T'+(r.in_time||'00:00:00').substring(0,8));
