@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Candidate Portal — Zooto Fashion</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+<style>
+:root{ --brand:#2563eb; --brand-soft:#eff6ff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --ok:#10b981; --bad:#ef4444; }
+*{box-sizing:border-box}
+body{margin:0;background:#f1f5f9;color:var(--ink);font-family:'Inter',sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:560px;margin:0 auto;padding:20px 16px 60px}
+.brand{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:22px;letter-spacing:.14em;text-align:center;margin:18px 0 4px}
+.sub{text-align:center;color:var(--muted);font-size:12px;margin-bottom:20px}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:14px}
+h2{font-family:'Space Grotesk',sans-serif;font-size:16px;margin:0 0 6px}
+.lbl{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.inp{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:#fff}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;border-radius:10px;border:none;font-weight:600;font-size:14px;cursor:pointer;width:100%}
+.btn-primary{background:var(--brand);color:#fff}
+.btn-primary:disabled{opacity:.6}
+.doc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px dashed var(--line)}
+.doc-row:last-child{border-bottom:none}
+.doc-name{font-weight:600;font-size:13.5px}
+.doc-status{font-size:11px;color:var(--muted)}
+.done{color:#047857;font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;background:var(--brand-soft);color:var(--brand)}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;display:none;z-index:99}
+.note{font-size:12px;color:var(--muted);line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">N E X U S</div>
+  <div class="sub">Zooto Fashion Pvt Ltd — Candidate Portal</div>
+  <div id="app"><div class="card"><p class="note" style="text-align:center">Loading…</p></div></div>
+</div>
+<div id="toast"></div>
+<script>
+const NX_CONFIG_URL = 'https://script.google.com/macros/s/AKfycbyLyxuzYzGZ1odibF_-ORvn314hFY_zKg4595HpDZrhMObhqbcAh_LIw60sTc4b_dPI/exec';
+let sb = null, CAND = null;
+const TOKEN = new URLSearchParams(location.search).get('t') || '';
+const $ = id => document.getElementById(id);
+function toast(m){ const t = $('toast'); t.innerText = m; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 3200); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function loadConfig(){
+  return new Promise((resolve, reject) => {
+    const cb = 'cfg' + Math.floor(Math.random()*1e6);
+    const timer = setTimeout(() => { delete window[cb]; reject(new Error('Could not load — check internet')); }, 15000);
+    window[cb] = data => { clearTimeout(timer); delete window[cb]; resolve(data); };
+    const s = document.createElement('script');
+    s.src = NX_CONFIG_URL + '?callback=' + cb + '&t=' + Date.now();
+    s.onerror = () => { clearTimeout(timer); reject(new Error('Could not reach the service')); };
+    document.body.appendChild(s);
+  });
+}
+
+const DOCS = [
+  ['aadhaar', 'Aadhaar Card', 'Front & back in one file if possible'],
+  ['pan', 'PAN Card', ''],
+  ['bank', 'Bank Details', 'Cancelled cheque or passbook first page'],
+  ['salary_slip', 'Last Salary Slips', 'Last 3 months (single PDF preferred)'],
+];
+
+async function init(){
+  try{
+    if(!TOKEN) throw new Error('This link is invalid. Please use the link sent to your email.');
+    const cfg = await loadConfig();
+    if(!cfg || !cfg.url) throw new Error('Service configuration failed.');
+    sb = supabase.createClient(cfg.url, cfg.key);
+    const { data, error } = await sb.from('candidates').select('*').eq('portal_token', TOKEN).limit(1);
+    if(error) throw error;
+    if(!data || !data.length) throw new Error('This link is invalid or has expired. Please contact HR.');
+    CAND = data[0];
+    render();
+  }catch(err){
+    $('app').innerHTML = `<div class="card"><h2><i class="fa-solid fa-triangle-exclamation" style="color:var(--bad)"></i> ${esc(err.message)}</h2></div>`;
+  }
+}
+
+function render(){
+  const docs = CAND.docs || {};
+  const showResignation = CAND.stage === 'OFFERED' || CAND.resignation_status;
+  const allDone = DOCS.every(d => docs[d[0]]);
+  $('app').innerHTML = `
+  <div class="card">
+    <h2>Hello, ${esc(CAND.name)} 👋</h2>
+    <p class="note">Position: <b>${esc(CAND.position||'—')}</b>${CAND.department ? ' · ' + esc(CAND.department) : ''}</p>
+    ${CAND.doc_due_date ? `<p class="note">Please submit your documents by <b>${esc(CAND.doc_due_date)}</b>.</p>` : ''}
+  </div>
+
+  <div class="card">
+    <h2><i class="fa-solid fa-folder-open" style="color:var(--brand)"></i> Document Submission</h2>
+    <p class="note">Upload clear photos or PDFs. Each file under 8 MB.</p>
+    ${DOCS.map(d => `
+      <div class="doc-row">
+        <div>
+          <div class="doc-name">${d[1]}</div>
+          <div class="doc-status">${docs[d[0]] ? '<span class="done"><i class=\"fa-solid fa-circle-check\"></i> Submitted</span>' : (d[2] || 'Pending')}</div>
+        </div>
+        <div style="min-width:130px">
+          <input type="file" id="f_${d[0]}" accept=".pdf,image/*" style="display:none" onchange="uploadDoc('${d[0]}')">
+          <button class="btn ${docs[d[0]] ? '' : 'btn-primary'}" style="${docs[d[0]] ? 'background:#f1f5f9;color:var(--ink);' : ''}padding:8px 12px;font-size:12px" onclick="document.getElementById('f_${d[0]}').click()">
+            ${docs[d[0]] ? 'Replace' : 'Upload'}
+          </button>
+        </div>
+      </div>`).join('')}
+    ${allDone ? '<p class="note" style="color:#047857;font-weight:600;margin-top:10px"><i class="fa-solid fa-circle-check"></i> All documents submitted — HR has been notified. Thank you!' : ''}
+  </div>
+
+  ${showResignation ? `
+  <div class="card">
+    <h2><i class="fa-solid fa-file-signature" style="color:var(--brand)"></i> Resignation Acceptance</h2>
+    <p class="note">Please upload the resignation acceptance letter from your current employer.</p>
+    ${CAND.resignation_url
+      ? '<p class="note done"><i class="fa-solid fa-circle-check"></i> Uploaded — HR will confirm shortly.</p>'
+      : ''}
+    <input type="file" id="f_resign" accept=".pdf,image/*" style="display:none" onchange="uploadResignation()">
+    <button class="btn btn-primary" onclick="document.getElementById('f_resign').click()">${CAND.resignation_url ? 'Replace File' : 'Upload Resignation Acceptance'}</button>
+  </div>` : ''}
+
+  <p class="note" style="text-align:center">Questions? Contact HR — Zooto Fashion Pvt Ltd, IMT Manesar, Gurugram.</p>`;
+}
+
+async function uploadDoc(key){
+  const inp = $('f_' + key);
+  const f = inp.files && inp.files[0];
+  if(!f) return;
+  if(f.size > 8*1024*1024) return toast('File must be under 8 MB');
+  toast('Uploading…');
+  try{
+    const path = 'candidates/' + CAND.id + '/' + key + '_' + Date.now() + '_' + f.name.replace(/[^A-Za-z0-9._-]/g,'_');
+    const { error: upErr } = await sb.storage.from('hr-docs').upload(path, f);
+    if(upErr) throw upErr;
+    const docs = Object.assign({}, CAND.docs || {});
+    docs[key] = path;
+    const upd = { docs, updated_at: new Date().toISOString() };
+    const allDone = DOCS.every(d => docs[d[0]]);
+    if(allDone) upd.docs_submitted_at = new Date().toISOString();
+    const { error } = await sb.from('candidates').update(upd).eq('id', CAND.id);
+    if(error) throw error;
+    CAND.docs = docs;
+    toast('Uploaded ✓');
+    render();
+  }catch(err){ toast('Upload failed: ' + err.message); }
+}
+async function uploadResignation(){
+  const f = $('f_resign').files && $('f_resign').files[0];
+  if(!f) return;
+  if(f.size > 8*1024*1024) return toast('File must be under 8 MB');
+  toast('Uploading…');
+  try{
+    const path = 'candidates/' + CAND.id + '/resignation_' + Date.now() + '_' + f.name.replace(/[^A-Za-z0-9._-]/g,'_');
+    const { error: upErr } = await sb.storage.from('hr-docs').upload(path, f);
+    if(upErr) throw upErr;
+    const { error } = await sb.from('candidates').update({ resignation_url: path, resignation_status: 'RECEIVED', updated_at: new Date().toISOString() }).eq('id', CAND.id);
+    if(error) throw error;
+    CAND.resignation_url = path; CAND.resignation_status = 'RECEIVED';
+    toast('Uploaded ✓ — HR has been notified');
+    render();
+  }catch(err){ toast('Upload failed: ' + err.message); }
+}
+init();
+</script>
+</body>
+</html>
