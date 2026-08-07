@@ -1380,11 +1380,12 @@ body.no-confidential .confidential-col{display:none!important}
       <div class="col-span-2"><label class="lbl">Full Name</label><input id="candName" class="inp" style="text-transform:uppercase"></div>
       <div><label class="lbl">Phone</label><input id="candPhone" class="inp"></div>
       <div><label class="lbl">Email</label><input id="candEmail" class="inp"></div>
-      <div><label class="lbl">Position Applied</label><input id="candPos" class="inp"></div>
+      <div><label class="lbl">Position Applied</label><select id="candPos" class="inp"></select></div>
       <div><label class="lbl">Department</label><select id="candDept" class="inp"></select></div>
       <div><label class="lbl">Source</label><select id="candSource" class="inp"><option>Referral</option><option>Walk-in</option><option>Job Portal</option><option>Agency</option><option>Other</option></select></div>
       <div><label class="lbl">Experience</label><input id="candExp" class="inp" placeholder="e.g. 3 yrs"></div>
       <div><label class="lbl">Expected Salary (₹)</label><input id="candExpSal" type="number" class="inp"></div>
+      <div class="col-span-2"><label class="lbl">Resume (PDF / DOC / image)</label><input id="candResume" type="file" accept=".pdf,.doc,.docx,image/*" class="inp"></div>
     </div>
     <div id="candStageBox"></div>
     <button id="candSaveBtn" class="btn btn-primary w-full justify-center mt-4"><i class="fa-solid fa-floppy-disk"></i> Save Candidate</button>
@@ -3202,7 +3203,12 @@ const HR_STAGES = [
   { k:'JOINED',      label:'Joined' },
   { k:'REJECTED',    label:'Rejected' },
 ];
+const HR_PORTAL_URL = 'https://zooto-dev.github.io/Payroll/Candidate_Portal.html';
 let CANDIDATES = [];
+function hrStageChip(s){
+  const cls = s==='JOINED' ? 'chip-ok' : s==='REJECTED' ? 'chip-bad' : s==='APPLIED' ? 'chip-gray' : 'chip-blue';
+  return `<span class="chip ${cls}">${esc(s)}</span>`;
+}
 async function loadHiring(){
   const host = $('hrBoard'); if(!host) return;
   host.innerHTML = '<p style="color:var(--muted)">Loading…</p>';
@@ -3211,79 +3217,175 @@ async function loadHiring(){
     if(error) throw error;
     CANDIDATES = data || [];
   }catch(err){ host.innerHTML = `<p style="color:var(--bad)">Error: ${esc(err.message)}</p>`; return; }
-  // populate dept dropdown in modal
   if($('candDept')) $('candDept').innerHTML = '<option value="">—</option>' + (window.nxDeptOpts ? window.nxDeptOpts('') : '');
+  if($('candPos')) $('candPos').innerHTML = '<option value="">—</option>' + (window.nxDesigOpts ? window.nxDesigOpts('') : '');
   renderHiring();
 }
 function renderHiring(){
   const host = $('hrBoard'); if(!host) return;
   const filter = $('hrStageFilter').value;
-  // stats
   const counts = {}; HR_STAGES.forEach(s => counts[s.k] = 0);
   CANDIDATES.forEach(c => { if(counts[c.stage]!==undefined) counts[c.stage]++; });
   $('hrStats').innerHTML = HR_STAGES.map(s => `<span class="hr-stat"><b>${counts[s.k]}</b> ${s.label}</span>`).join('');
-
-  const stages = filter ? HR_STAGES.filter(s => s.k === filter) : HR_STAGES;
-  host.innerHTML = `<div class="hr-board">
-    ${stages.map(s => {
-      const list = CANDIDATES.filter(c => c.stage === s.k);
-      const tone = s.k === 'JOINED' ? 'is-joined' : s.k === 'REJECTED' ? 'is-rejected' : '';
-      return `<div class="hr-col ${tone}">
-        <div class="hr-col-head"><span>${s.label}</span><span class="hr-count">${list.length}</span></div>
-        <div class="hr-col-body">
-          ${list.length ? list.map(c => `
-            <div class="hr-cand" onclick="openCand('${c.id}')">
-              <div class="hr-cand-name">${esc(c.name)}</div>
-              <div class="hr-cand-role">${esc(c.position||'Role not set')}${c.department?' · '+esc(c.department):''}</div>
-              <div class="hr-cand-meta">
-                ${c.phone?`<span><i class="fa-solid fa-phone"></i> ${esc(c.phone)}</span>`:''}
-                ${c.interview_score?`<span><i class="fa-solid fa-star"></i> ${c.interview_score}</span>`:''}
-                ${c.stage==='JOINED' && c.employee_code?`<span class="hr-emp"><i class="fa-solid fa-id-badge"></i> ${esc(c.employee_code)}</span>`:''}
-              </div>
-            </div>`).join('') : '<div class="hr-empty">No candidates</div>'}
-        </div>
-      </div>`;
-    }).join('')}
-  </div>`;
-}
-function candStageActions(c){
-  // show next-step buttons + fields based on current stage
-  const id = c.id;
-  const moves = {
-    APPLIED:     [['SHORTLISTED','Shortlist','primary'], ['REJECTED','Reject','danger']],
-    SHORTLISTED: [['INTERVIEW','Schedule Interview','primary'], ['REJECTED','Reject','danger']],
-    INTERVIEW:   [['SELECTED','Mark Selected','primary'], ['REJECTED','Reject','danger']],
-    SELECTED:    [['OFFERED','Send Offer','primary'], ['REJECTED','Reject','danger']],
-    OFFERED:     [['JOINED','Mark Joined','primary'], ['REJECTED','Declined','danger']],
-    JOINED:      [],
-    REJECTED:    [['APPLIED','Reopen','ghost']],
-  };
-  let html = `<div class="text-[11px] font-bold uppercase tracking-wide mb-2 mt-3" style="color:var(--brand)">Current Stage — ${esc(c.stage)}</div>`;
-  // stage-specific fields
-  if(c.stage === 'INTERVIEW' || c.stage === 'SHORTLISTED'){
-    html += `<div class="grid grid-cols-2 gap-3 mb-2">
-      <div><label class="lbl">Interview Date</label><input id="candIvDate" type="date" class="inp" value="${c.interview_date||''}"></div>
-      <div><label class="lbl">Interview Score (/100)</label><input id="candIvScore" type="number" class="inp" value="${c.interview_score||''}"></div>
-      <div class="col-span-2"><label class="lbl">Interview Notes</label><input id="candIvNotes" class="inp" value="${esc(c.interview_notes||'')}"></div>
-    </div>`;
-  }
-  if(c.stage === 'SELECTED' || c.stage === 'OFFERED'){
-    html += `<div class="grid grid-cols-2 gap-3 mb-2">
-      <div><label class="lbl">Offered Salary (₹)</label><input id="candOffSal" type="number" class="inp" value="${c.offered_salary||''}"></div>
-      <div><label class="lbl">Offer / Join Date</label><input id="candJoinDate" type="date" class="inp" value="${c.join_date||c.offer_date||''}"></div>
-    </div>`;
-  }
-  html += `<div class="flex gap-2 flex-wrap">${(moves[c.stage]||[]).map(m =>
-    `<button class="btn btn-${m[2]} btn-sm" onclick="moveCandidate('${id}','${m[0]}')">${m[1]}</button>`).join('')}</div>`;
-  if(c.stage === 'OFFERED' || c.stage === 'JOINED'){
-    html += `<div class="mt-2 p-2 rounded" style="background:#f0fdf4;border:1px solid #bbf7d0">
-      <div class="text-[11px] mb-1" style="color:#15803d"><b>Ready to onboard?</b> Convert this candidate into an employee.</div>
-      <button class="btn btn-primary btn-sm" onclick="convertCandidate('${id}')"><i class="fa-solid fa-user-check"></i> Convert to Employee</button></div>`;
-  }
-  return html;
+  const list = filter ? CANDIDATES.filter(c => c.stage === filter) : CANDIDATES;
+  if(!list.length){ host.innerHTML = '<div class="card"><p class="m-0" style="color:var(--muted)">No candidates yet — click "Add Candidate" when an application comes in.</p></div>'; return; }
+  host.innerHTML = `<div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Name</th><th>Position</th><th>Department</th><th>Stage</th><th>Interview</th><th>Score</th><th>Phone</th><th></th></tr></thead>
+    <tbody>
+    ${list.map(c => `<tr style="cursor:pointer" onclick="openCand('${c.id}')">
+      <td class="font-semibold">${esc(c.name)}${c.employee_code?` <span class="chip chip-ok" style="font-size:9px">${esc(c.employee_code)}</span>`:''}</td>
+      <td>${esc(c.position||'—')}</td>
+      <td>${esc(c.department||'—')}</td>
+      <td>${hrStageChip(c.stage)}</td>
+      <td class="text-xs" style="color:var(--muted)">${c.interview_date ? fmtDate(c.interview_date) + (c.interview_time ? ' ' + esc(c.interview_time) : '') + (c.interview_mode ? ' · ' + (c.interview_mode==='VIRTUAL'?'Virtual':'In-person') : '') : '—'}</td>
+      <td>${c.interview_score ? `<b>${c.interview_score}</b>/100` : '—'}</td>
+      <td class="text-xs">${esc(c.phone||'—')}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openCand('${c.id}')"><i class="fa-solid fa-eye"></i></button></td>
+    </tr>`).join('')}
+    </tbody></table></div></div>`;
 }
 $('hrAddBtn').addEventListener('click', () => openCand(null));
 $('hrStageFilter').addEventListener('change', renderHiring);
+
+function candPortalLink(c){ return HR_PORTAL_URL + '?t=' + (c.portal_token || ''); }
+async function candEnsureToken(c){
+  if(c.portal_token) return c.portal_token;
+  const tok = 'CT' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+  await sb.from('candidates').update({ portal_token: tok }).eq('id', c.id);
+  c.portal_token = tok;
+  return tok;
+}
+async function candEmail(c, type, extra){
+  if(!c.email) { notify('Candidate has no email saved — add it first', 'error'); return { error:'no-email' }; }
+  const S = getSettings();
+  const r = await nxGas('candmail', Object.assign({
+    type, to: c.email, name: c.name, position: c.position || 'the applied position',
+    company: S.name || 'Zooto Fashion Pvt Ltd'
+  }, extra || {}));
+  if(r && r.ok) notify('Email sent to ' + c.email, 'success');
+  else notify('Email failed: ' + ((r && r.error) || 'check GAS deployment'), 'error');
+  return r || {};
+}
+
+function candStageActions(c){
+  const id = c.id;
+  const docsList = [['aadhaar','Aadhaar Card'],['pan','PAN Card'],['bank','Bank Details / Cancelled Cheque'],['salary_slip','Last Salary Slips']];
+  const docs = c.docs || {};
+  let html = `<div class="text-[11px] font-bold uppercase tracking-wide mb-2 mt-3" style="color:var(--brand)">Current Stage — ${esc(c.stage)}</div>`;
+
+  if(c.resume_url){
+    html += `<div class="mb-2"><button type="button" class="btn btn-ghost btn-sm" onclick="viewCandFile('${esc(c.resume_url)}')"><i class="fa-solid fa-file-lines"></i> View Resume</button></div>`;
+  }
+
+  if(c.stage === 'APPLIED'){
+    html += `<p class="text-xs mb-2" style="color:var(--muted)">Review the resume, then shortlist or reject. Rejection sends a professional email automatically.</p>
+    <div class="flex gap-2 flex-wrap">
+      <button class="btn btn-primary btn-sm" onclick="moveCandidate('${id}','SHORTLISTED')">Shortlist</button>
+      <button class="btn btn-danger btn-sm" onclick="moveCandidate('${id}','REJECTED')">Reject (sends email)</button>
+    </div>`;
+  }
+
+  if(c.stage === 'SHORTLISTED'){
+    html += `<div class="grid grid-cols-2 gap-3 mb-2">
+      <div><label class="lbl">Mode of Interview</label><select id="candIvMode" class="inp">
+        <option value="FACE_TO_FACE" ${c.interview_mode!=='VIRTUAL'?'selected':''}>Face to Face</option>
+        <option value="VIRTUAL" ${c.interview_mode==='VIRTUAL'?'selected':''}>Virtual (Google Meet)</option>
+      </select></div>
+      <div><label class="lbl">Interview Date</label><input id="candIvDate" type="date" class="inp" value="${c.interview_date||''}"></div>
+      <div><label class="lbl">Time</label><input id="candIvTime" type="time" class="inp" value="${c.interview_time||''}"></div>
+      <div id="candVenueWrap"><label class="lbl">Venue (face-to-face)</label><input id="candIvVenue" class="inp" value="${esc(c.interview_venue||'Zooto Fashion Pvt Ltd, Plot 300, Sector 6, IMT Manesar, Gurugram')}"></div>
+      <div class="col-span-2"><label class="lbl">Interview Panel (emails, comma-separated)</label><input id="candIvPanel" class="inp" placeholder="hr@zootofashion.com, manager@zootofashion.com" value="${esc(c.interviewers||'')}"></div>
+    </div>
+    <p class="text-[11px] mb-2" style="color:var(--muted)">Scheduling emails the candidate the details. Virtual interviews also create a Google Calendar event (with the panel + candidate invited).</p>
+    <div class="flex gap-2 flex-wrap">
+      <button class="btn btn-primary btn-sm" onclick="scheduleInterview('${id}')"><i class="fa-solid fa-calendar-check"></i> Schedule Interview & Send Invite</button>
+      <button class="btn btn-danger btn-sm" onclick="moveCandidate('${id}','REJECTED')">Reject (sends email)</button>
+    </div>`;
+  }
+
+  if(c.stage === 'INTERVIEW'){
+    html += `<div class="text-xs mb-2 p-2 rounded" style="background:var(--brand-soft)"><b>Scheduled:</b> ${c.interview_date?fmtDate(c.interview_date):'—'} ${esc(c.interview_time||'')} · ${c.interview_mode==='VIRTUAL'?'Virtual':'Face to Face'}${c.interview_venue && c.interview_mode!=='VIRTUAL' ? ' · ' + esc(c.interview_venue) : ''}</div>
+    <div class="grid grid-cols-2 gap-3 mb-2">
+      <div><label class="lbl">Interview Score (/100)</label><input id="candIvScore" type="number" class="inp" value="${c.interview_score||''}"></div>
+      <div class="col-span-2"><label class="lbl">Interview Notes</label><input id="candIvNotes" class="inp" value="${esc(c.interview_notes||'')}"></div>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <button class="btn btn-primary btn-sm" onclick="moveCandidate('${id}','SELECTED')">Mark Selected</button>
+      <button class="btn btn-danger btn-sm" onclick="moveCandidate('${id}','REJECTED')">Reject (sends email)</button>
+    </div>`;
+  }
+
+  if(c.stage === 'SELECTED'){
+    const submitted = docsList.filter(d => docs[d[0]]).length;
+    html += `<div class="grid grid-cols-2 gap-3 mb-2">
+      <div><label class="lbl">Document Submission Due Date</label><input id="candDocDue" type="date" class="inp" value="${c.doc_due_date||''}"></div>
+    </div>
+    <p class="text-[11px] mb-2" style="color:var(--muted)">Sends the candidate a secure portal link to upload: Aadhaar, PAN, bank details and salary slips.</p>
+    <div class="flex gap-2 flex-wrap mb-3">
+      <button class="btn btn-primary btn-sm" onclick="sendDocRequest('${id}')"><i class="fa-solid fa-envelope"></i> Send Document Request Email</button>
+    </div>
+    <div class="text-[11px] font-bold uppercase tracking-wide mb-1" style="color:var(--brand)">Documents (${submitted}/${docsList.length})</div>
+    <div class="mb-3">${docsList.map(d => docs[d[0]]
+      ? `<div class="flex items-center justify-between text-xs py-1" style="border-bottom:1px dashed var(--line)"><span><i class="fa-solid fa-circle-check" style="color:var(--ok)"></i> ${d[1]}</span><button type="button" class="btn btn-ghost btn-sm" onclick="viewCandFile('${esc(docs[d[0]])}')">View</button></div>`
+      : `<div class="text-xs py-1" style="color:var(--muted);border-bottom:1px dashed var(--line)"><i class="fa-regular fa-circle"></i> ${d[1]} — pending</div>`).join('')}</div>
+    <div class="flex gap-2 flex-wrap">
+      <button class="btn btn-primary btn-sm" onclick="moveCandidate('${id}','OFFERED')">Move to Offer Stage</button>
+      <button class="btn btn-danger btn-sm" onclick="moveCandidate('${id}','REJECTED')">Reject (sends email)</button>
+    </div>`;
+  }
+
+  if(c.stage === 'OFFERED'){
+    const g = Number(c.agreed_salary)||0;
+    const alloc = g ? splitGross(g) : null;
+    html += `<div class="grid grid-cols-2 gap-3 mb-2">
+      <div><label class="lbl">Agreed Monthly Gross (₹)</label><input id="candAgreed" type="number" class="inp" value="${c.agreed_salary||''}" oninput="candOfferPreview()"></div>
+      <div><label class="lbl">Joining Date</label><input id="candJoinDate" type="date" class="inp" value="${c.join_date||''}"></div>
+    </div>
+    <div id="candOfferBreak" class="text-[11px] mb-2 p-2 rounded" style="background:var(--brand-soft)">${alloc ? candBreakupText(g) : 'Enter the agreed salary to see the breakup.'}</div>
+    <div class="flex gap-2 flex-wrap mb-3">
+      <button class="btn btn-primary btn-sm" onclick="sendOfferEmail('${id}')"><i class="fa-solid fa-envelope-open-text"></i> Send Offer Email (with breakup)</button>
+    </div>
+    <div class="text-[11px] font-bold uppercase tracking-wide mb-1" style="color:var(--brand)">Resignation Acceptance (from current employer)</div>
+    ${c.resignation_url
+      ? `<div class="text-xs mb-2"><i class="fa-solid fa-circle-check" style="color:var(--ok)"></i> Uploaded by candidate — <button type="button" class="btn btn-ghost btn-sm" onclick="viewCandFile('${esc(c.resignation_url)}')">View</button></div>
+         <div class="flex gap-2 flex-wrap mb-2"><button class="btn btn-primary btn-sm" onclick="confirmResignation('${id}')"><i class="fa-solid fa-envelope-circle-check"></i> Confirm Received & Send Joining Email</button></div>`
+      : `<p class="text-[11px] mb-2" style="color:var(--muted)">${c.resignation_status==='REQUESTED' ? 'Requested — waiting for the candidate to upload on the portal.' : 'Not requested yet.'}</p>
+         <div class="flex gap-2 flex-wrap mb-2"><button class="btn btn-ghost btn-sm" onclick="requestResignation('${id}')"><i class="fa-solid fa-envelope"></i> Request Resignation Acceptance (email link)</button></div>`}
+    <div class="flex gap-2 flex-wrap mt-2">
+      <button class="btn btn-primary btn-sm" onclick="moveCandidate('${id}','JOINED')">Mark Joined</button>
+      <button class="btn btn-danger btn-sm" onclick="moveCandidate('${id}','REJECTED')">Declined</button>
+    </div>`;
+  }
+
+  if(c.stage === 'OFFERED' || c.stage === 'JOINED'){
+    html += `<div class="mt-3 p-2 rounded" style="background:#f0fdf4;border:1px solid #bbf7d0">
+      <div class="text-[11px] mb-1" style="color:#15803d"><b>Onboarding:</b> convert this candidate into an employee (Add Employee opens pre-filled).</div>
+      <button class="btn btn-primary btn-sm" onclick="convertCandidate('${id}')"><i class="fa-solid fa-user-check"></i> Convert to Employee</button></div>`;
+  }
+
+  if(c.stage === 'REJECTED'){
+    html += `${c.rejection_reason?`<div class="text-xs mb-2" style="color:var(--muted)"><b>Reason:</b> ${esc(c.rejection_reason)}</div>`:''}
+    <div class="flex gap-2 flex-wrap"><button class="btn btn-ghost btn-sm" onclick="moveCandidate('${id}','APPLIED')">Reopen</button></div>`;
+  }
+  return html;
+}
+function candBreakupText(g){
+  const alloc = splitGross(g);
+  const basic = alloc.basic||0, hra = alloc.hra||0, rest = g - basic - hra;
+  return `<b>Monthly:</b> Basic ${fmtINR(basic)} (50%) · HRA ${fmtINR(hra)} · Other Allowances ${fmtINR(rest)} · <b>Gross ${fmtINR(g)}</b><br>
+  <span style="color:var(--muted)">Deductions as applicable: PF 12% of basic (cap ₹15,000 wage) · ESI 0.75% (if gross ≤ ₹21,000) · LWF as per Haryana rules. Final CTC includes employer PF/ESI/LWF.</span>`;
+}
+function candOfferPreview(){
+  const g = Number($('candAgreed').value)||0;
+  $('candOfferBreak').innerHTML = g ? candBreakupText(g) : 'Enter the agreed salary to see the breakup.';
+}
+function viewCandFile(path){
+  sb.storage.from('hr-docs').createSignedUrl(path, 120).then(({ data, error }) => {
+    if(error) return notify(error.message, 'error');
+    window.open(data.signedUrl, '_blank');
+  });
+}
+
 function openCand(id){
   const c = id ? CANDIDATES.find(x => String(x.id) === String(id)) : null;
   $('candId').value = c ? c.id : '';
@@ -3291,53 +3393,135 @@ function openCand(id){
   $('candName').value = c ? c.name : '';
   $('candPhone').value = c ? (c.phone||'') : '';
   $('candEmail').value = c ? (c.email||'') : '';
-  $('candPos').value = c ? (c.position||'') : '';
+  if($('candPos')) $('candPos').value = c ? (c.position||'') : '';
   if($('candDept')) $('candDept').value = c ? (c.department||'') : '';
   $('candSource').value = c ? (c.source||'Referral') : 'Referral';
   $('candExp').value = c ? (c.experience||'') : '';
   $('candExpSal').value = c ? (c.expected_salary||'') : '';
-  $('candStageBox').innerHTML = c ? candStageActions(c) : '<p class="text-[11px] mt-2" style="color:var(--muted)">Save first, then move through interview stages.</p>';
+  if($('candResume')) $('candResume').value = '';
+  $('candStageBox').innerHTML = c ? candStageActions(c) : '<p class="text-[11px] mt-2" style="color:var(--muted)">Save the candidate first — the interview workflow appears after saving.</p>';
   $('candModal').classList.add('show');
 }
 $('candSaveBtn').addEventListener('click', async () => {
   const name = $('candName').value.trim().toUpperCase();
   if(!name) return notify('Candidate name is required', 'error');
-  const row = {
-    name, phone: $('candPhone').value.trim()||null, email: $('candEmail').value.trim()||null,
-    position: $('candPos').value.trim()||null, department: $('candDept').value||null,
-    source: $('candSource').value||null, experience: $('candExp').value.trim()||null,
-    expected_salary: Number($('candExpSal').value)||null, updated_at: new Date().toISOString()
-  };
-  // pull stage-specific fields if present
-  if($('candIvDate')) row.interview_date = $('candIvDate').value||null;
-  if($('candIvScore')) row.interview_score = Number($('candIvScore').value)||null;
-  if($('candIvNotes')) row.interview_notes = $('candIvNotes').value||null;
-  if($('candOffSal')) row.offered_salary = Number($('candOffSal').value)||null;
-  if($('candJoinDate')) row.join_date = $('candJoinDate').value||null;
-  const id = $('candId').value;
+  const btn = $('candSaveBtn');
+  btn.innerHTML = '<div class="loader-ring"></div> Saving…'; btn.disabled = true;
   try{
-    if(id){ await sb.from('candidates').update(row).eq('id', id); }
-    else { row.stage = 'APPLIED'; row.created_by = ME_EMAIL; await sb.from('candidates').insert([row]); }
+    const row = {
+      name, phone: $('candPhone').value.trim()||null, email: $('candEmail').value.trim()||null,
+      position: $('candPos').value||null, department: $('candDept').value||null,
+      source: $('candSource').value||null, experience: $('candExp').value.trim()||null,
+      expected_salary: Number($('candExpSal').value)||null, updated_at: new Date().toISOString()
+    };
+    if($('candIvDate')) row.interview_date = $('candIvDate').value||null;
+    if($('candIvTime')) row.interview_time = $('candIvTime').value||null;
+    if($('candIvMode')) row.interview_mode = $('candIvMode').value||null;
+    if($('candIvVenue')) row.interview_venue = $('candIvVenue').value||null;
+    if($('candIvPanel')) row.interviewers = $('candIvPanel').value||null;
+    if($('candIvScore')) row.interview_score = Number($('candIvScore').value)||null;
+    if($('candIvNotes')) row.interview_notes = $('candIvNotes').value||null;
+    if($('candDocDue')) row.doc_due_date = $('candDocDue').value||null;
+    if($('candAgreed')) row.agreed_salary = Number($('candAgreed').value)||null;
+    if($('candJoinDate')) row.join_date = $('candJoinDate').value||null;
+    // resume upload (optional)
+    const rf = $('candResume') && $('candResume').files && $('candResume').files[0];
+    if(rf){
+      if(rf.size > 8*1024*1024) throw new Error('Resume must be under 8 MB');
+      const path = 'candidates/resume_' + Date.now() + '_' + rf.name.replace(/[^A-Za-z0-9._-]/g,'_');
+      const { error: upErr } = await sb.storage.from('hr-docs').upload(path, rf);
+      if(upErr) throw upErr;
+      row.resume_url = path;
+    }
+    const id = $('candId').value;
+    if(id){ const { error } = await sb.from('candidates').update(row).eq('id', id); if(error) throw error; }
+    else { row.stage = 'APPLIED'; row.created_by = ME_EMAIL; const { error } = await sb.from('candidates').insert([row]); if(error) throw error; }
     $('candModal').classList.remove('show');
     notify('Candidate saved', 'success');
     loadHiring();
   }catch(err){ notify(err.message, 'error'); }
+  finally{ btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Candidate'; btn.disabled = false; }
 });
+
+async function scheduleInterview(id){
+  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
+  const mode = $('candIvMode').value, date = $('candIvDate').value, time = $('candIvTime').value;
+  const venue = $('candIvVenue').value, panel = $('candIvPanel').value;
+  if(!date || !time) return notify('Interview date and time are required', 'error');
+  const upd = { stage:'INTERVIEW', interview_mode:mode, interview_date:date, interview_time:time, interview_venue:venue||null, interviewers:panel||null, updated_at:new Date().toISOString() };
+  const { error } = await sb.from('candidates').update(upd).eq('id', id);
+  if(error) return notify(error.message, 'error');
+  Object.assign(c, upd);
+  // email the candidate
+  await candEmail(c, 'interview', { mode, date, time, venue: venue||'', panel: panel||'' });
+  // virtual -> also create the calendar event (panel + candidate invited)
+  if(mode === 'VIRTUAL'){
+    const r = await nxGas('candcal', { to: c.email||'', name: c.name, position: c.position||'', date, time, panel: panel||'', company: (getSettings().name)||'Zooto Fashion Pvt Ltd' });
+    if(r && r.ok) notify('Google Calendar invite created', 'success');
+    else notify('Calendar failed: ' + ((r && r.error) || 'check GAS'), 'error');
+  }
+  $('candModal').classList.remove('show');
+  loadHiring();
+}
+async function sendDocRequest(id){
+  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
+  const due = $('candDocDue') ? $('candDocDue').value : '';
+  if(!due) return notify('Set the document submission due date first', 'error');
+  await candEnsureToken(c);
+  await sb.from('candidates').update({ doc_due_date: due, updated_at: new Date().toISOString() }).eq('id', id);
+  c.doc_due_date = due;
+  await candEmail(c, 'docs', { link: candPortalLink(c), due });
+  $('candStageBox').innerHTML = candStageActions(c);
+}
+async function sendOfferEmail(id){
+  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
+  const g = Number($('candAgreed').value)||0, jd = $('candJoinDate').value;
+  if(!g) return notify('Enter the agreed salary first', 'error');
+  if(!jd) return notify('Set the joining date first', 'error');
+  const alloc = splitGross(g);
+  await sb.from('candidates').update({ agreed_salary: g, join_date: jd, offer_date: todayISO(), updated_at: new Date().toISOString() }).eq('id', id);
+  Object.assign(c, { agreed_salary: g, join_date: jd });
+  await candEmail(c, 'offer', {
+    gross: g, basic: alloc.basic||0, hra: alloc.hra||0, other: g-(alloc.basic||0)-(alloc.hra||0),
+    joinDate: jd
+  });
+  $('candStageBox').innerHTML = candStageActions(c);
+}
+async function requestResignation(id){
+  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
+  await candEnsureToken(c);
+  await sb.from('candidates').update({ resignation_status:'REQUESTED', updated_at:new Date().toISOString() }).eq('id', id);
+  c.resignation_status = 'REQUESTED';
+  await candEmail(c, 'resigreq', { link: candPortalLink(c) });
+  $('candStageBox').innerHTML = candStageActions(c);
+}
+async function confirmResignation(id){
+  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
+  if(!c.join_date) return notify('Set the joining date first (in the Offer section)', 'error');
+  await sb.from('candidates').update({ resignation_status:'CONFIRMED', updated_at:new Date().toISOString() }).eq('id', id);
+  c.resignation_status = 'CONFIRMED';
+  await candEmail(c, 'resigok', { joinDate: c.join_date });
+  $('candStageBox').innerHTML = candStageActions(c);
+}
 async function moveCandidate(id, stage){
+  const c = CANDIDATES.find(x => String(x.id) === String(id));
   const upd = { stage, updated_at: new Date().toISOString() };
   if(stage === 'REJECTED'){
-    const reason = await nxPrompt('Reason for rejection (recorded, not deleted):', 'Reject Candidate');
+    const reason = await nxPrompt('Reason for rejection (kept on record):', 'Reject Candidate');
     if(reason === null) return;
     upd.rejection_reason = reason || 'Not specified';
   }
-  // capture any open stage fields before moving
-  if($('candIvDate')) upd.interview_date = $('candIvDate').value||null;
   if($('candIvScore')) upd.interview_score = Number($('candIvScore').value)||null;
   if($('candIvNotes')) upd.interview_notes = $('candIvNotes').value||null;
-  if($('candOffSal')) upd.offered_salary = Number($('candOffSal').value)||null;
-  if($('candJoinDate')){ upd.join_date = $('candJoinDate').value||null; if(stage==='OFFERED') upd.offer_date = $('candJoinDate').value||null; }
+  if($('candDocDue')) upd.doc_due_date = $('candDocDue').value||null;
+  if($('candAgreed')) upd.agreed_salary = Number($('candAgreed').value)||null;
+  if($('candJoinDate')) upd.join_date = $('candJoinDate').value||null;
   try{
-    await sb.from('candidates').update(upd).eq('id', id);
+    const { error } = await sb.from('candidates').update(upd).eq('id', id);
+    if(error) throw error;
+    if(stage === 'REJECTED' && c && c.email){
+      await candEmail(Object.assign({}, c, upd), 'reject', {});
+    }
     $('candModal').classList.remove('show');
     notify('Moved to ' + stage, 'success');
     loadHiring();
@@ -3348,16 +3532,14 @@ async function convertCandidate(id){
   if(!c) return;
   if(!(await nxConfirm(`Convert ${c.name} into an employee? This opens the Add Employee form pre-filled.`, 'Convert to Employee'))) return;
   $('candModal').classList.remove('show');
-  // open Add Employee and pre-fill from the candidate
   $('empAddBtn').click();
   setTimeout(() => {
     if($('aeName')) $('aeName').value = c.name;
     if($('aePhone')) $('aePhone').value = c.phone||'';
     if($('aeEmail')) $('aeEmail').value = c.email||'';
-    if($('aeDesig') && c.position){ /* designation is a select; leave for user to pick */ }
     if($('aeDOJ') && c.join_date) $('aeDOJ').value = c.join_date;
-    if($('aeCTC') && c.offered_salary){ $('aeCat').value='mgmt'; if(typeof updateAePreview==='function') updateAePreview(); $('aeCTC').value = c.offered_salary; }
-    notify('Fill the remaining details and Add. After adding, mark the candidate as Joined.', 'info');
+    if($('aeCTC') && (c.agreed_salary||c.offered_salary)){ $('aeCat').value='mgmt'; if(typeof updateAePreview==='function') updateAePreview(); $('aeCTC').value = c.agreed_salary||c.offered_salary; }
+    notify('Fill the remaining details and Add. Then mark the candidate as Joined.', 'info');
     window._convertingCandidate = c.id;
   }, 200);
 }
