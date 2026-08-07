@@ -2747,7 +2747,7 @@ function renderEmployees(filter){
       <td>${esc(e.DOJ || '—')}</td>
       <td class="money font-semibold confidential-col">${gross ? fmtINR(gross) : '<span class="chip chip-bad">Not set</span>'}</td>
       <td><span class="chip ${active ? 'chip-ok' : 'chip-gray'}">${esc(e.Status || '—')}</span></td>
-      <td><button class="btn btn-ghost btn-sm" data-act="edit-emp" data-code="${esc(code)}"><i class="fa-solid fa-pen"></i> Profile</button></td>
+      <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-act="edit-emp" data-code="${esc(code)}"><i class="fa-solid fa-pen"></i> Profile</button> <button class="btn btn-danger btn-sm super-only" data-act="del-emp" data-code="${esc(code)}" title="Delete employee (super admin)"><i class="fa-solid fa-trash"></i></button></td>
     </tr>`;
   }).join('') : '<tr><td colspan="8" class="text-center py-8" style="color:var(--muted)">No employees found.</td></tr>';
 }
@@ -2790,7 +2790,8 @@ function ctcToGross(ctc){
 }
 $('empAddBtn').addEventListener('click', () => {
   renderLines(); renderUnits(); populateDLs();
-  $('aeUnit').value = '';
+  const _units = (getSettings().units || []);
+  $('aeUnit').value = _units.length === 1 ? _units[0].code : '';
   $('aeCat').value = 'worker'; $('aeSkill').value = 'mw3'; $('aeCTC').value = '';
   updateAePreview();
   $('aeName').value = ''; $('aeDept').value = ''; $('aeDesig').value = '';
@@ -2800,15 +2801,15 @@ $('empAddBtn').addEventListener('click', () => {
   if($('aeGender')) $('aeGender').value = '';
   if($('aeEmpType')) $('aeEmpType').value = 'Permanent';
   if($('aeMgr')) $('aeMgr').value = '';
-  let code;
-  do { code = 'EMP-' + Math.floor(1000 + Math.random() * 9000); } while (EMP.some(e => e['Employee code'] === code));
-  $('aeCode').value = code;
+  $('aeCode').value = $('aeUnit').value ? nextCodeFor($('aeUnit').value) : '';
   const showSal = canSeeConfidential();
   if($('aeSalaryBlock')) $('aeSalaryBlock').style.display = showSal ? '' : 'none';
   $('addEmpModal').classList.add('show');
 });
 $('aeSaveBtn').addEventListener('click', async () => {
-  const name = $('aeName').value.trim().toUpperCase(), code = $('aeCode').value.trim().toUpperCase();
+  const name = $('aeName').value.trim().toUpperCase();
+  if(!$('aeUnit').value) return notify('Select the Unit / Location first — the employee code comes from it', 'error');
+  const code = $('aeCode').value.trim().toUpperCase() || nextCodeFor($('aeUnit').value);
   if(name && code){
     var aeOTAllowed = await nxConfirm('Kya "' + name + '" ko overtime allowed hai?\n\nOK = YES (OT milega)\nCancel = NO (OT kabhi nahi)', 'Overtime Allowed?');
   }
@@ -4457,6 +4458,24 @@ document.body.addEventListener('click', async e => {
     if(error) return notify(error.message, 'error');
     window.open(data.signedUrl, '_blank');
   }
+  if(act === 'del-emp'){
+    if(!isSuper()) return notify('Only a super admin can delete an employee', 'error');
+    const code = el.dataset.code;
+    const emp = EMP.find(x => x['Employee code'] === code);
+    const nm = emp ? emp.Name : code;
+    if(!(await nxConfirm(`DELETE employee "${nm}" (${code}) permanently?\n\nTheir profile and face data will be removed. Attendance and payslip history stays in the records.\n\nThis CANNOT be undone.`, 'Delete Employee'))) return;
+    const typed = await nxPrompt(`Type the employee code (${code}) to confirm deletion:`, 'Confirm Delete');
+    if(String(typed||'').trim().toUpperCase() !== String(code).toUpperCase()) return notify('Code did not match — deletion cancelled', 'error');
+    try{
+      await sb.from('hr_profiles').delete().eq('employee_code', code);
+      const { error } = await sb.from('employees').delete().eq('Employee code', code);
+      if(error) throw error;
+      EMP = EMP.filter(x => x['Employee code'] !== code);
+      delete PROFILES[code];
+      notify(`Employee ${nm} deleted`, 'success');
+      renderEmployees($('empSearch').value);
+    }catch(err){ notify(err.message, 'error'); }
+  }
   if(act === 'view-doc'){
     const { data, error } = await sb.storage.from('hr-docs').createSignedUrl(el.dataset.path, 120);
     if(error) return notify(error.message, 'error');
@@ -5272,10 +5291,19 @@ $('impGoBtn').addEventListener('click', async () => {
 /* ---------------- Units / Locations & auto employee codes ---------------- */
 function populateDLs(){
   const S = getSettings();
-  $('deptDL').innerHTML = (S.depts || []).map(d => `<option value="${esc(d)}">`).join('');
-  $('desigDL').innerHTML = (S.desigs || []).map(d => `<option value="${esc(d)}">`).join('');
-  const deptOpts = sel => '<option value="">— Select Department —</option>' + (S.depts || []).map(d => `<option value="${esc(d)}" ${sel === d ? 'selected' : ''}>${esc(d)}</option>`).join('') + (sel && !(S.depts||[]).includes(sel) ? `<option value="${esc(sel)}" selected>${esc(sel)}</option>` : '');
-  const desigOpts = sel => '<option value="">— Select Designation —</option>' + (S.desigs || []).map(d => `<option value="${esc(d)}" ${sel === d ? 'selected' : ''}>${esc(d)}</option>`).join('') + (sel && !(S.desigs||[]).includes(sel) ? `<option value="${esc(sel)}" selected>${esc(sel)}</option>` : '');
+  // merge the Settings lists with the values actually used on employees, so nothing is missing
+  const deptSet = new Set((S.depts || []).map(d => String(d).trim()).filter(Boolean));
+  const desigSet = new Set((S.desigs || []).map(d => String(d).trim()).filter(Boolean));
+  EMP.forEach(e => {
+    if(e.DEPARTMENT) deptSet.add(String(e.DEPARTMENT).trim());
+    if(e.DESIGNATION) desigSet.add(String(e.DESIGNATION).trim());
+  });
+  const depts = Array.from(deptSet).sort();
+  const desigs = Array.from(desigSet).sort();
+  $('deptDL').innerHTML = depts.map(d => `<option value="${esc(d)}">`).join('');
+  $('desigDL').innerHTML = desigs.map(d => `<option value="${esc(d)}">`).join('');
+  const deptOpts = sel => '<option value="">— Select Department —</option>' + depts.map(d => `<option value="${esc(d)}" ${sel === d ? 'selected' : ''}>${esc(d)}</option>`).join('') + (sel && !depts.includes(sel) ? `<option value="${esc(sel)}" selected>${esc(sel)}</option>` : '');
+  const desigOpts = sel => '<option value="">— Select Designation —</option>' + desigs.map(d => `<option value="${esc(d)}" ${sel === d ? 'selected' : ''}>${esc(d)}</option>`).join('') + (sel && !desigs.includes(sel) ? `<option value="${esc(sel)}" selected>${esc(sel)}</option>` : '');
   if($('aeDept')) $('aeDept').innerHTML = deptOpts('');
   if($('aeDesig')) $('aeDesig').innerHTML = desigOpts('');
   window.nxDeptOpts = deptOpts; window.nxDesigOpts = desigOpts;
@@ -5289,7 +5317,7 @@ function renderUnits(){
       <button class="btn btn-danger btn-sm" data-act="unit-del" data-i="${i}"><i class="fa-solid fa-trash"></i></button>
     </div>`;
   }).join('') : '<p class="text-xs m-0" style="color:var(--muted)">No units defined. e.g. ZM01 — Manesar Unit 1, ZM02 — Manesar Unit 2, ZD03 — Delhi.</p>';
-  if($('aeUnit')) $('aeUnit').innerHTML = '<option value="">Manual code</option>' + units.map(u => `<option value="${esc(u.code)}">${esc(u.code)} — ${esc(u.name)}</option>`).join('');
+  if($('aeUnit')) $('aeUnit').innerHTML = '<option value="">— Select Unit —</option>' + units.map(u => `<option value="${esc(u.code)}">${esc(u.code)} — ${esc(u.name)}</option>`).join('');
 }
 $('unitAddBtn').addEventListener('click', async () => {
   const code = $('unitCode').value.trim().toUpperCase(), name = $('unitName').value.trim();
