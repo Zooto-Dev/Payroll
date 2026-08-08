@@ -3686,11 +3686,12 @@ async function loadWorkHours(){
 function exportWorkHours(){
   const d = window._whData; if(!d || !d.items.length) return notify('Load data first', 'error');
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
-  const head = (d.multiDay ? ['Date'] : []).concat(['Employee Code','Employee Name','In Time','Out Time','Total Hours','Excess Hours']);
+  const head = (d.multiDay ? ['Date'] : []).concat(['Employee Code','Employee Name','Department','In Time','Out Time','Total Hours','Excess Hours']);
   const lines = [head.join(',')];
+  const deptOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? (e.DEPARTMENT || '') : ''; };
   d.items.forEach(x => {
     const base = d.multiDay ? [x.date] : [];
-    lines.push(base.concat([x.code, x.name, x.inT||'', x.outT||'', x.worked.toFixed(2), x.excess.toFixed(2)]).map(q).join(','));
+    lines.push(base.concat([x.code, x.name, deptOf(x.code), x.inT||'', x.outT||'', x.worked.toFixed(2), x.excess.toFixed(2)]).map(q).join(','));
   });
   dlText('Work_Hours_'+d.from+(d.multiDay?('_to_'+d.to):'')+'.csv', lines.join('\n'), 'text/csv');
 }
@@ -5140,17 +5141,23 @@ $('empImportBtn').addEventListener('click', () => {
   $('impModal').classList.add('show');
 });
 
-$('empExportBtn').addEventListener('click', () => {
+$('empExportBtn').addEventListener('click', async () => {
   const showExited = $('empShowExited') && $('empShowExited').checked;
   const list = EMP.filter(e => showExited || String(e.Status).toUpperCase() === 'ACTIVE');
   if(!list.length) return notify('No employees to export', 'error');
+  // which employees have face data registered? (codes only — a tiny query)
+  let faceSet = new Set();
+  try{
+    const { data: fr } = await sb.from('employees').select('"Employee code"').not('Descriptor', 'is', null);
+    (fr || []).forEach(r => faceSet.add(r['Employee code']));
+  }catch(e){}
   const full = isSuper();   // only the super admin gets salary + bank & statutory columns
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
   const fmtD = d => d ? String(d).split('-').reverse().join('/') : '';   // yyyy-mm-dd -> dd/mm/yyyy
   // same columns and order as the import template (round-trippable for the super admin)
   const baseHeader = ['Employee Code','Name','DOJ','Department','Designation','Phone','Email',"Father's Name",'Date of Birth','Gender','Address','Emergency Contact','Employment Type','Reporting Manager'];
   const confHeader = ['Gross Salary','Bank Name','Account No','IFSC','PAN','UAN','ESI No'];
-  const header = full ? baseHeader.concat(confHeader) : baseHeader;
+  const header = (full ? baseHeader.concat(confHeader) : baseHeader).concat(['Face Registered']);
   const lines = [header.join(',')];
   list.forEach(e => {
     const code = e['Employee code']; const p = PROFILES[code] || {};
@@ -5161,6 +5168,7 @@ $('empExportBtn').addEventListener('click', () => {
       const gross = salaryApproved(code) ? Object.values(empSalary(code)).reduce((a,b)=>a+b,0) : Object.values((function(){const s={};getSettings().earnComps.forEach(c=>s[c.k]=Number((sal.earn||{})[c.k])||0);return s;})()).reduce((a,b)=>a+b,0);
       row.push(gross, p.bank_name, p.account_no, p.ifsc, p.pan, p.uan, p.esi_no);
     }
+    row.push(faceSet.has(code) ? 'YES' : 'NO');   // Face Registered
     lines.push(row.map(q).join(','));
   });
   dlText('Employees_' + todayISO() + '.csv', lines.join('\n'), 'text/csv');
