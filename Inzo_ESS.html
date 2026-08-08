@@ -984,12 +984,22 @@ function renderExpenses(){
       .then(({ data }) => { if(data && data[0] && $('myUpi') && !$('myUpi').value) $('myUpi').value = data[0].upi_id || ''; });
   }
 }
-document.addEventListener('click', e => {
+document.addEventListener('click', async e => {
   const b = e.target.closest('#myUpiBtn'); if(!b) return;
   const upi = $('myUpi').value.trim();
   if(!upi || upi.indexOf('@') < 1) return notify('Sahi UPI ID daalein (jaise name@okhdfcbank)');
-  sb.from('hr_profiles').update({ upi_id: upi }).ilike('employee_code', String(CODE||'').trim().toUpperCase())
-    .then(({ error }) => notify(error ? error.message : 'UPI saved ✓ — approved expenses ab isi par pay honge'));
+  const codeU = String(CODE||'').trim().toUpperCase();
+  try{
+    // update AND verify a row was actually touched
+    const { data, error } = await sb.from('hr_profiles').update({ upi_id: upi }).ilike('employee_code', codeU).select('employee_code');
+    if(error) throw error;
+    if(!data || !data.length){
+      // no profile row yet -> create one with the UPI
+      const { error: insErr } = await sb.from('hr_profiles').insert([{ employee_code: codeU, upi_id: upi }]);
+      if(insErr) throw insErr;
+    }
+    notify('UPI saved ✓ — approved expenses ab isi par pay honge');
+  }catch(err){ notify('Save failed: ' + (err.message || err)); }
 });
 function renderResign(){
   const ex = D.exit;
