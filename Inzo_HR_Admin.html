@@ -1037,10 +1037,21 @@ body.no-confidential .confidential-col{display:none!important}
       <h3 class="display font-bold mt-6 mb-3">Production Lines <span class="text-[10px] font-normal" style="color:var(--muted)">manpower capacity per line — enforced at the attendance device</span></h3>
       <div id="plList" class="space-y-1 mb-2"></div>
       <div class="flex gap-2 mb-4 flex-wrap">
-        <input id="plName" class="inp" style="flex:1;min-width:160px" placeholder="Line name (e.g. Line 1, Stitching A)">
+        <input id="plName" class="inp" list="plNameDL" style="flex:1;min-width:160px" placeholder="Line name — pick a department">
+        <datalist id="plNameDL"></datalist>
         <input id="plCap" type="number" class="inp" style="max-width:110px" placeholder="Capacity">
         <select id="plSup" class="inp" style="max-width:220px"><option value="">— Supervisor —</option></select>
         <button id="plAddBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-plus"></i></button>
+      </div>
+      <h3 class="display font-bold mt-6 mb-3">Contractors <span class="text-[10px] font-normal" style="color:var(--muted)">contract employees link to these & stay OUT of company payroll</span></h3>
+      <div id="ctrList" class="space-y-2 mb-2"></div>
+      <div class="flex gap-2 flex-wrap items-center">
+        <input id="ctrName" class="inp" style="flex:1;min-width:140px" placeholder="Contractor name *">
+        <input id="ctrFirm" class="inp" style="max-width:160px" placeholder="Firm">
+        <input id="ctrPhone" class="inp" style="max-width:130px" placeholder="Phone">
+        <input id="ctrGst" class="inp" style="max-width:150px" placeholder="GSTIN">
+        <input id="ctrAddr" class="inp" style="max-width:200px" placeholder="Address">
+        <button id="ctrAddBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-plus"></i></button>
       </div>
       <h3 class="display font-bold mt-6 mb-3">Salary Components <span class="text-[10px] font-normal" style="color:var(--muted)">shown in every employee's salary structure & payslip</span></h3>
       <p class="lbl">Earning Components <span style="text-transform:none;font-weight:400">(tick "PF" if it counts as PF wages)</span></p>
@@ -1115,6 +1126,7 @@ body.no-confidential .confidential-col{display:none!important}
         <select id="epType" class="inp" onchange="epContractorToggle()"><option>Permanent</option><option>Contract</option><option>Probation</option><option>Trainee</option><option>Piece Rate</option></select></div>
       <div id="epContractorWrap" class="hidden col-span-2"><div class="grid grid-cols-2 gap-3 p-2 rounded-lg" style="background:#fffbeb;border:1px solid #fde68a">
         <div class="col-span-2 text-[11px]" style="color:#92400e"><i class="fa-solid fa-triangle-exclamation"></i> <b>Contract employee</b> — paid by the contractor, excluded from company payroll.</div>
+        <div class="col-span-2"><label class="lbl">Pick from Contractor Master</label><select id="epContractorSel" class="inp" onchange="ctrPick('epContractorSel','epContractor','epContractorPh')"></select></div>
         <div><label class="lbl">Contractor Name</label><input id="epContractor" class="inp"></div>
         <div><label class="lbl">Contractor Phone</label><input id="epContractorPh" class="inp"></div>
       </div></div>
@@ -1268,6 +1280,7 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">Employment Type</label><select id="aeEmpType" class="inp" onchange="aeContractorToggle()"><option>Permanent</option><option>Contract</option><option>Probation</option><option>Trainee</option><option>Intern</option><option>Piece Rate</option></select></div>
       <div id="aeContractorWrap" class="hidden col-span-2"><div class="grid grid-cols-2 gap-3 p-2 rounded-lg" style="background:#fffbeb;border:1px solid #fde68a">
         <div class="col-span-2 text-[11px]" style="color:#92400e"><i class="fa-solid fa-triangle-exclamation"></i> <b>Contract employee</b> — paid by the contractor, will NOT appear in company payroll.</div>
+        <div class="col-span-2"><label class="lbl">Pick from Contractor Master</label><select id="aeContractorSel" class="inp" onchange="ctrPick('aeContractorSel','aeContractor','aeContractorPh')"></select></div>
         <div><label class="lbl">Contractor Name</label><input id="aeContractor" class="inp"></div>
         <div><label class="lbl">Contractor Phone</label><input id="aeContractorPh" class="inp"></div>
       </div></div>
@@ -4463,6 +4476,12 @@ document.body.addEventListener('click', async e => {
     if(error) return notify(error.message, 'error');
     window.open(data.signedUrl, '_blank');
   }
+  if(act === 'del-ctr'){
+    if(!(await nxConfirm('Delete this contractor from the master list? (Employees already linked keep their saved details)', 'Delete Contractor'))) return;
+    await sb.from('contractors').delete().eq('id', el.dataset.id);
+    loadContractors();
+    return;
+  }
   if(act === 'ea-appr' || act === 'ea-rej'){
     // field-attendance decision: super admin or that employee's reporting manager only
     const { data: reqRows } = await sb.from('ess_att_requests').select('*').eq('id', el.dataset.id).limit(1);
@@ -4983,6 +5002,7 @@ $('letterPrintBtn').addEventListener('click', () => printHTML($('letterPaper').i
 
 /* ---------------- Settings & Holidays ---------------- */
 function fillSettingsForm(){
+  loadContractors();
   const S = getSettings();
   $('setName').value = S.name; $('setAddr').value = S.addr; $('setPhone').value = S.phone;
   $('setEmail').value = S.email; $('setCIN').value = S.cin; $('setHR').value = S.hr; $('setHRDesig').value = S.hrDesig;
@@ -5415,11 +5435,59 @@ function renderLines(){
       </span>
     </div>`;
   }).join('') : '<p class="text-xs m-0" style="color:var(--muted)">No production lines defined.</p>';
-  $('plSup').innerHTML = '<option value="">— Supervisor —</option>' + activeEmps().map(e => `<option value="${esc(e['Employee code'])}">${esc(e.Name)}</option>`).join('');
+  const sups = activeEmps().filter(e => String(e.DESIGNATION||'').toUpperCase().includes('SUPERVISOR'));
+  $('plSup').innerHTML = '<option value="">— Supervisor —</option>' + (sups.length ? sups : activeEmps()).map(e => `<option value="${esc(e['Employee code'])}">${esc(e.Name)}${sups.length?'':' ('+esc(e.DESIGNATION||'')+')'}</option>`).join('');
+  // line names come from the department list — no manual guessing
+  const _dSet = new Set();
+  (getSettings().depts || []).forEach(d => _dSet.add(String(d).trim()));
+  EMP.forEach(e => { if(e.DEPARTMENT) _dSet.add(String(e.DEPARTMENT).trim()); });
+  $('plNameDL').innerHTML = Array.from(_dSet).sort().map(d => `<option value="${esc(d)}">`).join('');
   const opts = '<option value="">— No line —</option>' + LINES.map(l => `<option value="${esc(l.name)}">${esc(l.name)} (cap ${l.capacity})</option>`).join('');
   if($('epLine')) $('epLine').innerHTML = opts;
   if($('aeLine')) $('aeLine').innerHTML = opts;
 }
+let CONTRACTORS = [];
+async function loadContractors(){
+  try{
+    const { data } = await sb.from('contractors').select('*').order('name');
+    CONTRACTORS = data || [];
+  }catch(e){ CONTRACTORS = []; }
+  renderContractors();
+  fillContractorSelects();
+}
+function renderContractors(){
+  const host = $('ctrList'); if(!host) return;
+  const cnt = {};
+  Object.keys(PROFILES).forEach(c => { const n = String((PROFILES[c]||{}).contractor_name||'').trim().toUpperCase(); if(n) cnt[n] = (cnt[n]||0)+1; });
+  host.innerHTML = CONTRACTORS.length ? CONTRACTORS.map(c => `
+    <div class="flex items-center justify-between p-2 rounded-lg text-sm flex-wrap gap-1" style="background:#f8fafc">
+      <span><b>${esc(c.name)}</b>${c.firm?` <span class="chip chip-blue">${esc(c.firm)}</span>`:''}${c.phone?` <span class="text-xs" style="color:var(--muted)"><i class="fa-solid fa-phone"></i> ${esc(c.phone)}</span>`:''}
+        <span class="chip chip-gray">${cnt[String(c.name).trim().toUpperCase()]||0} employees</span>
+        ${c.gstin?`<span class="text-[10px]" style="color:var(--muted)">GST: ${esc(c.gstin)}</span>`:''}</span>
+      <button class="btn btn-danger btn-sm" data-act="del-ctr" data-id="${c.id}"><i class="fa-solid fa-trash"></i></button>
+    </div>`).join('') : '<p class="text-xs m-0" style="color:var(--muted)">No contractors yet — add below.</p>';
+}
+function fillContractorSelects(){
+  const opts = '<option value="">— Select Contractor —</option>' + CONTRACTORS.map(c => `<option value="${esc(c.name)}" data-phone="${esc(c.phone||'')}">${esc(c.name)}${c.firm?' — '+esc(c.firm):''}</option>`).join('');
+  if($('aeContractorSel')) $('aeContractorSel').innerHTML = opts;
+  if($('epContractorSel')) $('epContractorSel').innerHTML = opts;
+}
+function ctrPick(selId, nameId, phoneId){
+  const sel = $(selId); if(!sel || !sel.value) return;
+  const opt = sel.options[sel.selectedIndex];
+  $(nameId).value = sel.value;
+  if(opt && opt.dataset.phone) $(phoneId).value = opt.dataset.phone;
+}
+$('ctrAddBtn').addEventListener('click', async () => {
+  const name = $('ctrName').value.trim().toUpperCase();
+  if(!name) return notify('Contractor name is required', 'error');
+  const row = { name, firm: $('ctrFirm').value.trim()||null, phone: ($('ctrPhone').value||'').replace(/\D/g,'')||null, gstin: $('ctrGst').value.trim().toUpperCase()||null, address: $('ctrAddr').value.trim()||null };
+  const { error } = await sb.from('contractors').insert([row]);
+  if(error) return notify(error.message, 'error');
+  ['ctrName','ctrFirm','ctrPhone','ctrGst','ctrAddr'].forEach(id => $(id).value = '');
+  notify('Contractor added', 'success');
+  loadContractors();
+});
 $('plAddBtn').addEventListener('click', async () => {
   const name = $('plName').value.trim(), cap = Number($('plCap').value);
   if(!name || !cap || cap < 1) return notify('Line name and capacity are required', 'error');
