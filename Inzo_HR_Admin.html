@@ -556,6 +556,10 @@ body.no-confidential .confidential-col{display:none!important}
   </div>
   <div class="card" style="padding:0;overflow:hidden">
     <div class="ap-panel" id="apPanel-leaves">
+      <div class="p-3 border-b flex gap-2" style="border-color:var(--line)">
+        <button class="btn btn-primary btn-sm" id="apLvPend" onclick="apLvMode('PENDING')">Pending</button>
+        <button class="btn btn-ghost btn-sm" id="apLvAppr" onclick="apLvMode('APPROVED')">Approved</button>
+      </div>
       <div id="apLeaves" class="text-sm" style="padding:0"></div>
     </div>
     <div class="ap-panel hidden" id="apPanel-ot">
@@ -565,6 +569,10 @@ body.no-confidential .confidential-col{display:none!important}
       <div id="apOT" class="text-sm" style="padding:0"></div>
     </div>
     <div class="ap-panel hidden" id="apPanel-exp">
+      <div class="p-3 border-b flex gap-2" style="border-color:var(--line)">
+        <button class="btn btn-primary btn-sm" id="apExPend" onclick="apExMode('PENDING')">Pending</button>
+        <button class="btn btn-ghost btn-sm" id="apExAppr" onclick="apExMode('APPROVED')">Approved / Paid</button>
+      </div>
       <div id="apExp" class="text-sm" style="padding:0"></div>
     </div>
     <div class="ap-panel hidden" id="apPanel-essatt">
@@ -656,21 +664,8 @@ body.no-confidential .confidential-col{display:none!important}
 
 <!-- ================= EXPENSES ================= -->
 <div class="page" id="page-expenses">
-  <div class="grid lg:grid-cols-3 gap-4">
-    <div class="card">
-      <h3 class="display font-bold mt-0 mb-3">New Expense Claim</h3>
-      <label class="lbl">Employee</label><select id="exEmp" class="inp mb-3"></select>
-      <label class="lbl">Category</label>
-      <select id="exCat" class="inp mb-3"><option>TRAVEL</option><option>FOOD</option><option>FUEL</option><option>HOTEL</option><option>MOBILE</option><option>OTHER</option></select>
-      <div class="grid grid-cols-2 gap-3">
-        <div><label class="lbl">Amount (₹)</label><input id="exAmt" type="number" class="inp"></div>
-        <div><label class="lbl">Date</label><input id="exDate" type="date" class="inp"></div>
-      </div>
-      <label class="lbl" style="margin-top:12px;display:block">Note</label>
-      <input id="exNote" class="inp mb-4" placeholder="Delhi client visit…">
-      <button id="exSaveBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-plus"></i> Add Claim</button>
-    </div>
-    <div class="card lg:col-span-2" style="padding:0;overflow:hidden">
+  <div class="grid gap-4">
+    <div class="card" style="padding:0;overflow:hidden">
       <div class="p-4 border-b flex items-center justify-between" style="border-color:var(--line)">
         <h3 class="display font-bold m-0"><i class="fa-solid fa-qrcode" style="color:var(--brand)"></i> To Pay <span class="text-xs font-normal" style="color:var(--muted)">approved & unpaid — pay by UPI QR, attach proof, mark paid</span></h3>
       </div>
@@ -2290,7 +2285,6 @@ function fillEmpSelects(){
   $('letterEmp').innerHTML = opts;
   $('lvEmp').innerHTML = opts;
   $('fxEmp').innerHTML = opts;
-  $('exEmp').innerHTML = opts;
   // asEmp is now a datalist input; build the list + name->code map
   const asDL = $('asEmpDL');
   if(asDL){
@@ -5877,7 +5871,6 @@ $('docUploadBtn').addEventListener('click', async () => {
 });
 
 /* ================= EXPENSES ================= */
-$('exDate') && ($('exDate').value = todayISO());
 let _exData = [];
 function renderExSettle(){
   const host = $('exSettle'); if(!host) return;
@@ -5980,13 +5973,6 @@ async function loadExpenses(){
   }).join('') : '<tr><td colspan="7" class="text-center py-8" style="color:var(--muted)">No expense claims.</td></tr>';
   $('exTotals').innerText = 'Pending ' + fmtINR(pend) + ' • To Pay ' + fmtINR(appr);
 }
-$('exSaveBtn').addEventListener('click', async () => {
-  if(!$('exEmp').value || !Number($('exAmt').value)) return notify('Employee and amount are required', 'error');
-  const { error } = await sb.from('expenses').insert([{ employee_code: $('exEmp').value, category: $('exCat').value, amount: Number($('exAmt').value), expense_date: $('exDate').value || todayISO(), note: $('exNote').value }]);
-  if(error) return notify(error.message, 'error');
-  $('exAmt').value = ''; $('exNote').value = '';
-  notify('Claim added (Pending)', 'success'); loadExpenses();
-});
 
 /* ================= ASSETS ================= */
 $('asDate') && ($('asDate').value = todayISO());
@@ -7009,6 +6995,34 @@ async function loadApprovals(){
   const n = (lv.data||[]).length + (ot.data||[]).length + (ex.data||[]).length;
   $('apprBadge').innerText = n;
   $('apprBadge').classList.toggle('hidden', n === 0);
+}
+function _apToggleBtns(pendBtn, apprBtn, mode){
+  $(pendBtn).className = 'btn btn-sm ' + (mode === 'PENDING' ? 'btn-primary' : 'btn-ghost');
+  $(apprBtn).className = 'btn btn-sm ' + (mode === 'PENDING' ? 'btn-ghost' : 'btn-primary');
+}
+async function apLvMode(mode){
+  _apToggleBtns('apLvPend', 'apLvAppr', mode);
+  if(mode === 'PENDING') return loadApprovals();
+  const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
+  const { data } = await sb.from('leaves').select('*').eq('status','APPROVED').order('from_date', { ascending:false }).limit(150);
+  $('apLeaves').innerHTML = (data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Employee</th><th>Type</th><th>Days</th><th>Dates</th><th>Reason</th></tr></thead><tbody>
+    ${data.map(L => `<tr><td class="font-semibold">${esc(nameOf(L.employee_code))}</td><td><span class="chip chip-ok">${esc(L.leave_type)}</span></td><td>${L.days}</td>
+      <td class="text-xs">${fmtDate(L.from_date)} → ${fmtDate(L.to_date)}</td><td class="text-xs">${esc(L.reason||'—')}</td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">No approved leaves yet.</p>';
+}
+async function apExMode(mode){
+  _apToggleBtns('apExPend', 'apExAppr', mode);
+  if(mode === 'PENDING') return loadApprovals();
+  const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
+  const { data } = await sb.from('expenses').select('*').in('status',['APPROVED','PAID']).order('expense_date', { ascending:false }).limit(150);
+  $('apExp').innerHTML = (data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Employee</th><th>Category</th><th>Amount</th><th>Date</th><th>Status</th><th>Proof</th></tr></thead><tbody>
+    ${data.map(x => `<tr><td class="font-semibold text-xs">${esc(nameOf(x.employee_code))}</td><td class="text-xs">${esc(x.category)}</td>
+      <td class="font-semibold">${fmtINR(x.amount)}</td><td class="text-xs">${fmtDate(x.expense_date)}</td>
+      <td><span class="chip ${x.status==='PAID'?'chip-ok':'chip-blue'}">${esc(x.status)}</span>${x.status==='PAID'&&x.paid_at?`<div class="text-[10px]" style="color:var(--muted)">${fmtDate(String(x.paid_at).slice(0,10))}</div>`:''}</td>
+      <td>${x.payment_ref?`<button class="btn btn-ghost btn-sm" data-act="ex-proof" data-path="${esc(x.payment_ref)}"><i class="fa-solid fa-receipt"></i></button>`:'—'}</td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing approved yet.</p>';
 }
 document.querySelectorAll('.ap-tab').forEach(t => t.addEventListener('click', () => {
   document.querySelectorAll('.ap-tab').forEach(x => x.classList.toggle('active', x === t));
