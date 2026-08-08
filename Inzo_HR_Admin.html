@@ -388,7 +388,7 @@ body.no-confidential .confidential-col{display:none!important}
         <span class="chip chip-gray" id="empCount">—</span>
         <label class="text-[11px] flex items-center gap-1" style="color:var(--muted);cursor:pointer" title="Include exited/inactive employees"><input type="checkbox" id="empShowExited"> Show exited</label>
         <button id="empFormBtn" class="btn btn-ghost btn-sm" title="Print a blank joining form for the employee to fill"><i class="fa-solid fa-file-lines"></i> Blank Form</button>
-        <button id="empExportBtn" class="btn btn-ghost btn-sm super-only"><i class="fa-solid fa-file-export"></i> Export</button>
+        <button id="empExportBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-file-export"></i> Export</button>
         <button id="empImportBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-file-import"></i> Import</button>
         <button id="empAddBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-user-plus"></i> Add Employee</button>
       </div>
@@ -428,7 +428,7 @@ body.no-confidential .confidential-col{display:none!important}
   <div class="card mb-4 flex items-center gap-3 flex-wrap">
     <div><label class="lbl">Month</label><input type="month" id="attMonth" class="inp"></div>
     <button id="attLoadBtn" class="btn btn-primary mt-4"><i class="fa-solid fa-rotate"></i> Load Register</button>
-    <button id="attCsvBtn" class="btn btn-ghost mt-4 super-only"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+    <button id="attCsvBtn" class="btn btn-ghost mt-4"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
     <button id="attFixBtn" class="btn btn-ghost mt-4"><i class="fa-solid fa-user-clock"></i> Manual Punch / Fix</button>
     <div class="ml-auto mt-4 flex gap-2 text-[11px] items-center flex-wrap">
       <span class="chip c-P">P Present</span><span class="chip c-L">L Late</span><span class="chip c-A">A Absent</span><span class="chip c-WO">WO Week Off</span><span class="chip c-H">H Holiday</span><span class="chip c-LV">LV Leave</span>
@@ -465,7 +465,7 @@ body.no-confidential .confidential-col{display:none!important}
       </div>
       <div><label class="lbl">Employee (optional)</label><input id="whEmp" class="inp" placeholder="Code or name — blank = all" list="whEmpDL" style="min-width:180px"><datalist id="whEmpDL"></datalist></div>
       <button id="whLoadBtn" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Load</button>
-      <button id="whExportBtn" class="btn btn-ghost super-only"><i class="fa-solid fa-file-csv"></i> Export</button>
+      <button id="whExportBtn" class="btn btn-ghost"><i class="fa-solid fa-file-csv"></i> Export</button>
       <div class="ml-auto flex items-end"><div><label class="lbl">Std hrs/day</label><input type="number" id="whStd" class="inp" value="8" step="0.5" style="max-width:90px"></div></div>
     </div>
   </div>
@@ -557,6 +557,10 @@ body.no-confidential .confidential-col{display:none!important}
     <div class="card" style="padding:0;overflow:hidden">
       <div class="p-4 border-b" style="border-color:var(--line)"><h3 class="display font-bold m-0"><i class="fa-solid fa-receipt" style="color:var(--ok)"></i> Pending Expenses</h3></div>
       <div id="apExp" class="p-3 space-y-2 text-sm"></div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="p-4 border-b" style="border-color:var(--line)"><h3 class="display font-bold m-0"><i class="fa-solid fa-location-dot" style="color:var(--brand)"></i> Field Attendance Requests</h3></div>
+      <div id="apEssAtt" class="p-3 space-y-2 text-sm"></div>
     </div>
   </div>
 </div>
@@ -815,7 +819,7 @@ body.no-confidential .confidential-col{display:none!important}
       <h3 class="display font-bold m-0"><i class="fa-solid fa-stopwatch" style="color:var(--brand)"></i> OT Report <span class="text-[10px] font-normal" style="color:var(--muted)">approved overtime — paid separately from salary</span></h3>
       <input type="month" id="otrMonth" class="inp" style="max-width:170px;margin-left:auto">
       <button id="otrLoadBtn" class="btn btn-primary btn-sm">Load</button>
-      <button id="otrCsvBtn" class="btn btn-ghost btn-sm hidden super-only"><i class="fa-solid fa-download"></i> CSV</button>
+      <button id="otrCsvBtn" class="btn btn-ghost btn-sm hidden"><i class="fa-solid fa-download"></i> CSV</button>
     </div>
     <div id="otrWrap"><p class="text-xs m-0" style="color:var(--muted)">Pick a month and click Load.</p></div>
   </div>
@@ -1775,7 +1779,7 @@ function showAttList(kind){
     <div class="flex items-center justify-between mb-3"><h3 class="display font-bold m-0">${title} <span class="chip chip-gray">${list.length}</span></h3>
     <button class="btn btn-ghost btn-sm" onclick="closeAttList()"><i class="fa-solid fa-xmark"></i></button></div>
     <div class="space-y-2">${body}</div>
-    <div class="mt-3 text-right">${isSuper() ? `<button class="btn btn-ghost btn-sm" onclick="exportAttList('${kind}')"><i class="fa-solid fa-download"></i> Export CSV</button>` : ''}</div>
+    <div class="mt-3 text-right"><button class="btn btn-ghost btn-sm" onclick="exportAttList('${kind}')"><i class="fa-solid fa-download"></i> Export CSV</button></div>
   </div>`;
   m.classList.add('show');
 }
@@ -4458,6 +4462,17 @@ document.body.addEventListener('click', async e => {
     if(error) return notify(error.message, 'error');
     window.open(data.signedUrl, '_blank');
   }
+  if(act === 'ea-appr' || act === 'ea-rej'){
+    // field-attendance decision: super admin or that employee's reporting manager only
+    const { data: reqRows } = await sb.from('ess_att_requests').select('*').eq('id', el.dataset.id).limit(1);
+    const r = reqRows && reqRows[0];
+    if(!r) return;
+    if(!(window._canDecideEssAtt && window._canDecideEssAtt(r))) return notify('Only the reporting manager (or a super admin) can decide this request', 'error');
+    await sb.from('ess_att_requests').update({ status: act === 'ea-appr' ? 'APPROVED' : 'REJECTED', approved_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
+    notify(act === 'ea-appr' ? 'Field attendance approved — Punch In/Out is now live on their ESS' : 'Request rejected', 'success');
+    loadApprovals();
+    return;
+  }
   if(act === 'del-emp'){
     if(!isSuper()) return notify('Only a super admin can delete an employee', 'error');
     const code = el.dataset.code;
@@ -5129,23 +5144,27 @@ $('empExportBtn').addEventListener('click', () => {
   const showExited = $('empShowExited') && $('empShowExited').checked;
   const list = EMP.filter(e => showExited || String(e.Status).toUpperCase() === 'ACTIVE');
   if(!list.length) return notify('No employees to export', 'error');
-  const canSal = canSeeConfidential();
+  const full = isSuper();   // only the super admin gets salary + bank & statutory columns
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
   const fmtD = d => d ? String(d).split('-').reverse().join('/') : '';   // yyyy-mm-dd -> dd/mm/yyyy
-  // same columns and order as the import template (round-trippable)
-  const header = ['Employee Code','Name','DOJ','Department','Designation','Phone','Email',"Father's Name",'Date of Birth','Gender','Address','Emergency Contact','Employment Type','Reporting Manager','Gross Salary','Bank Name','Account No','IFSC','PAN','UAN','ESI No'];
+  // same columns and order as the import template (round-trippable for the super admin)
+  const baseHeader = ['Employee Code','Name','DOJ','Department','Designation','Phone','Email',"Father's Name",'Date of Birth','Gender','Address','Emergency Contact','Employment Type','Reporting Manager'];
+  const confHeader = ['Gross Salary','Bank Name','Account No','IFSC','PAN','UAN','ESI No'];
+  const header = full ? baseHeader.concat(confHeader) : baseHeader;
   const lines = [header.join(',')];
   list.forEach(e => {
     const code = e['Employee code']; const p = PROFILES[code] || {};
     const sal = (p.salary || {});
-    const gross = canSal ? (salaryApproved(code) ? Object.values(empSalary(code)).reduce((a,b)=>a+b,0) : Object.values((function(){const s={};getSettings().earnComps.forEach(c=>s[c.k]=Number((sal.earn||{})[c.k])||0);return s;})()).reduce((a,b)=>a+b,0)) : '';
     const row = [code, e.Name, fmtD(e.DOJ), e.DEPARTMENT, e.DESIGNATION, p.phone, p.email,
-      p.father_name, fmtD(p.dob), p.gender, p.address, p.emergency_phone, p.employment_type, p.reporting_manager,
-      canSal?gross:'', p.bank_name, p.account_no, p.ifsc, p.pan, p.uan, p.esi_no];
+      p.father_name, fmtD(p.dob), p.gender, p.address, p.emergency_phone, p.employment_type, p.reporting_manager];
+    if (full) {
+      const gross = salaryApproved(code) ? Object.values(empSalary(code)).reduce((a,b)=>a+b,0) : Object.values((function(){const s={};getSettings().earnComps.forEach(c=>s[c.k]=Number((sal.earn||{})[c.k])||0);return s;})()).reduce((a,b)=>a+b,0);
+      row.push(gross, p.bank_name, p.account_no, p.ifsc, p.pan, p.uan, p.esi_no);
+    }
     lines.push(row.map(q).join(','));
   });
   dlText('Employees_' + todayISO() + '.csv', lines.join('\n'), 'text/csv');
-  notify('Exported ' + list.length + ' employee(s)' + (canSal ? '' : ' (salary hidden — no access)'), 'success');
+  notify('Exported ' + list.length + ' employee(s)' + (full ? '' : ' (salary & bank data excluded)'), 'success');
 });
 $('impTplBtn').addEventListener('click', () => {
   const _u = (SETTINGS.units||[]).map(u => u.code);
@@ -6716,11 +6735,29 @@ async function loadVoice(){
 
 /* ================= APPROVALS INBOX ================= */
 async function loadApprovals(){
-  const [lv, ot, ex] = await Promise.all([
+  const [lv, ot, ex, ea] = await Promise.all([
     sb.from('leaves').select('*').eq('status','PENDING').order('created_at'),
     sb.from('ot_requests').select('*').eq('status','PENDING').order('ot_date'),
-    sb.from('expenses').select('*').eq('status','PENDING').order('created_at')
+    sb.from('expenses').select('*').eq('status','PENDING').order('created_at'),
+    sb.from('ess_att_requests').select('*').eq('status','PENDING').order('created_at')
   ]);
+  // who am I as an employee? (for reporting-manager matching)
+  const myEmp = EMP.find(e => String(((PROFILES[e['Employee code']]||{}).email)||'').toLowerCase() === String(ME_EMAIL||'').toLowerCase());
+  const myName = myEmp ? String(myEmp.Name||'').trim().toUpperCase() : '';
+  const canDecideEssAtt = r => isSuper() || (myName && String(((PROFILES[r.employee_code]||{}).reporting_manager)||'').trim().toUpperCase() === myName);
+  window._canDecideEssAtt = canDecideEssAtt;
+  $('apEssAtt').innerHTML = (ea.data||[]).length ? ea.data.map(r => {
+    const mgr = ((PROFILES[r.employee_code]||{}).reporting_manager) || '—';
+    const mine = canDecideEssAtt(r);
+    return `<div class="p-2 rounded-lg flex items-center justify-between" style="background:#f8fafc">
+      <div><div class="font-semibold text-xs">${esc(r.name || r.employee_code)} — Field attendance</div>
+        <div class="text-[10px]" style="color:var(--muted)">${fmtDate(r.date)} · Manager: ${esc(mgr)}</div></div>
+      <div style="white-space:nowrap">${mine
+        ? `<button class="btn btn-ghost btn-sm" data-act="ea-appr" data-id="${r.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
+           <button class="btn btn-danger btn-sm" data-act="ea-rej" data-id="${r.id}"><i class="fa-solid fa-xmark"></i></button>`
+        : `<span class="text-[10px]" style="color:var(--muted)">Manager approves</span>`}</div>
+    </div>`;
+  }).join('') : '<p class="m-0 text-xs" style="color:var(--muted)">Nothing pending.</p>';
   const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
   const item = (title, sub, actA, actR, id) =>
     `<div class="p-2 rounded-lg flex items-center justify-between" style="background:#f8fafc">
