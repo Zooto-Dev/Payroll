@@ -1180,6 +1180,7 @@ function nxConfirm(msg, title){
                                 verifyUI.classList.add('opacity-0');
                                 reticle.classList.remove('detecting');
                                 reticle.classList.add('ok'); setTimeout(() => reticle.classList.remove('ok'), 1500);
+                                autoLearn(match.label, detection.descriptor, match.distance);   // background self-training
                                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                                 scannerWrapper.classList.remove('active-scan');
                                 _lastPunchActivity = Date.now();
@@ -1266,6 +1267,30 @@ function nxConfirm(msg, title){
                 _blink.hintAt = nowT;
                 showFeedback('blink', '<i class="fa-regular fa-eye" style="color:#93c5fd"></i>', 'Ek baar palak jhapkaiye', 'Liveness check — photo se punch nahi hota', null, 2200);
             }
+        }
+        // ---- AUTO-LEARNING ----
+        // A rock-solid, anti-spoof-passed punch adds ONE new face sample per person per day
+        // (max 8 total). Over a few weeks every employee gets samples across lighting,
+        // angles, beard/no-beard — accuracy keeps improving on its own.
+        function _learnMap(){ try{ return JSON.parse(localStorage.getItem('nx_learn_map') || '{}'); }catch(e){ return {}; } }
+        async function autoLearn(code, desc, dist){
+            try{
+                if (!desc || dist > 0.38) return;              // only learn from unmistakable matches
+                const day = new Date().toISOString().slice(0,10);
+                const m = _learnMap();
+                if (m[code] === day) return;                   // one sample per person per day
+                const entry = labeledFaceDescriptors.find(l => l.label === code);
+                if (!entry || entry.descriptors.length >= 8) return;   // 8 samples = fully trained
+                entry.descriptors.push(desc);                  // instantly used by the matcher
+                const all = entry.descriptors.map(d => Array.from(d));
+                const { error } = await supabaseClient.from('employees')
+                    .update({ Descriptor: JSON.stringify(all) }).eq('Employee code', code);
+                if (!error){
+                    m[code] = day;
+                    localStorage.setItem('nx_learn_map', JSON.stringify(m));
+                    console.log('auto-learned:', code, '->', all.length, 'samples');
+                }
+            }catch(e){}
         }
         // unknown-face tracker: a real face is visible but it matches nobody
         let _unkSince = 0, _unkSpokeAt = 0;
@@ -1488,12 +1513,56 @@ function nxConfirm(msg, title){
             try{
                 const d = new Date();
                 const day = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-                const { data } = await supabaseClient.from('attendance').select('employee_code,in_time,out_time').eq('date', day);
+                const { data, error } = await supabaseClient.from('attendance').select('employee_code,in_time,out_time').eq('date', day);
+                if (error) return;   // network hiccup -> keep local as-is, try again next minute
+                // 1) rebuild today's map from the SERVER (the single source of truth)
+                const fresh = {};
                 (data || []).forEach(r => {
-                    const lp = getLocalPunch(r.employee_code, day) || {};
-                    if(r.in_time && !lp.in) setLocalPunch(r.employee_code, day, 'in', String(r.in_time).substring(0,8));
-                    if(r.out_time && !lp.out) setLocalPunch(r.employee_code, day, 'out', String(r.out_time).substring(0,8));
+                    const c = String(r.employee_code || '').trim();
+                    if(!c) return;
+                    fresh[c] = {};
+                    if(r.in_time)  fresh[c].in  = String(r.in_time).substring(0,8);
+                    if(r.out_time) fresh[c].out = String(r.out_time).substring(0,8);
                 });
+                // 2) overlay punches still waiting in the sync queue (not on the server yet)
+                let pend = []; try{ pend = JSON.parse(localStorage.getItem('pending_punches') || '[]'); }catch(e){}
+                pend.forEach(p => {
+                    if((p.todayStr || p.date) !== day || !p.empCode) return;
+                    if(!fresh[p.empCode]) fresh[p.empCode] = {};
+                    if(p.type === 'IN'  && !fresh[p.empCode].in)  fresh[p.empCode].in  = p.timeStr || p.in_time || '';
+                    if(p.type === 'OUT' && !fresh[p.empCode].out) fresh[p.empCode].out = p.timeStr || p.out_time || '';
+                });
+                // 3) replace today's map (admin deletions disappear here)
+                const m = JSON.parse(localStorage.getItem('today_punches') || '{}');
+                m[day] = fresh;
+                const days = Object.keys(m).sort().slice(-3);
+                const trimmed = {}; days.forEach(dd => trimmed[dd] = m[dd]);
+                localStorage.setItem('today_punches', JSON.stringify(trimmed));
+            }catch(e){}
+        }
+        function pendingHasEmpToday(code, day){
+            try{ return (JSON.parse(localStorage.getItem('pending_punches') || '[]')).some(p => p.empCode === code && (p.todayStr || p.date) === day); }catch(e){ return false; }
+        }
+        // asks the server about ONE employee's record today (~200 bytes) — used only
+        // when the kiosk is about to refuse, so a record the admin deleted re-opens instantly
+        async function serverPunchCheck(code, day){
+            if(!navigator.onLine || !supabaseClient) return undefined;
+            try{
+                const q = supabaseClient.from('attendance').select('in_time,out_time').eq('employee_code', code).eq('date', day).limit(1);
+                const res = await Promise.race([q, new Promise(r => setTimeout(() => r({ _to:true }), 2500))]);
+                if(!res || res._to || res.error) return undefined;
+                const row = res.data && res.data[0];
+                if(!row) return null;   // no record on the server
+                return { in: row.in_time ? String(row.in_time).substring(0,8) : null, out: row.out_time ? String(row.out_time).substring(0,8) : null };
+            }catch(e){ return undefined; }
+        }
+        function applyServerRow(code, day, sv){
+            try{
+                const m = JSON.parse(localStorage.getItem('today_punches') || '{}');
+                if(!m[day]) m[day] = {};
+                if (sv === null) delete m[day][code];
+                else { m[day][code] = {}; if(sv.in) m[day][code].in = sv.in; if(sv.out) m[day][code].out = sv.out; }
+                localStorage.setItem('today_punches', JSON.stringify(m));
             }catch(e){}
         }
         let _punchInProgress = false;   // global lock: only one punch may run at a time
@@ -1577,12 +1646,41 @@ function nxConfirm(msg, title){
                 imageBase64 = snapCanvas.toDataURL('image/jpeg', 0.55);
             }
 
-            const saveOfflineTask = () => {
+            const saveOfflineTask = async () => {
                 // INSTANT PUNCH: decide IN vs OUT locally, confirm in under a second,
                 // and sync to the server in the background. The person NEVER waits for the network.
-                const lp = getLocalPunch(empCode, todayStr) || {};
-                let punchType;
-                if (!lp.in) {
+                let lp = getLocalPunch(empCode, todayStr) || {};
+                let punchType = null, refuseMsg = null, refuseSpeak = null;
+                for (let pass = 0; pass < 2; pass++) {
+                    punchType = null; refuseMsg = null; refuseSpeak = null;
+                    if (!lp.in) punchType = 'IN';
+                    else if (!lp.out) {
+                        const inMs = new Date(todayStr + 'T' + String(lp.in).substring(0,8)).getTime();
+                        const nowMs2 = new Date(todayStr + 'T' + timeStr).getTime();
+                        if (nowMs2 - inMs < 60 * 60 * 1000) {
+                            refuseMsg = empName + ', aapka punch pehle se laga hua hai.';
+                            refuseSpeak = speakName(empName) + ', aapka punch pehle se laga hua hai.';
+                        } else punchType = 'OUT';
+                    } else {
+                        refuseMsg = empName + ' — already punched in & out today.';
+                        refuseSpeak = speakName(empName) + ', aaj ki aapki shift puri ho chuki hai.';
+                    }
+                    if (!refuseMsg || pass === 1) break;
+                    // about to refuse -> confirm with the server ONCE, for THIS person only (~200 bytes).
+                    // If the admin deleted/edited their record, the kiosk corrects itself instantly.
+                    if (pendingHasEmpToday(empCode, todayStr)) break;   // our own unsynced punch — local is right
+                    const sv = await serverPunchCheck(empCode, todayStr);
+                    if (sv === undefined) break;                        // offline / slow -> trust local
+                    applyServerRow(empCode, todayStr, sv);
+                    lp = getLocalPunch(empCode, todayStr) || {};
+                }
+                if (refuseMsg) {
+                    notify(refuseMsg, 'info');
+                    speakText(refuseSpeak);
+                    resumeScanning();
+                    return;
+                }
+                if (punchType === 'IN') {
                     // line manpower check from the local today-map (instant, no network)
                     const myLine = empData && empData.LINE ? String(empData.LINE).trim().toLowerCase() : '';
                     if (myLine && (window.productionLines || []).length) {
@@ -1604,24 +1702,6 @@ function nxConfirm(msg, title){
                             }
                         }
                     }
-                    punchType = 'IN';
-                }
-                else if (!lp.out) {
-                    // OUT only after the minimum gap (1 hour) — same rule as before
-                    const inMs = new Date(todayStr + 'T' + String(lp.in).substring(0,8)).getTime();
-                    const nowMs2 = new Date(todayStr + 'T' + timeStr).getTime();
-                    if (nowMs2 - inMs < 60 * 60 * 1000) {
-                        notify(empName + ', aapka punch pehle se laga hua hai.', 'info');
-                        speakText(speakName(empName) + ', aapka punch pehle se laga hua hai.');
-                        resumeScanning();
-                        return;
-                    }
-                    punchType = 'OUT';
-                } else {
-                    notify(empName + " — already punched in & out today.", "info");
-                    speakText(speakName(empName) + ', aaj ki aapki shift puri ho chuki hai.');
-                    resumeScanning();
-                    return;
                 }
                 queuePunch({ empCode, todayStr, timeStr, imageBase64, type: punchType, is_late: isLate, empName });
                 // remember locally so the next scan gives the correct next action
@@ -1847,6 +1927,7 @@ function nxConfirm(msg, title){
                     updatePendingBadge();
                 }
                 const left = (JSON.parse(localStorage.getItem('pending_punches') || '[]')).length;
+                if(left === 0) refreshTodayCache();   // queue empty -> immediately align local with the server
                 if(!silent && left === 0) notify("All offline data synced!", "success");
                 if(!silent && left > 0) notify(left + " punch(es) could not sync yet — will keep retrying.", "error");
             } finally { _flushBusy = false; updatePendingBadge(); }
@@ -1860,7 +1941,7 @@ function nxConfirm(msg, title){
         });
         // also flush every 45s in case the network was just slow (no offline/online event fired)
         setInterval(() => { if(navigator.onLine) flushPendingPunches(true); }, 15000);
-        setInterval(refreshTodayCache, 60000);
+        setInterval(refreshTodayCache, 600000);   // light safety net (10 min) — real-time checks are event-driven below
         setTimeout(refreshTodayCache, 4000);
 
         // --- STREAMING_CHUNK: Presentation ---
