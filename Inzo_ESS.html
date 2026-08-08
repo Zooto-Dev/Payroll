@@ -449,45 +449,83 @@ if(!document.getElementById('kzStyle')) document.head.insertAdjacentHTML('before
 
 async function loadEssPunch(){
   const host = $('essPunchCard'); if(!host) return;
-  // check if this employee is allowed to self-mark attendance
-  let allowed = false;
   const codeU = String(CODE||'').trim().toUpperCase();
-  try{
-    // case-insensitive match (mobile logins sometimes type the code in lowercase)
-    let { data } = await sb.from('hr_profiles').select('employee_code, ess_attendance').ilike('employee_code', codeU);
-    let row = (data || [])[0];
-    if(!row){
-      // last-resort: fetch and match in JS (covers stray spaces/odd casing)
-      const all = await sb.from('hr_profiles').select('employee_code, ess_attendance').eq('ess_attendance', true);
-      row = (all.data || []).find(r => String(r.employee_code||'').trim().toUpperCase() === codeU);
-    }
-    allowed = !!(row && row.ess_attendance === true);
-  }catch(e){ allowed = false; }
+  // 1) flag: prefer the RPC data (no RLS issues), fall back to a direct read
+  let allowed = !!(D && D.profile && D.profile.ess_attendance === true);
+  if(!allowed){
+    try{
+      const { data } = await sb.from('hr_profiles').select('employee_code, ess_attendance').ilike('employee_code', codeU);
+      let row = (data || [])[0];
+      if(!row){
+        const all = await sb.from('hr_profiles').select('employee_code, ess_attendance').eq('ess_attendance', true);
+        row = (all.data || []).find(r => String(r.employee_code||'').trim().toUpperCase() === codeU);
+      }
+      allowed = !!(row && row.ess_attendance === true);
+    }catch(e){ allowed = false; }
+  }
   if(!allowed){ host.innerHTML = ''; return; }
 
   const today = new Date().toISOString().slice(0,10);
+  // 2) today's approval status
+  let req = null;
+  try{
+    const { data } = await sb.from('ess_att_requests').select('*').ilike('employee_code', codeU).eq('date', today).limit(1);
+    req = (data && data[0]) || null;
+  }catch(e){}
+
+  if(!req){
+    host.innerHTML = `<div class="ep-card"><div class="ep-row">
+      <div><div class="ep-title">Field attendance</div><div class="ep-sub">Aaj field/bahar se attendance chahiye? Pehle approval lo</div></div>
+      <button class="ep-btn ep-in" onclick="essAttRequest()"><i class="fa-solid fa-paper-plane"></i> Request Today's Approval</button>
+    </div></div>`;
+    return;
+  }
+  if(req.status === 'PENDING'){
+    host.innerHTML = `<div class="ep-card"><div class="ep-row">
+      <div><div class="ep-title">Approval pending…</div><div class="ep-sub">Aapke reporting manager ke paas request gayi hai — approve hote hi yahan Punch In aa jayega</div></div>
+      <span class="ep-done"><i class="fa-regular fa-clock"></i> Waiting</span>
+    </div></div>`;
+    return;
+  }
+  if(req.status === 'REJECTED'){
+    host.innerHTML = `<div class="ep-card" style="background:linear-gradient(135deg,#7f1d1d,#991b1b)"><div class="ep-row">
+      <div><div class="ep-title">Request rejected</div><div class="ep-sub">Aaj ke liye field attendance approve nahi hui — kiosk se punch karein ya manager se baat karein</div></div>
+      <span class="ep-done"><i class="fa-solid fa-xmark"></i> Rejected</span>
+    </div></div>`;
+    return;
+  }
+
+  // APPROVED -> the normal punch card
   let rec = null;
   try{
     const { data } = await sb.from('attendance').select('*').ilike('employee_code', codeU).eq('date', today).limit(1);
     rec = (data && data[0]) || null;
   }catch(e){}
-
-  const now = new Date();
-  const timeStr = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
   let inner;
   if(!rec){
-    inner = `<div class="ep-row"><div><div class="ep-title">Mark your attendance</div><div class="ep-sub">You haven't punched in today</div></div>
+    inner = `<div class="ep-row"><div><div class="ep-title">Mark your attendance</div><div class="ep-sub">Approved for today \u2713 \u00b7 You haven't punched in yet</div></div>
       <button class="ep-btn ep-in" onclick="essPunch('IN')"><i class="fa-solid fa-right-to-bracket"></i> Punch In</button></div>`;
   } else if(rec && !rec.out_time){
     const inT = (rec.in_time||'').substring(0,5);
-    inner = `<div class="ep-row"><div><div class="ep-title">You're punched in</div><div class="ep-sub">In at ${esc(inT)} · mark out when leaving</div></div>
+    inner = `<div class="ep-row"><div><div class="ep-title">You're punched in</div><div class="ep-sub">In at ${esc(inT)} \u00b7 mark out when leaving</div></div>
       <button class="ep-btn ep-out" onclick="essPunch('OUT')"><i class="fa-solid fa-right-from-bracket"></i> Punch Out</button></div>`;
   } else {
     const inT = (rec.in_time||'').substring(0,5), outT = (rec.out_time||'').substring(0,5);
-    inner = `<div class="ep-row"><div><div class="ep-title">Attendance done ✓</div><div class="ep-sub">In ${esc(inT)} · Out ${esc(outT)}</div></div>
+    inner = `<div class="ep-row"><div><div class="ep-title">Attendance done \u2713</div><div class="ep-sub">In ${esc(inT)} \u00b7 Out ${esc(outT)}</div></div>
       <span class="ep-done"><i class="fa-solid fa-circle-check"></i> Complete</span></div>`;
   }
   host.innerHTML = `<div class="ep-card">${inner}</div>`;
+}
+async function essAttRequest(){
+  const codeU = String(CODE||'').trim().toUpperCase();
+  const today = new Date().toISOString().slice(0,10);
+  try{
+    const { error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: today, status: 'PENDING' }]);
+    if(error && String(error.message||'').includes('duplicate')) { notify('Request already sent for today'); }
+    else if(error) throw error;
+    else notify('Request sent to your reporting manager \u2713');
+  }catch(err){ notify(err.message || 'Request failed'); }
+  loadEssPunch();
 }
 async function essPunch(type){
   const today = new Date().toISOString().slice(0,10);
