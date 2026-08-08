@@ -211,9 +211,12 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <input id="exFiles" type="file" accept="image/*" multiple class="inp mb-4">
         <button id="exBtn" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Submit Claim</button>
       </div>
-      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-qrcode" style="color:var(--brand)"></i> Payment UPI</h3>
-        <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Approved expense yahin (UPI) par pay hote hain — apna UPI ID save rakhein.</p>
-        <div class="flex gap-2"><input id="myUpi" class="inp" placeholder="yourname@upi" style="flex:1"><button id="myUpiBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk"></i> Save</button></div>
+      <div class="card" style="background:linear-gradient(135deg,#eff6ff,#ffffff);border:1.5px solid #bfdbfe">
+        <h3 class="display font-bold mt-0 mb-1" style="font-size:16px"><i class="fa-solid fa-qrcode" style="color:var(--brand)"></i> Payment UPI</h3>
+        <p class="text-xs mt-0 mb-3" style="color:var(--muted);line-height:1.5">Aapke approved expenses isi UPI par pay honge — apna UPI ID save karke rakhein (jaise <b>name@okhdfcbank</b>, <b>9876543210@paytm</b>)</p>
+        <label class="lbl">Your UPI ID</label>
+        <input id="myUpi" class="inp" placeholder="yourname@upi" style="font-size:16px;padding:13px 14px;margin-bottom:10px" autocapitalize="off" autocomplete="off">
+        <button id="myUpiBtn" class="btn btn-primary w-full justify-center" style="padding:13px;font-size:15px"><i class="fa-solid fa-floppy-disk"></i> Save UPI ID</button>
       </div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm">My Claims</h3><div id="exBox"></div></div>
       <div class="card hidden" id="otCard">
