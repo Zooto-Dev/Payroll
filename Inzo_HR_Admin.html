@@ -3079,7 +3079,7 @@ document.addEventListener('change', async e => {
     const ln = LINES.find(l => String(l.name).trim().toLowerCase() === String(e.target.value||'').trim().toLowerCase());
     if(ln && ln.supervisor_code){
       const sup = EMP.find(x => x['Employee code'] === ln.supervisor_code);
-      if(sup && $('aeMgr')) $('aeMgr').value = sup.Name;
+      if(sup && $('aeMgr')) $('aeMgr').value = sup.Name + ' (' + ln.supervisor_code + ')';   // unambiguous format
     }
     return;
   }
@@ -6974,7 +6974,16 @@ async function loadApprovals(){
   // who am I as an employee? (for reporting-manager matching)
   const myEmp = EMP.find(e => String(((PROFILES[e['Employee code']]||{}).email)||'').toLowerCase() === String(ME_EMAIL||'').toLowerCase());
   const myName = myEmp ? String(myEmp.Name||'').trim().toUpperCase() : '';
-  const canDecideEssAtt = r => isSuper() || (myName && String(((PROFILES[r.employee_code]||{}).reporting_manager)||'').trim().toUpperCase() === myName);
+  const myCode = myEmp ? String(myEmp['Employee code']||'').trim().toUpperCase() : '';
+  // smart match — handles "AJAY", "MAHESH CHAND", "GANGA SINGH (ZM01009)", "Kartik Sir" styles
+  const nxIsMyReport = stored => {
+    const s = String(stored||'').trim().toUpperCase();
+    if(!s || !myName) return false;
+    if(myCode && s.includes('(' + myCode + ')')) return true;          // code in brackets
+    const plain = s.replace(/\s*\([^)]*\)/g, '').trim();
+    return plain === myName || myName.startsWith(plain + ' ') || plain.startsWith(myName + ' ');
+  };
+  const canDecideEssAtt = r => isSuper() || nxIsMyReport(((PROFILES[r.employee_code]||{}).reporting_manager)||'');
   window._canDecideEssAtt = canDecideEssAtt;
   $('apEssAtt').innerHTML = (ea.data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
     <thead><tr><th>Employee</th><th>Type</th><th>Date</th><th>Reason</th><th>Manager</th><th style="text-align:right"></th></tr></thead><tbody>
