@@ -12,6 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <style>
@@ -543,7 +544,7 @@ body.no-confidential .confidential-col{display:none!important}
   <div class="grid lg:grid-cols-3 gap-4">
     <div class="card" style="padding:0;overflow:hidden">
       <div class="p-4 border-b" style="border-color:var(--line)"><h3 class="display font-bold m-0"><i class="fa-solid fa-umbrella-beach" style="color:var(--brand)"></i> Pending Leaves</h3></div>
-      <div id="apLeaves" class="p-3 space-y-2 text-sm"></div>
+      <div id="apLeaves" class="text-sm" style="padding:0"></div>
     </div>
     <div class="card" style="padding:0;overflow:hidden">
       <div class="p-4 border-b flex items-center justify-between" style="border-color:var(--line)">
@@ -552,15 +553,15 @@ body.no-confidential .confidential-col{display:none!important}
           <button class="btn btn-primary btn-sm" data-act="ot-approve-all"><i class="fa-solid fa-check-double"></i> Approve All</button>
         </div>
       </div>
-      <div id="apOT" class="p-3 space-y-2 text-sm"></div>
+      <div id="apOT" class="text-sm" style="padding:0"></div>
     </div>
     <div class="card" style="padding:0;overflow:hidden">
       <div class="p-4 border-b" style="border-color:var(--line)"><h3 class="display font-bold m-0"><i class="fa-solid fa-receipt" style="color:var(--ok)"></i> Pending Expenses</h3></div>
-      <div id="apExp" class="p-3 space-y-2 text-sm"></div>
+      <div id="apExp" class="text-sm" style="padding:0"></div>
     </div>
     <div class="card" style="padding:0;overflow:hidden">
       <div class="p-4 border-b" style="border-color:var(--line)"><h3 class="display font-bold m-0"><i class="fa-solid fa-location-dot" style="color:var(--brand)"></i> Field Attendance Requests</h3></div>
-      <div id="apEssAtt" class="p-3 space-y-2 text-sm"></div>
+      <div id="apEssAtt" class="text-sm" style="padding:0"></div>
     </div>
   </div>
 </div>
@@ -664,6 +665,10 @@ body.no-confidential .confidential-col{display:none!important}
     </div>
     <div class="card lg:col-span-2" style="padding:0;overflow:hidden">
       <div class="p-4 border-b flex items-center justify-between" style="border-color:var(--line)">
+        <h3 class="display font-bold m-0"><i class="fa-solid fa-qrcode" style="color:var(--brand)"></i> To Pay <span class="text-xs font-normal" style="color:var(--muted)">approved & unpaid — pay by UPI QR, attach proof, mark paid</span></h3>
+      </div>
+      <div id="exSettle" style="padding:0"></div>
+      <div class="p-4 border-b border-t flex items-center justify-between" style="border-color:var(--line)">
         <h3 class="display font-bold m-0">Claims <span class="text-xs font-normal" style="color:var(--muted)">(Pending → Approve → Paid)</span></h3>
         <span class="chip chip-blue" id="exTotals">—</span>
       </div>
@@ -676,6 +681,23 @@ body.no-confidential .confidential-col{display:none!important}
     </div>
   </div>
 </div>
+
+<!-- Expense Pay modal -->
+<div class="modal" id="exPayModal"><div class="modal-box" style="max-width:400px">
+  <div class="flex items-center justify-between mb-2"><h3 class="display font-bold m-0" id="exPayTitle">Pay Expenses</h3>
+    <button class="btn btn-ghost btn-sm" onclick="$('exPayModal').classList.remove('show')"><i class="fa-solid fa-xmark"></i></button></div>
+  <div class="text-center">
+    <div class="text-3xl font-bold" id="exPayAmt" style="color:var(--brand)">₹0</div>
+    <div class="text-xs mb-2" style="color:var(--muted)" id="exPayMeta"></div>
+    <div id="exPayQR" style="display:flex;justify-content:center;padding:10px;background:#fff"></div>
+    <div class="text-[11px] mb-3" style="color:var(--muted)" id="exPayUpi"></div>
+    <div class="text-left">
+      <label class="lbl">Payment Screenshot (proof) *</label>
+      <input id="exPayShot" type="file" accept="image/*" class="inp mb-3">
+      <button id="exPayDoneBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-circle-check"></i> Mark as PAID</button>
+    </div>
+  </div>
+</div></div>
 
 <!-- ================= ASSETS ================= -->
 <div class="page" id="page-assets">
@@ -4476,6 +4498,13 @@ document.body.addEventListener('click', async e => {
     if(error) return notify(error.message, 'error');
     window.open(data.signedUrl, '_blank');
   }
+  if(act === 'ex-pay'){ openExPay(el.dataset.code); return; }
+  if(act === 'ex-proof'){
+    const { data, error } = await sb.storage.from('expense-bills').createSignedUrl(el.dataset.path, 120);
+    if(error) return notify(error.message, 'error');
+    window.open(data.signedUrl, '_blank');
+    return;
+  }
   if(act === 'del-ctr'){
     if(!(await nxConfirm('Delete this contractor from the master list? (Employees already linked keep their saved details)', 'Delete Contractor'))) return;
     await sb.from('contractors').delete().eq('id', el.dataset.id);
@@ -5842,9 +5871,75 @@ $('docUploadBtn').addEventListener('click', async () => {
 
 /* ================= EXPENSES ================= */
 $('exDate') && ($('exDate').value = todayISO());
+let _exData = [];
+function renderExSettle(){
+  const host = $('exSettle'); if(!host) return;
+  const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
+  const by = {};
+  _exData.filter(x => x.status === 'APPROVED').forEach(x => {
+    (by[x.employee_code] = by[x.employee_code] || { total: 0, n: 0 }).total += Number(x.amount)||0;
+    by[x.employee_code].n++;
+  });
+  const codes = Object.keys(by);
+  host.innerHTML = codes.length ? `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Employee</th><th>Claims</th><th>Total Due</th><th>UPI ID</th><th style="text-align:right"></th></tr></thead><tbody>
+    ${codes.map(c => {
+      const upi = (PROFILES[c]||{}).upi_id || '';
+      return `<tr><td class="font-semibold">${esc(nameOf(c))} <span class="text-[10px]" style="color:var(--muted)">${esc(c)}</span></td>
+        <td><span class="chip chip-blue">${by[c].n}</span></td>
+        <td class="font-bold">${fmtINR(by[c].total)}</td>
+        <td class="text-xs">${upi ? esc(upi) : '<span style="color:var(--warn)">Not set — ask employee to add UPI in ESS</span>'}</td>
+        <td style="text-align:right"><button class="btn btn-primary btn-sm" data-act="ex-pay" data-code="${esc(c)}"><i class="fa-solid fa-qrcode"></i> Pay</button></td></tr>`;
+    }).join('')}</tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing to pay — approved claims appear here until they are marked PAID.</p>';
+}
+let _exPayCode = null;
+function openExPay(code){
+  _exPayCode = code;
+  const emp = EMP.find(x => x['Employee code'] === code);
+  const name = emp ? emp.Name : code;
+  const rows = _exData.filter(x => x.employee_code === code && x.status === 'APPROVED');
+  const total = rows.reduce((a, x) => a + (Number(x.amount)||0), 0);
+  const upi = (PROFILES[code]||{}).upi_id || '';
+  $('exPayTitle').innerText = 'Pay — ' + name;
+  $('exPayAmt').innerText = fmtINR(total);
+  $('exPayMeta').innerText = rows.length + ' approved claim(s): ' + rows.map(x => x.category + ' ' + fmtINR(x.amount)).join(', ');
+  $('exPayShot').value = '';
+  const qrHost = $('exPayQR'); qrHost.innerHTML = '';
+  if (upi) {
+    $('exPayUpi').innerText = 'UPI: ' + upi + ' — scan with any UPI app';
+    try{
+      new QRCode(qrHost, { text: 'upi://pay?pa=' + encodeURIComponent(upi) + '&pn=' + encodeURIComponent(name) + '&am=' + total.toFixed(2) + '&cu=INR&tn=' + encodeURIComponent('Expense settlement'), width: 190, height: 190, correctLevel: QRCode.CorrectLevel.M });
+    }catch(e){ qrHost.innerHTML = '<span class="text-xs" style="color:var(--bad)">QR failed — pay manually to ' + esc(upi) + '</span>'; }
+  } else {
+    $('exPayUpi').innerText = '';
+    qrHost.innerHTML = '<div class="text-xs p-4" style="color:var(--warn)"><i class="fa-solid fa-triangle-exclamation"></i> No UPI ID saved — employee can add it in ESS → Expenses. You can still pay by other means and mark PAID with proof.</div>';
+  }
+  $('exPayModal').classList.add('show');
+}
+$('exPayDoneBtn').addEventListener('click', async () => {
+  const code = _exPayCode; if(!code) return;
+  const f = $('exPayShot').files && $('exPayShot').files[0];
+  if(!f) return notify('Attach the payment screenshot first — it is the proof', 'error');
+  const btn = $('exPayDoneBtn');
+  btn.disabled = true; btn.innerHTML = '<div class="loader-ring"></div> Saving…';
+  try{
+    const path = 'payments/' + code + '_' + Date.now() + '_' + f.name.replace(/[^A-Za-z0-9._-]/g,'_');
+    const { error: upErr } = await sb.storage.from('expense-bills').upload(path, f);
+    if(upErr) throw upErr;
+    const ids = _exData.filter(x => x.employee_code === code && x.status === 'APPROVED').map(x => x.id);
+    const { error } = await sb.from('expenses').update({ status: 'PAID', paid_at: new Date().toISOString(), paid_by: ME_EMAIL, payment_ref: path }).in('id', ids);
+    if(error) throw error;
+    $('exPayModal').classList.remove('show');
+    notify('Marked PAID (' + ids.length + ' claim(s)) — employee will see it in their ESS', 'success');
+    loadExpenses();
+  }catch(err){ notify(err.message, 'error'); }
+  finally{ btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Mark as PAID'; }
+});
 async function loadExpenses(){
   const { data, error } = await sb.from('expenses').select('*').order('created_at', { ascending:false }).limit(200);
   if(error) return notify(error.message + ' — have you run the V3 migration SQL?', 'error');
+  _exData = data || [];
+  renderExSettle();
   const tb = $('exTable').querySelector('tbody');
   let pend = 0, appr = 0;
   tb.innerHTML = (data && data.length) ? data.map(x => {
@@ -5854,7 +5949,8 @@ async function loadExpenses(){
     const st = { PENDING:'chip-warn', APPROVED:'chip-blue', PAID:'chip-ok', REJECTED:'chip-bad' }[x.status] || 'chip-gray';
     let btns = '';
     if(x.status === 'PENDING') btns = `<button class="btn btn-ghost btn-sm" data-act="ex-appr" data-id="${x.id}"><i class="fa-solid fa-check"></i></button> <button class="btn btn-danger btn-sm" data-act="ex-rej" data-id="${x.id}"><i class="fa-solid fa-xmark"></i></button>`;
-    if(x.status === 'APPROVED') btns = `<button class="btn btn-primary btn-sm" data-act="ex-paid" data-id="${x.id}"><i class="fa-solid fa-money-bill-wave"></i> Mark Paid</button>`;
+    if(x.status === 'APPROVED') btns = `<button class="btn btn-primary btn-sm" data-act="ex-pay" data-code="${esc(x.employee_code)}"><i class="fa-solid fa-qrcode"></i> Pay</button>`;
+    if(x.status === 'PAID' && x.payment_ref) btns = `<button class="btn btn-ghost btn-sm" data-act="ex-proof" data-path="${esc(x.payment_ref)}"><i class="fa-solid fa-receipt"></i> Proof</button>`;
     return `<tr><td>${fmtDate(x.expense_date)}</td>
       <td><div class="font-semibold">${esc(emp ? emp.Name : x.employee_code)}</div><div class="text-[10px]" style="color:var(--muted)">${esc(x.employee_code)}</div></td>
       <td><span class="chip chip-gray">${esc(x.category)}</span></td>
@@ -6822,18 +6918,17 @@ async function loadApprovals(){
   const myName = myEmp ? String(myEmp.Name||'').trim().toUpperCase() : '';
   const canDecideEssAtt = r => isSuper() || (myName && String(((PROFILES[r.employee_code]||{}).reporting_manager)||'').trim().toUpperCase() === myName);
   window._canDecideEssAtt = canDecideEssAtt;
-  $('apEssAtt').innerHTML = (ea.data||[]).length ? ea.data.map(r => {
-    const mgr = ((PROFILES[r.employee_code]||{}).reporting_manager) || '—';
-    const mine = canDecideEssAtt(r);
-    return `<div class="p-2 rounded-lg flex items-center justify-between" style="background:#f8fafc">
-      <div><div class="font-semibold text-xs">${esc(r.name || r.employee_code)} — Field attendance</div>
-        <div class="text-[10px]" style="color:var(--muted)">${fmtDate(r.date)} · Manager: ${esc(mgr)}</div></div>
-      <div style="white-space:nowrap">${mine
-        ? `<button class="btn btn-ghost btn-sm" data-act="ea-appr" data-id="${r.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
-           <button class="btn btn-danger btn-sm" data-act="ea-rej" data-id="${r.id}"><i class="fa-solid fa-xmark"></i></button>`
-        : `<span class="text-[10px]" style="color:var(--muted)">Manager approves</span>`}</div>
-    </div>`;
-  }).join('') : '<p class="m-0 text-xs" style="color:var(--muted)">Nothing pending.</p>';
+  $('apEssAtt').innerHTML = (ea.data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Employee</th><th>Date</th><th>Manager</th><th style="text-align:right"></th></tr></thead><tbody>
+    ${ea.data.map(r => {
+      const mgr = ((PROFILES[r.employee_code]||{}).reporting_manager) || '—';
+      const mine = canDecideEssAtt(r);
+      return `<tr><td class="font-semibold">${esc(r.name || r.employee_code)}</td><td>${fmtDate(r.date)}</td><td class="text-xs">${esc(mgr)}</td>
+        <td style="text-align:right;white-space:nowrap">${mine
+          ? `<button class="btn btn-ghost btn-sm" data-act="ea-appr" data-id="${r.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
+             <button class="btn btn-danger btn-sm" data-act="ea-rej" data-id="${r.id}"><i class="fa-solid fa-xmark"></i></button>`
+          : `<span class="text-[10px]" style="color:var(--muted)">Manager approves</span>`}</td></tr>`;
+    }).join('')}</tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
   const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
   const item = (title, sub, actA, actR, id) =>
     `<div class="p-2 rounded-lg flex items-center justify-between" style="background:#f8fafc">
@@ -6842,53 +6937,49 @@ async function loadApprovals(){
         <button class="btn btn-ghost btn-sm" data-act="${actA}" data-id="${id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
         <button class="btn btn-danger btn-sm" data-act="${actR}" data-id="${id}"><i class="fa-solid fa-xmark"></i></button>
       </div></div>`;
-  $('apLeaves').innerHTML = (lv.data||[]).length ? lv.data.map(L =>
-    item(`${esc(nameOf(L.employee_code))} — ${esc(L.leave_type)} ${L.days}d`, `${fmtDate(L.from_date)} → ${fmtDate(L.to_date)}${L.reason ? ' • ' + esc(L.reason) : ''}`, 'appr-leave', 'cancel-leave-x', L.id)).join('')
-    : '<p class="m-0 text-xs" style="color:var(--muted)">Nothing pending.</p>';
+  $('apLeaves').innerHTML = (lv.data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Employee</th><th>Type</th><th>Days</th><th>Dates</th><th>Reason</th><th style="text-align:right"></th></tr></thead><tbody>
+    ${lv.data.map(L => `<tr><td class="font-semibold">${esc(nameOf(L.employee_code))}</td><td><span class="chip chip-blue">${esc(L.leave_type)}</span></td><td>${L.days}</td>
+      <td class="text-xs">${fmtDate(L.from_date)} → ${fmtDate(L.to_date)}</td><td class="text-xs" style="max-width:220px">${esc(L.reason||'—')}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" data-act="appr-leave" data-id="${L.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
+        <button class="btn btn-danger btn-sm" data-act="cancel-leave-x" data-id="${L.id}"><i class="fa-solid fa-xmark"></i></button></td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
   // group by request ID (bulk requests appear as ONE entry with a View button)
   const groups = {};
   (ot.data||[]).forEach(o => {
     const g = o.group_id || 'single-' + o.id;
     (groups[g] = groups[g] || []).push(o);
   });
-  $('apOT').innerHTML = Object.keys(groups).length ? Object.entries(groups).map(([gid, rows]) => {
-    const f = rows[0];
-    const initiator = f.requested_by ? nameOf(f.requested_by) : nameOf(f.employee_code);
-    const ids = rows.map(r => r.id).join(',');
-    return `<div class="p-2 rounded-lg" style="background:#f8fafc">
-      <div class="flex items-center justify-between">
-        <div>
-          <div class="font-semibold text-xs">${esc(gid.startsWith('single-') ? 'OT Request' : gid)} — <span style="color:var(--brand)">${rows.length} employee${rows.length > 1 ? 's' : ''}</span></div>
-          <div class="text-[10px]" style="color:var(--muted)">Initiated by <b>${esc(initiator)}</b> • ${fmtDate(f.ot_date)} • ${f.hours} hrs each${f.reason ? ' • ' + esc(f.reason.replace(/^\[[^\]]*\]\s*/, '')) : ''}</div>
-        </div>
-        <div style="white-space:nowrap">
-          <button class="btn btn-ghost btn-sm" data-act="ot-view" data-g="${esc(gid)}"><i class="fa-solid fa-eye"></i> View</button>
-          <button class="btn btn-ghost btn-sm" data-act="ot-appr-grp" data-ids="${ids}" title="Approve all in this request"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
-          <button class="btn btn-danger btn-sm" data-act="ot-rej-grp" data-ids="${ids}"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-      </div>
-      <div class="hidden mt-2 pt-2 text-[11px] space-y-1" style="border-top:1px dashed var(--line)" id="otg-${esc(gid)}">
-        ${rows.map(r => `<div class="flex justify-between"><span>${esc(nameOf(r.employee_code))} <span style="color:var(--muted)">(${esc(r.employee_code)})</span></span><span>${r.hours} hrs</span></div>`).join('')}
-      </div>
-    </div>`;
-  }).join('') : '<p class="m-0 text-xs" style="color:var(--muted)">Nothing pending.</p>';
-  $('apExp').innerHTML = (ex.data||[]).length ? ex.data.map(x => {
-    const bills = (x.bill_files && x.bill_files.length)
-      ? x.bill_files.map((p2, ri) => `<button class="btn btn-ghost btn-sm" data-act="ex-receipt" data-path="${esc(p2)}"><i class="fa-solid fa-paperclip"></i> Bill ${x.bill_files.length>1?(ri+1):''}</button>`).join(' ')
-      : '<span class="text-[10px]" style="color:var(--muted)"><i class="fa-solid fa-ban"></i> No bill attached</span>';
-    return `<div class="p-2 rounded-lg" style="background:#f8fafc;margin-bottom:6px">
-      <div class="flex items-center justify-between">
-        <div><div class="font-semibold text-xs">${esc(nameOf(x.employee_code))} — ${esc(x.category)} ${fmtINR(x.amount)}</div>
-          <div class="text-[10px]" style="color:var(--muted)">${fmtDate(x.expense_date)}${x.note ? ' • ' + esc(x.note) : ''}</div></div>
-        <div style="white-space:nowrap">
+  $('apOT').innerHTML = Object.keys(groups).length ? `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Request</th><th>Employees</th><th>Initiated By</th><th>Date</th><th>Hrs</th><th style="text-align:right"></th></tr></thead><tbody>
+    ${Object.entries(groups).map(([gid, rows]) => {
+      const f = rows[0];
+      const initiator = f.requested_by ? nameOf(f.requested_by) : nameOf(f.employee_code);
+      const ids = rows.map(r => r.id).join(',');
+      return `<tr><td class="font-semibold text-xs">${esc(gid.startsWith('single-') ? 'OT Request' : gid)}</td>
+        <td><span class="chip chip-blue">${rows.length}</span></td>
+        <td class="text-xs">${esc(initiator)}</td><td class="text-xs">${fmtDate(f.ot_date)}</td><td>${f.hours}</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn btn-ghost btn-sm" data-act="ot-view" data-g="${esc(gid)}"><i class="fa-solid fa-eye"></i></button>
+          <button class="btn btn-ghost btn-sm" data-act="ot-appr-grp" data-ids="${ids}" title="Approve all"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
+          <button class="btn btn-danger btn-sm" data-act="ot-rej-grp" data-ids="${ids}"><i class="fa-solid fa-xmark"></i></button></td></tr>
+      <tr class="hidden" id="otg-${esc(gid)}"><td colspan="6" style="background:#f8fafc">
+        <div class="text-[11px] space-y-1 p-1">${rows.map(r => `<div class="flex justify-between"><span>${esc(nameOf(r.employee_code))} <span style="color:var(--muted)">(${esc(r.employee_code)})</span></span><span>${r.hours} hrs</span></div>`).join('')}</div></td></tr>`;
+    }).join('')}</tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
+  $('apExp').innerHTML = (ex.data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Employee</th><th>Category</th><th>Amount</th><th>Date</th><th>Note</th><th>Bills</th><th style="text-align:right"></th></tr></thead><tbody>
+    ${ex.data.map(x => {
+      const bills = (x.bill_files && x.bill_files.length)
+        ? x.bill_files.map((p2, ri) => `<button class="btn btn-ghost btn-sm" data-act="ex-receipt" data-path="${esc(p2)}" title="View bill"><i class="fa-solid fa-paperclip"></i>${x.bill_files.length>1?(ri+1):''}</button>`).join(' ')
+        : '<span class="text-[10px]" style="color:var(--muted)">None</span>';
+      return `<tr><td class="font-semibold text-xs">${esc(nameOf(x.employee_code))}</td><td class="text-xs">${esc(x.category)}</td>
+        <td class="font-semibold">${fmtINR(x.amount)}</td><td class="text-xs">${fmtDate(x.expense_date)}</td>
+        <td class="text-xs" style="max-width:180px">${esc(x.note||'—')}</td><td style="white-space:nowrap">${bills}</td>
+        <td style="text-align:right;white-space:nowrap">
           <button class="btn btn-ghost btn-sm" data-act="ex-appr" data-id="${x.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
-          <button class="btn btn-danger btn-sm" data-act="ex-rej" data-id="${x.id}"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-      </div>
-      <div class="mt-1">${bills}</div>
-    </div>`;
-  }).join('')
-    : '<p class="m-0 text-xs" style="color:var(--muted)">Nothing pending.</p>';
+          <button class="btn btn-danger btn-sm" data-act="ex-rej" data-id="${x.id}"><i class="fa-solid fa-xmark"></i></button></td></tr>`;
+    }).join('')}</tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
   const n = (lv.data||[]).length + (ot.data||[]).length + (ex.data||[]).length;
   $('apprBadge').innerText = n;
   $('apprBadge').classList.toggle('hidden', n === 0);
