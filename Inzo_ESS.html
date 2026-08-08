@@ -118,6 +118,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div class="text-center mb-6">
       <h1 class="m-0" style="font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Self Service</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B51</b> — 08 Aug</p>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
     <div class="card">
@@ -974,7 +975,7 @@ function renderExpenses(){
   const ex = D.expenses || [];
   $('exBox').innerHTML = ex.length ? ex.map(x => {
     const chip = { PENDING:'chip-warn', APPROVED:'chip-blue', PAID:'chip-ok', REJECTED:'chip-bad' }[x.status] || 'chip-gray';
-    const paidNote = x.status === 'PAID' && x.paid_at ? `<div class="text-[10px]" style="color:var(--ok)">Paid on ${fmtDate(String(x.paid_at).slice(0,10))} ✓</div>` : '';
+    const paidNote = x.status === 'PAID' && x.paid_at ? `<div class="text-[10px]" style="color:var(--ok)">Paid on ${fmtDate(String(x.paid_at).slice(0,10))} ✓${x.payment_ref ? ` · <a href="#" onclick="essViewProof('${esc(x.payment_ref)}');return false" style="color:var(--brand)">View payment proof</a>` : ''}</div>` : '';
     return `<div class="row"><span><b>${esc(x.category)}</b> ${fmtDate(x.expense_date)} — ${fmtINR(x.amount)}${paidNote}</span><span class="chip ${chip}">${esc(x.status)}</span></div>`;
   }).join('') : '<p class="m-0" style="color:var(--muted)">No claims yet.</p>';
   // UPI prefill (from RPC profile, else direct read once)
@@ -1010,6 +1011,12 @@ document.addEventListener('click', async e => {
     notify('UPI saved ✓ — approved expenses ab isi par pay honge');
   }catch(err){ notify('Save failed: ' + (err.message || err)); }
 });
+function essViewProof(path){
+  sb.storage.from('expense-bills').createSignedUrl(path, 120).then(({ data, error }) => {
+    if(error) return notify(error.message);
+    window.open(data.signedUrl, '_blank');
+  });
+}
 function renderResign(){
   const ex = D.exit;
   if(ex && ex.status === 'ACTIVE'){
