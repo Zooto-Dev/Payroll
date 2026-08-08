@@ -670,6 +670,10 @@ body.no-confidential .confidential-col{display:none!important}
         <h3 class="display font-bold m-0"><i class="fa-solid fa-qrcode" style="color:var(--brand)"></i> To Pay <span class="text-xs font-normal" style="color:var(--muted)">approved & unpaid — pay by UPI QR, attach proof, mark paid</span></h3>
       </div>
       <div id="exSettle" style="padding:0"></div>
+      <div class="p-4 border-b border-t" style="border-color:var(--line)">
+        <h3 class="display font-bold m-0"><i class="fa-solid fa-money-check-dollar" style="color:var(--ok)"></i> Payment History <span class="text-xs font-normal" style="color:var(--muted)">har payment ek batch — kaunse claims saath pay hue + proof</span></h3>
+      </div>
+      <div id="exBatches" style="padding:0"></div>
       <div class="p-4 border-b border-t flex items-center justify-between" style="border-color:var(--line)">
         <h3 class="display font-bold m-0">Claims <span class="text-xs font-normal" style="color:var(--muted)">(Pending → Approve → Paid)</span></h3>
         <span class="chip chip-blue" id="exTotals">—</span>
@@ -5892,6 +5896,33 @@ function renderExSettle(){
         <td style="text-align:right"><button class="btn btn-primary btn-sm" data-act="ex-pay" data-code="${esc(c)}"><i class="fa-solid fa-qrcode"></i> Pay</button></td></tr>`;
     }).join('')}</tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing to pay — approved claims appear here until they are marked PAID.</p>';
 }
+function renderExBatches(){
+  const host = $('exBatches'); if(!host) return;
+  const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
+  const groups = {};
+  _exData.filter(x => x.status === 'PAID' && x.payment_ref).forEach(x => {
+    (groups[x.payment_ref] = groups[x.payment_ref] || []).push(x);
+  });
+  const keys = Object.keys(groups).sort((a, b) => {
+    const ta = groups[a][0].paid_at || '', tb = groups[b][0].paid_at || '';
+    return tb.localeCompare(ta);   // newest first
+  });
+  host.innerHTML = keys.length ? `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Paid On</th><th>Employee</th><th>Claims in this payment</th><th>Total</th><th>Paid By</th><th>Proof</th></tr></thead><tbody>
+    ${keys.map(k => {
+      const rows = groups[k];
+      const f = rows[0];
+      const total = rows.reduce((a, x) => a + (Number(x.amount)||0), 0);
+      return `<tr>
+        <td class="text-xs">${f.paid_at ? fmtDate(String(f.paid_at).slice(0,10)) : '—'}</td>
+        <td class="font-semibold text-xs">${esc(nameOf(f.employee_code))}<div class="text-[10px]" style="color:var(--muted)">${esc(f.employee_code)}</div></td>
+        <td class="text-xs">${rows.map(x => `${esc(x.category)} ${fmtINR(x.amount)} <span style="color:var(--muted)">(${fmtDate(x.expense_date)})</span>`).join('<br>')}</td>
+        <td class="font-bold">${fmtINR(total)} <span class="chip chip-ok" style="font-size:9px">${rows.length} claim${rows.length>1?'s':''}</span></td>
+        <td class="text-xs">${esc(f.paid_by || '—')}</td>
+        <td><button class="btn btn-ghost btn-sm" data-act="ex-proof" data-path="${esc(k)}"><i class="fa-solid fa-receipt"></i> View</button></td>
+      </tr>`;
+    }).join('')}</tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">No payments yet — settled batches will appear here with their proof.</p>';
+}
 let _exPayCode = null;
 function openExPay(code){
   _exPayCode = code;
@@ -5953,6 +5984,7 @@ async function loadExpenses(){
     });
   }catch(e){}
   renderExSettle();
+  renderExBatches();
   const tb = $('exTable').querySelector('tbody');
   let pend = 0, appr = 0;
   tb.innerHTML = (data && data.length) ? data.map(x => {
