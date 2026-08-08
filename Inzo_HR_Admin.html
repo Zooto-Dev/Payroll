@@ -4570,7 +4570,14 @@ document.body.addEventListener('click', async e => {
     loadDocs($('epCode').value);
   }
   if(act === 'ex-appr'){ await sb.from('expenses').update({ status:'APPROVED' }).eq('id', el.dataset.id); if($('page-approvals').classList.contains('show')) loadApprovals(); else loadExpenses(); }
-  if(act === 'ex-rej'){ await sb.from('expenses').update({ status:'REJECTED' }).eq('id', el.dataset.id); if($('page-approvals').classList.contains('show')) loadApprovals(); else loadExpenses(); }
+  if(act === 'ex-rej'){
+    const reason = await nxPrompt('Reason for rejecting this expense (employee will see this):', 'Reject Expense');
+    if(reason === null) return;
+    if(!String(reason).trim()) return notify('A reason is required to reject', 'error');
+    await sb.from('expenses').update({ status:'REJECTED', rejection_reason: String(reason).trim() }).eq('id', el.dataset.id);
+    notify('Rejected — reason shared with the employee', 'success');
+    if($('page-approvals').classList.contains('show')) loadApprovals(); else loadExpenses();
+  }
   if(act === 'ex-paid'){ await sb.from('expenses').update({ status:'PAID' }).eq('id', el.dataset.id); notify('Reimbursement marked paid', 'success'); loadExpenses(); }
   if(act === 'sal-approve'){ await approveSalary(el.dataset.code); return; }
   if(act === 'sal-view'){ openEmpModal(el.dataset.code); return; }
