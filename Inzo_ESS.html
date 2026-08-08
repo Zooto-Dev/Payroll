@@ -5,6 +5,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<script>
+/* Daily freshness: once per day, reload with a unique query so GitHub Pages CDN
+   and the phone browser can NEVER serve a stale build again. */
+(function(){
+  try{
+    if (location.search.indexOf('v=') === -1) {
+      var day = new Date().toISOString().slice(0,10);
+      if (localStorage.getItem('nx_fresh_day') !== day) {
+        localStorage.setItem('nx_fresh_day', day);
+        location.replace(location.pathname + '?v=' + Date.now());
+      }
+    }
+  }catch(e){}
+})();
+</script>
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Nexus — My HR</title><link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&display=swap" rel="stylesheet">
@@ -118,7 +133,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div class="text-center mb-6">
       <h1 class="m-0" style="font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Self Service</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B51</b> — 08 Aug</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B52</b> — 08 Aug</p>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
     <div class="card">
@@ -137,6 +152,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div>
         <h2 class="display font-bold m-0 text-lg" id="hName">—</h2>
         <p class="text-xs m-0" style="color:var(--muted)" id="hMeta">—</p>
+        <p class="text-[9px] m-0" style="color:#cbd5e1">Build B52</p>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
     </div>
