@@ -134,7 +134,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div class="text-center mb-6">
       <h1 class="m-0" style="font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Self Service</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B56</b> — 08 Aug</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B57</b> — 08 Aug</p>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
     <div class="card">
@@ -153,7 +153,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div>
         <h2 class="display font-bold m-0 text-lg" id="hName">—</h2>
         <p class="text-xs m-0" style="color:var(--muted)" id="hMeta">—</p>
-        <p class="text-[9px] m-0" style="color:#cbd5e1">Build B56</p>
+        <p class="text-[9px] m-0" style="color:#cbd5e1">Build B57</p>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
     </div>
@@ -323,6 +323,11 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     </div>
 
     <div class="page" id="p-team">
+  <div class="card hidden" id="teamApprCard" style="background:linear-gradient(135deg,#eff6ff,#ffffff);border:1.5px solid #bfdbfe">
+    <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-clipboard-check" style="color:var(--brand)"></i> Team Approvals <span class="chip chip-blue" id="teamApprCnt">0</span></h3>
+    <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Aapki team ki Field / WFH requests — yahin se approve ya reject karein.</p>
+    <div id="teamApprBox"></div>
+  </div>
   <div class="card">
     <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-people-group" style="color:var(--brand)"></i> My Line — Today's Attendance</h3>
     <p class="text-xs mt-0 mb-3" id="teamDate" style="color:var(--muted)"></p>
@@ -571,6 +576,49 @@ async function loadEssPunch(){
       <span class="ep-done"><i class="fa-solid fa-circle-check"></i> Complete</span></div>`;
   }
   host.innerHTML = `<div class="ep-card">${inner}</div>`;
+}
+async function loadTeamApprovals(){
+  try{
+    const codeU = String(CODE||'').trim().toUpperCase();
+    const { data } = await sb.rpc('ess_team_requests', { p_code: codeU, p_phone: PHONE });
+    if(!data || data.error) return;
+    const reqs = data.requests || [];
+    const card = $('teamApprCard'); if(!card) return;
+    if(reqs.length){
+      $('tabTeam').classList.remove('hidden');
+      $('tabTeam').innerHTML = '<i class="fa-solid fa-people-group"></i>Team <span class="chip chip-bad" style="font-size:9px;padding:1px 6px">' + reqs.length + '</span>';
+      card.classList.remove('hidden');
+    } else {
+      card.classList.add('hidden');
+      $('tabTeam').innerHTML = '<i class="fa-solid fa-people-group"></i>My Line';
+    }
+    $('teamApprCnt').innerText = reqs.length;
+    $('teamApprBox').innerHTML = reqs.length ? reqs.map(r => {
+      const isWfh = r.req_type === 'WFH';
+      return `<div class="p-2 rounded-lg mb-2" style="background:#fff;border:1px solid var(--line)">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <div class="text-xs"><b>${esc(r.name || r.employee_code)}</b> <span class="chip ${isWfh?'':'chip-blue'}" ${isWfh?'style="background:#f3e8ff;color:#6b21a8;font-size:9px"':'style="font-size:9px"'}>${isWfh?'WFH':'FIELD'}</span></div>
+            <div class="text-[10px]" style="color:var(--muted)">${fmtDate(r.date)}${r.reason ? ' · ' + esc(r.reason) : ''}</div>
+          </div>
+          <div style="white-space:nowrap">
+            <button class="chip chip-ok" style="border:none;cursor:pointer" onclick="teamDecide(${r.id},'APPROVED')"><i class="fa-solid fa-check"></i> Approve</button>
+            <button class="chip chip-bad" style="border:none;cursor:pointer" onclick="teamDecide(${r.id},'REJECTED')"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+        </div>
+      </div>`;
+    }).join('') : '';
+  }catch(e){ _dbg('team-ERROR', e); }
+}
+async function teamDecide(id, action){
+  try{
+    const codeU = String(CODE||'').trim().toUpperCase();
+    const { data, error } = await sb.rpc('ess_team_decide', { p_code: codeU, p_phone: PHONE, p_id: id, p_action: action });
+    if(error) throw error;
+    if(data && data.error) throw new Error(data.error);
+    notify(action === 'APPROVED' ? 'Approved ✓ — unke ESS par turant dikh jayega' : 'Rejected');
+    loadTeamApprovals();
+  }catch(err){ notify(err.message || 'Failed'); }
 }
 async function loadWfh(){
   const host = $('wfhList'); if(!host) return;
@@ -921,6 +969,7 @@ $('loginBtn').addEventListener('click', async () => {
     try{ loadMyWishes(); }catch(e){ _dbg('wishes-ERROR', e); }
     try{ loadWfh(); }catch(e){ _dbg('wfh-ERROR', e); }
     try{ loadMyPayments(); }catch(e){ _dbg('pay-ERROR', e); }
+    try{ loadTeamApprovals(); }catch(e){ _dbg('team-ERROR', e); }
     sb.rpc('ess_line_today', { p_code: CODE, p_phone: PHONE }).then(({ data: ld }) => {
       if(ld && ld.lines && ld.lines.length) $('tabTeam').classList.remove('hidden');
     }).catch(() => {});
@@ -1184,6 +1233,7 @@ function renderResign(){
 $('exDate').value = new Date().toISOString().slice(0,10);
 $('exBtn').addEventListener('click', async () => {
   if(!Number($('exAmt').value)) return notify('Enter a valid amount');
+  if(!window._editExpId && !(($('exFiles').files || []).length)) return notify('Bill/receipt ki photo attach karna zaroori hai — bina bill claim nahi hoga');
   const btn = $('exBtn');
   btn.innerHTML = '<div class="loader-ring"></div> Submitting…'; btn.disabled = true;
   try{
@@ -1665,7 +1715,7 @@ function _dbg(tag, val){
       p.onclick = () => p.remove();
       document.body.appendChild(p);
     }
-    if(p) p.textContent = '🔍 BUILD B56 (tap to close)\n' + window._nxDbg.join('\n');
+    if(p) p.textContent = '🔍 BUILD B57 (tap to close)\n' + window._nxDbg.join('\n');
   }catch(e){}
 }
 window.onerror = function(m, s, l){ _dbg('JS-ERROR', { message: String(m) + ' @line ' + l }); };
