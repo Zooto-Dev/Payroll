@@ -990,13 +990,22 @@ document.addEventListener('click', async e => {
   if(!upi || upi.indexOf('@') < 1) return notify('Sahi UPI ID daalein (jaise name@okhdfcbank)');
   const codeU = String(CODE||'').trim().toUpperCase();
   try{
-    // update AND verify a row was actually touched
-    const { data, error } = await sb.from('hr_profiles').update({ upi_id: upi }).ilike('employee_code', codeU).select('employee_code');
-    if(error) throw error;
-    if(!data || !data.length){
-      // no profile row yet -> create one with the UPI
+    // STEP 1: find the exact stored code (handles case/space differences)
+    const { data: found } = await sb.from('hr_profiles').select('employee_code').ilike('employee_code', '%' + codeU + '%').limit(5);
+    const exact = (found || []).find(r => String(r.employee_code||'').trim().toUpperCase() === codeU);
+    if (exact) {
+      // STEP 2: update by the EXACT stored value
+      const { error } = await sb.from('hr_profiles').update({ upi_id: upi }).eq('employee_code', exact.employee_code);
+      if (error) throw error;
+    } else {
+      // STEP 3: no row -> create; if it collides (row exists with odd casing), update that instead
       const { error: insErr } = await sb.from('hr_profiles').insert([{ employee_code: codeU, upi_id: upi }]);
-      if(insErr) throw insErr;
+      if (insErr) {
+        if (String(insErr.message||'').toLowerCase().includes('duplicate')) {
+          const { error: updErr } = await sb.from('hr_profiles').update({ upi_id: upi }).eq('employee_code', codeU);
+          if (updErr) throw updErr;
+        } else throw insErr;
+      }
     }
     notify('UPI saved ✓ — approved expenses ab isi par pay honge');
   }catch(err){ notify('Save failed: ' + (err.message || err)); }
