@@ -117,6 +117,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .d-L{background:#fdba74;color:#7c2d12}
 .d-A{background:#fbcfe8;color:#9d174d}
 .d-WO{background:#fef9c3;color:#854d0e}
+.d-WFH{background:#f3e8ff;color:#6b21a8;font-weight:700}
 .d-H{background:#bfdbfe;color:#1e40af}
 .d-LV{background:#e9d5ff;color:#6b21a8}
 .d-none{color:#cbd5e1}
@@ -133,7 +134,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div class="text-center mb-6">
       <h1 class="m-0" style="font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Self Service</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B54</b> — 08 Aug</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B55</b> — 08 Aug</p>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
     <div class="card">
@@ -152,7 +153,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div>
         <h2 class="display font-bold m-0 text-lg" id="hName">—</h2>
         <p class="text-xs m-0" style="color:var(--muted)" id="hMeta">—</p>
-        <p class="text-[9px] m-0" style="color:#cbd5e1">Build B54</p>
+        <p class="text-[9px] m-0" style="color:#cbd5e1">Build B55</p>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
     </div>
@@ -174,7 +175,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <div class="cal" id="calGrid"></div>
         <div class="legend">
           <span class="chip d-P">Present</span><span class="chip d-L">Late</span><span class="chip d-A">Absent</span>
-          <span class="chip d-WO">Week Off</span><span class="chip d-H">Holiday</span><span class="chip d-LV">Leave</span>
+          <span class="chip d-WO">Week Off</span><span class="chip d-H">Holiday</span><span class="chip d-LV">Leave</span><span class="chip d-WFH">WFH</span>
         </div>
       </div>
       <div class="card">
@@ -197,6 +198,16 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     </div>
 
     <div class="page" id="p-req">
+      <div class="card" style="background:linear-gradient(135deg,#faf5ff,#ffffff);border:1.5px solid #e9d5ff">
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-house-laptop" style="color:#7e22ce"></i> Work From Home (WFH)</h3>
+        <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Reporting manager ke approve karne par us din attendance mein <b>WFH</b> dikhega — din ka paisa milega, punch ki zaroorat nahi.</p>
+        <div class="grid grid-cols-2 gap-2 mb-2">
+          <div><label class="lbl">Date</label><input id="wfhDate" type="date" class="inp"></div>
+          <div><label class="lbl">Reason</label><input id="wfhReason" class="inp" placeholder="e.g. Site visit prep"></div>
+        </div>
+        <button id="wfhBtn" class="btn btn-primary w-full justify-center" style="background:#7e22ce"><i class="fa-solid fa-paper-plane"></i> Request WFH Approval</button>
+        <div id="wfhList" class="mt-2 text-xs"></div>
+      </div>
       <div class="card">
         <h3 class="display font-bold mt-0 mb-3 text-sm"><i class="fa-solid fa-umbrella-beach" style="color:var(--ok)"></i> Apply Leave</h3>
         <div id="lvBalChips" class="legend" style="margin:0 0 12px"></div>
@@ -235,6 +246,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <input id="myUpi" class="inp" placeholder="yourname@upi" style="font-size:16px;padding:13px 14px;margin-bottom:10px" autocapitalize="off" autocomplete="off">
         <button id="myUpiBtn" class="btn btn-primary w-full justify-center" style="padding:13px;font-size:15px"><i class="fa-solid fa-floppy-disk"></i> Save UPI ID</button>
       </div>
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-money-check-dollar" style="color:var(--ok)"></i> Payments Received</h3><div id="exPayBox"></div></div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm">My Claims</h3><div id="exBox"></div></div>
       <div class="card hidden" id="otCard">
         <h3 class="display font-bold mt-0 mb-3 text-sm"><i class="fa-solid fa-clock" style="color:var(--warn)"></i> Apply Overtime</h3>
@@ -513,7 +525,7 @@ async function loadEssPunch(){
   // 2) today's approval status
   let req = null;
   try{
-    const { data } = await sb.from('ess_att_requests').select('*').ilike('employee_code', codeU).eq('date', today).limit(1);
+    const { data } = await sb.from('ess_att_requests').select('*').ilike('employee_code', codeU).eq('date', today).neq('req_type','WFH').limit(1);
     req = (data && data[0]) || null;
   }catch(e){}
 
@@ -560,11 +572,37 @@ async function loadEssPunch(){
   }
   host.innerHTML = `<div class="ep-card">${inner}</div>`;
 }
+async function loadWfh(){
+  const host = $('wfhList'); if(!host) return;
+  if($('wfhDate') && !$('wfhDate').value) $('wfhDate').value = new Date().toISOString().slice(0,10);
+  const codeU = String(CODE||'').trim().toUpperCase();
+  try{
+    const { data } = await sb.from('ess_att_requests').select('*').ilike('employee_code', codeU).eq('req_type','WFH').order('date', { ascending:false }).limit(8);
+    host.innerHTML = (data||[]).length ? data.map(r => {
+      const chip = { PENDING:'chip-warn', APPROVED:'chip-ok', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
+      return `<div class="row"><span>${fmtDate(r.date)}${r.reason?' · '+esc(r.reason):''}</span><span class="chip ${chip}">${esc(r.status)}</span></div>`;
+    }).join('') : '';
+  }catch(e){}
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('#wfhBtn'); if(!b) return;
+  const codeU = String(CODE||'').trim().toUpperCase();
+  const d = $('wfhDate').value;
+  if(!d) return notify('WFH date chuno');
+  try{
+    const { error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: d, reason: $('wfhReason').value.trim()||null, status: 'PENDING', req_type: 'WFH' }]);
+    if(error && String(error.message||'').includes('duplicate')) notify('Us din ki request pehle se hai');
+    else if(error) throw error;
+    else notify('WFH request bheji ✓ — manager approve karega');
+    $('wfhReason').value = '';
+    loadWfh();
+  }catch(err){ notify(err.message || 'Request failed'); }
+});
 async function essAttRequest(){
   const codeU = String(CODE||'').trim().toUpperCase();
   const today = new Date().toISOString().slice(0,10);
   try{
-    const { error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: today, status: 'PENDING' }]);
+    const { error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: today, status: 'PENDING', req_type: 'FIELD' }]);
     if(error && String(error.message||'').includes('duplicate')) { notify('Request already sent for today'); }
     else if(error) throw error;
     else notify('Request sent to your reporting manager \u2713');
@@ -881,6 +919,8 @@ $('loginBtn').addEventListener('click', async () => {
     try{ loadKaizenWall(); }catch(e){ _dbg('kzwall-ERROR', e); }
     try{ loadBirthdays(); }catch(e){ _dbg('bday-ERROR', e); }
     try{ loadMyWishes(); }catch(e){ _dbg('wishes-ERROR', e); }
+    try{ loadWfh(); }catch(e){ _dbg('wfh-ERROR', e); }
+    try{ loadMyPayments(); }catch(e){ _dbg('pay-ERROR', e); }
     sb.rpc('ess_line_today', { p_code: CODE, p_phone: PHONE }).then(({ data: ld }) => {
       if(ld && ld.lines && ld.lines.length) $('tabTeam').classList.remove('hidden');
     }).catch(() => {});
@@ -972,6 +1012,11 @@ async function renderCalendar(){
   const [y,m] = ym.split('-').map(Number);
   $('calTitle').innerText = new Date(y, m-1, 1).toLocaleString('en-IN', { month:'long', year:'numeric' });
   $('calGrid').innerHTML = '<div style="grid-column:1/8;padding:16px;color:var(--muted)">Loading…</div>';
+  try{
+    const codeU = String(CODE||'').trim().toUpperCase();
+    const { data: wf } = await sb.from('ess_att_requests').select('date').ilike('employee_code', codeU).eq('req_type','WFH').eq('status','APPROVED').gte('date', ym + '-01').lte('date', ym + '-31');
+    window._myWfhSet = new Set((wf||[]).map(r => r.date));
+  }catch(e){ window._myWfhSet = new Set(); }
   const rows = await monthRows(ym);
   const attMap = {}; rows.forEach(r => attMap[r.date] = r);
   const holSet = new Set((D.holidays||[]).filter(h => String(h.date).startsWith(ym)).map(h => String(h.date)));
@@ -998,6 +1043,7 @@ async function renderCalendar(){
     const r = attMap[iso];
     let cls = 'd-none', tip = iso;
     if(r){ const late = (r.in_time||'').includes('LATE'); cls = late ? 'd-L' : 'd-P'; tip += ` | IN ${(r.in_time||'').substring(0,5)}${r.out_time ? ' OUT ' + r.out_time.substring(0,5) : ''}`; }
+    else if(window._myWfhSet && window._myWfhSet.has(iso)){ cls = 'd-WFH'; tip += ' | Work From Home (paid)'; }
     else if(lvSet.has(iso)) cls = 'd-LV';
     else if(holSet.has(iso)) cls = 'd-H';
     else if(dow === weekOff) cls = 'd-WO';
@@ -1036,6 +1082,28 @@ document.addEventListener('click', async e => {
     notify('UPI saved ✓ — approved expenses ab isi par pay honge');
   }catch(err){ notify('Save failed: ' + (err.message || err) + ' — run the V51 SQL if not done yet'); }
 });
+async function loadMyPayments(){
+  const host = $('exPayBox'); if(!host) return;
+  const codeU = String(CODE||'').trim().toUpperCase();
+  try{
+    const { data } = await sb.from('expenses').select('*').ilike('employee_code', codeU).eq('status','PAID').order('paid_at', { ascending:false }).limit(60);
+    const groups = {};
+    (data||[]).forEach(x => { const k = x.payment_ref || ('single-' + x.id); (groups[k] = groups[k] || []).push(x); });
+    const keys = Object.keys(groups);
+    host.innerHTML = keys.length ? keys.map(k => {
+      const rows = groups[k];
+      const total = rows.reduce((a, x) => a + (Number(x.amount)||0), 0);
+      const paidOn = rows[0].paid_at ? fmtDate(String(rows[0].paid_at).slice(0,10)) : '—';
+      return `<div class="p-2 rounded-lg mb-2" style="background:#f0fdf4;border:1px solid #bbf7d0">
+        <div class="flex items-center justify-between">
+          <span class="text-xs"><b>${fmtINR(total)}</b> · ${rows.length} claim${rows.length>1?'s':''} · Paid ${paidOn}</span>
+          ${rows[0].payment_ref ? `<button class="chip chip-ok" style="border:none;cursor:pointer" onclick="essViewProof('${esc(rows[0].payment_ref)}')"><i class="fa-solid fa-receipt"></i> Proof</button>` : ''}
+        </div>
+        <div class="text-[10px] mt-1" style="color:var(--muted)">${rows.map(x => esc(x.category) + ' ' + fmtINR(x.amount)).join(' · ')}</div>
+      </div>`;
+    }).join('') : '<p class="m-0 text-xs" style="color:var(--muted)">Koi payment abhi nahi — approve hone ke baad accounts pay karega, yahan batch + proof dikhega.</p>';
+  }catch(e){ host.innerHTML = ''; }
+}
 function essViewProof(path){
   sb.storage.from('expense-bills').createSignedUrl(path, 120).then(({ data, error }) => {
     if(error) return notify(error.message);
@@ -1546,7 +1614,7 @@ function _dbg(tag, val){
       p.onclick = () => p.remove();
       document.body.appendChild(p);
     }
-    if(p) p.textContent = '🔍 BUILD B54 (tap to close)\n' + window._nxDbg.join('\n');
+    if(p) p.textContent = '🔍 BUILD B55 (tap to close)\n' + window._nxDbg.join('\n');
   }catch(e){}
 }
 window.onerror = function(m, s, l){ _dbg('JS-ERROR', { message: String(m) + ' @line ' + l }); };
