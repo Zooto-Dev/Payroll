@@ -154,6 +154,13 @@ body.not-super .super-only{display:none !important;}
 .hr-cand-meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;font-size:10.5px;color:var(--muted)}
 .hr-cand-meta .hr-emp{color:#047857;font-weight:600}
 .hr-empty{text-align:center;font-size:11px;color:#94a3b8;padding:16px 0}
+/* Approvals tabs */
+.ap-tabs{display:flex;gap:4px;border-bottom:2px solid var(--line);margin-bottom:16px;overflow-x:auto}
+.ap-tab{display:inline-flex;align-items:center;gap:7px;padding:10px 16px;border:none;background:transparent;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:color .15s,border-color .15s}
+.ap-tab:hover{color:var(--ink)}
+.ap-tab.active{color:var(--brand);border-bottom-color:var(--brand)}
+.ap-cnt{background:var(--brand-soft);color:var(--brand);font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px}
+.ap-tab.active .ap-cnt{background:var(--brand);color:#fff}
 
 /* ---------- Modal ---------- */
 .modal{position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
@@ -541,26 +548,26 @@ body.no-confidential .confidential-col{display:none!important}
 
 <!-- ================= APPROVALS ================= -->
 <div class="page" id="page-approvals">
-  <div class="grid lg:grid-cols-3 gap-4">
-    <div class="card" style="padding:0;overflow:hidden">
-      <div class="p-4 border-b" style="border-color:var(--line)"><h3 class="display font-bold m-0"><i class="fa-solid fa-umbrella-beach" style="color:var(--brand)"></i> Pending Leaves</h3></div>
+  <div class="ap-tabs">
+    <button class="ap-tab active" data-aptab="leaves"><i class="fa-solid fa-umbrella-beach"></i> Leaves <span class="ap-cnt" id="apCntLv">0</span></button>
+    <button class="ap-tab" data-aptab="ot"><i class="fa-solid fa-clock"></i> Overtime <span class="ap-cnt" id="apCntOt">0</span></button>
+    <button class="ap-tab" data-aptab="exp"><i class="fa-solid fa-receipt"></i> Expenses <span class="ap-cnt" id="apCntEx">0</span></button>
+    <button class="ap-tab" data-aptab="essatt"><i class="fa-solid fa-location-dot"></i> Field Attendance <span class="ap-cnt" id="apCntEa">0</span></button>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="ap-panel" id="apPanel-leaves">
       <div id="apLeaves" class="text-sm" style="padding:0"></div>
     </div>
-    <div class="card" style="padding:0;overflow:hidden">
-      <div class="p-4 border-b flex items-center justify-between" style="border-color:var(--line)">
-        <h3 class="display font-bold m-0"><i class="fa-solid fa-clock" style="color:var(--warn)"></i> Pending Overtime</h3>
-        <div>
-          <button class="btn btn-primary btn-sm" data-act="ot-approve-all"><i class="fa-solid fa-check-double"></i> Approve All</button>
-        </div>
+    <div class="ap-panel hidden" id="apPanel-ot">
+      <div class="p-3 border-b flex items-center justify-end" style="border-color:var(--line)">
+        <button class="btn btn-primary btn-sm" data-act="ot-approve-all"><i class="fa-solid fa-check-double"></i> Approve All</button>
       </div>
       <div id="apOT" class="text-sm" style="padding:0"></div>
     </div>
-    <div class="card" style="padding:0;overflow:hidden">
-      <div class="p-4 border-b" style="border-color:var(--line)"><h3 class="display font-bold m-0"><i class="fa-solid fa-receipt" style="color:var(--ok)"></i> Pending Expenses</h3></div>
+    <div class="ap-panel hidden" id="apPanel-exp">
       <div id="apExp" class="text-sm" style="padding:0"></div>
     </div>
-    <div class="card" style="padding:0;overflow:hidden">
-      <div class="p-4 border-b" style="border-color:var(--line)"><h3 class="display font-bold m-0"><i class="fa-solid fa-location-dot" style="color:var(--brand)"></i> Field Attendance Requests</h3></div>
+    <div class="ap-panel hidden" id="apPanel-essatt">
       <div id="apEssAtt" class="text-sm" style="padding:0"></div>
     </div>
   </div>
@@ -6980,10 +6987,20 @@ async function loadApprovals(){
           <button class="btn btn-ghost btn-sm" data-act="ex-appr" data-id="${x.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
           <button class="btn btn-danger btn-sm" data-act="ex-rej" data-id="${x.id}"><i class="fa-solid fa-xmark"></i></button></td></tr>`;
     }).join('')}</tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
+  // tab count badges
+  const otGroupCount = Object.keys(groups).length;
+  if($('apCntLv')) $('apCntLv').innerText = (lv.data||[]).length;
+  if($('apCntOt')) $('apCntOt').innerText = otGroupCount;
+  if($('apCntEx')) $('apCntEx').innerText = (ex.data||[]).length;
+  if($('apCntEa')) $('apCntEa').innerText = (ea.data||[]).length;
   const n = (lv.data||[]).length + (ot.data||[]).length + (ex.data||[]).length;
   $('apprBadge').innerText = n;
   $('apprBadge').classList.toggle('hidden', n === 0);
 }
+document.querySelectorAll('.ap-tab').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('.ap-tab').forEach(x => x.classList.toggle('active', x === t));
+  document.querySelectorAll('.ap-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'apPanel-' + t.dataset.aptab));
+}));
 
 /* ---------------- Bulk OT (admin, directly approved) ---------------- */
 function renderBotList(q){
