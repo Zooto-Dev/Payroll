@@ -476,17 +476,23 @@ async function loadEssPunch(){
   const codeU = String(CODE||'').trim().toUpperCase();
   // 1) flag: prefer the RPC data (no RLS issues), fall back to a direct read
   let allowed = !!(D && D.profile && D.profile.ess_attendance === true);
+  _dbg('punch.flag-rpc', 'D.profile=' + (D && D.profile ? 'yes' : 'NO') + ' ess_att=' + (D && D.profile ? D.profile.ess_attendance : 'n/a'));
   if(!allowed){
     try{
-      const { data } = await sb.from('hr_profiles').select('employee_code, ess_attendance').ilike('employee_code', codeU);
+      const { data, error } = await sb.from('hr_profiles').select('employee_code, ess_attendance').ilike('employee_code', codeU);
+      if(error) _dbg('punch.q1-ERROR', error);
       let row = (data || [])[0];
+      _dbg('punch.q1', 'rows=' + ((data||[]).length) + (row ? ' ess_att=' + row.ess_attendance : ''));
       if(!row){
         const all = await sb.from('hr_profiles').select('employee_code, ess_attendance').eq('ess_attendance', true);
+        if(all.error) _dbg('punch.q2-ERROR', all.error);
         row = (all.data || []).find(r => String(r.employee_code||'').trim().toUpperCase() === codeU);
+        _dbg('punch.q2', 'flagged-rows=' + ((all.data||[]).length) + ' matched=' + (row ? 'YES' : 'NO'));
       }
       allowed = !!(row && row.ess_attendance === true);
-    }catch(e){ allowed = false; }
+    }catch(e){ _dbg('punch.flag-ERROR', e); allowed = false; }
   }
+  _dbg('punch.allowed', allowed);
   if(!allowed){ host.innerHTML = ''; return; }
 
   const today = new Date().toISOString().slice(0,10);
@@ -854,12 +860,13 @@ $('loginBtn').addEventListener('click', async () => {
     if(error) throw error;
     if(data && data.error) return notify(data.error);
     D = data;
-    buildLeaveTypes();
-    loadEssPunch();
-    loadKaizenCongrats();
-    loadKaizenWall();
-    loadBirthdays();
-    loadMyWishes();
+    _dbg('login', 'OK code=' + CODE);
+    try{ buildLeaveTypes(); }catch(e){ _dbg('buildLeaveTypes-ERROR', e); }
+    try{ loadEssPunch(); }catch(e){ _dbg('essPunch-ERROR', e); }
+    try{ loadKaizenCongrats(); }catch(e){ _dbg('kaizen-ERROR', e); }
+    try{ loadKaizenWall(); }catch(e){ _dbg('kzwall-ERROR', e); }
+    try{ loadBirthdays(); }catch(e){ _dbg('bday-ERROR', e); }
+    try{ loadMyWishes(); }catch(e){ _dbg('wishes-ERROR', e); }
     sb.rpc('ess_line_today', { p_code: CODE, p_phone: PHONE }).then(({ data: ld }) => {
       if(ld && ld.lines && ld.lines.length) $('tabTeam').classList.remove('hidden');
     }).catch(() => {});
@@ -1524,6 +1531,25 @@ function showPublicFeedback(){
 }
 
 // auto-login if saved (skipped on the public feedback route)
+window._nxDbg = [];
+function _dbg(tag, val){
+  try{
+    const msg = val && val.message ? val.message : (typeof val === 'object' ? JSON.stringify(val).slice(0,140) : String(val));
+    window._nxDbg.push(tag + ': ' + msg);
+    let p = document.getElementById('nxDbgPanel');
+    const isErr = /ERROR|ERR|fail/i.test(tag);
+    if(!p && (location.search.indexOf('debug=1') > -1 || isErr)){
+      p = document.createElement('div'); p.id = 'nxDbgPanel';
+      p.style.cssText = 'position:fixed;bottom:66px;left:8px;right:8px;max-height:45vh;overflow:auto;background:#0f172a;color:#a5f3fc;font:10px/1.5 monospace;padding:9px;border-radius:10px;z-index:99999;white-space:pre-wrap;box-shadow:0 6px 20px rgba(0,0,0,.4)';
+      p.onclick = () => p.remove();
+      document.body.appendChild(p);
+    }
+    if(p) p.textContent = '🔍 BUILD B53 (tap to close)\n' + window._nxDbg.join('\n');
+  }catch(e){}
+}
+window.onerror = function(m, s, l){ _dbg('JS-ERROR', { message: String(m) + ' @line ' + l }); };
+window.addEventListener('unhandledrejection', function(e){ _dbg('PROMISE-ERROR', { message: String((e.reason && e.reason.message) || e.reason).slice(0,140) }); });
+
 window.addEventListener('load', () => {
   if(location.hash === '#feedback'){ showPublicFeedback(); return; }
   const c = localStorage.getItem('ess_code'), p = localStorage.getItem('ess_phone');
