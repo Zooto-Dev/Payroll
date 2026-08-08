@@ -133,7 +133,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div class="text-center mb-6">
       <h1 class="m-0" style="font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Self Service</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B52</b> — 08 Aug</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B54</b> — 08 Aug</p>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
     <div class="card">
@@ -152,7 +152,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div>
         <h2 class="display font-bold m-0 text-lg" id="hName">—</h2>
         <p class="text-xs m-0" style="color:var(--muted)" id="hMeta">—</p>
-        <p class="text-[9px] m-0" style="color:#cbd5e1">Build B52</p>
+        <p class="text-[9px] m-0" style="color:#cbd5e1">Build B54</p>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
     </div>
@@ -477,6 +477,20 @@ async function loadEssPunch(){
   // 1) flag: prefer the RPC data (no RLS issues), fall back to a direct read
   let allowed = !!(D && D.profile && D.profile.ess_attendance === true);
   _dbg('punch.flag-rpc', 'D.profile=' + (D && D.profile ? 'yes' : 'NO') + ' ess_att=' + (D && D.profile ? D.profile.ess_attendance : 'n/a'));
+  if(!allowed){
+    // SECURE PATH: security-definer RPC — verifies code+phone, returns ONLY the flag + UPI
+    try{
+      const { data: fl, error: flErr } = await sb.rpc('ess_flags', { p_code: codeU, p_phone: PHONE });
+      if(flErr) _dbg('punch.rpc2-ERROR', flErr);
+      else {
+        _dbg('punch.rpc2', JSON.stringify(fl).slice(0,100));
+        if(fl && !fl.error){
+          window._essFlags = fl;
+          allowed = fl.ess_attendance === true;
+        }
+      }
+    }catch(e){ _dbg('punch.rpc2-ERROR', e); }
+  }
   if(!allowed){
     try{
       const { data, error } = await sb.from('hr_profiles').select('employee_code, ess_attendance').ilike('employee_code', codeU);
@@ -1003,9 +1017,10 @@ function renderExpenses(){
   }).join('') : '<p class="m-0" style="color:var(--muted)">No claims yet.</p>';
   // UPI prefill (from RPC profile, else direct read once)
   if($('myUpi') && !$('myUpi').value){
-    if(D.profile && D.profile.upi_id !== undefined) $('myUpi').value = D.profile.upi_id || '';
-    else sb.from('hr_profiles').select('upi_id').ilike('employee_code', String(CODE||'').trim().toUpperCase()).limit(1)
-      .then(({ data }) => { if(data && data[0] && $('myUpi') && !$('myUpi').value) $('myUpi').value = data[0].upi_id || ''; });
+    if(window._essFlags && window._essFlags.upi_id) $('myUpi').value = window._essFlags.upi_id;
+    else if(D.profile && D.profile.upi_id !== undefined) $('myUpi').value = D.profile.upi_id || '';
+    else sb.rpc('ess_flags', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE })
+      .then(({ data }) => { if(data && !data.error && $('myUpi') && !$('myUpi').value) $('myUpi').value = data.upi_id || ''; });
   }
 }
 document.addEventListener('click', async e => {
@@ -1014,25 +1029,12 @@ document.addEventListener('click', async e => {
   if(!upi || upi.indexOf('@') < 1) return notify('Sahi UPI ID daalein (jaise name@okhdfcbank)');
   const codeU = String(CODE||'').trim().toUpperCase();
   try{
-    // STEP 1: find the exact stored code (handles case/space differences)
-    const { data: found } = await sb.from('hr_profiles').select('employee_code').ilike('employee_code', '%' + codeU + '%').limit(5);
-    const exact = (found || []).find(r => String(r.employee_code||'').trim().toUpperCase() === codeU);
-    if (exact) {
-      // STEP 2: update by the EXACT stored value
-      const { error } = await sb.from('hr_profiles').update({ upi_id: upi }).eq('employee_code', exact.employee_code);
-      if (error) throw error;
-    } else {
-      // STEP 3: no row -> create; if it collides (row exists with odd casing), update that instead
-      const { error: insErr } = await sb.from('hr_profiles').insert([{ employee_code: codeU, upi_id: upi }]);
-      if (insErr) {
-        if (String(insErr.message||'').toLowerCase().includes('duplicate')) {
-          const { error: updErr } = await sb.from('hr_profiles').update({ upi_id: upi }).eq('employee_code', codeU);
-          if (updErr) throw updErr;
-        } else throw insErr;
-      }
-    }
+    // SECURE PATH: RPC verifies code+phone and writes only the UPI (RLS-safe on phones)
+    const { data: r, error } = await sb.rpc('ess_set_upi', { p_code: codeU, p_phone: PHONE, p_upi: upi });
+    if(error) throw error;
+    if(r && r.error) throw new Error(r.error);
     notify('UPI saved ✓ — approved expenses ab isi par pay honge');
-  }catch(err){ notify('Save failed: ' + (err.message || err)); }
+  }catch(err){ notify('Save failed: ' + (err.message || err) + ' — run the V51 SQL if not done yet'); }
 });
 function essViewProof(path){
   sb.storage.from('expense-bills').createSignedUrl(path, 120).then(({ data, error }) => {
@@ -1544,7 +1546,7 @@ function _dbg(tag, val){
       p.onclick = () => p.remove();
       document.body.appendChild(p);
     }
-    if(p) p.textContent = '🔍 BUILD B53 (tap to close)\n' + window._nxDbg.join('\n');
+    if(p) p.textContent = '🔍 BUILD B54 (tap to close)\n' + window._nxDbg.join('\n');
   }catch(e){}
 }
 window.onerror = function(m, s, l){ _dbg('JS-ERROR', { message: String(m) + ' @line ' + l }); };
