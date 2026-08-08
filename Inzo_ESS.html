@@ -211,6 +211,10 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <input id="exFiles" type="file" accept="image/*" multiple class="inp mb-4">
         <button id="exBtn" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Submit Claim</button>
       </div>
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-qrcode" style="color:var(--brand)"></i> Payment UPI</h3>
+        <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Approved expense yahin (UPI) par pay hote hain — apna UPI ID save rakhein.</p>
+        <div class="flex gap-2"><input id="myUpi" class="inp" placeholder="yourname@upi" style="flex:1"><button id="myUpiBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk"></i> Save</button></div>
+      </div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm">My Claims</h3><div id="exBox"></div></div>
       <div class="card hidden" id="otCard">
         <h3 class="display font-bold mt-0 mb-3 text-sm"><i class="fa-solid fa-clock" style="color:var(--warn)"></i> Apply Overtime</h3>
@@ -967,9 +971,23 @@ function renderExpenses(){
   const ex = D.expenses || [];
   $('exBox').innerHTML = ex.length ? ex.map(x => {
     const chip = { PENDING:'chip-warn', APPROVED:'chip-blue', PAID:'chip-ok', REJECTED:'chip-bad' }[x.status] || 'chip-gray';
-    return `<div class="row"><span><b>${esc(x.category)}</b> ${fmtDate(x.expense_date)} — ${fmtINR(x.amount)}</span><span class="chip ${chip}">${esc(x.status)}</span></div>`;
+    const paidNote = x.status === 'PAID' && x.paid_at ? `<div class="text-[10px]" style="color:var(--ok)">Paid on ${fmtDate(String(x.paid_at).slice(0,10))} ✓</div>` : '';
+    return `<div class="row"><span><b>${esc(x.category)}</b> ${fmtDate(x.expense_date)} — ${fmtINR(x.amount)}${paidNote}</span><span class="chip ${chip}">${esc(x.status)}</span></div>`;
   }).join('') : '<p class="m-0" style="color:var(--muted)">No claims yet.</p>';
+  // UPI prefill (from RPC profile, else direct read once)
+  if($('myUpi') && !$('myUpi').value){
+    if(D.profile && D.profile.upi_id !== undefined) $('myUpi').value = D.profile.upi_id || '';
+    else sb.from('hr_profiles').select('upi_id').ilike('employee_code', String(CODE||'').trim().toUpperCase()).limit(1)
+      .then(({ data }) => { if(data && data[0] && $('myUpi') && !$('myUpi').value) $('myUpi').value = data[0].upi_id || ''; });
+  }
 }
+document.addEventListener('click', e => {
+  const b = e.target.closest('#myUpiBtn'); if(!b) return;
+  const upi = $('myUpi').value.trim();
+  if(!upi || upi.indexOf('@') < 1) return notify('Sahi UPI ID daalein (jaise name@okhdfcbank)');
+  sb.from('hr_profiles').update({ upi_id: upi }).ilike('employee_code', String(CODE||'').trim().toUpperCase())
+    .then(({ error }) => notify(error ? error.message : 'UPI saved ✓ — approved expenses ab isi par pay honge'));
+});
 function renderResign(){
   const ex = D.exit;
   if(ex && ex.status === 'ACTIVE'){
