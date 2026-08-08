@@ -5946,6 +5946,19 @@ async function loadExpenses(){
   const { data, error } = await sb.from('expenses').select('*').order('created_at', { ascending:false }).limit(200);
   if(error) return notify(error.message + ' — have you run the V3 migration SQL?', 'error');
   _exData = data || [];
+  // fresh UPI map (an employee may have JUST saved their UPI in ESS — light query, 2 columns)
+  try{
+    const { data: up } = await sb.from('hr_profiles').select('employee_code, upi_id');
+    (up || []).forEach(r => {
+      const k = String(r.employee_code || '').trim();
+      if(!k) return;
+      if(!PROFILES[k]) PROFILES[k] = {};
+      PROFILES[k].upi_id = r.upi_id || null;
+      // case-insensitive safety: also map the uppercase key if the stored case differs
+      const ku = k.toUpperCase();
+      if(ku !== k){ if(!PROFILES[ku]) PROFILES[ku] = {}; PROFILES[ku].upi_id = r.upi_id || null; }
+    });
+  }catch(e){}
   renderExSettle();
   const tb = $('exTable').querySelector('tbody');
   let pend = 0, appr = 0;
