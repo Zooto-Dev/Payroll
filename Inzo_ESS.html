@@ -118,6 +118,14 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .d-A{background:#fbcfe8;color:#9d174d}
 .d-WO{background:#fef9c3;color:#854d0e}
 .d-WFH{background:#f3e8ff;color:#6b21a8;font-weight:700}
+/* Requests tiles */
+.req-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.req-tile{display:flex;flex-direction:column;align-items:center;gap:5px;padding:11px 4px 9px;border:1.5px solid var(--line);border-radius:14px;background:#fff;cursor:pointer;font-size:10.5px;font-weight:600;color:var(--muted);transition:all .15s}
+.req-tile:active{transform:scale(.96)}
+.req-tile.active{border-color:var(--brand);color:var(--brand);box-shadow:0 2px 8px rgba(37,99,235,.12)}
+.rt-ic{width:34px;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.req-sec{animation:rsIn .18s ease}
+@keyframes rsIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .d-H{background:#bfdbfe;color:#1e40af}
 .d-LV{background:#e9d5ff;color:#6b21a8}
 .d-none{color:#cbd5e1}
@@ -134,7 +142,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div class="text-center mb-6">
       <h1 class="m-0" style="font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Self Service</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B60</b> — 08 Aug</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B61</b> — 08 Aug</p>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
     <div class="card">
@@ -153,7 +161,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div>
         <h2 class="display font-bold m-0 text-lg" id="hName">—</h2>
         <p class="text-xs m-0" style="color:var(--muted)" id="hMeta">—</p>
-        <p class="text-[9px] m-0" style="color:#cbd5e1">Build B60</p>
+        <p class="text-[9px] m-0" style="color:#cbd5e1">Build B61</p>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
     </div>
@@ -198,35 +206,52 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     </div>
 
     <div class="page" id="p-req">
+      <div class="req-tiles">
+        <button class="req-tile" data-rs="leave"><span class="rt-ic" style="background:#dcfce7;color:#16a34a"><i class="fa-solid fa-umbrella-beach"></i></span><span>Leave</span></button>
+        <button class="req-tile" data-rs="gate"><span class="rt-ic" style="background:#ccfbf1;color:#0d9488"><i class="fa-solid fa-door-open"></i></span><span>Gate Pass</span></button>
+        <button class="req-tile" data-rs="wfh"><span class="rt-ic" style="background:#f3e8ff;color:#7e22ce"><i class="fa-solid fa-house-laptop"></i></span><span>WFH</span></button>
+        <button class="req-tile" data-rs="money"><span class="rt-ic" style="background:#dbeafe;color:#2563eb"><i class="fa-solid fa-receipt"></i></span><span>Expenses</span></button>
+        <button class="req-tile hidden" id="tilOT" data-rs="ot"><span class="rt-ic" style="background:#fef3c7;color:#d97706"><i class="fa-solid fa-clock"></i></span><span>Overtime</span></button>
+        <button class="req-tile" data-rs="voice"><span class="rt-ic" style="background:#e0e7ff;color:#4f46e5"><i class="fa-solid fa-comments"></i></span><span>Voice Box</span></button>
+        <button class="req-tile" data-rs="resign"><span class="rt-ic" style="background:#fee2e2;color:#dc2626"><i class="fa-solid fa-person-walking-arrow-right"></i></span><span>Resign</span></button>
+      </div>
+      <div class="req-sec hidden" id="rs-gate">
       <div class="card" style="background:linear-gradient(135deg,#f0fdfa,#ffffff);border:1.5px solid #99f6e4">
-        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-door-open" style="color:#0d9488"></i> Gate Pass</h3>
-        <p class="text-xs mt-0 mb-1" style="color:var(--muted)">Short Leave = 2 ghante (subah late / shaam jaldi) · Half Day. Manager approve karega — approved par pura paisa milega.</p>
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-door-open" style="color:#0d9488"></i> Gate Pass <i class="fa-regular fa-circle-question" onclick="$('gpInfo').classList.toggle('hidden')" style="cursor:pointer;color:#94a3b8;font-size:12px;margin-left:4px"></i></h3>
+        <div class="text-[11px] mt-0 mb-2 hidden p-2 rounded" id="gpInfo" style="background:#f0fdfa;color:#115e59;line-height:1.5">
+          <b>Short Leave</b> — 2 hours (arrive late or leave early) · <b>Half Day</b> — half working day.<br>
+          Monthly limit: <b>1 Half Day OR 2 Short Leaves</b>. Requires reporting manager approval. Approved passes are fully paid.</div>
         <p class="text-[11px] mt-0 mb-3 font-semibold" id="gpQuota" style="color:#0d9488">…</p>
         <div class="grid grid-cols-2 gap-2 mb-2">
           <div><label class="lbl">Type</label><select id="gpKind" class="inp" onchange="$('gpSlotWrap').classList.toggle('hidden', this.value!=='SL')">
             <option value="SL">Short Leave (2 hrs)</option>
             <option value="HD">Half Day</option>
           </select></div>
-          <div id="gpSlotWrap"><label class="lbl">Kab</label><select id="gpSlot" class="inp">
-            <option value="MORNING">Subah — 2 ghante late</option>
-            <option value="EVENING">Shaam — 2 ghante pehle</option>
+          <div id="gpSlotWrap"><label class="lbl">Time</label><select id="gpSlot" class="inp">
+            <option value="MORNING">Morning — arrive 2 hrs late</option>
+            <option value="EVENING">Evening — leave 2 hrs early</option>
           </select></div>
           <div><label class="lbl">Date</label><input id="gpDate" type="date" class="inp"></div>
-          <div><label class="lbl">Reason</label><input id="gpReason" class="inp" placeholder="e.g. Bank ka kaam"></div>
+          <div><label class="lbl">Reason</label><input id="gpReason" class="inp" placeholder="Reason"></div>
         </div>
         <button id="gpBtn" class="btn btn-primary w-full justify-center" style="background:#0d9488"><i class="fa-solid fa-paper-plane"></i> Request Gate Pass</button>
         <div id="gpList" class="mt-2 text-xs"></div>
       </div>
+      </div>
+      <div class="req-sec hidden" id="rs-wfh">
       <div class="card" style="background:linear-gradient(135deg,#faf5ff,#ffffff);border:1.5px solid #e9d5ff">
-        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-house-laptop" style="color:#7e22ce"></i> Work From Home (WFH)</h3>
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-house-laptop" style="color:#7e22ce"></i> Work From Home <i class="fa-regular fa-circle-question" onclick="$('wfhInfo').classList.toggle('hidden')" style="cursor:pointer;color:#94a3b8;font-size:12px;margin-left:4px"></i></h3>
+        <p class="text-[11px] mt-0 mb-2 hidden p-2 rounded" id="wfhInfo" style="background:#faf5ff;color:#6b21a8">Requires reporting manager approval. Approved WFH days are fully paid and appear as "WFH" in your attendance — no punch needed.</p>
 
         <div class="grid grid-cols-2 gap-2 mb-2">
           <div><label class="lbl">Date</label><input id="wfhDate" type="date" class="inp"></div>
-          <div><label class="lbl">Reason</label><input id="wfhReason" class="inp" placeholder="e.g. Site visit prep"></div>
+          <div><label class="lbl">Reason</label><input id="wfhReason" class="inp" placeholder="Reason"></div>
         </div>
         <button id="wfhBtn" class="btn btn-primary w-full justify-center" style="background:#7e22ce"><i class="fa-solid fa-paper-plane"></i> Request WFH Approval</button>
         <div id="wfhList" class="mt-2 text-xs"></div>
       </div>
+      </div>
+      <div class="req-sec hidden" id="rs-leave">
       <div class="card">
         <h3 class="display font-bold mt-0 mb-3 text-sm"><i class="fa-solid fa-umbrella-beach" style="color:var(--ok)"></i> Apply Leave</h3>
         <div id="lvBalChips" class="legend" style="margin:0 0 12px"></div>
@@ -245,6 +270,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <button id="lvBtn" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Submit for Approval</button>
       </div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm">My Leaves (This Year)</h3><div id="lvBox"></div></div>
+      </div>
+      <div class="req-sec hidden" id="rs-money">
       <div class="card">
         <h3 class="display font-bold mt-0 mb-3 text-sm"><i class="fa-solid fa-receipt" style="color:var(--brand)"></i> Apply Reimbursement</h3>
         <label class="lbl">Category</label>
@@ -260,13 +287,15 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       </div>
       <div class="card" style="background:linear-gradient(135deg,#eff6ff,#ffffff);border:1.5px solid #bfdbfe">
         <h3 class="display font-bold mt-0 mb-1" style="font-size:16px"><i class="fa-solid fa-qrcode" style="color:var(--brand)"></i> Payment UPI</h3>
-        <p class="text-xs mt-0 mb-3" style="color:var(--muted);line-height:1.5">Aapke approved expenses isi UPI par pay honge — apna UPI ID save karke rakhein (jaise <b>name@okhdfcbank</b>, <b>9876543210@paytm</b>)</p>
+        <p class="text-xs mt-0 mb-3" style="color:var(--muted);line-height:1.5">Approved reimbursements are paid to this UPI ID (e.g. <b>name@okhdfcbank</b>, <b>9876543210@paytm</b>)</p>
         <label class="lbl">Your UPI ID</label>
         <input id="myUpi" class="inp" placeholder="yourname@upi" style="font-size:16px;padding:13px 14px;margin-bottom:10px" autocapitalize="off" autocomplete="off">
         <button id="myUpiBtn" class="btn btn-primary w-full justify-center" style="padding:13px;font-size:15px"><i class="fa-solid fa-floppy-disk"></i> Save UPI ID</button>
       </div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-money-check-dollar" style="color:var(--ok)"></i> Payments Received</h3><div id="exPayBox"></div></div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm">My Claims</h3><div id="exBox"></div></div>
+      </div>
+      <div class="req-sec hidden" id="rs-ot">
       <div class="card hidden" id="otCard">
         <h3 class="display font-bold mt-0 mb-3 text-sm"><i class="fa-solid fa-clock" style="color:var(--warn)"></i> Apply Overtime</h3>
         <div class="grid grid-cols-2 gap-3 mb-3">
@@ -291,6 +320,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <button id="otBtn" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Request OT Approval</button>
         <div id="otBox" class="mt-3"></div>
       </div>
+      </div>
+      <div class="req-sec hidden" id="rs-voice">
       <div class="card">
         <h3 class="display font-bold mt-0 mb-3 text-sm"><i class="fa-solid fa-comments" style="color:var(--brand)"></i> Grievance / Suggestion / Kaizen</h3>
         <label class="lbl">Type</label>
@@ -335,16 +366,19 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <button id="fbBtn" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Submit</button>
         <div id="fbBox" class="mt-3"></div>
       </div>
+      </div>
+      <div class="req-sec hidden" id="rs-resign">
       <div class="card">
         <h3 class="display font-bold mt-0 mb-3 text-sm"><i class="fa-solid fa-person-walking-arrow-right" style="color:var(--bad)"></i> Resignation</h3>
         <div id="resBox"></div>
+      </div>
       </div>
     </div>
 
     <div class="page" id="p-team">
   <div class="card hidden" id="teamApprCard" style="background:linear-gradient(135deg,#eff6ff,#ffffff);border:1.5px solid #bfdbfe">
     <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-clipboard-check" style="color:var(--brand)"></i> Team Approvals <span class="chip chip-blue" id="teamApprCnt">0</span></h3>
-    <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Aapki team ki Field / WFH requests — yahin se approve ya reject karein.</p>
+    <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Pending requests from your team.</p>
     <div id="teamApprBox"></div>
   </div>
   <div class="card">
@@ -645,6 +679,14 @@ function gpTypeLabel(r){
   if(r.req_type === 'WFH') return '<span class="chip" style="background:#f3e8ff;color:#6b21a8;font-size:9px">WFH</span>';
   return '<span class="chip chip-blue" style="font-size:9px">FIELD</span>';
 }
+document.querySelectorAll('.req-tile').forEach(t => t.addEventListener('click', () => {
+  const sec = document.getElementById('rs-' + t.dataset.rs);
+  if(!sec) return;
+  const opening = sec.classList.contains('hidden');
+  document.querySelectorAll('.req-sec').forEach(s => s.classList.add('hidden'));
+  document.querySelectorAll('.req-tile').forEach(x => x.classList.remove('active'));
+  if(opening){ sec.classList.remove('hidden'); t.classList.add('active'); }
+}));
 async function loadGatePass(){
   const host = $('gpList'); if(!host) return;
   if($('gpDate') && !$('gpDate').value) $('gpDate').value = new Date().toISOString().slice(0,10);
@@ -655,10 +697,10 @@ async function loadGatePass(){
     if(q && !q.error){
       const hd = Number(q.hd_used)||0, sl = Number(q.sl_used)||0;
       let msg;
-      if(hd >= 1) msg = 'Is month: Half Day ho chuka — ab koi gate pass nahi';
-      else if(sl >= 2) msg = 'Is month: dono Short Leave ho chuki — ab koi gate pass nahi';
-      else if(sl === 1) msg = 'Is month bacha: sirf 1 Short Leave (Half Day nahi)';
-      else msg = 'Is month bacha: 1 Half Day YA 2 Short Leave';
+      if(hd >= 1) msg = 'Monthly quota used (Half Day taken)';
+      else if(sl >= 2) msg = 'Monthly quota used (2 Short Leaves taken)';
+      else if(sl === 1) msg = 'Available this month: 1 Short Leave';
+      else msg = 'Available this month: 1 Half Day or 2 Short Leaves';
       $('gpQuota').innerText = msg;
     }
     const { data } = await sb.from('ess_att_requests').select('*').ilike('employee_code', codeU).in('req_type',['GATE_SL','GATE_HD']).order('date', { ascending:false }).limit(8);
@@ -794,10 +836,10 @@ async function loadKaizenCongrats(){
         ? `Your suggestion <b>"${esc(f.subject||'')}"</b> was implemented successfully. Thank you for making things better!`
         : `Your suggestion <b>"${esc(f.subject||'')}"</b> has been approved — you can go ahead and execute it. Reward follows on completion.`}</div>
       ${f.admin_note ? `<div class="kz-note"><i class="fa-solid fa-quote-left" style="opacity:.4;margin-right:5px"></i>${esc(f.admin_note)}<div style="font-size:10px;color:#94a3b8;margin-top:3px">— CEO</div></div>` : ''}
-      ${(!done && f.kz_review_requested_at) ? `<div class="kz-note" style="background:#fffbeb;border-color:#fde68a"><i class="fa-solid fa-flag-checkered" style="color:#b45309;margin-right:5px"></i><b>Closing bheji ✓</b> — CEO review pending. Approve hote hi reward announce hoga.</div>` : ''}
+      ${(!done && f.kz_review_requested_at) ? `<div class="kz-note" style="background:#fffbeb;border-color:#fde68a"><i class="fa-solid fa-flag-checkered" style="color:#b45309;margin-right:5px"></i><b>Closing submitted ✓</b> — pending CEO review. Reward is announced on approval.</div>` : ''}
       ${(!done && !f.kz_review_requested_at) ? `<div class="kz-note" style="background:#f0fdf4;border-color:#bbf7d0">
-        <div style="font-weight:700;font-size:11px;margin-bottom:5px;color:#166534"><i class="fa-solid fa-file-pen"></i> Execute kar liya? Closing report bhejo:</div>
-        <textarea id="kzcl_${f.id}" class="inp" rows="2" placeholder="Kya kiya, kya result mila — short mein likho" style="font-size:12px;margin-bottom:6px"></textarea>
+        <div style="font-weight:700;font-size:11px;margin-bottom:5px;color:#166534"><i class="fa-solid fa-file-pen"></i> Executed? Submit your closing report:</div>
+        <textarea id="kzcl_${f.id}" class="inp" rows="2" placeholder="What was done and the result achieved" style="font-size:12px;margin-bottom:6px"></textarea>
         <button class="btn btn-primary btn-sm w-full justify-center" onclick="kaizenSubmitClosing(${f.id})"><i class="fa-solid fa-paper-plane"></i> Submit Closing & Request Review</button>
       </div>` : ''}
       <div>
@@ -1465,6 +1507,7 @@ function renderOT(){
   const desig = ((D.employee||{}).DESIGNATION || '').toUpperCase();
   const can = desig.includes('MANAGER') || desig.includes('EXECUTIVE');
   $('otCard').classList.toggle('hidden', !can);
+  if($('tilOT')) $('tilOT').classList.toggle('hidden', !can);
   if(!can) return;
   $('otDate').value = $('otDate').value || new Date().toISOString().slice(0,10);
   const ot = D.ot_requests || [];
@@ -1796,7 +1839,7 @@ function _dbg(tag, val){
       p.onclick = () => p.remove();
       document.body.appendChild(p);
     }
-    if(p) p.textContent = '🔍 BUILD B60 (tap to close)\n' + window._nxDbg.join('\n');
+    if(p) p.textContent = '🔍 BUILD B61 (tap to close)\n' + window._nxDbg.join('\n');
   }catch(e){}
 }
 window.onerror = function(m, s, l){ _dbg('JS-ERROR', { message: String(m) + ' @line ' + l }); };
