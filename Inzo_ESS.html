@@ -134,7 +134,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div class="text-center mb-6">
       <h1 class="m-0" style="font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Self Service</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B58</b> — 08 Aug</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B59</b> — 08 Aug</p>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
     <div class="card">
@@ -153,7 +153,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div>
         <h2 class="display font-bold m-0 text-lg" id="hName">—</h2>
         <p class="text-xs m-0" style="color:var(--muted)" id="hMeta">—</p>
-        <p class="text-[9px] m-0" style="color:#cbd5e1">Build B58</p>
+        <p class="text-[9px] m-0" style="color:#cbd5e1">Build B59</p>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
     </div>
@@ -198,6 +198,25 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     </div>
 
     <div class="page" id="p-req">
+      <div class="card" style="background:linear-gradient(135deg,#f0fdfa,#ffffff);border:1.5px solid #99f6e4">
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-door-open" style="color:#0d9488"></i> Gate Pass</h3>
+        <p class="text-xs mt-0 mb-1" style="color:var(--muted)">Short Leave = 2 ghante (subah late / shaam jaldi) · Half Day. Manager approve karega — approved par pura paisa milega.</p>
+        <p class="text-[11px] mt-0 mb-3 font-semibold" id="gpQuota" style="color:#0d9488">…</p>
+        <div class="grid grid-cols-2 gap-2 mb-2">
+          <div><label class="lbl">Type</label><select id="gpKind" class="inp" onchange="$('gpSlotWrap').classList.toggle('hidden', this.value!=='SL')">
+            <option value="SL">Short Leave (2 hrs)</option>
+            <option value="HD">Half Day</option>
+          </select></div>
+          <div id="gpSlotWrap"><label class="lbl">Kab</label><select id="gpSlot" class="inp">
+            <option value="MORNING">Subah — 2 ghante late</option>
+            <option value="EVENING">Shaam — 2 ghante pehle</option>
+          </select></div>
+          <div><label class="lbl">Date</label><input id="gpDate" type="date" class="inp"></div>
+          <div><label class="lbl">Reason</label><input id="gpReason" class="inp" placeholder="e.g. Bank ka kaam"></div>
+        </div>
+        <button id="gpBtn" class="btn btn-primary w-full justify-center" style="background:#0d9488"><i class="fa-solid fa-paper-plane"></i> Request Gate Pass</button>
+        <div id="gpList" class="mt-2 text-xs"></div>
+      </div>
       <div class="card" style="background:linear-gradient(135deg,#faf5ff,#ffffff);border:1.5px solid #e9d5ff">
         <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-house-laptop" style="color:#7e22ce"></i> Work From Home (WFH)</h3>
         <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Reporting manager ke approve karne par us din attendance mein <b>WFH</b> dikhega — din ka paisa milega, punch ki zaroorat nahi.</p>
@@ -595,11 +614,10 @@ async function loadTeamApprovals(){
     }
     $('teamApprCnt').innerText = reqs.length;
     $('teamApprBox').innerHTML = reqs.length ? reqs.map(r => {
-      const isWfh = r.req_type === 'WFH';
       return `<div class="p-2 rounded-lg mb-2" style="background:#fff;border:1px solid var(--line)">
         <div class="flex items-center justify-between gap-2 flex-wrap">
           <div>
-            <div class="text-xs"><b>${esc(r.name || r.employee_code)}</b> <span class="chip ${isWfh?'':'chip-blue'}" ${isWfh?'style="background:#f3e8ff;color:#6b21a8;font-size:9px"':'style="font-size:9px"'}>${isWfh?'WFH':'FIELD'}</span></div>
+            <div class="text-xs"><b>${esc(r.name || r.employee_code)}</b> ${gpTypeLabel(r)}</div>
             <div class="text-[10px]" style="color:var(--muted)">${fmtDate(r.date)}${r.reason ? ' · ' + esc(r.reason) : ''}</div>
           </div>
           <div style="white-space:nowrap">
@@ -621,6 +639,49 @@ async function teamDecide(id, action){
     loadTeamApprovals();
   }catch(err){ notify(err.message || 'Failed'); }
 }
+function gpTypeLabel(r){
+  if(r.req_type === 'GATE_HD') return '<span class="chip" style="background:#fef3c7;color:#92400e;font-size:9px">HALF DAY</span>';
+  if(r.req_type === 'GATE_SL') return '<span class="chip" style="background:#ccfbf1;color:#115e59;font-size:9px">SHORT LEAVE' + (r.gp_slot ? (r.gp_slot === 'MORNING' ? ' · Subah' : ' · Shaam') : '') + '</span>';
+  if(r.req_type === 'WFH') return '<span class="chip" style="background:#f3e8ff;color:#6b21a8;font-size:9px">WFH</span>';
+  return '<span class="chip chip-blue" style="font-size:9px">FIELD</span>';
+}
+async function loadGatePass(){
+  const host = $('gpList'); if(!host) return;
+  if($('gpDate') && !$('gpDate').value) $('gpDate').value = new Date().toISOString().slice(0,10);
+  const codeU = String(CODE||'').trim().toUpperCase();
+  try{
+    const ym = new Date().toISOString().slice(0,7);
+    const { data: q } = await sb.rpc('ess_gate_quota', { p_code: codeU, p_phone: PHONE, p_month: ym });
+    if(q && !q.error){
+      const hd = Number(q.hd_used)||0, sl = Number(q.sl_used)||0;
+      let msg;
+      if(hd >= 1) msg = 'Is month: Half Day ho chuka — ab koi gate pass nahi';
+      else if(sl >= 2) msg = 'Is month: dono Short Leave ho chuki — ab koi gate pass nahi';
+      else if(sl === 1) msg = 'Is month bacha: sirf 1 Short Leave (Half Day nahi)';
+      else msg = 'Is month bacha: 1 Half Day YA 2 Short Leave';
+      $('gpQuota').innerText = msg;
+    }
+    const { data } = await sb.from('ess_att_requests').select('*').ilike('employee_code', codeU).in('req_type',['GATE_SL','GATE_HD']).order('date', { ascending:false }).limit(8);
+    host.innerHTML = (data||[]).length ? data.map(r => {
+      const chip = { PENDING:'chip-warn', APPROVED:'chip-ok', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
+      return `<div class="row"><span>${fmtDate(r.date)} ${gpTypeLabel(r)}${r.reason?' · '+esc(r.reason):''}</span><span class="chip ${chip}">${esc(r.status)}</span></div>`;
+    }).join('') : '';
+  }catch(e){ _dbg('gate-ERROR', e); }
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('#gpBtn'); if(!b) return;
+  const codeU = String(CODE||'').trim().toUpperCase();
+  const d = $('gpDate').value;
+  if(!d) return notify('Date chuno');
+  try{
+    const { data, error } = await sb.rpc('ess_gate_request', { p_code: codeU, p_phone: PHONE, p_date: d, p_kind: $('gpKind').value, p_slot: $('gpKind').value === 'SL' ? $('gpSlot').value : null, p_reason: $('gpReason').value.trim() || null });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    notify('Gate pass request bheji ✓ — manager approve karega');
+    $('gpReason').value = '';
+    loadGatePass();
+  }catch(err){ notify(err.message || 'Request failed'); }
+});
 async function loadWfh(){
   const host = $('wfhList'); if(!host) return;
   if($('wfhDate') && !$('wfhDate').value) $('wfhDate').value = new Date().toISOString().slice(0,10);
@@ -971,6 +1032,7 @@ $('loginBtn').addEventListener('click', async () => {
     try{ loadWfh(); }catch(e){ _dbg('wfh-ERROR', e); }
     try{ loadMyPayments(); }catch(e){ _dbg('pay-ERROR', e); }
     try{ loadTeamApprovals(); }catch(e){ _dbg('team-ERROR', e); }
+    try{ loadGatePass(); }catch(e){ _dbg('gate-ERROR', e); }
     sb.rpc('ess_line_today', { p_code: CODE, p_phone: PHONE }).then(({ data: ld }) => {
       if(ld && ld.lines && ld.lines.length) $('tabTeam').classList.remove('hidden');
     }).catch(() => {});
@@ -1716,7 +1778,7 @@ function _dbg(tag, val){
       p.onclick = () => p.remove();
       document.body.appendChild(p);
     }
-    if(p) p.textContent = '🔍 BUILD B58 (tap to close)\n' + window._nxDbg.join('\n');
+    if(p) p.textContent = '🔍 BUILD B59 (tap to close)\n' + window._nxDbg.join('\n');
   }catch(e){}
 }
 window.onerror = function(m, s, l){ _dbg('JS-ERROR', { message: String(m) + ' @line ' + l }); };
