@@ -553,7 +553,7 @@ body.no-confidential .confidential-col{display:none!important}
     <button class="ap-tab active" data-aptab="leaves"><i class="fa-solid fa-umbrella-beach"></i> Leaves <span class="ap-cnt" id="apCntLv">0</span></button>
     <button class="ap-tab" data-aptab="ot"><i class="fa-solid fa-clock"></i> Overtime <span class="ap-cnt" id="apCntOt">0</span></button>
     <button class="ap-tab" data-aptab="exp"><i class="fa-solid fa-receipt"></i> Expenses <span class="ap-cnt" id="apCntEx">0</span></button>
-    <button class="ap-tab" data-aptab="essatt"><i class="fa-solid fa-location-dot"></i> Field / WFH <span class="ap-cnt" id="apCntEa">0</span></button>
+    <button class="ap-tab" data-aptab="essatt"><i class="fa-solid fa-location-dot"></i> Field / WFH / Gate <span class="ap-cnt" id="apCntEa">0</span></button>
   </div>
   <div class="card" style="padding:0;overflow:hidden">
     <div class="ap-panel" id="apPanel-leaves">
@@ -3762,7 +3762,14 @@ async function loadRegister(){
         const r = (attMap[code] || {})[x.iso];
         const future = x.iso > todayISO();
         let cls = '', txt = '';
-        if(r){ const isL = isRowLate(r); cls = isL ? 'c-L' : 'c-P'; txt = isL ? 'L' : 'P'; p++; if(isL) l++; }
+        if(r){
+          const hasSL = (gateSLRegMap[code]||new Set()).has(x.iso);
+          const hasHD = (gateHDRegMap[code]||new Set()).has(x.iso);
+          const isL = isRowLate(r) && !hasSL;   // approved short-leave = late excused
+          cls = hasHD ? 'c-WFH' : (isL ? 'c-L' : 'c-P');
+          txt = hasHD ? 'HD' : (hasSL ? 'SL' : (isL ? 'L' : 'P'));
+          p++; if(isL) l++;
+        }
         else if((wfhRegMap[code]||new Set()).has(x.iso) && !x.isWO && !x.isH){ cls = 'c-WFH'; txt = 'WFH'; p++; }
         else if(lvSet.has(x.iso) && !x.isWO && !x.isH){ cls = 'c-LV'; txt = 'LV'; lv++; }
         else if(x.isH){ cls = 'c-H'; txt = 'H'; }
@@ -3791,9 +3798,13 @@ async function loadDeployment(){
   if(!LINES.length){ $('deployCard').classList.add('hidden'); return; }
   $('deployCard').classList.remove('hidden');
   const today = todayISO();
-  const wfhRegRes = await sb.from('ess_att_requests').select('employee_code, date').eq('status','APPROVED').eq('req_type','WFH').gte('date', ym + '-01').lte('date', ym + '-31').then(r => r).catch(() => ({ data: [] }));
-  const wfhRegMap = {};
-  (wfhRegRes.data || []).forEach(w => { (wfhRegMap[w.employee_code] = wfhRegMap[w.employee_code] || new Set()).add(w.date); });
+  const wfhRegRes = await sb.from('ess_att_requests').select('employee_code, date, req_type').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).gte('date', ym + '-01').lte('date', ym + '-31').then(r => r).catch(() => ({ data: [] }));
+  const wfhRegMap = {}, gateSLRegMap = {}, gateHDRegMap = {};
+  (wfhRegRes.data || []).forEach(w => {
+    if(w.req_type === 'WFH') (wfhRegMap[w.employee_code] = wfhRegMap[w.employee_code] || new Set()).add(w.date);
+    if(w.req_type === 'GATE_SL') (gateSLRegMap[w.employee_code] = gateSLRegMap[w.employee_code] || new Set()).add(w.date);
+    if(w.req_type === 'GATE_HD') (gateHDRegMap[w.employee_code] = gateHDRegMap[w.employee_code] || new Set()).add(w.date);
+  });
   const [attRes, logRes] = await Promise.all([
     sb.from('attendance').select('employee_code').eq('date', today),
     sb.from('deployment_logs').select('*').eq('date', today).order('created_at', { ascending: false })
@@ -3848,11 +3859,15 @@ async function runPayroll(){
       sb.from('leaves').select('employee_code, leave_type, from_date, to_date, days, status').eq('status','APPROVED').gte('from_date', ym.slice(0,4) + '-01-01').lte('from_date', ym + '-31'),
       sb.from('ot_requests').select('employee_code, ot_date, hours').eq('status','APPROVED').gte('ot_date', ym + '-01').lte('ot_date', ym + '-31'),
       sb.from('leave_decisions').select('*'),
-      sb.from('ess_att_requests').select('employee_code, date').eq('status','APPROVED').eq('req_type','WFH').gte('date', ym + '-01').lte('date', ym + '-31')
+      sb.from('ess_att_requests').select('employee_code, date, req_type').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).gte('date', ym + '-01').lte('date', ym + '-31')
     ]);
     // approved WFH days: paid like present, but shown as WFH (no punch needed)
-    const wfhMap = {};   // code -> Set of dates
-    (wfhRes.data || []).forEach(w => { (wfhMap[w.employee_code] = wfhMap[w.employee_code] || new Set()).add(w.date); });
+    const wfhMap = {};      // code -> Set of WFH dates
+    const gateSLMap = {};   // code -> Set of approved SHORT-LEAVE dates (late excused, pura paisa)
+    (wfhRes.data || []).forEach(w => {
+      if(w.req_type === 'WFH') (wfhMap[w.employee_code] = wfhMap[w.employee_code] || new Set()).add(w.date);
+      if(w.req_type === 'GATE_SL') (gateSLMap[w.employee_code] = gateSLMap[w.employee_code] || new Set()).add(w.date);
+    });
     window._wfhMap = wfhMap;
     const LDEC = ldRes.data || [];
     const yearLeaves = yearLvRes.data || [];
@@ -3898,7 +3913,8 @@ async function runPayroll(){
         const r = days[x.iso];
         if(r && !x.isWO && !x.isH){
           present++;
-          if(isRowLate(r)) lates++;   // uses the is_late column set at punch time (dept-based 09:10/10:00)
+          // approved SHORT-LEAVE gate pass = late excused (pura paisa, manager-approved)
+          if(isRowLate(r) && !((gateSLMap[code]||new Set()).has(x.iso))) lates++;
         }
       });
       // OT = strictly approval-based (approved by CEO). A normal long day does NOT earn OT.
@@ -6990,9 +7006,12 @@ async function loadApprovals(){
     ${ea.data.map(r => {
       const mgr = ((PROFILES[r.employee_code]||{}).reporting_manager) || '—';
       const mine = canDecideEssAtt(r);
-      const isWfh = r.req_type === 'WFH';
+      const typeChip = r.req_type === 'GATE_HD' ? '<span class="chip" style="background:#fef3c7;color:#92400e">HALF DAY</span>'
+        : r.req_type === 'GATE_SL' ? '<span class="chip" style="background:#ccfbf1;color:#115e59">SHORT LEAVE' + (r.gp_slot ? (r.gp_slot === 'MORNING' ? ' · Subah' : ' · Shaam') : '') + '</span>'
+        : r.req_type === 'WFH' ? '<span class="chip" style="background:#f3e8ff;color:#6b21a8">WFH</span>'
+        : '<span class="chip chip-blue">FIELD</span>';
       return `<tr><td class="font-semibold">${esc(r.name || r.employee_code)}</td>
-        <td><span class="chip ${isWfh?'':'chip-blue'}" ${isWfh?'style="background:#f3e8ff;color:#6b21a8"':''}>${isWfh?'WFH':'FIELD'}</span></td>
+        <td>${typeChip}</td>
         <td>${fmtDate(r.date)}</td><td class="text-xs">${esc(r.reason||'—')}</td><td class="text-xs">${esc(mgr)}</td>
         <td style="text-align:right;white-space:nowrap">${mine
           ? `<button class="btn btn-ghost btn-sm" data-act="ea-appr" data-id="${r.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
