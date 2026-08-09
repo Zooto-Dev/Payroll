@@ -6958,14 +6958,17 @@ async function loadVoice(){
     ${f.kz_remarks ? `<div class="text-[11px] mb-1" style="color:var(--muted)"><b>Remarks:</b> ${esc(f.kz_remarks)}</div>` : ''}
     ${f.solutions ? `<div class="text-xs mb-1 p-2 rounded" style="background:#eff6ff"><b>Proposed solutions:</b><br><span style="white-space:pre-wrap">${esc(f.solutions)}</span></div>` : ''}
     ${f.admin_note ? `<div class="text-[11px] mb-1" style="color:var(--muted)"><b>Note:</b> ${esc(f.admin_note)}</div>` : ''}
+    ${(f.type === 'KAIZEN' && f.kz_closing) ? `<div class="text-[11px] mb-1 p-2 rounded" style="background:#fffbeb;border:1px solid #fde68a;color:#78350f"><b><i class="fa-solid fa-file-lines"></i> Closing Report:</b> ${esc(f.kz_closing)}${f.kz_review_requested_at ? `<div style="font-size:9px;color:#b45309;margin-top:2px">Submitted ${fmtDate(String(f.kz_review_requested_at).slice(0,10))}</div>` : ''}</div>` : ''}
     <div class="text-[10px] mb-2" style="color:var(--muted)">${fmtDate(f.created_at.slice(0,10))}</div>
     <div class="flex gap-1 flex-wrap">
       ${f.status === 'OPEN' ? `<button class="btn btn-ghost btn-sm" data-act="vb-review" data-id="${f.id}">In Review</button>` : ''}
       ${(f.type !== 'KAIZEN' && (f.status === 'OPEN' || f.status === 'IN_REVIEW')) ? `<button class="btn btn-ghost btn-sm" data-act="vb-resolve" data-id="${f.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i> Resolve</button>` : ''}
       ${(f.type === 'KAIZEN' && f.status !== 'APPROVED' && f.status !== 'REJECTED') ? `<button class="btn btn-primary btn-sm" data-act="vb-kapprove" data-id="${f.id}" data-code="${esc(f.employee_code)}"><i class="fa-solid fa-check"></i> Approve (allow execution)</button>
         <button class="btn btn-danger btn-sm" data-act="vb-reject" data-id="${f.id}">Reject</button>` : ''}
-      ${(f.type === 'KAIZEN' && f.status === 'APPROVED' && f.kz_stage !== 'COMPLETED') ? `<span class="chip chip-blue" style="align-self:center"><i class="fa-solid fa-person-running"></i> Executing</span>
-        <button class="btn btn-primary btn-sm" data-act="vb-kcomplete" data-id="${f.id}" data-code="${esc(f.employee_code)}" data-note="${esc(f.admin_note||'')}"><i class="fa-solid fa-award"></i> Mark Complete</button>` : ''}
+      ${(f.type === 'KAIZEN' && f.status === 'APPROVED' && f.kz_stage !== 'COMPLETED') ? `${f.kz_review_requested_at
+          ? `<span class="chip" style="align-self:center;background:#fef3c7;color:#92400e"><i class="fa-solid fa-flag-checkered"></i> Review requested</span>`
+          : `<span class="chip chip-blue" style="align-self:center"><i class="fa-solid fa-person-running"></i> Executing</span>`}
+        <button class="btn btn-primary btn-sm" data-act="vb-kcomplete" data-id="${f.id}" data-code="${esc(f.employee_code)}" data-note="${esc(f.admin_note||'')}"><i class="fa-solid fa-award"></i> ${f.kz_review_requested_at ? 'Review & Complete' : 'Mark Complete'}</button>` : ''}
       ${(f.type === 'KAIZEN' && f.kz_stage === 'COMPLETED') ? `<span class="chip chip-ok" style="align-self:center"><i class="fa-solid fa-circle-check"></i> Completed${f.reward?' · '+fmtINR(f.reward):''}</span>` : ''}
     </div>
   </div>`;
