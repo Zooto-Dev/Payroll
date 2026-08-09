@@ -4536,10 +4536,36 @@ document.body.addEventListener('click', async e => {
     if(error) return notify(error.message, 'error');
     window.open(data.signedUrl, '_blank');
   }
-  if(act === 'ml-appr' || act === 'ml-rej'){
-    const st = act === 'ml-appr' ? 'APPROVED' : 'REJECTED';
-    await sb.from('money_requests').update({ status: st, decided_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
-    notify(st === 'APPROVED' ? 'Approved — employee ke ESS par dikh jayega' : 'Rejected', 'success');
+  if(act === 'ml-rej'){
+    await sb.from('money_requests').update({ status: 'REJECTED', decided_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
+    notify('Rejected', 'success');
+    loadApprovals();
+    return;
+  }
+  if(act === 'ml-appr'){
+    if(!canApprove('advance')) return notify('You are not allowed to approve advances', 'error');
+    const code = el.dataset.code;
+    const isLoan = el.dataset.type === 'LOAN';
+    const amount = Number(el.dataset.amount);
+    const months = Number(el.dataset.months) || null;
+    // SAME RULES as the Advances page:
+    // Rule 1 — max 50% of monthly gross
+    const gross = grossOf(code);
+    if(!gross) return notify('Set the salary structure first — the limit is 50% of monthly gross', 'error');
+    if(amount > gross * 0.5) return notify(`Cannot approve — exceeds 50% of monthly gross (max ₹${Math.floor(gross * 0.5).toLocaleString('en-IN')})`, 'error');
+    // Rule 2 — at least 20 present days in the last 30 days
+    const d30 = new Date(); d30.setDate(d30.getDate() - 30);
+    const from = `${d30.getFullYear()}-${String(d30.getMonth()+1).padStart(2,'0')}-${String(d30.getDate()).padStart(2,'0')}`;
+    const { data: attRows } = await sb.from('attendance').select('date').eq('employee_code', code).gte('date', from);
+    if((attRows || []).length < 20) return notify(`Not eligible — only ${(attRows||[]).length} present day(s) in the last 30 days (minimum 20 required)`, 'error');
+    if(isLoan && !months) return notify('Loan needs a tenure', 'error');
+    const emi = isLoan ? Math.ceil(amount / months) : amount;
+    if(!(await nxConfirm(`Approve ${isLoan ? 'LOAN' : 'ADVANCE'} of ${fmtINR(amount)} for ${code}?${isLoan ? `\nEMI ₹${emi.toLocaleString('en-IN')} × ${months} months (from next payroll)` : '\nFull amount deducted from next payroll'}`, 'Approve Request'))) return;
+    // record in the SAME advances system -> payroll deducts automatically (same rule as Advances page)
+    const { error: aErr } = await sb.from('advances').insert([{ employee_code: code, amount, emi, balance: amount, reason: (el.dataset.reason || '') + ' (ESS request)', status: 'OPEN', type: isLoan ? 'LOAN' : 'ADVANCE', tenure: isLoan ? months : 1 }]);
+    if(aErr) return notify(aErr.message, 'error');
+    await sb.from('money_requests').update({ status: 'APPROVED', decided_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
+    notify(isLoan ? 'Loan approved & recorded — EMI auto-deducts from next payroll' : 'Advance approved & recorded — full amount auto-deducts from next payroll', 'success');
     loadApprovals();
     return;
   }
@@ -7095,7 +7121,7 @@ async function loadApprovals(){
       <td class="text-xs" style="max-width:200px">${esc(r.reason||'—')}</td>
       <td class="text-xs">${fmtDate(String(r.created_at).slice(0,10))}</td>
       <td style="text-align:right;white-space:nowrap">
-        <button class="btn btn-ghost btn-sm" data-act="ml-appr" data-id="${r.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
+        <button class="btn btn-ghost btn-sm" data-act="ml-appr" data-id="${r.id}" data-code="${esc(r.employee_code)}" data-type="${esc(r.req_type)}" data-amount="${r.amount}" data-months="${r.months||''}" data-reason="${esc(r.reason||'')}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
         <button class="btn btn-danger btn-sm" data-act="ml-rej" data-id="${r.id}"><i class="fa-solid fa-xmark"></i></button></td></tr>`).join('')}
     </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
   if($('apCntMl')) $('apCntMl').innerText = (ml.data||[]).length;
