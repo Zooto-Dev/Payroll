@@ -181,6 +181,30 @@ body.not-super .super-only{display:none !important;}
 .c-H{background:var(--brand-soft);color:var(--brand);font-weight:700}
 .c-LV{background:#f5f3ff;color:#7c3aed;font-weight:700}
 .c-WFH{background:#f3e8ff;color:#6b21a8;font-weight:700;font-size:8.5px}
+/* ===== MIS dashboard ===== */
+.mis-kpi{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+.mis-kpi .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.mis-kpi .v{font-size:22px;font-weight:800;font-family:'Sora',sans-serif;margin-top:2px}
+.mis-kpi .s{font-size:10.5px;color:var(--muted);margin-top:2px}
+.mis-sec{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:22px 0 10px;display:flex;align-items:center;gap:8px}
+.mis-sec::after{content:'';flex:1;height:1px;background:var(--line)}
+.mis-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px}
+.mis-card h4{margin:0 0 12px;font-size:13px;font-weight:700;font-family:'Sora',sans-serif}
+.mis-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:11.5px}
+.mis-row .lbl2{width:110px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#334155;font-weight:600}
+.mis-row .track{flex:1;height:16px;background:#f1f5f9;border-radius:6px;overflow:hidden}
+.mis-row .fill{height:100%;border-radius:6px;display:flex;align-items:center;min-width:2px;transition:width .4s ease}
+.mis-row .val{width:86px;text-align:right;font-weight:700;font-size:11px;color:#0f172a;flex-shrink:0}
+.mis-donut{width:120px;height:120px;border-radius:50%;position:relative;flex-shrink:0}
+.mis-donut::after{content:'';position:absolute;inset:26px;background:#fff;border-radius:50%}
+.mis-donut .c{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;font-weight:800;font-size:15px;font-family:'Sora',sans-serif}
+.mis-leg{font-size:11px;display:flex;flex-direction:column;gap:6px}
+.mis-leg span i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:6px}
+.mis-cmp{display:flex;align-items:baseline;gap:10px}
+.mis-cmp .big{font-size:26px;font-weight:800;font-family:'Sora',sans-serif}
+.mis-up{color:#dc2626;font-weight:700;font-size:12px}
+.mis-down{color:#16a34a;font-weight:700;font-size:12px}
+@media print{ .sidebar,.topbar,#misCtl{display:none!important} .page{display:block!important} }
 
 /* ---------- Toast ---------- */
 #toastWrap{position:fixed;bottom:22px;right:22px;z-index:99000;display:flex;flex-direction:column;gap:8px}
@@ -262,6 +286,7 @@ body.no-confidential .confidential-col{display:none!important}
     <div class="nav-group" id="g1">
       <button class="nav-item active" data-page="dashboard"><i class="fa-solid fa-gauge-high"></i> Dashboard</button>
       <button class="nav-item" data-page="reports"><i class="fa-solid fa-chart-column"></i> Analytics</button>
+      <button class="nav-item" data-page="mis"><i class="fa-solid fa-chart-pie"></i> MIS Report</button>
     </div>
     <button class="nav-sec" data-group="g2"><span>WORKFORCE</span><i class="fa-solid fa-chevron-down"></i></button>
     <div class="nav-group" id="g2">
@@ -630,6 +655,45 @@ body.no-confidential .confidential-col{display:none!important}
 </div>
 
 <!-- ================= ADVANCES ================= -->
+<div class="page" id="page-mis">
+  <div class="flex items-center justify-between mb-4 flex-wrap gap-2" id="misCtl">
+    <div class="flex items-center gap-2">
+      <input type="month" id="misMonth" class="inp" style="width:170px">
+      <button id="misGo" class="btn btn-primary btn-sm"><i class="fa-solid fa-rotate"></i> Refresh</button>
+    </div>
+    <button onclick="window.print()" class="btn btn-ghost btn-sm"><i class="fa-solid fa-print"></i> Print / PDF</button>
+  </div>
+  <div class="grid grid-cols-2 lg:grid-cols-6 gap-3" id="misKpis"></div>
+
+  <div class="mis-sec"><i class="fa-solid fa-calendar-check"></i> ATTENDANCE</div>
+  <div class="grid lg:grid-cols-2 gap-4">
+    <div class="mis-card"><h4><i class="fa-solid fa-building" style="color:var(--brand)"></i> Department-wise Attendance</h4><div id="misAttDept"></div></div>
+    <div class="mis-card"><h4><i class="fa-solid fa-user-clock" style="color:#dc2626"></i> Department-wise Late</h4><div id="misAttLate"></div></div>
+    <div class="mis-card"><h4><i class="fa-solid fa-venus-mars" style="color:#7c3aed"></i> Gender-wise Attendance</h4><div id="misAttGender" class="flex items-center gap-5"></div></div>
+    <div class="mis-card"><h4><i class="fa-solid fa-location-dot" style="color:#0d9488"></i> Location-wise Attendance</h4><div id="misAttLoc"></div></div>
+  </div>
+
+  <div class="mis-sec"><i class="fa-solid fa-receipt"></i> EXPENSE / REIMBURSEMENT</div>
+  <div class="grid lg:grid-cols-3 gap-4">
+    <div class="mis-card"><h4><i class="fa-solid fa-scale-balanced" style="color:var(--brand)"></i> vs Previous Month</h4><div id="misExCmp"></div></div>
+    <div class="mis-card"><h4><i class="fa-solid fa-hourglass-half" style="color:#d97706"></i> Pending Reimbursement</h4><div id="misExPend"></div></div>
+    <div class="mis-card"><h4><i class="fa-solid fa-check-double" style="color:#16a34a"></i> Approved vs Paid</h4><div id="misExAP"></div></div>
+    <div class="mis-card"><h4><i class="fa-solid fa-building" style="color:var(--brand)"></i> Department-wise Expense</h4><div id="misExDept"></div></div>
+    <div class="mis-card"><h4><i class="fa-solid fa-tags" style="color:#7c3aed"></i> Category-wise Expense</h4><div id="misExCat"></div></div>
+    <div class="mis-card"><h4><i class="fa-solid fa-chart-line" style="color:#0d9488"></i> Reimbursement Trend (6 mo)</h4><div id="misExTrend"></div></div>
+  </div>
+
+  <div class="mis-sec"><i class="fa-solid fa-users"></i> MANPOWER</div>
+  <div class="grid lg:grid-cols-3 gap-4">
+    <div class="mis-card lg:col-span-2"><h4><i class="fa-solid fa-building" style="color:var(--brand)"></i> Department-wise Manpower</h4><div id="misMpDept"></div></div>
+    <div class="mis-card"><h4><i class="fa-solid fa-venus-mars" style="color:#7c3aed"></i> Male / Female</h4><div id="misMpGender" class="flex items-center gap-5"></div></div>
+    <div class="mis-card"><h4><i class="fa-solid fa-file-signature" style="color:#0d9488"></i> Employment Type</h4><div id="misMpType"></div></div>
+    <div class="mis-card"><h4><i class="fa-solid fa-helmet-safety" style="color:#d97706"></i> Worker / Staff</h4><div id="misMpWS" class="flex items-center gap-5"></div></div>
+    <div class="mis-card"><h4><i class="fa-solid fa-ranking-star" style="color:#dc2626"></i> Grade-wise</h4><div id="misMpGrade"></div></div>
+    <div class="mis-card lg:col-span-3"><h4><i class="fa-solid fa-location-dot" style="color:#0d9488"></i> Location-wise Manpower</h4><div id="misMpLoc"></div></div>
+  </div>
+</div>
+
 <div class="page" id="page-advances">
   <div class="grid lg:grid-cols-3 gap-4">
     <div class="card">
@@ -1726,7 +1790,7 @@ $('loginBtn').addEventListener('click', async () => {
 $('loginPass').addEventListener('keydown', e => { if(e.key === 'Enter') $('loginBtn').click(); });
 $('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
 
-const ALL_PAGES = ['dashboard','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','letters','idcards','approvals','voice','settings'];
+const ALL_PAGES = ['dashboard','mis','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','letters','idcards','approvals','voice','settings'];
 let ME_EMAIL = '';
 let FACE_CODES = new Set();
 function isSuper(){
@@ -1791,7 +1855,7 @@ function applyPerms(){
   const mb = document.getElementById('attFixBtn');
   if(mb) mb.classList.toggle('hidden', !canManualAtt());
 }
-const PAGE_ICONS = { dashboard:'gauge', employees:'users', attendance:'calendar-check', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', idcards:'id-card', approvals:'clipboard-check', voice:'comments', settings:'gear' };
+const PAGE_ICONS = { dashboard:'gauge', mis:'chart-pie', employees:'users', attendance:'calendar-check', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', idcards:'id-card', approvals:'clipboard-check', voice:'comments', settings:'gear' };
 function isRowLate(r){ return r.is_late === true || String(r.in_time||'').toUpperCase().includes('LATE'); }
 function cleanInTime(r){ return String(r.in_time||'').replace(/\s*\(?LATE\)?/i,'').trim(); }
 function initials(em){ return em.split('@')[0].replace(/[^a-z0-9]/gi, ' ').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'A'; }
@@ -2315,7 +2379,7 @@ function fillEmpSelects(){
 }
 
 /* ---------------- Router ---------------- */
-const TITLES = { dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', adminctl:'Admin Control Panel' };
+const TITLES = { mis:'MIS Report', dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', adminctl:'Admin Control Panel' };
 const _ov = document.createElement('div'); _ov.id = 'navOverlay'; document.body.appendChild(_ov);
 const _sb = document.querySelector('.sidebar');
 $('navToggle').addEventListener('click', () => { _sb.classList.toggle('open'); _ov.style.display = _sb.classList.contains('open') ? 'block' : 'none'; });
@@ -2334,6 +2398,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     $('page-' + page).classList.add('show');
     $('pageTitle').innerText = TITLES[page];
     if(page === 'dashboard') loadDashboard();
+    if(page === 'mis') loadMis();
     if(page === 'advances') loadAdvances();
     if(page === 'leaves') loadLeaves();
     if(page === 'approvals') loadApprovals();
@@ -4431,6 +4496,141 @@ $('advSaveBtn').addEventListener('click', async () => {
   }catch(err){ notify(err.message, 'error'); }
   finally{ btn.innerHTML = '<i class="fa-solid fa-plus"></i> Record Advance'; btn.disabled = false; }
 });
+
+/* ================= MIS DASHBOARD ================= */
+const MIS_COLORS = ['#2563eb','#0d9488','#7c3aed','#d97706','#dc2626','#0284c7','#16a34a','#db2777','#64748b','#ca8a04','#4f46e5','#059669'];
+function misBar(rows, fmt, colorFn){
+  // rows: [{label, value, sub?}] sorted desc
+  const max = Math.max(...rows.map(r => r.value), 1);
+  return rows.map((r, i) => `<div class="mis-row">
+    <span class="lbl2" title="${esc(r.label)}">${esc(r.label)}</span>
+    <div class="track"><div class="fill" style="width:${Math.max(2, r.value / max * 100)}%;background:${(colorFn ? colorFn(r, i) : MIS_COLORS[i % MIS_COLORS.length])}"></div></div>
+    <span class="val">${fmt(r)}</span>
+  </div>`).join('') || '<p class="m-0 text-xs" style="color:var(--muted)">No data.</p>';
+}
+function misDonut(parts, centerText){
+  // parts: [{label, value, color}]
+  const total = parts.reduce((a, p) => a + p.value, 0) || 1;
+  let acc = 0;
+  const segs = parts.filter(p => p.value > 0).map(p => {
+    const from = acc / total * 360; acc += p.value;
+    return `${p.color} ${from}deg ${acc / total * 360}deg`;
+  }).join(', ');
+  return `<div class="mis-donut" style="background:conic-gradient(${segs || '#e2e8f0 0deg 360deg'})"><div class="c">${centerText}</div></div>
+    <div class="mis-leg">${parts.map(p => `<span><i style="background:${p.color}"></i>${esc(p.label)}: <b>${p.value}</b> (${Math.round(p.value / total * 100)}%)</span>`).join('')}</div>`;
+}
+async function loadMis(){
+  if(!$('misMonth').value) $('misMonth').value = new Date().toISOString().slice(0,7);
+  const ym = $('misMonth').value;
+  const [y, m] = ym.split('-').map(Number);
+  const prevYm = m === 1 ? `${y-1}-12` : `${y}-${String(m-1).padStart(2,'0')}`;
+  $('misKpis').innerHTML = '<div class="mis-kpi" style="grid-column:1/-1"><div class="s">Loading MIS data…</div></div>';
+
+  const active = EMP.filter(e => String(e.Status||'ACTIVE').toUpperCase() === 'ACTIVE');
+  const codeSet = new Set(active.map(e => e['Employee code']));
+  const deptOf = c => { const e = active.find(x => x['Employee code'] === c); return e ? String(e.DEPARTMENT||'—').toUpperCase() : null; };
+  const unitName = c => {
+    const e = active.find(x => x['Employee code'] === c);
+    const u = e && (e.UNIT || String(c).slice(0,4));
+    const un = (_units || []).find(x => x.code === u);
+    return un ? un.name : (u || '—');
+  };
+  const genderOf = c => ((PROFILES[c]||{}).gender) || 'Not set';
+  const today = new Date().toISOString().slice(0,10);
+
+  // month attendance + expenses (both months) parallel
+  const [attRes, exRes, exPrevRes] = await Promise.all([
+    sb.from('attendance').select('employee_code, date, is_late').gte('date', ym + '-01').lte('date', ym + '-31').limit(50000),
+    sb.from('expenses').select('*').gte('expense_date', ym + '-01').lte('expense_date', ym + '-31').limit(5000),
+    sb.from('expenses').select('amount, status').gte('expense_date', prevYm + '-01').lte('expense_date', prevYm + '-31').limit(5000)
+  ]);
+  const att = (attRes.data || []).filter(r => codeSet.has(r.employee_code));
+  const ex = exRes.data || [];
+  const exPrev = exPrevRes.data || [];
+
+  // ---------- ATTENDANCE ----------
+  const workDays = new Set(att.map(r => r.date)).size || 1;
+  const group = (keyFn) => {
+    const g = {};   // key -> { present, late, head }
+    att.forEach(r => { const k = keyFn(r.employee_code); if(!k) return; (g[k] = g[k] || { present:0, late:0, head:0 }).present++; if(r.is_late) g[k].late++; });
+    active.forEach(e => { const k = keyFn(e['Employee code']); if(!k) return; (g[k] = g[k] || { present:0, late:0, head:0 }).head++; });
+    return g;
+  };
+  const gd = group(deptOf), gl = group(unitName), gg = group(genderOf);
+  const pct = v => v.head ? Math.min(100, Math.round(v.present / (v.head * workDays) * 100)) : 0;
+
+  $('misAttDept').innerHTML = misBar(
+    Object.entries(gd).map(([k, v]) => ({ label: k, value: pct(v), head: v.head, present: v.present })).sort((a, b) => b.value - a.value),
+    r => r.value + '% <span style="color:var(--muted);font-weight:400">(' + r.head + ')</span>',
+    r => r.value >= 90 ? '#16a34a' : r.value >= 75 ? '#2563eb' : r.value >= 60 ? '#d97706' : '#dc2626');
+  $('misAttLate').innerHTML = misBar(
+    Object.entries(gd).map(([k, v]) => ({ label: k, value: v.late, p: v.present })).filter(r => r.value > 0).sort((a, b) => b.value - a.value),
+    r => r.value + ' <span style="color:var(--muted);font-weight:400">(' + (r.p ? Math.round(r.value / r.p * 100) : 0) + '%)</span>',
+    () => '#dc2626') || '';
+  if(!Object.values(gd).some(v => v.late)) $('misAttLate').innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">No late marks this month 🎉</p>';
+  $('misAttLoc').innerHTML = misBar(
+    Object.entries(gl).map(([k, v]) => ({ label: k, value: pct(v), head: v.head })).sort((a, b) => b.value - a.value),
+    r => r.value + '% <span style="color:var(--muted);font-weight:400">(' + r.head + ')</span>');
+  const gParts = [['Male','#2563eb'],['Female','#db2777'],['Other','#7c3aed'],['Not set','#94a3b8']]
+    .map(([k, c]) => ({ label: k + ' ' + (gg[k] ? pct(gg[k]) + '%' : ''), value: gg[k] ? gg[k].present : 0, color: c })).filter(p => p.value > 0);
+  $('misAttGender').innerHTML = misDonut(gParts, workDays + 'd');
+
+  // ---------- EXPENSE ----------
+  const sum = arr => arr.reduce((a, x) => a + (Number(x.amount)||0), 0);
+  const exValid = ex.filter(x => x.status !== 'REJECTED');
+  const curT = sum(exValid), prevT = sum(exPrev.filter(x => x.status !== 'REJECTED'));
+  const diff = prevT ? Math.round((curT - prevT) / prevT * 100) : null;
+  $('misExCmp').innerHTML = `<div class="mis-cmp"><span class="big">${fmtINR(curT)}</span>
+    ${diff === null ? '' : `<span class="${diff >= 0 ? 'mis-up' : 'mis-down'}"><i class="fa-solid fa-arrow-${diff >= 0 ? 'up' : 'down'}"></i> ${Math.abs(diff)}%</span>`}</div>
+    <p class="text-xs m-0 mt-1" style="color:var(--muted)">Previous month: <b>${fmtINR(prevT)}</b> · ${exValid.length} claim(s) this month</p>`;
+  const pendAll = await sb.from('expenses').select('amount').eq('status','PENDING').limit(5000);
+  $('misExPend').innerHTML = `<div class="mis-cmp"><span class="big" style="color:#d97706">${fmtINR(sum(pendAll.data||[]))}</span></div>
+    <p class="text-xs m-0 mt-1" style="color:var(--muted)"><b>${(pendAll.data||[]).length}</b> claim(s) awaiting approval (all time)</p>`;
+  const apA = sum(exValid.filter(x => x.status === 'APPROVED')), apP = sum(exValid.filter(x => x.status === 'PAID'));
+  $('misExAP').innerHTML = misBar([
+    { label: 'Paid', value: apP }, { label: 'Approved (unpaid)', value: apA }, { label: 'Pending', value: sum(exValid.filter(x => x.status === 'PENDING')) }
+  ], r => fmtINR(r.value), (r) => r.label === 'Paid' ? '#16a34a' : r.label.startsWith('Approved') ? '#2563eb' : '#d97706');
+  const byK = (arr, kf) => { const g = {}; arr.forEach(x => { const k = kf(x) || '—'; g[k] = (g[k]||0) + (Number(x.amount)||0); }); return g; };
+  $('misExDept').innerHTML = misBar(Object.entries(byK(exValid, x => deptOf(x.employee_code))).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => fmtINR(r.value));
+  $('misExCat').innerHTML = misBar(Object.entries(byK(exValid, x => x.category)).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => fmtINR(r.value));
+  // 6-month trend
+  const months = []; for(let i = 5; i >= 0; i--){ const d = new Date(y, m - 1 - i, 1); months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`); }
+  const trendRes = await sb.from('expenses').select('amount, expense_date, status').gte('expense_date', months[0] + '-01').lte('expense_date', months[5] + '-31').limit(20000);
+  const tG = {}; (trendRes.data||[]).filter(x => x.status !== 'REJECTED').forEach(x => { const k = String(x.expense_date).slice(0,7); tG[k] = (tG[k]||0) + (Number(x.amount)||0); });
+  const mn = ym2 => ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(ym2.slice(5))] + ' ' + ym2.slice(2,4);
+  $('misExTrend').innerHTML = misBar(months.map(k => ({ label: mn(k), value: tG[k] || 0 })), r => fmtINR(r.value), (r, i) => months[i] === ym ? '#2563eb' : '#94a3b8');
+
+  // ---------- MANPOWER ----------
+  const cnt = (kf) => { const g = {}; active.forEach(e => { const k = kf(e) || '—'; g[k] = (g[k]||0) + 1; }); return g; };
+  const mpD = cnt(e => String(e.DEPARTMENT||'—').toUpperCase());
+  $('misMpDept').innerHTML = misBar(Object.entries(mpD).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => r.value);
+  const mpG = cnt(e => genderOf(e['Employee code']));
+  $('misMpGender').innerHTML = misDonut([['Male','#2563eb'],['Female','#db2777'],['Other','#7c3aed'],['Not set','#94a3b8']].map(([k, c]) => ({ label: k, value: mpG[k] || 0, color: c })).filter(p => p.value > 0), active.length);
+  const mpT = cnt(e => (PROFILES[e['Employee code']]||{}).employment_type || 'Not set');
+  $('misMpType').innerHTML = misBar(Object.entries(mpT).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => r.value,
+    r => r.label === 'Permanent' ? '#16a34a' : r.label === 'Contract' ? '#d97706' : MIS_COLORS[4]);
+  const isWorker = e => { const p = PROFILES[e['Employee code']] || {}; return /work|piece/i.test(p.grade || '') || p.employment_type === 'Piece Rate' || /HELPER|OPERATOR|WORKER|STITCH|CUTTER|KARIGAR/i.test(e.Designation || ''); };
+  const wCnt = active.filter(isWorker).length;
+  $('misMpWS').innerHTML = misDonut([{ label: 'Worker', value: wCnt, color: '#d97706' }, { label: 'Staff', value: active.length - wCnt, color: '#2563eb' }], active.length);
+  const mpGr = cnt(e => (PROFILES[e['Employee code']]||{}).grade || 'Not set');
+  $('misMpGrade').innerHTML = misBar(Object.entries(mpGr).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value).slice(0, 10), r => r.value);
+  const mpL = cnt(e => unitName(e['Employee code']));
+  $('misMpLoc').innerHTML = misBar(Object.entries(mpL).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => r.value);
+
+  // ---------- KPIs ----------
+  const todayIn = new Set(att.filter(r => r.date === today).map(r => r.employee_code)).size;
+  const todayLate = att.filter(r => r.date === today && r.is_late).length;
+  const monthPct = active.length ? Math.round(att.length / (active.length * workDays) * 100) : 0;
+  $('misKpis').innerHTML = [
+    ['Manpower', active.length, 'active employees'],
+    ['Today Present', todayIn + '<span style="font-size:12px;color:var(--muted)">/' + active.length + '</span>', today === ym + today.slice(7) || String(today).startsWith(ym) ? 'as of now' : 'not in selected month'],
+    ['Today Late', todayLate, 'late punches'],
+    ['Attendance', monthPct + '%', workDays + ' working day(s)'],
+    ['Expense (Month)', fmtINR(curT), exValid.length + ' claim(s)'],
+    ['Pending Reimb.', fmtINR(sum(pendAll.data || [])), (pendAll.data || []).length + ' claim(s)']
+  ].map(([k, v, s]) => `<div class="mis-kpi"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('');
+}
+$('misGo').addEventListener('click', loadMis);
 
 /* ---------------- Global click delegation ---------------- */
 document.body.addEventListener('click', async e => {
