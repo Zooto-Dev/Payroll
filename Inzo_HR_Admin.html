@@ -4532,7 +4532,7 @@ async function loadMis(){
   const unitName = c => {
     const e = active.find(x => x['Employee code'] === c);
     const u = e && (e.UNIT || String(c).slice(0,4));
-    const un = (_units || []).find(x => x.code === u);
+    const un = ((SETTINGS && SETTINGS.units) || []).find(x => x.code === u);
     return un ? un.name : (u || '—');
   };
   const genderOf = c => ((PROFILES[c]||{}).gender) || 'Not set';
