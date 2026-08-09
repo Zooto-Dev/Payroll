@@ -142,7 +142,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div class="text-center mb-6">
       <h1 class="m-0" style="font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Self Service</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B62</b> — 08 Aug</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B64</b> — 08 Aug</p>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
     <div class="card">
@@ -157,18 +157,24 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 
   <!-- APP -->
   <div id="app" class="hidden">
-    <div class="flex items-center justify-between mb-3">
-      <div>
-        <h2 class="display font-bold m-0 text-lg" id="hName">—</h2>
-        <p class="text-xs m-0" style="color:var(--muted)" id="hMeta">—</p>
-        <p class="text-[9px] m-0" style="color:#cbd5e1">Build B62</p>
+    <div id="appHead" class="flex items-center justify-between" style="position:sticky;top:0;z-index:60;background:var(--bg,#f1f5f9);padding:10px 0;margin-bottom:6px;box-shadow:0 4px 12px -8px rgba(15,23,42,.15)">
+      <div class="flex items-center gap-3">
+        <div id="hAvatar" onclick="$('avFile').click()" style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#0891b2,#2563eb);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;cursor:pointer;overflow:hidden;flex-shrink:0;border:2px solid #fff;box-shadow:0 2px 6px rgba(15,23,42,.15)" title="Tap to change photo">
+          <span id="hAvInit">–</span>
+          <img id="hAvImg" class="hidden" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        <input type="file" id="avFile" accept="image/*" class="hidden">
+        <div>
+          <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
+          <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B64</p>
+        </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
     </div>
 
     <div class="page show" id="p-home">
       <div id="kaizenCongrats"></div>
-      <div id="essPunchCard"></div>
       <div class="grid grid-cols-2 gap-3 mb-3">
         <div class="card m-0"><p class="lbl m-0">Present (This Month)</p><div class="display text-2xl font-bold" style="color:var(--ok)" id="stPresent">—</div></div>
         <div class="card m-0"><p class="lbl m-0">Last Net Pay</p><div class="display text-2xl font-bold" style="color:var(--brand)" id="stNet">—</div></div>
@@ -197,8 +203,6 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         </div>
         <div id="attBox"></div>
       </div>
-      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-indian-rupee-sign" style="color:var(--brand)"></i> My Payslips</h3><div id="payBox"></div></div>
-      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-boxes-stacked" style="color:var(--brand)"></i> My Assets</h3><div id="assetBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-lightbulb" style="color:var(--brand)"></i> Kaizen Wall <span class="text-[10px] font-normal" style="color:var(--muted)">— ideas approved across the team</span></h3><div id="kaizenWall"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-calendar-check" style="color:var(--warn)"></i> Holidays This Year</h3><div id="holBox" class="text-sm space-y-1"></div></div>
     </div>
@@ -212,11 +216,14 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <button class="req-tile" data-rs="money"><span class="rt-ic" style="background:#dbeafe;color:#2563eb"><i class="fa-solid fa-receipt"></i></span><span>Expenses</span></button>
         <button class="req-tile" data-rs="adv"><span class="rt-ic" style="background:#fef9c3;color:#ca8a04"><i class="fa-solid fa-sack-dollar"></i></span><span>Advance / Loan</span></button>
         <button class="req-tile hidden" id="tilOT" data-rs="ot"><span class="rt-ic" style="background:#fef3c7;color:#d97706"><i class="fa-solid fa-clock"></i></span><span>Overtime</span></button>
+        <button class="req-tile" data-rs="payslip"><span class="rt-ic" style="background:#d1fae5;color:#059669"><i class="fa-solid fa-indian-rupee-sign"></i></span><span>Payslips</span></button>
+        <button class="req-tile" data-rs="assets"><span class="rt-ic" style="background:#ede9fe;color:#7c3aed"><i class="fa-solid fa-boxes-stacked"></i></span><span>My Assets</span></button>
         <button class="req-tile" data-rs="celebrate"><span class="rt-ic" style="background:#ffe4e6;color:#e11d48"><i class="fa-solid fa-cake-candles"></i></span><span>Celebrations</span></button>
         <button class="req-tile" data-rs="voice"><span class="rt-ic" style="background:#e0e7ff;color:#4f46e5"><i class="fa-solid fa-comments"></i></span><span>Voice Box</span></button>
         <button class="req-tile" data-rs="resign"><span class="rt-ic" style="background:#fee2e2;color:#dc2626"><i class="fa-solid fa-person-walking-arrow-right"></i></span><span>Resign</span></button>
       </div>
       <div class="req-sec hidden" id="rs-field">
+      <div id="essPunchCard"></div>
       <div class="card" style="background:linear-gradient(135deg,#f0f9ff,#ffffff);border:1.5px solid #bae6fd">
         <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-location-dot" style="color:#0284c7"></i> Field Duty <i class="fa-regular fa-circle-question" onclick="$('fldInfo').classList.toggle('hidden')" style="cursor:pointer;color:#94a3b8;font-size:12px;margin-left:4px"></i></h3>
         <div class="text-[11px] mt-0 mb-2 hidden p-2 rounded" id="fldInfo" style="background:#f0f9ff;color:#075985;line-height:1.5">Request approval for working outside the premises. Once your reporting manager approves, the Punch In/Out option appears on your Home screen for the approved day(s).</div>
@@ -236,7 +243,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div class="req-sec hidden" id="rs-adv">
       <div class="card" style="background:linear-gradient(135deg,#fefce8,#ffffff);border:1.5px solid #fde68a">
         <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-sack-dollar" style="color:#ca8a04"></i> Advance / Loan <i class="fa-regular fa-circle-question" onclick="$('mrInfo').classList.toggle('hidden')" style="cursor:pointer;color:#94a3b8;font-size:12px;margin-left:4px"></i></h3>
-        <div class="text-[11px] mt-0 mb-2 hidden p-2 rounded" id="mrInfo" style="background:#fefce8;color:#854d0e;line-height:1.5"><b>Advance</b> — adjusted in your next salary. <b>Loan</b> — repaid in monthly instalments over the selected months. Subject to HR approval.</div>
+        <div class="text-[11px] mt-0 mb-2 hidden p-2 rounded" id="mrInfo" style="background:#fefce8;color:#854d0e;line-height:1.5"><b>Advance</b> — deducted in full from your next salary. <b>Loan</b> — repaid via monthly EMI over the selected months.<br>Eligibility: amount up to <b>50% of monthly gross</b> and minimum <b>20 present days</b> in the last 30 days. Subject to HR approval.</div>
         <div class="grid grid-cols-2 gap-2 mb-2">
           <div><label class="lbl">Type</label><select id="mrType" class="inp" onchange="$('mrMonthsWrap').classList.toggle('hidden', this.value!=='LOAN')">
             <option value="ADVANCE">Salary Advance</option>
@@ -249,6 +256,12 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <button id="mrBtn" class="btn btn-primary w-full justify-center" style="background:#ca8a04"><i class="fa-solid fa-paper-plane"></i> Submit Request</button>
         <div id="mrList" class="mt-2 text-xs"></div>
       </div>
+      </div>
+      <div class="req-sec hidden" id="rs-payslip">
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-indian-rupee-sign" style="color:var(--brand)"></i> My Payslips</h3><div id="payBox"></div></div>
+      </div>
+      <div class="req-sec hidden" id="rs-assets">
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-boxes-stacked" style="color:var(--brand)"></i> My Assets</h3><div id="assetBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
       </div>
       <div class="req-sec hidden" id="rs-celebrate">
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-cake-candles" style="color:var(--brand)"></i> Birthdays & Anniversaries <span class="text-[10px] font-normal" style="color:var(--muted)">— this week</span></h3><div id="bdayBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
@@ -348,6 +361,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <button id="otModeTeam" class="chip chip-gray" style="border:none;cursor:pointer;flex:1;justify-content:center;padding:8px">For My Team (Bulk)</button>
         </div>
         <div id="otTeamWrap" class="hidden mb-3">
+          <select id="otDept" class="inp mb-2"><option value="">All departments</option></select>
           <input id="otSearch" class="inp mb-2" placeholder="Search workers…">
           <div class="flex items-center gap-2 mb-2">
             <button id="otAllBtn" class="chip chip-gray" style="border:none;cursor:pointer">Select all shown</button>
@@ -419,6 +433,10 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-clipboard-check" style="color:var(--brand)"></i> Team Approvals <span class="chip chip-blue" id="teamApprCnt">0</span></h3>
     <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Pending requests from your team.</p>
     <div id="teamApprBox"></div>
+  </div>
+  <div class="card hidden" id="teamTodayCard">
+    <h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-user-check" style="color:var(--ok)"></i> My Team — Today <span class="chip chip-blue" id="teamTodayCnt">0</span></h3>
+    <div id="teamTodayBox"></div>
   </div>
   <div class="card">
     <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-people-group" style="color:var(--brand)"></i> My Line — Today's Attendance</h3>
@@ -681,6 +699,7 @@ async function loadTeamApprovals(){
     const card = $('teamApprCard'); if(!card) return;
     if(isManager || reqs.length){
       // manager hai -> Team tab HAMESHA dikhega (pending ho ya na ho)
+      loadTeamToday();
       $('tabTeam').classList.remove('hidden');
       $('tabTeam').innerHTML = '<i class="fa-solid fa-people-group"></i>Team' + (reqs.length ? ' <span class="chip chip-bad" style="font-size:9px;padding:1px 6px">' + reqs.length + '</span>' : '');
       card.classList.remove('hidden');
@@ -701,6 +720,26 @@ async function loadTeamApprovals(){
       </div>`;
     }).join('') : '<p class="text-xs m-0" style="color:var(--muted)">Abhi koi pending request nahi — team ki Field/WFH requests yahan aayengi.</p>';
   }catch(e){ _dbg('team-ERROR', e); }
+}
+async function loadTeamToday(){
+  try{
+    const codeU = String(CODE||'').trim().toUpperCase();
+    const { data } = await sb.rpc('ess_team_today', { p_code: codeU, p_phone: PHONE });
+    if(!data || data.error) return;
+    const rows = data.rows || [];
+    const card = $('teamTodayCard'); if(!card) return;
+    card.classList.toggle('hidden', !rows.length);
+    const inCnt = rows.filter(r => r.in_time).length;
+    $('teamTodayCnt').innerText = inCnt + '/' + rows.length + ' in';
+    $('teamTodayBox').innerHTML = rows.map(r => {
+      const inT = r.in_time ? String(r.in_time).substring(0,5) : null;
+      const outT = r.out_time ? String(r.out_time).substring(0,5) : null;
+      const st = !inT ? '<span class="chip chip-bad">Absent</span>'
+        : outT ? `<span class="chip chip-gray">Out ${outT}</span>`
+        : `<span class="chip chip-ok">In ${inT}</span>`;
+      return `<div class="row"><span><b>${esc(r.name)}</b> <span class="text-[10px]" style="color:var(--muted)">${esc(r.dept||'')}</span></span>${st}</div>`;
+    }).join('');
+  }catch(e){ _dbg('teamtoday-ERROR', e); }
 }
 async function teamDecide(id, action){
   try{
@@ -1232,6 +1271,8 @@ function render(){
   $('tabbar').classList.remove('hidden');
   const e = D.employee || {}, p = D.profile || {};
   $('hName').innerText = e.Name || CODE;
+  if($('hAvInit')) $('hAvInit').innerText = String(e.Name || CODE).trim().charAt(0).toUpperCase() || '?';
+  loadAvatar();
   $('hMeta').innerText = `${e['Employee code'] || CODE} • ${e.DESIGNATION || ''} • ${e.DEPARTMENT || ''}`;
   // home
   const ym = new Date().toISOString().slice(0,7);
@@ -1652,21 +1693,27 @@ async function loadWorkers(){
   const { data, error } = await sb.rpc('ess_get_workers', { p_code: CODE, p_phone: PHONE });
   if(error || (data && data.error)){ $('otWorkers').innerHTML = '<p class="m-0 text-xs" style="color:var(--bad)">' + esc((data && data.error) || error.message) + '</p>'; return; }
   WORKERS = data.rows || [];
+  // department filter options
+  const depts = [...new Set((WORKERS||[]).map(w => String(w.dept||'').trim()).filter(Boolean))].sort();
+  $('otDept').innerHTML = '<option value="">All departments</option>' + depts.map(d => `<option>${esc(d)}</option>`).join('');
   renderWorkers('');
 }
 function renderWorkers(q){
   q = (q||'').toLowerCase();
+  const dept = $('otDept') ? $('otDept').value : '';
   $('otWorkers').innerHTML = (WORKERS||[])
     .filter(w => w.code !== CODE)
+    .filter(w => !dept || String(w.dept||'').trim() === dept)
     .filter(w => !q || [w.name, w.code, w.dept, w.line].join(' ').toLowerCase().includes(q))
     .map(w => `<label class="flex items-center gap-2 p-2 rounded-lg text-sm" style="background:#f8fafc">
       <input type="checkbox" class="otw-chk" value="${esc(w.code)}">
-      <span><b>${esc(w.name)}</b> <span style="color:var(--muted);font-size:11px">${esc(w.code)}${w.line ? ' • ' + esc(w.line) : ''}</span></span>
+      <span><b>${esc(w.name)}</b> <span style="color:var(--muted);font-size:11px">${esc(w.code)}${w.dept ? ' • ' + esc(w.dept) : ''}${w.line ? ' • ' + esc(w.line) : ''}</span></span>
     </label>`).join('') || '<p class="m-0 text-xs" style="color:var(--muted)">No workers found.</p>';
   updateOtCount();
 }
 function updateOtCount(){ $('otSelCount').innerText = document.querySelectorAll('.otw-chk:checked').length + ' selected'; }
 $('otSearch').addEventListener('input', e => renderWorkers(e.target.value));
+$('otDept') && $('otDept').addEventListener('change', () => renderWorkers($('otSearch').value));
 $('otWorkers').addEventListener('change', updateOtCount);
 $('otAllBtn').addEventListener('click', () => { document.querySelectorAll('.otw-chk').forEach(c => c.checked = true); updateOtCount(); });
 $('otNoneBtn').addEventListener('click', () => { document.querySelectorAll('.otw-chk').forEach(c => c.checked = false); updateOtCount(); });
@@ -1945,6 +1992,36 @@ function showPublicFeedback(){
 }
 
 // auto-login if saved (skipped on the public feedback route)
+async function loadAvatar(){
+  try{
+    const { data, error } = await sb.storage.from('expense-bills').createSignedUrl('profile/' + String(CODE||'').trim().toUpperCase() + '.jpg', 3600);
+    if(error || !data) return;
+    const img = $('hAvImg');
+    img.onload = () => { img.classList.remove('hidden'); $('hAvInit').classList.add('hidden'); };
+    img.src = data.signedUrl;
+  }catch(e){}
+}
+document.addEventListener('change', async e => {
+  if(e.target && e.target.id === 'avFile'){
+    const f = e.target.files && e.target.files[0]; if(!f) return;
+    notify('Uploading photo…');
+    try{
+      // compress to ~400px jpeg (mobile photos are huge)
+      const bmp = await createImageBitmap(f);
+      const scale = Math.min(1, 400 / Math.max(bmp.width, bmp.height));
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(bmp.width * scale); cv.height = Math.round(bmp.height * scale);
+      cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+      const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.85));
+      const path = 'profile/' + String(CODE||'').trim().toUpperCase() + '.jpg';
+      const { error } = await sb.storage.from('expense-bills').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+      if(error) throw error;
+      notify('Profile photo updated ✓');
+      loadAvatar();
+    }catch(err){ notify('Upload failed: ' + (err.message || err)); }
+    e.target.value = '';
+  }
+});
 window._nxDbg = [];
 function _dbg(tag, val){
   try{
@@ -1958,7 +2035,7 @@ function _dbg(tag, val){
       p.onclick = () => p.remove();
       document.body.appendChild(p);
     }
-    if(p) p.textContent = '🔍 BUILD B62 (tap to close)\n' + window._nxDbg.join('\n');
+    if(p) p.textContent = '🔍 BUILD B64 (tap to close)\n' + window._nxDbg.join('\n');
   }catch(e){}
 }
 window.onerror = function(m, s, l){ _dbg('JS-ERROR', { message: String(m) + ' @line ' + l }); };
