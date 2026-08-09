@@ -134,7 +134,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div class="text-center mb-6">
       <h1 class="m-0" style="font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Self Service</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B59</b> — 08 Aug</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B60</b> — 08 Aug</p>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
     <div class="card">
@@ -153,7 +153,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div>
         <h2 class="display font-bold m-0 text-lg" id="hName">—</h2>
         <p class="text-xs m-0" style="color:var(--muted)" id="hMeta">—</p>
-        <p class="text-[9px] m-0" style="color:#cbd5e1">Build B59</p>
+        <p class="text-[9px] m-0" style="color:#cbd5e1">Build B60</p>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
     </div>
@@ -219,7 +219,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       </div>
       <div class="card" style="background:linear-gradient(135deg,#faf5ff,#ffffff);border:1.5px solid #e9d5ff">
         <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-house-laptop" style="color:#7e22ce"></i> Work From Home (WFH)</h3>
-        <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Reporting manager ke approve karne par us din attendance mein <b>WFH</b> dikhega — din ka paisa milega, punch ki zaroorat nahi.</p>
+
         <div class="grid grid-cols-2 gap-2 mb-2">
           <div><label class="lbl">Date</label><input id="wfhDate" type="date" class="inp"></div>
           <div><label class="lbl">Reason</label><input id="wfhReason" class="inp" placeholder="e.g. Site visit prep"></div>
@@ -794,6 +794,12 @@ async function loadKaizenCongrats(){
         ? `Your suggestion <b>"${esc(f.subject||'')}"</b> was implemented successfully. Thank you for making things better!`
         : `Your suggestion <b>"${esc(f.subject||'')}"</b> has been approved — you can go ahead and execute it. Reward follows on completion.`}</div>
       ${f.admin_note ? `<div class="kz-note"><i class="fa-solid fa-quote-left" style="opacity:.4;margin-right:5px"></i>${esc(f.admin_note)}<div style="font-size:10px;color:#94a3b8;margin-top:3px">— CEO</div></div>` : ''}
+      ${(!done && f.kz_review_requested_at) ? `<div class="kz-note" style="background:#fffbeb;border-color:#fde68a"><i class="fa-solid fa-flag-checkered" style="color:#b45309;margin-right:5px"></i><b>Closing bheji ✓</b> — CEO review pending. Approve hote hi reward announce hoga.</div>` : ''}
+      ${(!done && !f.kz_review_requested_at) ? `<div class="kz-note" style="background:#f0fdf4;border-color:#bbf7d0">
+        <div style="font-weight:700;font-size:11px;margin-bottom:5px;color:#166534"><i class="fa-solid fa-file-pen"></i> Execute kar liya? Closing report bhejo:</div>
+        <textarea id="kzcl_${f.id}" class="inp" rows="2" placeholder="Kya kiya, kya result mila — short mein likho" style="font-size:12px;margin-bottom:6px"></textarea>
+        <button class="btn btn-primary btn-sm w-full justify-center" onclick="kaizenSubmitClosing(${f.id})"><i class="fa-solid fa-paper-plane"></i> Submit Closing & Request Review</button>
+      </div>` : ''}
       <div>
         ${(done && f.reward > 0) ? `<span class="kz-reward"><i class="fa-solid fa-gift"></i> Reward ₹${Number(f.reward).toLocaleString('en-IN')} in next payroll</span>` : ''}
         ${(done && !(f.reward > 0)) ? `<span class="kz-reward" style="background:#eef2ff;border-color:#c7d2fe;color:#4338ca"><i class="fa-solid fa-medal"></i> Recognised for your contribution</span>` : ''}
@@ -802,6 +808,18 @@ async function loadKaizenCongrats(){
       </div>
     </div>`;
   }).join('');
+}
+async function kaizenSubmitClosing(id){
+  const ta = document.getElementById('kzcl_' + id);
+  const txt = ta ? ta.value.trim() : '';
+  if(!txt) return notify('Closing report likho pehle');
+  try{
+    const { data, error } = await sb.rpc('ess_kaizen_close', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: id, p_closing: txt });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    notify('Closing bheji ✓ — CEO review karega');
+    loadKaizenCongrats();
+  }catch(err){ notify(err.message || 'Failed'); }
 }
 function _mmdd(d){ if(!d) return null; const s=String(d); const m=s.match(/(\d{4})-(\d{2})-(\d{2})/); if(m) return m[2]+'-'+m[3]; const m2=s.match(/(\d{2})\/(\d{2})\/(\d{4})/); if(m2) return m2[2]+'-'+m2[1]; return null; }
 function _within7(mmdd){
@@ -892,10 +910,10 @@ async function loadKaizenWall(){
   const host = $('kaizenWall'); if(!host) return;
   let items = [];
   try{
-    const { data } = await sb.from('feedback').select('*').eq('type','KAIZEN').eq('status','APPROVED').order('id',{ascending:false}).limit(15);
+    const { data } = await sb.from('feedback').select('*').eq('type','KAIZEN').eq('status','APPROVED').eq('kz_stage','COMPLETED').order('id',{ascending:false}).limit(15);
     items = data || [];
   }catch(e){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Could not load.</p>'; return; }
-  if(!items.length){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">No approved Kaizen yet. Be the first to suggest an improvement!</p>'; return; }
+  if(!items.length){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">No completed Kaizen yet. Be the first to suggest an improvement!</p>'; return; }
   // resolve names from a light lookup (feedback has employee_code)
   const codes = [...new Set(items.map(i => i.employee_code).filter(Boolean))];
   let names = {};
@@ -1778,7 +1796,7 @@ function _dbg(tag, val){
       p.onclick = () => p.remove();
       document.body.appendChild(p);
     }
-    if(p) p.textContent = '🔍 BUILD B59 (tap to close)\n' + window._nxDbg.join('\n');
+    if(p) p.textContent = '🔍 BUILD B60 (tap to close)\n' + window._nxDbg.join('\n');
   }catch(e){}
 }
 window.onerror = function(m, s, l){ _dbg('JS-ERROR', { message: String(m) + ' @line ' + l }); };
