@@ -142,7 +142,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div class="text-center mb-6">
       <h1 class="m-0" style="font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Self Service</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B61</b> — 08 Aug</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B62</b> — 08 Aug</p>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
     <div class="card">
@@ -161,7 +161,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div>
         <h2 class="display font-bold m-0 text-lg" id="hName">—</h2>
         <p class="text-xs m-0" style="color:var(--muted)" id="hMeta">—</p>
-        <p class="text-[9px] m-0" style="color:#cbd5e1">Build B61</p>
+        <p class="text-[9px] m-0" style="color:#cbd5e1">Build B62</p>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
     </div>
@@ -200,20 +200,59 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-indian-rupee-sign" style="color:var(--brand)"></i> My Payslips</h3><div id="payBox"></div></div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-boxes-stacked" style="color:var(--brand)"></i> My Assets</h3><div id="assetBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-lightbulb" style="color:var(--brand)"></i> Kaizen Wall <span class="text-[10px] font-normal" style="color:var(--muted)">— ideas approved across the team</span></h3><div id="kaizenWall"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
-      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-cake-candles" style="color:var(--brand)"></i> Birthdays & Anniversaries <span class="text-[10px] font-normal" style="color:var(--muted)">— this week</span></h3><div id="bdayBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
-      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-envelope-open-text" style="color:var(--brand)"></i> My Wishes <span class="text-[10px] font-normal" style="color:var(--muted)">— messages for you</span></h3><div id="myWishesBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-calendar-check" style="color:var(--warn)"></i> Holidays This Year</h3><div id="holBox" class="text-sm space-y-1"></div></div>
     </div>
 
     <div class="page" id="p-req">
       <div class="req-tiles">
         <button class="req-tile" data-rs="leave"><span class="rt-ic" style="background:#dcfce7;color:#16a34a"><i class="fa-solid fa-umbrella-beach"></i></span><span>Leave</span></button>
+        <button class="req-tile" data-rs="field"><span class="rt-ic" style="background:#e0f2fe;color:#0284c7"><i class="fa-solid fa-location-dot"></i></span><span>Field Duty</span></button>
         <button class="req-tile" data-rs="gate"><span class="rt-ic" style="background:#ccfbf1;color:#0d9488"><i class="fa-solid fa-door-open"></i></span><span>Gate Pass</span></button>
         <button class="req-tile" data-rs="wfh"><span class="rt-ic" style="background:#f3e8ff;color:#7e22ce"><i class="fa-solid fa-house-laptop"></i></span><span>WFH</span></button>
         <button class="req-tile" data-rs="money"><span class="rt-ic" style="background:#dbeafe;color:#2563eb"><i class="fa-solid fa-receipt"></i></span><span>Expenses</span></button>
+        <button class="req-tile" data-rs="adv"><span class="rt-ic" style="background:#fef9c3;color:#ca8a04"><i class="fa-solid fa-sack-dollar"></i></span><span>Advance / Loan</span></button>
         <button class="req-tile hidden" id="tilOT" data-rs="ot"><span class="rt-ic" style="background:#fef3c7;color:#d97706"><i class="fa-solid fa-clock"></i></span><span>Overtime</span></button>
+        <button class="req-tile" data-rs="celebrate"><span class="rt-ic" style="background:#ffe4e6;color:#e11d48"><i class="fa-solid fa-cake-candles"></i></span><span>Celebrations</span></button>
         <button class="req-tile" data-rs="voice"><span class="rt-ic" style="background:#e0e7ff;color:#4f46e5"><i class="fa-solid fa-comments"></i></span><span>Voice Box</span></button>
         <button class="req-tile" data-rs="resign"><span class="rt-ic" style="background:#fee2e2;color:#dc2626"><i class="fa-solid fa-person-walking-arrow-right"></i></span><span>Resign</span></button>
+      </div>
+      <div class="req-sec hidden" id="rs-field">
+      <div class="card" style="background:linear-gradient(135deg,#f0f9ff,#ffffff);border:1.5px solid #bae6fd">
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-location-dot" style="color:#0284c7"></i> Field Duty <i class="fa-regular fa-circle-question" onclick="$('fldInfo').classList.toggle('hidden')" style="cursor:pointer;color:#94a3b8;font-size:12px;margin-left:4px"></i></h3>
+        <div class="text-[11px] mt-0 mb-2 hidden p-2 rounded" id="fldInfo" style="background:#f0f9ff;color:#075985;line-height:1.5">Request approval for working outside the premises. Once your reporting manager approves, the Punch In/Out option appears on your Home screen for the approved day(s).</div>
+        <div class="grid grid-cols-2 gap-2 mb-2">
+          <div><label class="lbl">Duration</label><select id="fldMode" class="inp" onchange="$('fldToWrap').classList.toggle('hidden', this.value!=='MULTI')">
+            <option value="SINGLE">Single day</option>
+            <option value="MULTI">Multiple days</option>
+          </select></div>
+          <div><label class="lbl">From</label><input id="fldFrom" type="date" class="inp"></div>
+          <div class="hidden" id="fldToWrap"><label class="lbl">To</label><input id="fldTo" type="date" class="inp"></div>
+          <div><label class="lbl">Reason</label><input id="fldReason" class="inp" placeholder="Reason"></div>
+        </div>
+        <button id="fldBtn" class="btn btn-primary w-full justify-center" style="background:#0284c7"><i class="fa-solid fa-paper-plane"></i> Request Approval</button>
+        <div id="fldList" class="mt-2 text-xs"></div>
+      </div>
+      </div>
+      <div class="req-sec hidden" id="rs-adv">
+      <div class="card" style="background:linear-gradient(135deg,#fefce8,#ffffff);border:1.5px solid #fde68a">
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-sack-dollar" style="color:#ca8a04"></i> Advance / Loan <i class="fa-regular fa-circle-question" onclick="$('mrInfo').classList.toggle('hidden')" style="cursor:pointer;color:#94a3b8;font-size:12px;margin-left:4px"></i></h3>
+        <div class="text-[11px] mt-0 mb-2 hidden p-2 rounded" id="mrInfo" style="background:#fefce8;color:#854d0e;line-height:1.5"><b>Advance</b> — adjusted in your next salary. <b>Loan</b> — repaid in monthly instalments over the selected months. Subject to HR approval.</div>
+        <div class="grid grid-cols-2 gap-2 mb-2">
+          <div><label class="lbl">Type</label><select id="mrType" class="inp" onchange="$('mrMonthsWrap').classList.toggle('hidden', this.value!=='LOAN')">
+            <option value="ADVANCE">Salary Advance</option>
+            <option value="LOAN">Loan</option>
+          </select></div>
+          <div><label class="lbl">Amount (₹)</label><input id="mrAmt" type="number" class="inp" placeholder="0"></div>
+          <div class="hidden" id="mrMonthsWrap"><label class="lbl">Repay in (months)</label><select id="mrMonths" class="inp"><option>3</option><option>6</option><option>9</option><option>12</option><option>18</option><option>24</option></select></div>
+          <div><label class="lbl">Reason</label><input id="mrReason" class="inp" placeholder="Reason"></div>
+        </div>
+        <button id="mrBtn" class="btn btn-primary w-full justify-center" style="background:#ca8a04"><i class="fa-solid fa-paper-plane"></i> Submit Request</button>
+        <div id="mrList" class="mt-2 text-xs"></div>
+      </div>
+      </div>
+      <div class="req-sec hidden" id="rs-celebrate">
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-cake-candles" style="color:var(--brand)"></i> Birthdays & Anniversaries <span class="text-[10px] font-normal" style="color:var(--muted)">— this week</span></h3><div id="bdayBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-envelope-open-text" style="color:var(--brand)"></i> My Wishes <span class="text-[10px] font-normal" style="color:var(--muted)">— messages for you</span></h3><div id="myWishesBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
       </div>
       <div class="req-sec hidden" id="rs-gate">
       <div class="card" style="background:linear-gradient(135deg,#f0fdfa,#ffffff);border:1.5px solid #99f6e4">
@@ -687,6 +726,84 @@ document.querySelectorAll('.req-tile').forEach(t => t.addEventListener('click', 
   document.querySelectorAll('.req-tile').forEach(x => x.classList.remove('active'));
   if(opening){ sec.classList.remove('hidden'); t.classList.add('active'); }
 }));
+function _cancelChip(kind, id){
+  return ` <button class="chip chip-gray" style="border:none;cursor:pointer;font-size:9px" onclick="essCancelReq('${kind}',${id})" title="Cancel request"><i class="fa-solid fa-xmark"></i></button>`;
+}
+async function essCancelReq(kind, id){
+  try{
+    const codeU = String(CODE||'').trim().toUpperCase();
+    const table = kind === 'MR' ? 'money_requests' : 'ess_att_requests';
+    const { error } = await sb.from(table).delete().eq('id', id).ilike('employee_code', codeU).eq('status','PENDING');
+    if(error) throw error;
+    notify('Request cancelled');
+    if(kind === 'MR') loadMoneyReqs();
+    else { loadFieldReqs(); loadWfh(); loadGatePass(); }
+  }catch(err){ notify(err.message || 'Failed'); }
+}
+async function loadFieldReqs(){
+  const host = $('fldList'); if(!host) return;
+  if($('fldFrom') && !$('fldFrom').value) $('fldFrom').value = new Date().toISOString().slice(0,10);
+  const codeU = String(CODE||'').trim().toUpperCase();
+  try{
+    const { data } = await sb.from('ess_att_requests').select('*').ilike('employee_code', codeU).eq('req_type','FIELD').order('date', { ascending:false }).limit(10);
+    host.innerHTML = (data||[]).length ? data.map(r => {
+      const chip = { PENDING:'chip-warn', APPROVED:'chip-ok', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
+      return `<div class="row"><span>${fmtDate(r.date)}${r.reason?' · '+esc(r.reason):''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status==='PENDING'?_cancelChip('ATT', r.id):''}</span></div>`;
+    }).join('') : '';
+  }catch(e){}
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('#fldBtn'); if(!b) return;
+  const codeU = String(CODE||'').trim().toUpperCase();
+  const from = $('fldFrom').value;
+  if(!from) return notify('Select a date');
+  let dates = [from];
+  if($('fldMode').value === 'MULTI'){
+    const to = $('fldTo').value;
+    if(!to || to < from) return notify('Select a valid To date');
+    const d1 = new Date(from), d2 = new Date(to);
+    if((d2 - d1) / 864e5 > 14) return notify('Maximum 15 days per request');
+    dates = [];
+    for(let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) dates.push(d.toISOString().slice(0,10));
+  }
+  b.disabled = true;
+  try{
+    let ok = 0, dup = 0;
+    for(const dt of dates){
+      const { error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: dt, reason: $('fldReason').value.trim()||null, status: 'PENDING', req_type: 'FIELD' }]);
+      if(error){ if(String(error.message||'').includes('duplicate')) dup++; else throw error; }
+      else ok++;
+    }
+    notify(ok + ' day(s) requested for approval' + (dup ? ' · ' + dup + ' already existed' : ''));
+    $('fldReason').value = '';
+    loadFieldReqs();
+  }catch(err){ notify(err.message || 'Request failed'); }
+  finally{ b.disabled = false; }
+});
+async function loadMoneyReqs(){
+  const host = $('mrList'); if(!host) return;
+  const codeU = String(CODE||'').trim().toUpperCase();
+  try{
+    const { data } = await sb.from('money_requests').select('*').ilike('employee_code', codeU).order('created_at', { ascending:false }).limit(8);
+    host.innerHTML = (data||[]).length ? data.map(r => {
+      const chip = { PENDING:'chip-warn', APPROVED:'chip-ok', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
+      return `<div class="row"><span><b>${r.req_type === 'LOAN' ? 'Loan' : 'Advance'}</b> ${fmtINR(r.amount)}${r.months?' · '+r.months+' mo':''}${r.reason?' · '+esc(r.reason):''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status==='PENDING'?_cancelChip('MR', r.id):''}</span></div>`;
+    }).join('') : '';
+  }catch(e){}
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('#mrBtn'); if(!b) return;
+  const codeU = String(CODE||'').trim().toUpperCase();
+  const amt = Number($('mrAmt').value);
+  if(!amt || amt <= 0) return notify('Enter a valid amount');
+  try{
+    const { error } = await sb.from('money_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, req_type: $('mrType').value, amount: amt, months: $('mrType').value === 'LOAN' ? Number($('mrMonths').value) : null, reason: $('mrReason').value.trim()||null, status: 'PENDING' }]);
+    if(error) throw error;
+    notify('Request submitted for HR approval ✓');
+    $('mrAmt').value = ''; $('mrReason').value = '';
+    loadMoneyReqs();
+  }catch(err){ notify(err.message || 'Failed — run the V60 SQL if not done yet'); }
+});
 async function loadGatePass(){
   const host = $('gpList'); if(!host) return;
   if($('gpDate') && !$('gpDate').value) $('gpDate').value = new Date().toISOString().slice(0,10);
@@ -706,7 +823,7 @@ async function loadGatePass(){
     const { data } = await sb.from('ess_att_requests').select('*').ilike('employee_code', codeU).in('req_type',['GATE_SL','GATE_HD']).order('date', { ascending:false }).limit(8);
     host.innerHTML = (data||[]).length ? data.map(r => {
       const chip = { PENDING:'chip-warn', APPROVED:'chip-ok', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
-      return `<div class="row"><span>${fmtDate(r.date)} ${gpTypeLabel(r)}${r.reason?' · '+esc(r.reason):''}</span><span class="chip ${chip}">${esc(r.status)}</span></div>`;
+      return `<div class="row"><span>${fmtDate(r.date)} ${gpTypeLabel(r)}${r.reason?' · '+esc(r.reason):''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status==='PENDING'?_cancelChip('ATT', r.id):''}</span></div>`;
     }).join('') : '';
   }catch(e){ _dbg('gate-ERROR', e); }
 }
@@ -732,7 +849,7 @@ async function loadWfh(){
     const { data } = await sb.from('ess_att_requests').select('*').ilike('employee_code', codeU).eq('req_type','WFH').order('date', { ascending:false }).limit(8);
     host.innerHTML = (data||[]).length ? data.map(r => {
       const chip = { PENDING:'chip-warn', APPROVED:'chip-ok', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
-      return `<div class="row"><span>${fmtDate(r.date)}${r.reason?' · '+esc(r.reason):''}</span><span class="chip ${chip}">${esc(r.status)}</span></div>`;
+      return `<div class="row"><span>${fmtDate(r.date)}${r.reason?' · '+esc(r.reason):''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status==='PENDING'?_cancelChip('ATT', r.id):''}</span></div>`;
     }).join('') : '';
   }catch(e){}
 }
@@ -1093,6 +1210,8 @@ $('loginBtn').addEventListener('click', async () => {
     try{ loadMyPayments(); }catch(e){ _dbg('pay-ERROR', e); }
     try{ loadTeamApprovals(); }catch(e){ _dbg('team-ERROR', e); }
     try{ loadGatePass(); }catch(e){ _dbg('gate-ERROR', e); }
+    try{ loadFieldReqs(); }catch(e){ _dbg('field-ERROR', e); }
+    try{ loadMoneyReqs(); }catch(e){ _dbg('mr-ERROR', e); }
     sb.rpc('ess_line_today', { p_code: CODE, p_phone: PHONE }).then(({ data: ld }) => {
       if(ld && ld.lines && ld.lines.length) $('tabTeam').classList.remove('hidden');
     }).catch(() => {});
@@ -1839,7 +1958,7 @@ function _dbg(tag, val){
       p.onclick = () => p.remove();
       document.body.appendChild(p);
     }
-    if(p) p.textContent = '🔍 BUILD B61 (tap to close)\n' + window._nxDbg.join('\n');
+    if(p) p.textContent = '🔍 BUILD B62 (tap to close)\n' + window._nxDbg.join('\n');
   }catch(e){}
 }
 window.onerror = function(m, s, l){ _dbg('JS-ERROR', { message: String(m) + ' @line ' + l }); };
