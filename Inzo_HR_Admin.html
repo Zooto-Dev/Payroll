@@ -554,6 +554,7 @@ body.no-confidential .confidential-col{display:none!important}
     <button class="ap-tab" data-aptab="ot"><i class="fa-solid fa-clock"></i> Overtime <span class="ap-cnt" id="apCntOt">0</span></button>
     <button class="ap-tab" data-aptab="exp"><i class="fa-solid fa-receipt"></i> Expenses <span class="ap-cnt" id="apCntEx">0</span></button>
     <button class="ap-tab" data-aptab="essatt"><i class="fa-solid fa-location-dot"></i> Field / WFH / Gate <span class="ap-cnt" id="apCntEa">0</span></button>
+    <button class="ap-tab" data-aptab="mloan"><i class="fa-solid fa-sack-dollar"></i> Advance / Loan <span class="ap-cnt" id="apCntMl">0</span></button>
   </div>
   <div class="card" style="padding:0;overflow:hidden">
     <div class="ap-panel" id="apPanel-leaves">
@@ -578,6 +579,9 @@ body.no-confidential .confidential-col{display:none!important}
     </div>
     <div class="ap-panel hidden" id="apPanel-essatt">
       <div id="apEssAtt" class="text-sm" style="padding:0"></div>
+    </div>
+    <div class="ap-panel hidden" id="apPanel-mloan">
+      <div id="apMloan" class="text-sm" style="padding:0"></div>
     </div>
   </div>
 </div>
@@ -4532,6 +4536,13 @@ document.body.addEventListener('click', async e => {
     if(error) return notify(error.message, 'error');
     window.open(data.signedUrl, '_blank');
   }
+  if(act === 'ml-appr' || act === 'ml-rej'){
+    const st = act === 'ml-appr' ? 'APPROVED' : 'REJECTED';
+    await sb.from('money_requests').update({ status: st, decided_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
+    notify(st === 'APPROVED' ? 'Approved — employee ke ESS par dikh jayega' : 'Rejected', 'success');
+    loadApprovals();
+    return;
+  }
   if(act === 'ex-pay'){ openExPay(el.dataset.code); return; }
   if(act === 'ex-proof'){
     const { data, error } = await sb.storage.from('expense-bills').createSignedUrl(el.dataset.path, 120);
@@ -7072,6 +7083,22 @@ async function loadApprovals(){
           <button class="btn btn-ghost btn-sm" data-act="ex-appr" data-id="${x.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
           <button class="btn btn-danger btn-sm" data-act="ex-rej" data-id="${x.id}"><i class="fa-solid fa-xmark"></i></button></td></tr>`;
     }).join('')}</tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
+  // Advance / Loan pending
+  let ml = { data: [] };
+  try{ ml = await sb.from('money_requests').select('*').eq('status','PENDING').order('created_at'); }catch(e){}
+  const nameOfMl = c => { const e2 = EMP.find(x => x['Employee code'] === c); return e2 ? e2.Name : c; };
+  $('apMloan').innerHTML = (ml.data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Employee</th><th>Type</th><th>Amount</th><th>Repay</th><th>Reason</th><th>Requested</th><th style="text-align:right"></th></tr></thead><tbody>
+    ${ml.data.map(r => `<tr><td class="font-semibold">${esc(r.name || nameOfMl(r.employee_code))} <span class="text-[10px]" style="color:var(--muted)">${esc(r.employee_code)}</span></td>
+      <td><span class="chip" style="${r.req_type==='LOAN'?'background:#fef9c3;color:#854d0e':'background:#dbeafe;color:#1e40af'}">${r.req_type === 'LOAN' ? 'LOAN' : 'ADVANCE'}</span></td>
+      <td class="font-bold">${fmtINR(r.amount)}</td><td class="text-xs">${r.months ? r.months + ' months' : 'Next salary'}</td>
+      <td class="text-xs" style="max-width:200px">${esc(r.reason||'—')}</td>
+      <td class="text-xs">${fmtDate(String(r.created_at).slice(0,10))}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" data-act="ml-appr" data-id="${r.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
+        <button class="btn btn-danger btn-sm" data-act="ml-rej" data-id="${r.id}"><i class="fa-solid fa-xmark"></i></button></td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
+  if($('apCntMl')) $('apCntMl').innerText = (ml.data||[]).length;
   // tab count badges
   const otGroupCount = Object.keys(groups).length;
   if($('apCntLv')) $('apCntLv').innerText = (lv.data||[]).length;
