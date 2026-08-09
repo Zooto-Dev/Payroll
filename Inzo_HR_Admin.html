@@ -1210,6 +1210,7 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">Email</label><input id="epEmail" class="inp"></div>
       <div><label class="lbl">Department</label><select id="epDeptSel" class="inp"></select></div>
       <div><label class="lbl">Designation</label><select id="epDesigSel" class="inp"></select></div>
+      <div><label class="lbl">Unit / Location</label><select id="epUnitSel" class="inp"></select></div>
       <div><label class="lbl">Father's Name</label><input id="epFather" class="inp"></div>
       <div><label class="lbl">Date of Birth</label><input id="epDOB" type="date" class="inp"></div>
       <div><label class="lbl">Gender</label><select id="epGender" class="inp"><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></div>
@@ -3008,6 +3009,13 @@ async function openEmpModal(code){
   populateDLs();
   $('epDeptSel').innerHTML = window.nxDeptOpts(e.DEPARTMENT || '');
   $('epDesigSel').innerHTML = window.nxDesigOpts(e.DESIGNATION || '');
+  {
+    const curU = e.UNIT || String(e['Employee code']||'').slice(0,4);
+    const us = (SETTINGS && SETTINGS.units) || [];
+    $('epUnitSel').innerHTML = us.length
+      ? us.map(u => `<option value="${esc(u.code)}" ${u.code === curU ? 'selected' : ''}>${esc(u.code)} — ${esc(u.name||'')}</option>`).join('')
+      : `<option value="${esc(curU)}" selected>${esc(curU)}</option>`;
+  }
   $('epFather').value = p.father_name || ''; $('epDOB').value = p.dob || ''; $('epGender').value = p.gender || '';
   $('epStatus').value = String(e.Status).toUpperCase() === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
   const salSt = String(p.salary_status || 'APPROVED').toUpperCase();
@@ -3278,7 +3286,7 @@ $('epSaveBtn').addEventListener('click', async () => {
     // if an exit date is set, force status INACTIVE
     const newStatus = ($('epExitDate').value || $('epStatus').value === 'INACTIVE') ? 'INACTIVE' : 'ACTIVE';
     // employees master: department / designation / status
-    const empUpd = { DEPARTMENT: $('epDeptSel').value || null, DESIGNATION: $('epDesigSel').value || null, Status: newStatus };
+    const empUpd = { DEPARTMENT: $('epDeptSel').value || null, DESIGNATION: $('epDesigSel').value || null, UNIT: $('epUnitSel').value || null, Status: newStatus };
     // Name + DOJ corrections
     const newName = $('epName').value.trim().toUpperCase();
     if(newName) empUpd.Name = newName;
