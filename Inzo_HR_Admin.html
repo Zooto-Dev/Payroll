@@ -1210,7 +1210,13 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">Email</label><input id="epEmail" class="inp"></div>
       <div><label class="lbl">Department</label><select id="epDeptSel" class="inp"></select></div>
       <div><label class="lbl">Designation</label><select id="epDesigSel" class="inp"></select></div>
-      <div><label class="lbl">Unit / Location</label><select id="epUnitSel" class="inp"></select></div>
+      <div><label class="lbl">Unit / Location</label><select id="epUnitSel" class="inp"></select>
+        <div id="epCodeChg" class="hidden mt-2 p-2 rounded text-[11px]" style="background:#fffbeb;border:1px solid #fde68a;color:#78350f">
+          <label class="flex items-center gap-2" style="cursor:pointer"><input type="checkbox" id="epCodeChgChk">
+            <span>Naye unit ka <b>naya code</b> bhi de do: <b id="epCodeChgNew">—</b><br>
+            <span style="font-size:9.5px;color:#a16207">Poora history (attendance, salary, leaves, expenses…) naye code par migrate hoga</span></span></label>
+        </div>
+      </div>
       <div><label class="lbl">Father's Name</label><input id="epFather" class="inp"></div>
       <div><label class="lbl">Date of Birth</label><input id="epDOB" type="date" class="inp"></div>
       <div><label class="lbl">Gender</label><select id="epGender" class="inp"><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></div>
@@ -3015,6 +3021,21 @@ async function openEmpModal(code){
     $('epUnitSel').innerHTML = us.length
       ? us.map(u => `<option value="${esc(u.code)}" ${u.code === curU ? 'selected' : ''}>${esc(u.code)} — ${esc(u.name||'')}</option>`).join('')
       : `<option value="${esc(curU)}" selected>${esc(curU)}</option>`;
+    window._epOrigUnit = curU;
+    $('epCodeChg').classList.add('hidden');
+    $('epCodeChgChk').checked = false;
+    $('epUnitSel').onchange = () => {
+      const nu = $('epUnitSel').value;
+      const oldCode = $('epCode').value.trim().toUpperCase();
+      if(nu && nu !== window._epOrigUnit && !oldCode.startsWith(nu)){
+        $('epCodeChgNew').innerText = nextCodeFor(nu);
+        $('epCodeChg').classList.remove('hidden');
+        $('epCodeChgChk').checked = true;   // default ON — unit ke saath code bhi
+      } else {
+        $('epCodeChg').classList.add('hidden');
+        $('epCodeChgChk').checked = false;
+      }
+    };
   }
   $('epFather').value = p.father_name || ''; $('epDOB').value = p.dob || ''; $('epGender').value = p.gender || '';
   $('epStatus').value = String(e.Status).toUpperCase() === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
@@ -3286,6 +3307,22 @@ $('epSaveBtn').addEventListener('click', async () => {
     // if an exit date is set, force status INACTIVE
     const newStatus = ($('epExitDate').value || $('epStatus').value === 'INACTIVE') ? 'INACTIVE' : 'ACTIVE';
     // employees master: department / designation / status
+    // unit-transfer code change (full-history migration via V62 function)
+    if(!$('epCodeChg').classList.contains('hidden') && $('epCodeChgChk').checked){
+      const oldCode = $('epCode').value.trim().toUpperCase();
+      const newCode = nextCodeFor($('epUnitSel').value);   // fresh at save time
+      if(!(await nxConfirm(`Employee code badlega:\n${oldCode}  →  ${newCode}\n\nPoora history (attendance, salary, leaves, expenses, advances, requests…) naye code par migrate hoga. Confirm?`, 'Change Employee Code'))) return;
+      const { data: cc, error: ccErr } = await sb.rpc('nx_change_employee_code', { p_old: oldCode, p_new: newCode, p_unit: $('epUnitSel').value });
+      if(ccErr) return notify(ccErr.message + ' — V62 SQL chalaya hai?', 'error');
+      if(cc && cc.error) return notify(cc.error, 'error');
+      // local state follows the new code
+      $('epCode').value = newCode;
+      const emp = EMP.find(x => x['Employee code'] === oldCode);
+      if(emp){ emp['Employee code'] = newCode; emp.UNIT = $('epUnitSel').value; }
+      if(PROFILES[oldCode]){ PROFILES[newCode] = PROFILES[oldCode]; delete PROFILES[oldCode]; }
+      notify(`Code changed: ${oldCode} → ${newCode} — history migrated`, 'success');
+      $('epCodeChg').classList.add('hidden'); $('epCodeChgChk').checked = false;
+    }
     const empUpd = { DEPARTMENT: $('epDeptSel').value || null, DESIGNATION: $('epDesigSel').value || null, UNIT: $('epUnitSel').value || null, Status: newStatus };
     // Name + DOJ corrections
     const newName = $('epName').value.trim().toUpperCase();
