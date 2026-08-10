@@ -4943,8 +4943,15 @@ document.body.addEventListener('click', async e => {
     const r = reqRows && reqRows[0];
     if(!r) return;
     if(!(window._canDecideEssAtt && window._canDecideEssAtt(r))) return notify('Only the reporting manager (or a super admin) can decide this request', 'error');
-    await sb.from('ess_att_requests').update({ status: act === 'ea-appr' ? 'APPROVED' : 'REJECTED', approved_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
-    notify(act === 'ea-appr' ? 'Field attendance approved — Punch In/Out is now live on their ESS' : 'Request rejected', 'success');
+    if(act === 'ea-appr' && r.req_type === 'ATT_FIX'){
+      const { data: fx, error: fxErr } = await sb.rpc('nx_apply_att_fix', { p_id: r.id, p_by: ME_EMAIL });
+      if(fxErr) return notify(fxErr.message + ' — V64 SQL chalaya hai?', 'error');
+      if(fx && fx.error) return notify(fx.error, 'error');
+      notify('Correction approved — attendance record created for ' + fmtDate(r.date), 'success');
+    } else {
+      await sb.from('ess_att_requests').update({ status: act === 'ea-appr' ? 'APPROVED' : 'REJECTED', approved_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
+      notify(act === 'ea-appr' ? 'Approved' : 'Request rejected', 'success');
+    }
     loadApprovals();
     return;
   }
@@ -7382,7 +7389,7 @@ async function loadVoice(){
     ${f.kz_remarks ? `<div class="text-[11px] mb-1" style="color:var(--muted)"><b>Remarks:</b> ${esc(f.kz_remarks)}</div>` : ''}
     ${f.solutions ? `<div class="text-xs mb-1 p-2 rounded" style="background:#eff6ff"><b>Proposed solutions:</b><br><span style="white-space:pre-wrap">${esc(f.solutions)}</span></div>` : ''}
     ${f.admin_note ? `<div class="text-[11px] mb-1" style="color:var(--muted)"><b>Note:</b> ${esc(f.admin_note)}</div>` : ''}
-    ${(f.type === 'KAIZEN' && f.kz_closing) ? `<div class="text-[11px] mb-1 p-2 rounded" style="background:#fffbeb;border:1px solid #fde68a;color:#78350f"><b><i class="fa-solid fa-file-lines"></i> Closing Report:</b> ${esc(f.kz_closing)}${f.kz_review_requested_at ? `<div style="font-size:9px;color:#b45309;margin-top:2px">Submitted ${fmtDate(String(f.kz_review_requested_at).slice(0,10))}</div>` : ''}</div>` : ''}
+    ${(f.type === 'KAIZEN' && f.kz_closing) ? `<div class="text-[11px] mb-1 p-2 rounded" style="background:#fffbeb;border:1px solid #fde68a;color:#78350f"><b><i class="fa-solid fa-file-lines"></i> Closing Report:</b> ${esc(f.kz_closing)}${f.kz_closing_file ? ` <button class="btn btn-ghost btn-sm" data-act="ex-proof" data-path="${esc(f.kz_closing_file)}"><i class="fa-solid fa-paperclip"></i> Attachment</button>` : ''}${f.kz_review_requested_at ? `<div style="font-size:9px;color:#b45309;margin-top:2px">Submitted ${fmtDate(String(f.kz_review_requested_at).slice(0,10))}</div>` : ''}</div>` : ''}
     <div class="text-[10px] mb-2" style="color:var(--muted)">${fmtDate(f.created_at.slice(0,10))}</div>
     <div class="flex gap-1 flex-wrap">
       ${f.status === 'OPEN' ? `<button class="btn btn-ghost btn-sm" data-act="vb-review" data-id="${f.id}">In Review</button>` : ''}
@@ -7436,9 +7443,11 @@ async function loadApprovals(){
       const typeChip = r.req_type === 'GATE_HD' ? '<span class="chip" style="background:#fef3c7;color:#92400e">HALF DAY</span>'
         : r.req_type === 'GATE_SL' ? '<span class="chip" style="background:#ccfbf1;color:#115e59">SHORT LEAVE' + (r.gp_slot ? (r.gp_slot === 'MORNING' ? ' · Subah' : ' · Shaam') : '') + '</span>'
         : r.req_type === 'WFH' ? '<span class="chip" style="background:#f3e8ff;color:#6b21a8">WFH</span>'
+        : r.req_type === 'ATT_FIX' ? '<span class="chip" style="background:#fee2e2;color:#b91c1c">ATT FIX' + (r.fix_in ? ' · In ' + String(r.fix_in).substring(0,5) : '') + (r.fix_out ? ' – ' + String(r.fix_out).substring(0,5) : '') + '</span>'
         : '<span class="chip chip-blue">FIELD</span>';
+      const proofBtn = r.proof_path ? ` <button class="btn btn-ghost btn-sm" data-act="ex-proof" data-path="${esc(r.proof_path)}" title="View proof"><i class="fa-solid fa-paperclip"></i></button>` : '';
       return `<tr><td class="font-semibold">${esc(r.name || r.employee_code)}</td>
-        <td>${typeChip}</td>
+        <td>${typeChip}${proofBtn}</td>
         <td>${fmtDate(r.date)}</td><td class="text-xs">${esc(r.reason||'—')}</td><td class="text-xs">${esc(mgr)}</td>
         <td style="text-align:right;white-space:nowrap">${mine
           ? `<button class="btn btn-ghost btn-sm" data-act="ea-appr" data-id="${r.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
