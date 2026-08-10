@@ -2961,9 +2961,9 @@ $('aeSaveBtn').addEventListener('click', async () => {
   try{
     const { error } = await sb.from('employees').insert([{
       Name: name, 'Employee code': code, Status: 'Active',
-      DEPARTMENT: $('aeDept').value, DESIGNATION: $('aeDesig').value, DOJ: $('aeDOJ').value,
+      DEPARTMENT: String($('aeDept').value||'').trim().toUpperCase() || null, DESIGNATION: String($('aeDesig').value||'').trim().toUpperCase() || null, DOJ: $('aeDOJ').value,
       UNIT: ($('aeUnit') && $('aeUnit').value) || null,
-      LINE: ($('aeCat').value === 'mgmt') ? null : ($('aeLine').value || null)
+      LINE: ($('aeCat').value === 'mgmt') ? null : (String($('aeLine').value||'').trim().toUpperCase() || null)
     }]);
     if(error) throw error;
     // salary from category (worker = min wage level, management = CTC)
@@ -3344,12 +3344,13 @@ $('epSaveBtn').addEventListener('click', async () => {
       notify(`Code changed: ${oldCode} → ${newCode} — history migrated`, 'success');
       $('epCodeChg').classList.add('hidden'); $('epCodeChgChk').checked = false;
     }
-    const empUpd = { DEPARTMENT: $('epDeptSel').value || null, DESIGNATION: $('epDesigSel').value || null, UNIT: $('epUnitSel').value || null, Status: newStatus };
+    const _uc = v => { v = String(v || '').trim().toUpperCase(); return v || null; };
+    const empUpd = { DEPARTMENT: _uc($('epDeptSel').value), DESIGNATION: _uc($('epDesigSel').value), UNIT: _uc($('epUnitSel').value), Status: newStatus };
     // WORKER jiska department hi ek line hai -> LINE = DEPARTMENT (auto)
     {
       const deptV = String($('epDeptSel').value || '').trim();
-      const isLineDept = deptV && (/LINE/i.test(deptV) || (typeof LINES !== 'undefined' && (LINES||[]).some(l => String(l.name).trim().toUpperCase() === deptV.toUpperCase())));
-      if($('epCatSel').value === 'WORKER' && isLineDept) empUpd.LINE = deptV;
+      const isLineDept = deptV && (/LINE/i.test(deptV) || /^CUTTING|^STITCHING|HF.*PRINT/i.test(deptV) || (typeof LINES !== 'undefined' && (LINES||[]).some(l => String(l.name).trim().toUpperCase() === deptV.toUpperCase())));
+      if($('epCatSel').value === 'WORKER' && isLineDept) empUpd.LINE = deptV.toUpperCase();
     }
     // Name + DOJ corrections
     const newName = $('epName').value.trim().toUpperCase();
