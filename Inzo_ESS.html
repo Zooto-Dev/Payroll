@@ -5,6 +5,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f172a">
+<link rel="apple-touch-icon" href="icons/nexus-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
 /* Daily freshness: once per day, reload with a unique query so GitHub Pages CDN
    and the phone browser can NEVER serve a stale build again. */
@@ -142,7 +147,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div class="text-center mb-6">
       <h1 class="m-0" style="font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Self Service</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B64</b> — 08 Aug</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B65</b> — 08 Aug</p>
+      <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
     <div class="card">
@@ -167,7 +173,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <div>
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B64</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B65</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -210,6 +216,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div class="page" id="p-req">
       <div class="req-tiles">
         <button class="req-tile" data-rs="leave"><span class="rt-ic" style="background:#dcfce7;color:#16a34a"><i class="fa-solid fa-umbrella-beach"></i></span><span>Leave</span></button>
+        <button class="req-tile" data-rs="attfix"><span class="rt-ic" style="background:#fee2e2;color:#b91c1c"><i class="fa-solid fa-clock-rotate-left"></i></span><span>Att. Fix</span></button>
         <button class="req-tile" data-rs="field"><span class="rt-ic" style="background:#e0f2fe;color:#0284c7"><i class="fa-solid fa-location-dot"></i></span><span>Field Duty</span></button>
         <button class="req-tile" data-rs="gate"><span class="rt-ic" style="background:#ccfbf1;color:#0d9488"><i class="fa-solid fa-door-open"></i></span><span>Gate Pass</span></button>
         <button class="req-tile" data-rs="wfh"><span class="rt-ic" style="background:#f3e8ff;color:#7e22ce"><i class="fa-solid fa-house-laptop"></i></span><span>WFH</span></button>
@@ -221,6 +228,22 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <button class="req-tile" data-rs="celebrate"><span class="rt-ic" style="background:#ffe4e6;color:#e11d48"><i class="fa-solid fa-cake-candles"></i></span><span>Celebrations</span></button>
         <button class="req-tile" data-rs="voice"><span class="rt-ic" style="background:#e0e7ff;color:#4f46e5"><i class="fa-solid fa-comments"></i></span><span>Voice Box</span></button>
         <button class="req-tile" data-rs="resign"><span class="rt-ic" style="background:#fee2e2;color:#dc2626"><i class="fa-solid fa-person-walking-arrow-right"></i></span><span>Resign</span></button>
+      </div>
+      <div class="req-sec hidden" id="rs-attfix">
+      <div class="card" style="background:linear-gradient(135deg,#fef2f2,#ffffff);border:1.5px solid #fecaca">
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-clock-rotate-left" style="color:#b91c1c"></i> Attendance Correction <i class="fa-regular fa-circle-question" onclick="$('afInfo').classList.toggle('hidden')" style="cursor:pointer;color:#94a3b8;font-size:12px;margin-left:4px"></i></h3>
+        <div class="text-[11px] mt-0 mb-2 hidden p-2 rounded" id="afInfo" style="background:#fef2f2;color:#7f1d1d;line-height:1.5">Punch miss ho gaya (kiosk issue / bhool)? Correct time ke saath request bhejo. <b>Proof mandatory</b> — gate register photo, duty slip, ya koi supporting document. Manager approval par attendance record ban jayega.</div>
+        <div class="grid grid-cols-2 gap-2 mb-2">
+          <div><label class="lbl">Date</label><input id="afDate" type="date" class="inp"></div>
+          <div><label class="lbl">In Time</label><input id="afIn" type="time" class="inp"></div>
+          <div><label class="lbl">Out Time (optional)</label><input id="afOut" type="time" class="inp"></div>
+          <div><label class="lbl">Reason</label><input id="afReason" class="inp" placeholder="Reason"></div>
+        </div>
+        <label class="lbl">Proof (photo/document) *</label>
+        <input id="afProof" type="file" accept="image/*,.pdf" class="inp mb-2">
+        <button id="afBtn" class="btn btn-primary w-full justify-center" style="background:#b91c1c"><i class="fa-solid fa-paper-plane"></i> Request Correction</button>
+        <div id="afList" class="mt-2 text-xs"></div>
+      </div>
       </div>
       <div class="req-sec hidden" id="rs-field">
       <div id="essPunchCard"></div>
@@ -710,7 +733,7 @@ async function loadTeamApprovals(){
         <div class="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <div class="text-xs"><b>${esc(r.name || r.employee_code)}</b> ${gpTypeLabel(r)}</div>
-            <div class="text-[10px]" style="color:var(--muted)">${fmtDate(r.date)}${r.reason ? ' · ' + esc(r.reason) : ''}</div>
+            <div class="text-[10px]" style="color:var(--muted)">${fmtDate(r.date)}${r.reason ? ' · ' + esc(r.reason) : ''}${r.proof_path ? ` · <a href="#" onclick="essViewProof('${esc(r.proof_path)}');return false" style="color:var(--brand)">Proof</a>` : ''}</div>
           </div>
           <div style="white-space:nowrap">
             <button class="chip chip-ok" style="border:none;cursor:pointer" onclick="teamDecide(${r.id},'APPROVED')"><i class="fa-solid fa-check"></i> Approve</button>
@@ -755,6 +778,7 @@ function gpTypeLabel(r){
   if(r.req_type === 'GATE_HD') return '<span class="chip" style="background:#fef3c7;color:#92400e;font-size:9px">HALF DAY</span>';
   if(r.req_type === 'GATE_SL') return '<span class="chip" style="background:#ccfbf1;color:#115e59;font-size:9px">SHORT LEAVE' + (r.gp_slot ? (r.gp_slot === 'MORNING' ? ' · Subah' : ' · Shaam') : '') + '</span>';
   if(r.req_type === 'WFH') return '<span class="chip" style="background:#f3e8ff;color:#6b21a8;font-size:9px">WFH</span>';
+  if(r.req_type === 'ATT_FIX') return '<span class="chip" style="background:#fee2e2;color:#b91c1c;font-size:9px">ATT FIX' + (r.fix_in ? ' · In ' + String(r.fix_in).substring(0,5) : '') + '</span>';
   return '<span class="chip chip-blue" style="font-size:9px">FIELD</span>';
 }
 document.querySelectorAll('.req-tile').forEach(t => t.addEventListener('click', () => {
@@ -779,6 +803,39 @@ async function essCancelReq(kind, id){
     else { loadFieldReqs(); loadWfh(); loadGatePass(); }
   }catch(err){ notify(err.message || 'Failed'); }
 }
+async function loadAttFix(){
+  const host = $('afList'); if(!host) return;
+  if($('afDate') && !$('afDate').value) $('afDate').value = new Date().toISOString().slice(0,10);
+  const codeU = String(CODE||'').trim().toUpperCase();
+  try{
+    const { data } = await sb.from('ess_att_requests').select('*').ilike('employee_code', codeU).eq('req_type','ATT_FIX').order('date', { ascending:false }).limit(8);
+    host.innerHTML = (data||[]).length ? data.map(r => {
+      const chip = { PENDING:'chip-warn', APPROVED:'chip-ok', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
+      return `<div class="row"><span>${fmtDate(r.date)} · In ${String(r.fix_in||'').substring(0,5)}${r.fix_out?' – Out '+String(r.fix_out).substring(0,5):''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status==='PENDING'?_cancelChip('ATT', r.id):''}</span></div>`;
+    }).join('') : '';
+  }catch(e){}
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('#afBtn'); if(!b) return;
+  const codeU = String(CODE||'').trim().toUpperCase();
+  const d = $('afDate').value, tin = $('afIn').value;
+  if(!d || !tin) return notify('Date aur In Time dono chahiye');
+  const f = $('afProof').files && $('afProof').files[0];
+  if(!f) return notify('Proof attach karna zaroori hai — bina proof correction nahi hogi');
+  b.disabled = true;
+  try{
+    const path = 'attfix/' + codeU + '_' + Date.now() + '_' + f.name.replace(/[^A-Za-z0-9._-]/g,'_');
+    const { error: upErr } = await sb.storage.from('expense-bills').upload(path, f);
+    if(upErr) throw upErr;
+    const { error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: d, reason: $('afReason').value.trim()||null, status: 'PENDING', req_type: 'ATT_FIX', fix_in: tin, fix_out: $('afOut').value || null, proof_path: path }]);
+    if(error && String(error.message||'').includes('duplicate')) notify('Us din ki ek request pehle se hai');
+    else if(error) throw error;
+    else notify('Correction request bheji ✓ — manager approve karega');
+    $('afReason').value = ''; $('afProof').value = '';
+    loadAttFix();
+  }catch(err){ notify(err.message || 'Request failed'); }
+  finally{ b.disabled = false; }
+});
 async function loadFieldReqs(){
   const host = $('fldList'); if(!host) return;
   if($('fldFrom') && !$('fldFrom').value) $('fldFrom').value = new Date().toISOString().slice(0,10);
@@ -996,6 +1053,7 @@ async function loadKaizenCongrats(){
       ${(!done && !f.kz_review_requested_at) ? `<div class="kz-note" style="background:#f0fdf4;border-color:#bbf7d0">
         <div style="font-weight:700;font-size:11px;margin-bottom:5px;color:#166534"><i class="fa-solid fa-file-pen"></i> Executed? Submit your closing report:</div>
         <textarea id="kzcl_${f.id}" class="inp" rows="2" placeholder="What was done and the result achieved" style="font-size:12px;margin-bottom:6px"></textarea>
+        <input type="file" id="kzclf_${f.id}" accept="image/*,.pdf" class="inp mb-2" style="font-size:11px">
         <button class="btn btn-primary btn-sm w-full justify-center" onclick="kaizenSubmitClosing(${f.id})"><i class="fa-solid fa-paper-plane"></i> Submit Closing & Request Review</button>
       </div>` : ''}
       <div>
@@ -1012,7 +1070,16 @@ async function kaizenSubmitClosing(id){
   const txt = ta ? ta.value.trim() : '';
   if(!txt) return notify('Closing report likho pehle');
   try{
-    const { data, error } = await sb.rpc('ess_kaizen_close', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: id, p_closing: txt });
+    let filePath = null;
+    const fi = document.getElementById('kzclf_' + id);
+    const f = fi && fi.files && fi.files[0];
+    if(f){
+      const path = 'kaizenclose/' + id + '_' + Date.now() + '_' + f.name.replace(/[^A-Za-z0-9._-]/g,'_');
+      const { error: upErr } = await sb.storage.from('expense-bills').upload(path, f);
+      if(upErr) throw upErr;
+      filePath = path;
+    }
+    const { data, error } = await sb.rpc('ess_kaizen_close', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: id, p_closing: txt, p_file: filePath });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
     notify('Closing bheji ✓ — CEO review karega');
@@ -1250,6 +1317,7 @@ $('loginBtn').addEventListener('click', async () => {
     try{ loadTeamApprovals(); }catch(e){ _dbg('team-ERROR', e); }
     try{ loadGatePass(); }catch(e){ _dbg('gate-ERROR', e); }
     try{ loadFieldReqs(); }catch(e){ _dbg('field-ERROR', e); }
+    try{ loadAttFix(); }catch(e){ _dbg('attfix-ERROR', e); }
     try{ loadMoneyReqs(); }catch(e){ _dbg('mr-ERROR', e); }
     sb.rpc('ess_line_today', { p_code: CODE, p_phone: PHONE }).then(({ data: ld }) => {
       if(ld && ld.lines && ld.lines.length) $('tabTeam').classList.remove('hidden');
@@ -2022,6 +2090,19 @@ document.addEventListener('change', async e => {
     e.target.value = '';
   }
 });
+// PWA install prompt
+let _pwaEvt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); _pwaEvt = e;
+  const b = document.getElementById('pwaInstallBtn');
+  if(b) b.classList.remove('hidden');
+});
+document.addEventListener('click', e => {
+  if(e.target.closest && e.target.closest('#pwaInstallBtn') && _pwaEvt){
+    _pwaEvt.prompt();
+    _pwaEvt.userChoice.then(() => { _pwaEvt = null; document.getElementById('pwaInstallBtn').classList.add('hidden'); });
+  }
+});
 window._nxDbg = [];
 function _dbg(tag, val){
   try{
@@ -2035,7 +2116,7 @@ function _dbg(tag, val){
       p.onclick = () => p.remove();
       document.body.appendChild(p);
     }
-    if(p) p.textContent = '🔍 BUILD B64 (tap to close)\n' + window._nxDbg.join('\n');
+    if(p) p.textContent = '🔍 BUILD B65 (tap to close)\n' + window._nxDbg.join('\n');
   }catch(e){}
 }
 window.onerror = function(m, s, l){ _dbg('JS-ERROR', { message: String(m) + ' @line ' + l }); };
