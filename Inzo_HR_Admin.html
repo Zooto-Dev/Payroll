@@ -424,6 +424,7 @@ body.no-confidential .confidential-col{display:none!important}
         <span class="chip chip-gray" id="empCount">—</span>
         <label class="text-[11px] flex items-center gap-1" style="color:var(--muted);cursor:pointer" title="Include exited/inactive employees"><input type="checkbox" id="empShowExited"> Show exited</label>
         <button id="empFormBtn" class="btn btn-ghost btn-sm" title="Print a blank joining form for the employee to fill"><i class="fa-solid fa-file-lines"></i> Blank Form</button>
+        <button id="empGenderBtn" class="btn btn-ghost btn-sm hidden" style="border-color:#fbcfe8;color:#db2777"><i class="fa-solid fa-venus-mars"></i> Fix Genders (<span id="empGenderCnt">0</span>)</button>
         <button id="empExportBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-file-export"></i> Export</button>
         <button id="empImportBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-file-import"></i> Import</button>
         <button id="empAddBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-user-plus"></i> Add Employee</button>
@@ -763,6 +764,16 @@ body.no-confidential .confidential-col{display:none!important}
     </div>
   </div>
 </div>
+
+<!-- Gender fix modal -->
+<div class="modal" id="gfixModal"><div class="modal-box" style="max-width:560px">
+  <div class="flex items-center justify-between mb-1">
+    <h3 class="display font-bold m-0">Fix Genders <span class="chip chip-blue" id="gfixLeft">0</span></h3>
+    <button class="btn btn-ghost btn-sm" onclick="$('gfixModal').classList.remove('show')"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Tap M ya F — turant save hota hai, list khud chhoti hoti jayegi.</p>
+  <div id="gfixBody" style="max-height:60vh;overflow:auto"></div>
+</div></div>
 
 <!-- MIS drill-down modal -->
 <div class="modal" id="misDetModal"><div class="modal-box" style="max-width:760px">
@@ -2872,6 +2883,7 @@ async function loadDashboard(){
 
 /* ---------------- Employees ---------------- */
 function renderEmployees(filter){
+  try{ gfixRefreshBtn(); }catch(e){}
   const q = (filter || '').toLowerCase();
   const list = EMP.filter(e => !q || [e.Name, e['Employee code'], e.DEPARTMENT, e.DESIGNATION].join(' ').toLowerCase().includes(q));
   $('empCount').innerText = list.length + ' employees';
@@ -4783,6 +4795,29 @@ document.addEventListener('click', e => {
 });
 $('misGo').addEventListener('click', loadMis);
 
+/* ===== rapid gender fix ===== */
+function gfixMissing(){
+  return EMP.filter(e => String(e.Status||'ACTIVE').toUpperCase() === 'ACTIVE' && !((PROFILES[e['Employee code']]||{}).gender));
+}
+function gfixRefreshBtn(){
+  const n = gfixMissing().length;
+  $('empGenderBtn').classList.toggle('hidden', n === 0);
+  $('empGenderCnt').innerText = n;
+}
+function gfixRender(){
+  const list = gfixMissing();
+  $('gfixLeft').innerText = list.length + ' left';
+  $('gfixBody').innerHTML = list.length ? list.map(e => `
+    <div class="flex items-center justify-between gap-2 p-2 rounded-lg mb-1" style="background:#f8fafc" id="gfx-${esc(e['Employee code'])}">
+      <span class="text-xs"><b>${esc(e.Name)}</b> <span style="color:var(--muted)">${esc(e['Employee code'])} · ${esc(e.DEPARTMENT||'—')}</span></span>
+      <span style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" data-act="gfix" data-code="${esc(e['Employee code'])}" data-g="Male" style="border-color:#bfdbfe;color:#2563eb"><i class="fa-solid fa-mars"></i> M</button>
+        <button class="btn btn-ghost btn-sm" data-act="gfix" data-code="${esc(e['Employee code'])}" data-g="Female" style="border-color:#fbcfe8;color:#db2777"><i class="fa-solid fa-venus"></i> F</button>
+      </span>
+    </div>`).join('') : '<p class="text-xs m-0 p-3" style="color:var(--ok)">Sab set ✓ — koi missing nahi!</p>';
+}
+$('empGenderBtn').addEventListener('click', () => { gfixRender(); $('gfixModal').classList.add('show'); });
+
 /* ---------------- Global click delegation ---------------- */
 document.body.addEventListener('click', async e => {
   const el = e.target.closest('[data-act]');
@@ -4902,6 +4937,23 @@ document.body.addEventListener('click', async e => {
     await sb.from('money_requests').update({ status: 'REJECTED', decided_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
     notify('Rejected', 'success');
     loadApprovals();
+    return;
+  }
+  if(act === 'gfix'){
+    const code = el.dataset.code, g = el.dataset.g;
+    const { data: upd, error } = await sb.from('hr_profiles').update({ gender: g }).ilike('employee_code', code).select('employee_code');
+    if(error) return notify(error.message, 'error');
+    if(!upd || !upd.length){
+      const { error: insErr } = await sb.from('hr_profiles').insert([{ employee_code: code, gender: g }]);
+      if(insErr) return notify(insErr.message, 'error');
+    }
+    if(!PROFILES[code]) PROFILES[code] = {};
+    PROFILES[code].gender = g;
+    const row = document.getElementById('gfx-' + code);
+    if(row) row.remove();
+    $('gfixLeft').innerText = gfixMissing().length + ' left';
+    gfixRefreshBtn();
+    if(!gfixMissing().length) $('gfixBody').innerHTML = '<p class="text-xs m-0 p-3" style="color:var(--ok)">Sab set ✓ — poore staff ka gender complete!</p>';
     return;
   }
   if(act === 'ml-appr'){
