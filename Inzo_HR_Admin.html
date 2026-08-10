@@ -3345,6 +3345,12 @@ $('epSaveBtn').addEventListener('click', async () => {
       $('epCodeChg').classList.add('hidden'); $('epCodeChgChk').checked = false;
     }
     const empUpd = { DEPARTMENT: $('epDeptSel').value || null, DESIGNATION: $('epDesigSel').value || null, UNIT: $('epUnitSel').value || null, Status: newStatus };
+    // WORKER jiska department hi ek line hai -> LINE = DEPARTMENT (auto)
+    {
+      const deptV = String($('epDeptSel').value || '').trim();
+      const isLineDept = deptV && (/LINE/i.test(deptV) || (typeof LINES !== 'undefined' && (LINES||[]).some(l => String(l.name).trim().toUpperCase() === deptV.toUpperCase())));
+      if($('epCatSel').value === 'WORKER' && isLineDept) empUpd.LINE = deptV;
+    }
     // Name + DOJ corrections
     const newName = $('epName').value.trim().toUpperCase();
     if(newName) empUpd.Name = newName;
