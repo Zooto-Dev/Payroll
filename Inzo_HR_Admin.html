@@ -200,6 +200,8 @@ body.not-super .super-only{display:none !important;}
 .mis-donut .c{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;font-weight:800;font-size:15px;font-family:'Sora',sans-serif}
 .mis-leg{font-size:11px;display:flex;flex-direction:column;gap:6px}
 .mis-leg span i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:6px}
+.mis-click{cursor:pointer;border-radius:8px;transition:background .12s}
+.mis-click:hover{background:#f8fafc}
 .mis-cmp{display:flex;align-items:baseline;gap:10px}
 .mis-cmp .big{font-size:26px;font-weight:800;font-family:'Sora',sans-serif}
 .mis-up{color:#dc2626;font-weight:700;font-size:12px}
@@ -534,6 +536,11 @@ body.no-confidential .confidential-col{display:none!important}
 
 <!-- ================= LEAVES ================= -->
 <div class="page" id="page-leaves">
+  <div class="card hidden mb-4" id="lvConflictCard" style="border:1.5px solid #fde68a;background:linear-gradient(135deg,#fffbeb,#ffffff)">
+    <h3 class="display font-bold mt-0 mb-1" style="font-size:14px"><i class="fa-solid fa-triangle-exclamation" style="color:#d97706"></i> Leave–Attendance Conflicts <span class="chip" style="background:#fef3c7;color:#92400e" id="lvConflictCnt">0</span></h3>
+    <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Approved leave ke din punch mila — banda aa gaya. Leave cancel karo taki uska balance wapas mil jaye (pay to present ka milta hi hai).</p>
+    <div id="lvConflictBox"></div>
+  </div>
   <div class="grid lg:grid-cols-3 gap-4">
     <div class="card hidden" id="lvAdminCard">
       <h3 class="display font-bold mt-0 mb-3">Apply Leave (Admin)</h3>
@@ -756,6 +763,18 @@ body.no-confidential .confidential-col{display:none!important}
     </div>
   </div>
 </div>
+
+<!-- MIS drill-down modal -->
+<div class="modal" id="misDetModal"><div class="modal-box" style="max-width:760px">
+  <div class="flex items-center justify-between mb-2">
+    <h3 class="display font-bold m-0" id="misDetTitle">Detail</h3>
+    <div class="flex gap-2">
+      <button class="btn btn-ghost btn-sm" onclick="misDetCSV()"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+      <button class="btn btn-ghost btn-sm" onclick="$('misDetModal').classList.remove('show')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+  </div>
+  <div id="misDetBody" style="max-height:65vh;overflow:auto"></div>
+</div></div>
 
 <!-- Expense Pay modal -->
 <div class="modal" id="exPayModal"><div class="modal-box" style="max-width:400px">
@@ -1225,7 +1244,8 @@ body.no-confidential .confidential-col{display:none!important}
     <h4 class="display font-bold mt-5 mb-2">Employment Details</h4>
     <div class="grid grid-cols-3 gap-3">
       <div><label class="lbl">Shift</label><select id="epShift" class="inp"></select></div>
-      <div><label class="lbl">Grade</label><input id="epGrade" class="inp" placeholder="A / B / Worker"></div>
+      <div><label class="lbl">Grade</label><input id="epGrade" class="inp" placeholder="A / B / C"></div>
+      <div><label class="lbl">Category</label><select id="epCatSel" class="inp"><option value="STAFF">Staff</option><option value="WORKER">Worker</option></select></div>
       <div><label class="lbl">Employment Type</label>
         <select id="epType" class="inp" onchange="epContractorToggle()"><option>Permanent</option><option>Contract</option><option>Probation</option><option>Trainee</option><option>Piece Rate</option></select></div>
       <div id="epContractorWrap" class="hidden col-span-2"><div class="grid grid-cols-2 gap-3 p-2 rounded-lg" style="background:#fffbeb;border:1px solid #fde68a">
@@ -3069,6 +3089,7 @@ async function openEmpModal(code){
   $('epPAN').value = p.pan || ''; $('epUAN').value = p.uan || ''; $('epESINo').value = p.esi_no || '';
   if(p.shift_id) $('epShift').value = p.shift_id;
   $('epGrade').value = p.grade || ''; $('epType').value = p.employment_type || 'Permanent';
+  $('epCatSel').value = (p.category === 'WORKER') ? 'WORKER' : 'STAFF';
   $('epContractor').value = p.contractor_name || ''; $('epContractorPh').value = p.contractor_phone || '';
   epContractorToggle();
   $('epSkill').value = (p.salary && p.salary.skill) || '';
@@ -3293,7 +3314,7 @@ $('epSaveBtn').addEventListener('click', async () => {
       bank_name: $('epBank').value, account_no: $('epAcc').value, ifsc: $('epIFSC').value,
       pan: $('epPAN').value, uan: $('epUAN').value, esi_no: $('epESINo').value,
       shift_id: Number($('epShift').value) || null,
-      grade: $('epGrade').value, employment_type: $('epType').value,
+      grade: $('epGrade').value, category: $('epCatSel').value, employment_type: $('epType').value,
       contractor_name: ($('epType').value === 'Contract' ? ($('epContractor').value.trim() || null) : null),
       contractor_phone: ($('epType').value === 'Contract' ? (($('epContractorPh').value||'').replace(/\D/g,'') || null) : null),
       reporting_manager: $('epManager').value,
@@ -4544,10 +4565,10 @@ $('advSaveBtn').addEventListener('click', async () => {
 
 /* ================= MIS DASHBOARD ================= */
 const MIS_COLORS = ['#2563eb','#0d9488','#7c3aed','#d97706','#dc2626','#0284c7','#16a34a','#db2777','#64748b','#ca8a04','#4f46e5','#059669'];
-function misBar(rows, fmt, colorFn){
-  // rows: [{label, value, sub?}] sorted desc
+function misBar(rows, fmt, colorFn, misk){
+  // rows: [{label, value, key?}] sorted desc; misk -> drill-down kind (rows become clickable)
   const max = Math.max(...rows.map(r => r.value), 1);
-  return rows.map((r, i) => `<div class="mis-row">
+  return rows.map((r, i) => `<div class="mis-row${misk ? ' mis-click' : ''}" ${misk ? `data-misk="${misk}" data-miskey="${esc(r.key !== undefined ? r.key : r.label)}"` : ''}>
     <span class="lbl2" title="${esc(r.label)}">${esc(r.label)}</span>
     <div class="track"><div class="fill" style="width:${Math.max(2, r.value / max * 100)}%;background:${(colorFn ? colorFn(r, i) : MIS_COLORS[i % MIS_COLORS.length])}"></div></div>
     <span class="val">${fmt(r)}</span>
@@ -4562,7 +4583,7 @@ function misDonut(parts, centerText){
     return `${p.color} ${from}deg ${acc / total * 360}deg`;
   }).join(', ');
   return `<div class="mis-donut" style="background:conic-gradient(${segs || '#e2e8f0 0deg 360deg'})"><div class="c">${centerText}</div></div>
-    <div class="mis-leg">${parts.map(p => `<span><i style="background:${p.color}"></i>${esc(p.label)}: <b>${p.value}</b> (${Math.round(p.value / total * 100)}%)</span>`).join('')}</div>`;
+    <div class="mis-leg">${parts.map(p => `<span ${p.misk ? `class="mis-click" data-misk="${p.misk}" data-miskey="${esc(p.key)}" style="cursor:pointer"` : ''}><i style="background:${p.color}"></i>${esc(p.label)}: <b>${p.value}</b> (${Math.round(p.value / total * 100)}%)</span>`).join('')}</div>`;
 }
 async function loadMis(){
   if(!$('misMonth').value) $('misMonth').value = new Date().toISOString().slice(0,7);
@@ -4607,17 +4628,17 @@ async function loadMis(){
   $('misAttDept').innerHTML = misBar(
     Object.entries(gd).map(([k, v]) => ({ label: k, value: pct(v), head: v.head, present: v.present })).sort((a, b) => b.value - a.value),
     r => r.value + '% <span style="color:var(--muted);font-weight:400">(' + r.head + ')</span>',
-    r => r.value >= 90 ? '#16a34a' : r.value >= 75 ? '#2563eb' : r.value >= 60 ? '#d97706' : '#dc2626');
+    r => r.value >= 90 ? '#16a34a' : r.value >= 75 ? '#2563eb' : r.value >= 60 ? '#d97706' : '#dc2626', 'attdept');
   $('misAttLate').innerHTML = misBar(
     Object.entries(gd).map(([k, v]) => ({ label: k, value: v.late, p: v.present })).filter(r => r.value > 0).sort((a, b) => b.value - a.value),
     r => r.value + ' <span style="color:var(--muted);font-weight:400">(' + (r.p ? Math.round(r.value / r.p * 100) : 0) + '%)</span>',
-    () => '#dc2626') || '';
+    () => '#dc2626', 'attlate') || '';
   if(!Object.values(gd).some(v => v.late)) $('misAttLate').innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">No late marks this month 🎉</p>';
   $('misAttLoc').innerHTML = misBar(
     Object.entries(gl).map(([k, v]) => ({ label: k, value: pct(v), head: v.head })).sort((a, b) => b.value - a.value),
-    r => r.value + '% <span style="color:var(--muted);font-weight:400">(' + r.head + ')</span>');
+    r => r.value + '% <span style="color:var(--muted);font-weight:400">(' + r.head + ')</span>', null, 'attloc');
   const gParts = [['Male','#2563eb'],['Female','#db2777'],['Other','#7c3aed'],['Not set','#94a3b8']]
-    .map(([k, c]) => ({ label: k + ' ' + (gg[k] ? pct(gg[k]) + '%' : ''), value: gg[k] ? gg[k].present : 0, color: c })).filter(p => p.value > 0);
+    .map(([k, c]) => ({ label: k + ' ' + (gg[k] ? pct(gg[k]) + '%' : ''), value: gg[k] ? gg[k].present : 0, color: c, misk: 'attgender', key: k })).filter(p => p.value > 0);
   $('misAttGender').innerHTML = misDonut(gParts, workDays + 'd');
 
   // ---------- EXPENSE ----------
@@ -4634,33 +4655,33 @@ async function loadMis(){
   const apA = sum(exValid.filter(x => x.status === 'APPROVED')), apP = sum(exValid.filter(x => x.status === 'PAID'));
   $('misExAP').innerHTML = misBar([
     { label: 'Paid', value: apP }, { label: 'Approved (unpaid)', value: apA }, { label: 'Pending', value: sum(exValid.filter(x => x.status === 'PENDING')) }
-  ], r => fmtINR(r.value), (r) => r.label === 'Paid' ? '#16a34a' : r.label.startsWith('Approved') ? '#2563eb' : '#d97706');
+  ], r => fmtINR(r.value), (r) => r.label === 'Paid' ? '#16a34a' : r.label.startsWith('Approved') ? '#2563eb' : '#d97706', 'exstat');
   const byK = (arr, kf) => { const g = {}; arr.forEach(x => { const k = kf(x) || '—'; g[k] = (g[k]||0) + (Number(x.amount)||0); }); return g; };
-  $('misExDept').innerHTML = misBar(Object.entries(byK(exValid, x => deptOf(x.employee_code))).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => fmtINR(r.value));
-  $('misExCat').innerHTML = misBar(Object.entries(byK(exValid, x => x.category)).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => fmtINR(r.value));
+  $('misExDept').innerHTML = misBar(Object.entries(byK(exValid, x => deptOf(x.employee_code))).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => fmtINR(r.value), null, 'exdept');
+  $('misExCat').innerHTML = misBar(Object.entries(byK(exValid, x => x.category)).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => fmtINR(r.value), null, 'excat');
   // 6-month trend
   const months = []; for(let i = 5; i >= 0; i--){ const d = new Date(y, m - 1 - i, 1); months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`); }
   const trendRes = await sb.from('expenses').select('amount, expense_date, status').gte('expense_date', months[0] + '-01').lte('expense_date', months[5] + '-31').limit(20000);
   const tG = {}; (trendRes.data||[]).filter(x => x.status !== 'REJECTED').forEach(x => { const k = String(x.expense_date).slice(0,7); tG[k] = (tG[k]||0) + (Number(x.amount)||0); });
   const mn = ym2 => ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(ym2.slice(5))] + ' ' + ym2.slice(2,4);
-  $('misExTrend').innerHTML = misBar(months.map(k => ({ label: mn(k), value: tG[k] || 0 })), r => fmtINR(r.value), (r, i) => months[i] === ym ? '#2563eb' : '#94a3b8');
+  $('misExTrend').innerHTML = misBar(months.map(k => ({ label: mn(k), value: tG[k] || 0, key: k })), r => fmtINR(r.value), (r, i) => months[i] === ym ? '#2563eb' : '#94a3b8', 'extrend');
 
   // ---------- MANPOWER ----------
   const cnt = (kf) => { const g = {}; active.forEach(e => { const k = kf(e) || '—'; g[k] = (g[k]||0) + 1; }); return g; };
   const mpD = cnt(e => String(e.DEPARTMENT||'—').toUpperCase());
-  $('misMpDept').innerHTML = misBar(Object.entries(mpD).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => r.value);
+  $('misMpDept').innerHTML = misBar(Object.entries(mpD).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => r.value, null, 'mpdept');
   const mpG = cnt(e => genderOf(e['Employee code']));
-  $('misMpGender').innerHTML = misDonut([['Male','#2563eb'],['Female','#db2777'],['Other','#7c3aed'],['Not set','#94a3b8']].map(([k, c]) => ({ label: k, value: mpG[k] || 0, color: c })).filter(p => p.value > 0), active.length);
+  $('misMpGender').innerHTML = misDonut([['Male','#2563eb'],['Female','#db2777'],['Other','#7c3aed'],['Not set','#94a3b8']].map(([k, c]) => ({ label: k, value: mpG[k] || 0, color: c, misk: 'mpgender', key: k })).filter(p => p.value > 0), active.length);
   const mpT = cnt(e => (PROFILES[e['Employee code']]||{}).employment_type || 'Not set');
   $('misMpType').innerHTML = misBar(Object.entries(mpT).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => r.value,
-    r => r.label === 'Permanent' ? '#16a34a' : r.label === 'Contract' ? '#d97706' : MIS_COLORS[4]);
-  const isWorker = e => { const p = PROFILES[e['Employee code']] || {}; return /work|piece/i.test(p.grade || '') || p.employment_type === 'Piece Rate' || /HELPER|OPERATOR|WORKER|STITCH|CUTTER|KARIGAR/i.test(e.Designation || ''); };
+    r => r.label === 'Permanent' ? '#16a34a' : r.label === 'Contract' ? '#d97706' : MIS_COLORS[4], 'mptype');
+  const isWorker = e => { const p = PROFILES[e['Employee code']] || {}; if(p.category) return p.category === 'WORKER'; return /work|piece/i.test(p.grade || '') || p.employment_type === 'Piece Rate' || /HELPER|OPERATOR|WORKER|STITCH|CUTTER|KARIGAR/i.test(e.Designation || ''); };
   const wCnt = active.filter(isWorker).length;
-  $('misMpWS').innerHTML = misDonut([{ label: 'Worker', value: wCnt, color: '#d97706' }, { label: 'Staff', value: active.length - wCnt, color: '#2563eb' }], active.length);
+  $('misMpWS').innerHTML = misDonut([{ label: 'Worker', value: wCnt, color: '#d97706', misk: 'mpws', key: 'WORKER' }, { label: 'Staff', value: active.length - wCnt, color: '#2563eb', misk: 'mpws', key: 'STAFF' }], active.length);
   const mpGr = cnt(e => (PROFILES[e['Employee code']]||{}).grade || 'Not set');
-  $('misMpGrade').innerHTML = misBar(Object.entries(mpGr).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value).slice(0, 10), r => r.value);
+  $('misMpGrade').innerHTML = misBar(Object.entries(mpGr).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value).slice(0, 10), r => r.value, null, 'mpgrade');
   const mpL = cnt(e => unitName(e['Employee code']));
-  $('misMpLoc').innerHTML = misBar(Object.entries(mpL).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => r.value);
+  $('misMpLoc').innerHTML = misBar(Object.entries(mpL).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => r.value, null, 'mploc');
 
   // ---------- KPIs ----------
   const todayIn = new Set(att.filter(r => r.date === today).map(r => r.employee_code)).size;
@@ -4673,8 +4694,86 @@ async function loadMis(){
     ['Attendance', monthPct + '%', workDays + ' working day(s)'],
     ['Expense (Month)', fmtINR(curT), exValid.length + ' claim(s)'],
     ['Pending Reimb.', fmtINR(sum(pendAll.data || [])), (pendAll.data || []).length + ' claim(s)']
-  ].map(([k, v, s]) => `<div class="mis-kpi"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('');
+  ].map(([k, v, s], i) => `<div class="mis-kpi${[4,5].includes(i) ? ' mis-click' : ''}" ${i === 4 ? 'data-misk="exmonth" data-miskey="all"' : ''}${i === 5 ? 'data-misk="expend" data-miskey="all"' : ''}><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('');
+
+  // drill-down state
+  window._misState = { ym, att, workDays, active, deptOf, unitName, genderOf, exValid, months };
 }
+const MIS_DET_TITLES = { attdept:'Department Attendance', attlate:'Late Detail', attloc:'Location Attendance', attgender:'Gender Attendance', exdept:'Expenses — Department', excat:'Expenses — Category', exstat:'Expense Claims', extrend:'Expense Claims', exmonth:'Expense Claims (Month)', expend:'Pending Reimbursements', mpdept:'Employees — Department', mptype:'Employees — Type', mpgrade:'Employees — Grade', mploc:'Employees — Location', mpgender:'Employees — Gender', mpws:'Employees — Category' };
+function misDetTable(headers, rows){
+  window._misDetRows = [headers, ...rows];
+  return `<div style="overflow-x:auto"><table class="tbl"><thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r => `<tr>${r.map(c => `<td class="text-xs">${c}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${headers.length}" class="text-xs" style="color:var(--muted)">No records.</td></tr>`}</tbody></table></div>`;
+}
+function misDetCSV(){
+  const rows = window._misDetRows || [];
+  const csv = rows.map(r => r.map(c => '"' + String(c).replace(/<[^>]*>/g, '').replace(/"/g, '""') + '"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = ($('misDetTitle').innerText || 'mis-detail').replace(/[^A-Za-z0-9]+/g, '_') + '.csv';
+  a.click();
+}
+async function openMisDetail(kind, key){
+  const S = window._misState; if(!S) return;
+  const nameOf = c => { const e = S.active.find(x => x['Employee code'] === c); return e ? e.Name : c; };
+  let title = (MIS_DET_TITLES[kind] || 'Detail') + (key && key !== 'all' ? ' — ' + key : '');
+  let html = '';
+  const attFor = code => S.att.filter(r => r.employee_code === code);
+  const empRows = list => list.map(e => {
+    const c = e['Employee code'];
+    const p = (PROFILES[c] || {});
+    return [esc(c), esc(e.Name || ''), esc(e.DESIGNATION || e.Designation || '—'), esc(String(e.DEPARTMENT || '—')), esc(p.employment_type || '—'), esc(p.category || '—')];
+  });
+  if(['attdept','attloc','attgender','attlate'].includes(kind)){
+    const kf = kind === 'attloc' ? (e => S.unitName(e['Employee code'])) : kind === 'attgender' ? (e => S.genderOf(e['Employee code'])) : (e => String(e.DEPARTMENT || '—').toUpperCase());
+    const members = S.active.filter(e => kf(e) === key);
+    const rows = members.map(e => {
+      const c = e['Employee code'], a = attFor(c);
+      const late = a.filter(r => r.is_late).length;
+      return { n: e.Name, c, p: a.length, late, pct: S.workDays ? Math.min(100, Math.round(a.length / S.workDays * 100)) : 0 };
+    }).sort((x, y) => kind === 'attlate' ? y.late - x.late : y.p - x.p)
+      .filter(r => kind !== 'attlate' || r.late > 0);
+    html = misDetTable(['Employee', 'Code', 'Present', 'Late', 'Attendance %'],
+      rows.map(r => [esc(r.n), esc(r.c), r.p, r.late ? `<b style="color:#dc2626">${r.late}</b>` : 0, r.pct + '%']));
+  } else if(['exdept','excat','exstat','extrend','exmonth','expend'].includes(kind)){
+    let list = [];
+    if(kind === 'expend'){
+      const { data } = await sb.from('expenses').select('*').eq('status','PENDING').order('expense_date', { ascending: false }).limit(2000);
+      list = data || [];
+    } else if(kind === 'extrend'){
+      const { data } = await sb.from('expenses').select('*').gte('expense_date', key + '-01').lte('expense_date', key + '-31').neq('status','REJECTED').limit(5000);
+      list = data || [];
+    } else {
+      list = S.exValid.filter(x =>
+        kind === 'exmonth' ? true :
+        kind === 'exdept' ? S.deptOf(x.employee_code) === key :
+        kind === 'excat' ? x.category === key :
+        (key === 'Approved (unpaid)' ? x.status === 'APPROVED' : x.status === key.toUpperCase()));
+    }
+    const chip = s => `<span class="chip ${({PENDING:'chip-warn',APPROVED:'chip-blue',PAID:'chip-ok',REJECTED:'chip-bad'})[s]||'chip-gray'}">${esc(s)}</span>`;
+    html = misDetTable(['Employee', 'Category', 'Amount', 'Date', 'Status', 'Note'],
+      list.sort((a, b) => String(b.expense_date).localeCompare(String(a.expense_date)))
+        .map(x => [esc(nameOf(x.employee_code)), esc(x.category), fmtINR(x.amount), fmtDate(x.expense_date), chip(x.status), esc(x.note || '—')]));
+    title += ` · Total ${fmtINR(list.reduce((a, x) => a + (Number(x.amount)||0), 0))}`;
+  } else {
+    const kf = kind === 'mpdept' ? (e => String(e.DEPARTMENT || '—').toUpperCase())
+      : kind === 'mploc' ? (e => S.unitName(e['Employee code']))
+      : kind === 'mpgender' ? (e => S.genderOf(e['Employee code']))
+      : kind === 'mptype' ? (e => (PROFILES[e['Employee code']]||{}).employment_type || 'Not set')
+      : kind === 'mpgrade' ? (e => (PROFILES[e['Employee code']]||{}).grade || 'Not set')
+      : (e => ((PROFILES[e['Employee code']]||{}).category === 'WORKER') ? 'WORKER' : 'STAFF');
+    const members = S.active.filter(e => kf(e) === key);
+    html = misDetTable(['Code', 'Name', 'Designation', 'Department', 'Type', 'Category'], empRows(members));
+    title += ` · ${members.length} employee(s)`;
+  }
+  $('misDetTitle').innerText = title;
+  $('misDetBody').innerHTML = html;
+  $('misDetModal').classList.add('show');
+}
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-misk]');
+  if(el && $('page-mis').classList.contains('show')) openMisDetail(el.dataset.misk, el.dataset.miskey);
+});
 $('misGo').addEventListener('click', loadMis);
 
 /* ---------------- Global click delegation ---------------- */
@@ -4780,6 +4879,17 @@ document.body.addEventListener('click', async e => {
     const { data, error } = await sb.storage.from('expense-bills').createSignedUrl(el.dataset.path, 120);
     if(error) return notify(error.message, 'error');
     window.open(data.signedUrl, '_blank');
+  }
+  if(act === 'lv-conflict-cancel'){
+    const partial = Number(el.dataset.hit) < Number(el.dataset.days);
+    const msg = partial
+      ? `Leave ke ${el.dataset.days} mein se ${el.dataset.hit} din punch hue hain.\nPoori leave CANCEL hogi (balance poora wapas) — bache hue asli chutti waale din chahiye to sahi dates ki nayi leave laga dena.\n\nCancel karein?`
+      : 'Employee us din aa gaya tha — leave cancel karke balance wapas karein?';
+    if(!(await nxConfirm(msg, 'Cancel Leave'))) return;
+    await sb.from('leaves').update({ status: 'CANCELLED' }).eq('id', el.dataset.id);
+    notify('Leave cancelled — balance restored', 'success');
+    loadLeaves();
+    return;
   }
   if(act === 'ml-rej'){
     await sb.from('money_requests').update({ status: 'REJECTED', decided_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
@@ -5995,7 +6105,39 @@ $('shSaveBtn').addEventListener('click', async () => {
 /* ---------------- LEAVES ---------------- */
 $('lvMonth').value = todayISO().slice(0,7);
 $('lvMonth').addEventListener('change', loadLeaves);
+async function checkLeaveConflicts(){
+  try{
+    const ym = new Date().toISOString().slice(0,7);
+    const [lvRes, attRes] = await Promise.all([
+      sb.from('leaves').select('*').eq('status','APPROVED').lte('from_date', ym + '-31').gte('to_date', ym + '-01'),
+      sb.from('attendance').select('employee_code, date').gte('date', ym + '-01').lte('date', ym + '-31').limit(50000)
+    ]);
+    const attSet = new Set((attRes.data||[]).map(r => r.employee_code + '|' + r.date));
+    const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
+    const conflicts = [];
+    (lvRes.data||[]).forEach(L => {
+      const hit = [];
+      const d1 = new Date(L.from_date), d2 = new Date(L.to_date || L.from_date);
+      for(let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)){
+        const iso = d.toISOString().slice(0,10);
+        if(attSet.has(L.employee_code + '|' + iso)) hit.push(iso);
+      }
+      if(hit.length) conflicts.push({ L, hit });
+    });
+    const card = $('lvConflictCard'); if(!card) return;
+    card.classList.toggle('hidden', !conflicts.length);
+    $('lvConflictCnt').innerText = conflicts.length;
+    $('lvConflictBox').innerHTML = conflicts.map(c => `
+      <div class="flex items-center justify-between gap-2 p-2 rounded-lg mb-1 flex-wrap" style="background:#fff;border:1px solid var(--line)">
+        <span class="text-xs"><b>${esc(nameOf(c.L.employee_code))}</b> — ${esc(c.L.leave_type)} ${c.L.days}d (${fmtDate(c.L.from_date)} → ${fmtDate(c.L.to_date)})
+          <span style="color:#b45309">· punched on ${c.hit.map(fmtDate).join(', ')}</span></span>
+        <button class="btn btn-danger btn-sm" data-act="lv-conflict-cancel" data-id="${c.L.id}" data-days="${c.L.days}" data-hit="${c.hit.length}">
+          <i class="fa-solid fa-ban"></i> Cancel Leave</button>
+      </div>`).join('');
+  }catch(e){}
+}
 async function loadLeaves(){
+  checkLeaveConflicts();
   try{
     const ym = $('lvMonth').value;
     const dim = daysInMonth(ym);
