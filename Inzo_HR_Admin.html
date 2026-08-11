@@ -127,6 +127,15 @@ body.not-super .super-only{display:none !important;}
 .inp{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-size:13.5px;background:#fff;color:var(--ink);outline:none;font-family:'Inter',sans-serif}
 .inp:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 .lbl{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+/* ===== Aligned toolbar system (no wrap, baseline-perfect) ===== */
+.toolbar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.toolbar .fld{display:flex;flex-direction:column;gap:5px;min-width:0}
+.toolbar .fld .lbl{margin-bottom:0}
+.toolbar .fld .inp{height:40px}
+.toolbar .btn{height:40px;flex-shrink:0}
+.toolbar .tb-gap{flex:1 1 auto;min-width:0}
+.toolbar .tb-legend{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+@media(min-width:1100px){ .toolbar.nowrap{flex-wrap:nowrap} .toolbar.nowrap .tb-legend{flex-wrap:nowrap} }
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
 .tbl th{text-align:left;padding:10px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--line);background:#f8fafc;font-weight:600;white-space:nowrap;position:sticky;top:0;z-index:1}
 .tbl td{padding:10px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
@@ -463,14 +472,17 @@ body.no-confidential .confidential-col{display:none!important}
 
 <!-- ================= ATTENDANCE ================= -->
 <div class="page" id="page-attendance">
-  <div class="card mb-4 flex items-center gap-3 flex-wrap">
-    <div><label class="lbl">Month</label><input type="month" id="attMonth" class="inp"></div>
-    <button id="attLoadBtn" class="btn btn-primary mt-4"><i class="fa-solid fa-rotate"></i> Load Register</button>
-    <button id="attCsvBtn" class="btn btn-ghost mt-4"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
-    <button id="attFixBtn" class="btn btn-ghost mt-4"><i class="fa-solid fa-user-clock"></i> Manual Punch / Fix</button>
-    <button id="attBulkBtn" class="btn btn-ghost mt-4" style="border-color:#bbf7d0;color:#16a34a"><i class="fa-solid fa-file-arrow-up"></i> Bulk Upload (Excel)</button>
-    <div class="ml-auto mt-4 flex gap-2 text-[11px] items-center flex-wrap">
-      <span class="chip c-P">P Present</span><span class="chip c-L">L Late</span><span class="chip c-A">A Absent</span><span class="chip c-WO">WO Week Off</span><span class="chip c-H">H Holiday</span><span class="chip c-LV">LV Leave</span>
+  <div class="card mb-4">
+    <div class="toolbar">
+      <div class="fld" style="width:160px"><label class="lbl">Month</label><input type="month" id="attMonth" class="inp"></div>
+      <button id="attLoadBtn" class="btn btn-primary"><i class="fa-solid fa-rotate"></i> Load Register</button>
+      <button id="attCsvBtn" class="btn btn-ghost"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+      <button id="attFixBtn" class="btn btn-ghost"><i class="fa-solid fa-user-clock"></i> Manual Punch / Fix</button>
+      <button id="attBulkBtn" class="btn btn-ghost" style="border-color:#bbf7d0;color:#16a34a"><i class="fa-solid fa-file-arrow-up"></i> Bulk Upload</button>
+      <div class="tb-gap"></div>
+      <div class="tb-legend text-[11px]">
+        <span class="chip c-P">P</span><span class="chip c-L">L</span><span class="chip c-A">A</span><span class="chip c-WO">WO</span><span class="chip c-H">H</span><span class="chip c-LV">LV</span>
+      </div>
     </div>
   </div>
   <div class="card mb-4" id="deployCard">
@@ -487,25 +499,18 @@ body.no-confidential .confidential-col{display:none!important}
 <!-- ================= WORK HOURS ================= -->
 <div class="page" id="page-workhours">
   <div class="card mb-4">
-    <div class="flex items-end gap-3 flex-wrap">
-      <div>
-        <label class="lbl">View</label>
-        <select id="whMode" class="inp" style="min-width:150px">
-          <option value="day">Single Date</option>
-          <option value="month">Whole Month</option>
-          <option value="range">Date Range</option>
-        </select>
-      </div>
-      <div id="whDayWrap"><label class="lbl">Date</label><input type="date" id="whDate" class="inp"></div>
-      <div id="whMonthWrap" class="hidden"><label class="lbl">Month</label><input type="month" id="whMonth" class="inp"></div>
-      <div id="whRangeWrap" class="hidden flex items-end gap-2">
-        <div><label class="lbl">From</label><input type="date" id="whFrom" class="inp"></div>
-        <div><label class="lbl">To</label><input type="date" id="whTo" class="inp"></div>
-      </div>
-      <div><label class="lbl">Employee (optional)</label><input id="whEmp" class="inp" placeholder="Code or name — blank = all" list="whEmpDL" style="min-width:180px"><datalist id="whEmpDL"></datalist></div>
+    <div class="toolbar">
+      <div class="fld" style="width:150px"><label class="lbl">View</label>
+        <select id="whMode" class="inp"><option value="day">Single Date</option><option value="month">Whole Month</option><option value="range">Date Range</option></select></div>
+      <div class="fld" id="whDayWrap" style="width:160px"><label class="lbl">Date</label><input type="date" id="whDate" class="inp"></div>
+      <div class="fld hidden" id="whMonthWrap" style="width:160px"><label class="lbl">Month</label><input type="month" id="whMonth" class="inp"></div>
+      <div class="fld hidden" id="whFromWrap" style="width:150px"><label class="lbl">From</label><input type="date" id="whFrom" class="inp"></div>
+      <div class="fld hidden" id="whToWrap" style="width:150px"><label class="lbl">To</label><input type="date" id="whTo" class="inp"></div>
+      <div class="fld" style="width:200px"><label class="lbl">Employee (optional)</label><input id="whEmp" class="inp" placeholder="Blank = all" list="whEmpDL"><datalist id="whEmpDL"></datalist></div>
       <button id="whLoadBtn" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Load</button>
       <button id="whExportBtn" class="btn btn-ghost"><i class="fa-solid fa-file-csv"></i> Export</button>
-      <div class="ml-auto flex items-end"><div><label class="lbl">Std hrs/day</label><input type="number" id="whStd" class="inp" value="8" step="0.5" style="max-width:90px"></div></div>
+      <div class="tb-gap"></div>
+      <div class="fld" style="width:100px"><label class="lbl">Std hrs/day</label><input type="number" id="whStd" class="inp" value="8" step="0.5"></div>
     </div>
   </div>
   <div class="card" id="whResult"><p style="color:var(--muted)">Choose a view and click Load to see worked hours, excess (overtime) hours and totals.</p></div>
@@ -3836,7 +3841,8 @@ function whToggle(){
   const m = $('whMode').value;
   $('whDayWrap').classList.toggle('hidden', m !== 'day');
   $('whMonthWrap').classList.toggle('hidden', m !== 'month');
-  $('whRangeWrap').classList.toggle('hidden', m !== 'range');
+  $('whFromWrap').classList.toggle('hidden', m !== 'range');
+  $('whToWrap').classList.toggle('hidden', m !== 'range');
 }
 function whInit(){
   if($('whMode')._wired) return; $('whMode')._wired = true;
