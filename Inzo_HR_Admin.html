@@ -468,6 +468,7 @@ body.no-confidential .confidential-col{display:none!important}
     <button id="attLoadBtn" class="btn btn-primary mt-4"><i class="fa-solid fa-rotate"></i> Load Register</button>
     <button id="attCsvBtn" class="btn btn-ghost mt-4"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
     <button id="attFixBtn" class="btn btn-ghost mt-4"><i class="fa-solid fa-user-clock"></i> Manual Punch / Fix</button>
+    <button id="attBulkBtn" class="btn btn-ghost mt-4" style="border-color:#bbf7d0;color:#16a34a"><i class="fa-solid fa-file-arrow-up"></i> Bulk Upload (Excel)</button>
     <div class="ml-auto mt-4 flex gap-2 text-[11px] items-center flex-wrap">
       <span class="chip c-P">P Present</span><span class="chip c-L">L Late</span><span class="chip c-A">A Absent</span><span class="chip c-WO">WO Week Off</span><span class="chip c-H">H Holiday</span><span class="chip c-LV">LV Leave</span>
     </div>
@@ -765,6 +766,30 @@ body.no-confidential .confidential-col{display:none!important}
     </div>
   </div>
 </div>
+
+<!-- Bulk attendance upload modal -->
+<div class="modal" id="bulkAttModal"><div class="modal-box" style="max-width:640px">
+  <div class="flex items-center justify-between mb-1">
+    <h3 class="display font-bold m-0"><i class="fa-solid fa-file-arrow-up" style="color:#16a34a"></i> Bulk Attendance Upload</h3>
+    <button class="btn btn-ghost btn-sm" onclick="$('bulkAttModal').classList.remove('show')"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <ol class="text-xs mt-0 mb-3" style="color:var(--muted);padding-left:18px;line-height:1.7">
+    <li><b>Date range chuno</b> (jitne din ki attendance daalni hai) → <b>Template Download</b> — har active employee × har din ki rows, jinki punch already hai wo <b>bhari hui</b> aayengi.</li>
+    <li>Excel/Sheets mein kholo → jinke IN/OUT khaali hain wahan <b>time bharo</b> (24-hr, jaise <b>09:35</b> ya <b>18:10</b>). Jo pehle se bhari hain unhe chhod do (ya badal do).</li>
+    <li>File save karo (CSV) → yahan <b>Upload</b> karo. Sirf jin rows mein IN time hai wahi lagegi; late apne aap calculate hoga.</li>
+  </ol>
+  <div class="grid grid-cols-2 gap-2 mb-3">
+    <div><label class="lbl">From</label><input type="date" id="bulkFrom" class="inp"></div>
+    <div><label class="lbl">To</label><input type="date" id="bulkTo" class="inp"></div>
+  </div>
+  <button id="bulkTemplBtn" class="btn btn-primary w-full justify-center mb-3"><i class="fa-solid fa-download"></i> Download Template</button>
+  <hr style="border:none;border-top:1px solid var(--line);margin:8px 0">
+  <label class="lbl">Upload filled CSV</label>
+  <input type="file" id="bulkFile" accept=".csv" class="inp mb-2">
+  <label class="flex items-center gap-2 text-xs mb-3"><input type="checkbox" id="bulkOverwrite"> Existing time bhi overwrite karo (default: sirf khaali/naye bharega, purane safe)</label>
+  <button id="bulkUploadBtn" class="btn w-full justify-center" style="background:#16a34a;color:#fff"><i class="fa-solid fa-cloud-arrow-up"></i> Upload & Apply Attendance</button>
+  <div id="bulkResult" class="mt-2 text-xs"></div>
+</div></div>
 
 <!-- No-face check modal -->
 <div class="modal" id="noFaceModal"><div class="modal-box" style="max-width:620px">
@@ -3850,6 +3875,12 @@ async function loadWorkHours(){
 
     const multiDay = from !== to;
     let gTotal = 0, gExcess = 0, gDays = 0;
+    const unitNm = c => {
+      const e = EMP.find(x => x['Employee code'] === c) || {};
+      const u = e.UNIT || String(c||'').slice(0,4);
+      const un = ((SETTINGS && SETTINGS.units) || []).find(x => x.code === u);
+      return un ? un.name : (u || '');
+    };
     const build = r => {
       const code = r.employee_code;
       const emp = EMP.find(e => e['Employee code'] === code) || {};
@@ -3859,7 +3890,7 @@ async function loadWorkHours(){
       if((!worked || worked<=0) && inT && outT){ let ms = new Date(r.date+'T'+outT+':00') - new Date(r.date+'T'+inT+':00'); if(ms<0) ms+=86400000; worked = ms/3600000; }
       const excess = worked > std ? (worked - std) : 0;
       gTotal += worked; gExcess += excess; if(worked>0) gDays++;
-      return { code, name: emp.Name || r.Name || code, date: r.date, inT, outT, worked, excess, late: isRowLate(r) };
+      return { code, name: emp.Name || r.Name || code, dept: emp.DEPARTMENT || '', desig: emp.DESIGNATION || '', unit: unitNm(code), date: r.date, inT, outT, worked, excess, late: isRowLate(r) };
     };
     const items = rows.map(build);
 
@@ -3867,6 +3898,9 @@ async function loadWorkHours(){
       ${multiDay ? `<td>${x.date}</td>` : ''}
       <td class="font-mono">${esc(x.code)}</td>
       <td class="font-semibold">${esc(x.name)}</td>
+      <td class="text-xs">${esc(x.dept || '\u2014')}</td>
+      <td class="text-xs">${esc(x.desig || '\u2014')}</td>
+      <td class="text-xs">${esc(x.unit || '\u2014')}</td>
       <td>${x.inT || '\u2014'}${x.late && x.inT ? ' <span class="chip c-L" style="font-size:9px">L</span>' : ''}</td>
       <td>${x.outT || '<span style=\'color:var(--bad)\'>missing</span>'}</td>
       <td>${fmtHrs(x.worked)}</td>
@@ -3886,7 +3920,7 @@ async function loadWorkHours(){
       <div style="overflow-x:auto;max-height:70vh;overflow-y:auto"><table class="tbl">
         <thead style="position:sticky;top:0;background:#fff;z-index:1"><tr>
           ${multiDay ? '<th>Date</th>' : ''}
-          <th>Employee Code</th><th>Employee Name</th><th>In Time</th><th>Out Time</th><th>Total Hours</th><th>Excess Hours</th>
+          <th>Employee Code</th><th>Employee Name</th><th>Department</th><th>Designation</th><th>Unit</th><th>In Time</th><th>Out Time</th><th>Total Hours</th><th>Excess Hours</th>
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table></div>`;
@@ -3895,12 +3929,11 @@ async function loadWorkHours(){
 function exportWorkHours(){
   const d = window._whData; if(!d || !d.items.length) return notify('Load data first', 'error');
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
-  const head = (d.multiDay ? ['Date'] : []).concat(['Employee Code','Employee Name','Department','In Time','Out Time','Total Hours','Excess Hours']);
+  const head = (d.multiDay ? ['Date'] : []).concat(['Employee Code','Employee Name','Department','Designation','Unit','In Time','Out Time','Total Hours','Excess Hours']);
   const lines = [head.join(',')];
-  const deptOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? (e.DEPARTMENT || '') : ''; };
   d.items.forEach(x => {
     const base = d.multiDay ? [x.date] : [];
-    lines.push(base.concat([x.code, x.name, deptOf(x.code), x.inT||'', x.outT||'', x.worked.toFixed(2), x.excess.toFixed(2)]).map(q).join(','));
+    lines.push(base.concat([x.code, x.name, x.dept||'', x.desig||'', x.unit||'', x.inT||'', x.outT||'', x.worked.toFixed(2), x.excess.toFixed(2)]).map(q).join(','));
   });
   dlText('Work_Hours_'+d.from+(d.multiDay?('_to_'+d.to):'')+'.csv', lines.join('\n'), 'text/csv');
 }
@@ -3908,6 +3941,123 @@ function exportWorkHours(){
 /* ---------------- Attendance Register ---------------- */
 $('attMonth').value = todayISO().slice(0,7);
 $('attLoadBtn').addEventListener('click', loadRegister);
+
+/* ===================== BULK ATTENDANCE UPLOAD ===================== */
+$('attBulkBtn').addEventListener('click', () => {
+  const t = todayISO();
+  if(!$('bulkTo').value) $('bulkTo').value = t;
+  if(!$('bulkFrom').value){ const d = new Date(); d.setDate(d.getDate() - 9); $('bulkFrom').value = d.toISOString().slice(0,10); }
+  $('bulkResult').innerHTML = '';
+  $('bulkAttModal').classList.add('show');
+});
+function bulkDates(){
+  const f = $('bulkFrom').value, t = $('bulkTo').value;
+  if(!f || !t || t < f) return null;
+  const out = []; for(let d = new Date(f); d <= new Date(t); d.setDate(d.getDate() + 1)) out.push(d.toISOString().slice(0,10));
+  return out;
+}
+$('bulkTemplBtn').addEventListener('click', async () => {
+  const dates = bulkDates(); if(!dates) return notify('Sahi date range chuno', 'error');
+  if(dates.length > 40) return notify('Max 40 days at a time', 'error');
+  const btn = $('bulkTemplBtn'); btn.disabled = true; btn.innerHTML = '<div class="loader-ring"></div> Building…';
+  try{
+    const active = EMP.filter(e => String(e.Status||'ACTIVE').toUpperCase() === 'ACTIVE');
+    const unitNm = c => { const e = EMP.find(x => x['Employee code'] === c) || {}; const u = e.UNIT || String(c||'').slice(0,4); const un = ((SETTINGS&&SETTINGS.units)||[]).find(x => x.code === u); return un ? un.name : (u||''); };
+    // existing punches for the range
+    const { data: att } = await sb.from('attendance').select('employee_code, date, in_time, out_time').gte('date', dates[0]).lte('date', dates[dates.length-1]).limit(100000);
+    const exMap = {}; (att||[]).forEach(r => { exMap[String(r.employee_code).toUpperCase() + '|' + r.date] = r; });
+    const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
+    const head = ['Employee Code','Employee Name','Department','Designation','Unit','Date','IN (HH:MM)','OUT (HH:MM)'];
+    const lines = [head.join(',')];
+    active.forEach(e => {
+      const c = e['Employee code'];
+      dates.forEach(dt => {
+        const ex = exMap[String(c).toUpperCase() + '|' + dt];
+        const inV = ex && ex.in_time ? String(ex.in_time).substring(0,5) : '';
+        const outV = ex && ex.out_time ? String(ex.out_time).substring(0,5) : '';
+        lines.push([c, e.Name||'', e.DEPARTMENT||'', e.DESIGNATION||'', unitNm(c), dt, inV, outV].map(q).join(','));
+      });
+    });
+    dlText('Attendance_Template_' + dates[0] + '_to_' + dates[dates.length-1] + '.csv', lines.join('\n'), 'text/csv');
+    notify('Template downloaded — ' + active.length + ' employees × ' + dates.length + ' day(s)', 'success');
+  }catch(err){ notify(err.message, 'error'); }
+  finally{ btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-download"></i> Download Template'; }
+});
+function parseCSV(text){
+  const rows = []; let i = 0, field = '', row = [], inQ = false;
+  while(i < text.length){
+    const ch = text[i];
+    if(inQ){ if(ch === '"'){ if(text[i+1] === '"'){ field += '"'; i++; } else inQ = false; } else field += ch; }
+    else { if(ch === '"') inQ = true; else if(ch === ','){ row.push(field); field = ''; } else if(ch === '\n' || ch === '\r'){ if(ch === '\r' && text[i+1] === '\n') i++; if(field !== '' || row.length){ row.push(field); rows.push(row); row = []; field = ''; } } else field += ch; }
+    i++;
+  }
+  if(field !== '' || row.length){ row.push(field); rows.push(row); }
+  return rows;
+}
+$('bulkUploadBtn').addEventListener('click', async () => {
+  const f = $('bulkFile').files && $('bulkFile').files[0];
+  if(!f) return notify('Pehle filled CSV file chuno', 'error');
+  const overwrite = $('bulkOverwrite').checked;
+  const btn = $('bulkUploadBtn'); btn.disabled = true; btn.innerHTML = '<div class="loader-ring"></div> Uploading…';
+  const res = $('bulkResult'); res.innerHTML = '';
+  try{
+    const text = await f.text();
+    const rows = parseCSV(text);
+    if(rows.length < 2) throw new Error('File khaali lag rahi hai');
+    const head = rows[0].map(h => String(h).trim().toUpperCase());
+    const ci = { code: head.findIndex(h => h.includes('CODE')), date: head.findIndex(h => h === 'DATE'),
+      in: head.findIndex(h => h.startsWith('IN')), out: head.findIndex(h => h.startsWith('OUT')) };
+    if(ci.code < 0 || ci.date < 0 || ci.in < 0) throw new Error('Columns nahi mile — template hi use karo (Employee Code, Date, IN)');
+    const normT = v => { v = String(v||'').trim(); if(!v) return null; const m = v.match(/^(\d{1,2}):(\d{2})/); if(!m) return null; return String(m[1]).padStart(2,'0') + ':' + m[2] + ':00'; };
+    const normD = v => { v = String(v||'').trim(); let m = v.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m) return m[1]+'-'+m[2]+'-'+m[3]; m = v.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/); if(m) return m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0'); return null; };
+    const deptOf = c => { const e = EMP.find(x => x['Employee code'] === c) || {}; return String(e.DEPARTMENT||'').toUpperCase(); };
+    const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c) || {}; return e.Name || c; };
+
+    // collect valid records
+    const recs = [];
+    for(let r = 1; r < rows.length; r++){
+      const code = String(rows[r][ci.code]||'').trim().toUpperCase();
+      const date = normD(rows[r][ci.date]);
+      const inT = normT(rows[r][ci.in]);
+      const outT = ci.out >= 0 ? normT(rows[r][ci.out]) : null;
+      if(!code || !date || !inT) continue;   // IN mandatory to mark present
+      recs.push({ code, date, inT, outT });
+    }
+    if(!recs.length) throw new Error('Koi valid row nahi (IN time waali) — kam se kam IN bharo');
+
+    // existing rows for these dates -> skip/overwrite logic
+    const dts = [...new Set(recs.map(r => r.date))].sort();
+    const { data: existing } = await sb.from('attendance').select('employee_code, date, in_time').gte('date', dts[0]).lte('date', dts[dts.length-1]).limit(100000);
+    const exSet = new Set((existing||[]).map(r => String(r.employee_code).toUpperCase() + '|' + r.date));
+
+    const toInsert = [], toUpdate = [];
+    recs.forEach(x => {
+      const key = x.code + '|' + x.date;
+      const late = deptOf(x.code).includes('PLANNING') ? (x.inT > '10:00:00') : (x.inT > '09:10:00');
+      const row = { employee_code: x.code, Name: nameOf(x.code), date: x.date, in_time: x.inT, out_time: x.outT, is_late: late };
+      if(exSet.has(key)){ if(overwrite) toUpdate.push(row); }
+      else toInsert.push(row);
+    });
+
+    let ins = 0, upd = 0;
+    for(let i = 0; i < toInsert.length; i += 500){
+      const chunk = toInsert.slice(i, i + 500);
+      const { error } = await sb.from('attendance').insert(chunk);
+      if(error) throw error; ins += chunk.length;
+      res.innerHTML = `<span style="color:var(--muted)">Inserting… ${ins}/${toInsert.length}</span>`;
+    }
+    for(const row of toUpdate){
+      const { error } = await sb.from('attendance').update({ in_time: row.in_time, out_time: row.out_time, is_late: row.is_late }).eq('employee_code', row.employee_code).eq('date', row.date);
+      if(!error) upd++;
+    }
+    res.innerHTML = `<div class="p-2 rounded-lg" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534">
+      <b>Done ✓</b> — ${ins} new attendance added${overwrite ? `, ${upd} updated` : ''}.
+      ${toInsert.length + toUpdate.length < recs.length ? `<br><span style="color:#a16207">${recs.length - toInsert.length - toUpdate.length} row(s) already existed (skipped — overwrite off tha).</span>` : ''}
+      <br><span style="font-size:11px">Register reload karke dekho.</span></div>`;
+    notify('Bulk attendance applied — ' + (ins + upd) + ' records', 'success');
+  }catch(err){ res.innerHTML = `<p style="color:var(--bad)">Error: ${esc(err.message)}</p>`; }
+  finally{ btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Upload & Apply Attendance'; }
+});
 let REG_CSV = [];
 
 async function loadRegister(){
