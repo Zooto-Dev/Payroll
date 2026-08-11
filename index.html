@@ -2477,10 +2477,15 @@ function nxConfirm(msg, title){
                     : [Array.from(newEmpDescriptor)];
                 if(window._regExistingCode){
                     // EXISTING employee: sirf face (Descriptor) update — baaki details admin waali
+                    if(!navigator.onLine) throw new Error('OFFLINE — internet ke bina face register nahi hoga. Connect karke dobara karo.');
                     const { error } = await supabaseClient.from('employees')
                         .update({ Descriptor: JSON.stringify(descriptorPayload) })
                         .eq('"Employee code"', window._regExistingCode);
                     if(error) throw error;
+                    {
+                        const chk = await supabaseClient.from('employees').select('Descriptor').eq('"Employee code"', window._regExistingCode).maybeSingle();
+                        if(chk.error || !chk.data || !chk.data.Descriptor || String(chk.data.Descriptor).length < 20) throw new Error('Face verify FAILED — DB me save nahi hua. Dobara karo.');
+                    }
                     if(empMobile){
                         try{ await supabaseClient.from('hr_profiles').upsert({ employee_code: window._regExistingCode, phone: empMobile }, { onConflict: 'employee_code' }); }catch(e){}
                     }
@@ -2496,8 +2501,15 @@ function nxConfirm(msg, title){
                     DOJ: empDOJ || null,
                     UNIT: ((document.getElementById('regUnit')||{}).value) || null
                 };
+                if(!navigator.onLine) throw new Error('OFFLINE — internet nahi hai. Face register karne ke liye internet zaroori hai (warna DB tak nahi pahunchega). Connect karke dobara karo.');
                 const { error } = await supabaseClient.from('employees').insert([row]);
                 if(error) throw error;
+                // VERIFY: read it back — insert "success" but row absent = the exact bug you hit
+                {
+                    const chk = await supabaseClient.from('employees').select('"Employee code", Descriptor').eq('"Employee code"', empCode).maybeSingle();
+                    if(chk.error || !chk.data) throw new Error('Save verify FAILED — row DB me nahi mili. Internet/permission check karke dobara karo.');
+                    if(!chk.data.Descriptor || String(chk.data.Descriptor).length < 20) throw new Error('Face DB me save nahi hua (Descriptor empty). Dobara capture karke save karo.');
+                }
 
                 // profile (mobile) + salary structure so the admin panel is immediately in sync
                 try{
@@ -2514,14 +2526,23 @@ function nxConfirm(msg, title){
                 localStorage.setItem('cached_all_codes', JSON.stringify(window.NX_ALL_CODES));
                 // register the new face into the live matcher right now (zero extra bandwidth)
                 try{
-                    labeledFaceDescriptors.push(new faceapi.LabeledFaceDescriptors(empCode, [new Float32Array(descriptorArray)]));
-                    employeeDataMap.set(empCode, row);
-                    faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.55);
-                    const cached = JSON.parse(localStorage.getItem('cached_employees_data') || '[]');
-                    cached.push(row); localStorage.setItem('cached_employees_data', JSON.stringify(cached));
+                    const liveCode = window._regExistingCode || empCode;
+                    // multiple descriptors -> stronger live match (bug fix: was referencing an undefined var)
+                    const floatDescs = (descriptorPayload || []).map(d => new Float32Array(d));
+                    if(floatDescs.length){
+                        // drop any old entry for this code, then add fresh
+                        labeledFaceDescriptors = labeledFaceDescriptors.filter(l => l.label !== liveCode);
+                        labeledFaceDescriptors.push(new faceapi.LabeledFaceDescriptors(liveCode, floatDescs));
+                        faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.55);
+                    }
+                    if(!window._regExistingCode){
+                        employeeDataMap.set(empCode, row);
+                        const cached = JSON.parse(localStorage.getItem('cached_employees_data') || '[]');
+                        cached.push(row); localStorage.setItem('cached_employees_data', JSON.stringify(cached));
+                    }
                 }catch(e){ console.warn('live add warn', e); }
 
-                notify(`Employee ${empName} Registered!`, "success");
+                notify(`✓ ${empName} — face DB me VERIFIED & saved. Ab punch karke test karo.`, "success");
                 document.getElementById('registerForm').reset();
                 nxFillEnrollForm();
                 document.getElementById('regCode').value = '';
