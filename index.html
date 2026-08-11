@@ -106,6 +106,16 @@
         .scanner-viewport.active-scan {
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2), inset 0 0 0 1px rgba(255,255,255,0.1);
         }
+        /* ---- Kiosk full-screen app layout ---- */
+        .kiosk-header{ flex:0 0 auto; display:flex; align-items:center; justify-content:center; padding:11px 16px; border-bottom:1px solid #eef0f3; }
+        .kiosk-logo{ height:30px; width:auto; display:block; }
+        #scannerState:not(.hidden){ display:flex; flex-direction:column; flex-grow:1; padding:8px 0 0; justify-content:flex-start; }
+        #scannerState .scanner-viewport{ flex:1 1 auto; width:100%; margin:0; height:auto; min-height:0; max-height:none; border-radius:0; }
+        .kiosk-controls{ flex:0 0 auto; }
+        @media (max-width:600px){
+            body{ padding:0; align-items:stretch; }
+            .app-container{ max-width:100%; width:100%; min-height:100dvh; height:100dvh; border-radius:0; box-shadow:none; }
+        }
 
         video { 
             position: absolute;
@@ -304,11 +314,9 @@
 
     <main class="app-container">
         
-        <header class="pt-4 pb-4 px-6 flex items-center justify-between border-b border-slate-100">
-            <h1 class="text-2xl tracking-tight" style="font-family:'Syncopate',sans-serif;font-weight:700;letter-spacing:.14em;color:#0f172a">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</h1>
-            <button id="openAuthBtn" class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center transition-colors shadow-sm" title="Admin Access">
-                <i class="fa-solid fa-user-shield text-xl"></i>
-            </button>
+        <header class="kiosk-header">
+            <img src="nexus-logo.png" alt="Nexus" class="kiosk-logo" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'">
+            <span class="kiosk-logo-fb" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;letter-spacing:.14em;font-size:18px;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</span>
         </header>
 
         <div id="offlineBanner" class="hidden w-full bg-red-500 text-white text-[10px] font-bold text-center py-1.5 uppercase tracking-widest shadow-inner z-50">
@@ -380,7 +388,10 @@
                 </div>
             </div>
 
-            <div class="flex items-center justify-center gap-6 mt-4 mb-2 w-full px-6">
+            <div class="kiosk-controls flex items-center justify-center gap-6 mt-3 mb-1 w-full px-6">
+                <button id="openAuthBtn" class="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 transition-colors shadow-sm" title="Admin Access">
+                    <i class="fa-solid fa-user-shield text-lg"></i>
+                </button>
                 <button id="toggleCamBtn" class="w-12 h-12 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 transition-colors shadow-sm" title="Switch Camera">
                     <i class="fa-solid fa-camera-rotate text-lg"></i>
                 </button>
@@ -388,7 +399,7 @@
                     <i id="playPauseIcon" class="fa-solid fa-pause text-xl"></i>
                 </button>
             </div>
-            <p class="text-[11px] text-slate-400 text-center mb-4 px-6 font-medium">Auto-scan active. Ensure face is clearly visible.</p>
+            <p class="kiosk-hint text-[11px] text-slate-400 text-center mb-3 px-6 font-medium">Auto-scan active. Ensure face is clearly visible.</p>
         </div>
 
     </main>
