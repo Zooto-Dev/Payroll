@@ -588,7 +588,10 @@ body.no-confidential .confidential-col{display:none!important}
     <button class="ap-tab active" data-aptab="leaves"><i class="fa-solid fa-umbrella-beach"></i> Leaves <span class="ap-cnt" id="apCntLv">0</span></button>
     <button class="ap-tab" data-aptab="ot"><i class="fa-solid fa-clock"></i> Overtime <span class="ap-cnt" id="apCntOt">0</span></button>
     <button class="ap-tab" data-aptab="exp"><i class="fa-solid fa-receipt"></i> Expenses <span class="ap-cnt" id="apCntEx">0</span></button>
-    <button class="ap-tab" data-aptab="essatt"><i class="fa-solid fa-location-dot"></i> Field / WFH / Gate <span class="ap-cnt" id="apCntEa">0</span></button>
+    <button class="ap-tab" data-aptab="field"><i class="fa-solid fa-location-dot"></i> Field <span class="ap-cnt" id="apCntField">0</span></button>
+    <button class="ap-tab" data-aptab="wfh"><i class="fa-solid fa-house-laptop"></i> WFH <span class="ap-cnt" id="apCntWfh">0</span></button>
+    <button class="ap-tab" data-aptab="gate"><i class="fa-solid fa-door-open"></i> Gate Pass <span class="ap-cnt" id="apCntGate">0</span></button>
+    <button class="ap-tab" data-aptab="attfix"><i class="fa-solid fa-clock-rotate-left"></i> Att. Fix <span class="ap-cnt" id="apCntAf">0</span></button>
     <button class="ap-tab" data-aptab="mloan"><i class="fa-solid fa-sack-dollar"></i> Advance / Loan <span class="ap-cnt" id="apCntMl">0</span></button>
   </div>
   <div class="card" style="padding:0;overflow:hidden">
@@ -612,9 +615,10 @@ body.no-confidential .confidential-col{display:none!important}
       </div>
       <div id="apExp" class="text-sm" style="padding:0"></div>
     </div>
-    <div class="ap-panel hidden" id="apPanel-essatt">
-      <div id="apEssAtt" class="text-sm" style="padding:0"></div>
-    </div>
+    <div class="ap-panel hidden" id="apPanel-field"><div id="apField" class="text-sm" style="padding:0"></div></div>
+    <div class="ap-panel hidden" id="apPanel-wfh"><div id="apWfh" class="text-sm" style="padding:0"></div></div>
+    <div class="ap-panel hidden" id="apPanel-gate"><div id="apGate" class="text-sm" style="padding:0"></div></div>
+    <div class="ap-panel hidden" id="apPanel-attfix"><div id="apAttfix" class="text-sm" style="padding:0"></div></div>
     <div class="ap-panel hidden" id="apPanel-mloan">
       <div id="apMloan" class="text-sm" style="padding:0"></div>
     </div>
@@ -7683,25 +7687,39 @@ async function loadApprovals(){
   };
   const canDecideEssAtt = r => isSuper() || nxIsMyReport(((PROFILES[r.employee_code]||{}).reporting_manager)||'');
   window._canDecideEssAtt = canDecideEssAtt;
-  $('apEssAtt').innerHTML = (ea.data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
-    <thead><tr><th>Employee</th><th>Type</th><th>Date</th><th>Reason</th><th>Manager</th><th style="text-align:right"></th></tr></thead><tbody>
-    ${ea.data.map(r => {
-      const mgr = ((PROFILES[r.employee_code]||{}).reporting_manager) || '—';
-      const mine = canDecideEssAtt(r);
-      const typeChip = r.req_type === 'GATE_HD' ? '<span class="chip" style="background:#fef3c7;color:#92400e">HALF DAY</span>'
-        : r.req_type === 'GATE_SL' ? '<span class="chip" style="background:#ccfbf1;color:#115e59">SHORT LEAVE' + (r.gp_slot ? (r.gp_slot === 'MORNING' ? ' · Subah' : ' · Shaam') : '') + '</span>'
-        : r.req_type === 'WFH' ? '<span class="chip" style="background:#f3e8ff;color:#6b21a8">WFH</span>'
-        : r.req_type === 'ATT_FIX' ? '<span class="chip" style="background:#fee2e2;color:#b91c1c">ATT FIX' + (r.fix_in ? ' · In ' + String(r.fix_in).substring(0,5) : '') + (r.fix_out ? ' – ' + String(r.fix_out).substring(0,5) : '') + '</span>'
-        : '<span class="chip chip-blue">FIELD</span>';
-      const proofBtn = r.proof_path ? ` <button class="btn btn-ghost btn-sm" data-act="ex-proof" data-path="${esc(r.proof_path)}" title="View proof"><i class="fa-solid fa-paperclip"></i></button>` : '';
-      return `<tr><td class="font-semibold">${esc(r.name || r.employee_code)}</td>
-        <td>${typeChip}${proofBtn}</td>
-        <td>${fmtDate(r.date)}</td><td class="text-xs">${esc(r.reason||'—')}</td><td class="text-xs">${esc(mgr)}</td>
-        <td style="text-align:right;white-space:nowrap">${mine
-          ? `<button class="btn btn-ghost btn-sm" data-act="ea-appr" data-id="${r.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
-             <button class="btn btn-danger btn-sm" data-act="ea-rej" data-id="${r.id}"><i class="fa-solid fa-xmark"></i></button>`
-          : `<span class="text-[10px]" style="color:var(--muted)">Manager approves</span>`}</td></tr>`;
-    }).join('')}</tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
+  const _essRow = r => {
+    const mgr = ((PROFILES[r.employee_code]||{}).reporting_manager) || '—';
+    const mine = canDecideEssAtt(r);
+    const extra = r.req_type === 'GATE_SL' ? (r.gp_slot === 'MORNING' ? 'Short Leave · Subah' : r.gp_slot === 'EVENING' ? 'Short Leave · Shaam' : 'Short Leave')
+      : r.req_type === 'GATE_HD' ? 'Half Day'
+      : r.req_type === 'ATT_FIX' ? ('In ' + (r.fix_in ? String(r.fix_in).substring(0,5) : '—') + (r.fix_out ? ' · Out ' + String(r.fix_out).substring(0,5) : '')) : '';
+    const proofBtn = r.proof_path ? ` <button class="btn btn-ghost btn-sm" data-act="ex-proof" data-path="${esc(r.proof_path)}" title="View proof"><i class="fa-solid fa-paperclip"></i></button>` : '';
+    return `<tr><td class="font-semibold">${esc(r.name || r.employee_code)}</td>
+      ${extra ? `<td class="text-xs">${esc(extra)}${proofBtn}</td>` : (r.proof_path ? `<td>${proofBtn}</td>` : '<td>—</td>')}
+      <td>${fmtDate(r.date)}</td><td class="text-xs" style="max-width:220px">${esc(r.reason||'—')}</td><td class="text-xs">${esc(mgr)}</td>
+      <td style="text-align:right;white-space:nowrap">${mine
+        ? `<button class="btn btn-ghost btn-sm" data-act="ea-appr" data-id="${r.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
+           <button class="btn btn-danger btn-sm" data-act="ea-rej" data-id="${r.id}"><i class="fa-solid fa-xmark"></i></button>`
+        : `<span class="text-[10px]" style="color:var(--muted)">Manager approves</span>`}</td></tr>`;
+  };
+  const _essTable = (list, col2) => list.length ? `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Employee</th><th>${col2}</th><th>Date</th><th>Reason</th><th>Manager</th><th style="text-align:right"></th></tr></thead>
+    <tbody>${list.map(_essRow).join('')}</tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
+  {
+    const all = ea.data || [];
+    const field = all.filter(r => !r.req_type || r.req_type === 'FIELD');
+    const wfh = all.filter(r => r.req_type === 'WFH');
+    const gate = all.filter(r => r.req_type === 'GATE_SL' || r.req_type === 'GATE_HD');
+    const af = all.filter(r => r.req_type === 'ATT_FIX');
+    $('apField').innerHTML = _essTable(field, 'Proof');
+    $('apWfh').innerHTML = _essTable(wfh, 'Proof');
+    $('apGate').innerHTML = _essTable(gate, 'Type');
+    $('apAttfix').innerHTML = _essTable(af, 'Time');
+    if($('apCntField')) $('apCntField').innerText = field.length;
+    if($('apCntWfh')) $('apCntWfh').innerText = wfh.length;
+    if($('apCntGate')) $('apCntGate').innerText = gate.length;
+    if($('apCntAf')) $('apCntAf').innerText = af.length;
+  }
   const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
   const item = (title, sub, actA, actR, id) =>
     `<div class="p-2 rounded-lg flex items-center justify-between" style="background:#f8fafc">
@@ -7774,7 +7792,7 @@ async function loadApprovals(){
   if($('apCntLv')) $('apCntLv').innerText = (lv.data||[]).length;
   if($('apCntOt')) $('apCntOt').innerText = otGroupCount;
   if($('apCntEx')) $('apCntEx').innerText = (ex.data||[]).length;
-  if($('apCntEa')) $('apCntEa').innerText = (ea.data||[]).length;
+  
   const n = (lv.data||[]).length + (ot.data||[]).length + (ex.data||[]).length;
   $('apprBadge').innerText = n;
   $('apprBadge').classList.toggle('hidden', n === 0);
