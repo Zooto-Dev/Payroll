@@ -35,10 +35,12 @@
 @keyframes nxSlide{0%{margin-left:-40%}100%{margin-left:100%}}
 
 :root{
-  --brand:#2563eb; --brand-hover:#1d4ed8; --brand-soft:#eff6ff;
-  --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
-  --bg:#f1f5f9; --surface:#ffffff;
-  --ok:#10b981; --warn:#f59e0b; --bad:#ef4444;
+  /* Nexus — warm off-white + logo-blue accent */
+  --brand:#1f4b9b; --brand-hover:#183c7d; --brand-soft:#eaf0fa;
+  --ink:#2a2824; --muted:#7c766c; --line:#e7e3da; --line-soft:#f0ede6;
+  --bg:#f5f3ee; --surface:#ffffff; --surface-2:#faf8f4;
+  --ok:#3a7d54; --warn:#a9701e; --bad:#b3443c;
+  --acc:#1f4b9b; --accsoft:#eaf0fa;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
@@ -46,8 +48,48 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .money{font-family:'Space Grotesk',sans-serif;font-variant-numeric:tabular-nums}
 
 /* ---------- Shell ---------- */
-.sidebar{width:198px;min-height:100vh;background:#ffffff;border-right:1px solid var(--line);position:fixed;left:0;top:0;display:flex;flex-direction:column;z-index:40}
-.main{margin-left:198px;min-height:100vh;display:flex;flex-direction:column}
+.main{min-height:100vh;display:flex;flex-direction:column}
+/* ============ NEXUS TOPBAR + DROPDOWN NAV ============ */
+.nxbar1{height:60px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:18px;padding:0 24px;position:sticky;top:0;z-index:45}
+.nxbrand{display:flex;align-items:center;gap:10px;flex-shrink:0;text-decoration:none}
+.nxbrand img{height:32px;width:auto;display:block}
+.nxbrand .fallback{width:32px;height:32px;border-radius:8px;background:var(--brand);display:grid;place-items:center;color:#fff;font-size:15px;font-weight:700}
+.nxbrand b{font:700 16px/1 Inter;letter-spacing:.02em;color:#16225a}
+.nxbrand span{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);display:block;margin-top:3px}
+.nxsearch{position:relative;width:300px;max-width:30vw;margin-left:4px}
+.nxsearch input{width:100%;height:38px;border:1px solid var(--line);border-radius:9px;background:var(--surface-2);padding:0 12px 0 36px;font:400 13px Inter;color:var(--ink);outline:none}
+.nxsearch input:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--accsoft);background:#fff}
+.nxsearch>i{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px}
+.nxgrow{flex:1}
+.nxact{display:flex;align-items:center;gap:9px}
+.nxib{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;display:grid;place-items:center;font-size:14px;position:relative}
+.nxib:hover{background:var(--surface-2)}
+.nxib .d{position:absolute;top:9px;right:10px;width:6px;height:6px;border-radius:50%;background:var(--bad);border:1.5px solid var(--surface)}
+.nxuser{display:flex;align-items:center;gap:9px;height:38px;padding:0 11px 0 6px;border-radius:9px;border:1px solid var(--line);background:var(--surface);cursor:pointer}
+.nxuser:hover{background:var(--surface-2)}
+.nxuser .a{width:27px;height:27px;border-radius:7px;background:var(--brand);display:grid;place-items:center;color:#fff;font:600 12px Inter}
+.nxuser .nm{font:600 12px/1 Inter;color:var(--ink)}.nxuser .rl{font-size:9px;color:var(--muted);margin-top:3px}
+.nxbar2{height:48px;background:var(--surface-2);border-bottom:1px solid var(--line);display:flex;align-items:stretch;padding:0 18px;position:sticky;top:60px;z-index:44}
+.nxnav{display:flex;align-items:stretch;gap:1px}
+.nxg{position:relative;display:flex;align-items:stretch}
+.nxg>button{display:inline-flex;align-items:center;gap:8px;padding:0 14px;border:none;background:transparent;color:var(--ink);font:550 13px/1 Inter;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:.12s;height:100%}
+.nxg>button>i.li{font-size:13px;color:var(--muted)}
+.nxg>button>i.ca{font-size:9px;color:var(--muted);transition:transform .18s}
+.nxg>button:hover{color:var(--brand)}
+.nxg.open>button,.nxg>button.on{color:var(--brand);border-bottom-color:var(--brand)}
+.nxg.open>button>i.li,.nxg>button.on>i.li{color:var(--brand)}
+.nxg.open>button>i.ca{transform:rotate(180deg)}
+.nxg .bdg{font:700 10px/1 Inter;background:var(--brand);color:#fff;padding:3px 6px;border-radius:10px;min-width:18px;text-align:center}
+.nxdd{position:absolute;top:calc(100% + 1px);left:6px;min-width:236px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 34px -8px rgba(42,40,36,.2);padding:7px;opacity:0;visibility:hidden;transform:translateY(-5px);transition:.16s;z-index:60}
+.nxg.open .nxdd{opacity:1;visibility:visible;transform:translateY(0)}
+.nxdi{display:flex;align-items:center;gap:12px;width:100%;border:none;background:transparent;padding:9px 11px;border-radius:8px;cursor:pointer;text-align:left}
+.nxdi:hover{background:var(--surface-2)}
+.nxdi .di{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:13px;flex-shrink:0;background:var(--accsoft);color:var(--brand)}
+.nxdi .dt{font:600 12.5px/1 Inter;color:var(--ink)}
+.nxdi .ds{font-size:10.5px;color:var(--muted);margin-top:3px}
+.nxdi.active{background:var(--accsoft)}.nxdi.active .dt{color:var(--brand)}
+.nxdi .dbg{margin-left:auto;font:700 9.5px Inter;background:var(--warn);color:#fff;padding:2px 6px;border-radius:10px}
+@media(max-width:940px){.nxsearch{width:150px}.nxuser .nm,.nxuser .rl{display:none}.nxbar2{overflow-x:auto}.nxbar1{gap:10px;padding:0 14px}}
 /* switches */
 .sw{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0}
 .sw input{opacity:0;width:0;height:0}
@@ -63,9 +105,9 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .nx-pager .pg-btn:disabled{opacity:.4;cursor:default}
 /* table & card polish */
 .tbl td{transition:background .1s}
-.tbl tbody tr:hover td{background:#f8fafc}
+.tbl tbody tr:hover td{background:var(--surface-2)}
 .card{box-shadow:0 1px 2px rgba(15,23,42,.04)}
-.inp:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12);outline:none}
+.inp:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--accsoft);outline:none}
 .ac-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-size:12px;font-weight:500;color:#475569;cursor:pointer;user-select:none;transition:all .12s}
 .ac-chip:hover{border-color:#94a3b8}
 .ac-chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
@@ -74,20 +116,17 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .ac-row{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:14px;margin-bottom:8px;background:#fff;transition:box-shadow .15s}
 .ac-row:hover{box-shadow:0 4px 16px rgba(15,23,42,.06)}
 .ac-mini{display:inline-block;padding:2px 8px;border-radius:6px;background:#f1f5f9;color:#475569;font-size:10px;margin:1px}
-#navToggle{display:none;position:fixed;top:12px;left:12px;z-index:60;width:42px;height:42px;border-radius:12px;background:#fff;border:1px solid var(--line);box-shadow:0 4px 14px rgba(15,23,42,.08);color:var(--ink);font-size:16px;cursor:pointer}
+#navToggle{display:none!important}
+.sidebar{display:none!important}
 #navOverlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:45}
 @media(max-width:920px){
-  #navToggle{display:block}
-  .sidebar{transform:translateX(-105%);transition:transform .22s ease;box-shadow:0 0 40px rgba(15,23,42,.18)}
-  .sidebar.open{transform:none}
   .main{margin-left:0}
-  .main > div, .main > header{padding-left:14px!important;padding-right:14px!important}
   .grid.lg\:grid-cols-3, .grid.lg\:grid-cols-2, .grid.grid-cols-3, .grid.grid-cols-4{grid-template-columns:1fr!important}
   .grid.grid-cols-2{grid-template-columns:1fr 1fr}
   .modal-box{width:94vw!important;max-width:94vw!important;max-height:90vh;overflow-y:auto}
   .card{overflow-x:auto}
   .tbl{min-width:560px}
-  #pageTitle{font-size:17px!important;padding-left:44px}
+  #pageTitle{font-size:17px!important}
 }
 .nav-item{display:flex;align-items:center;gap:10px;padding:8px 12px;margin:1px 8px;border-radius:9px;color:#64748b;cursor:pointer;font-weight:500;transition:all .15s;border:none;background:transparent;width:calc(100% - 16px);text-align:left;font-size:13px}
 .nav-item i{width:18px;text-align:center}
@@ -107,25 +146,25 @@ body.not-super .super-only{display:none !important;}
 .page.show{display:block}
 
 /* ---------- Components ---------- */
-.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px}
 .stat-num{font-family:'Space Grotesk',sans-serif;font-size:30px;font-weight:700;line-height:1.1}
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;align-items:center;gap:14px;box-shadow:0 1px 2px rgba(15,23,42,.04);transition:box-shadow .15s,transform .15s}
 .kpi:hover{box-shadow:0 6px 18px rgba(15,23,42,.08);transform:translateY(-1px)}
 .kpi-ic{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
 .kpi-lbl{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
-.kpi-num{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;line-height:1.15}
+.kpi-num{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;line-height:1.15;letter-spacing:-.02em;color:var(--ink)}
 .kpi-sub{font-size:10px;color:var(--muted);margin-top:1px}
 .btn{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:10px;font-weight:600;font-size:13px;cursor:pointer;border:1px solid transparent;transition:all .15s}
 .btn-primary{background:var(--brand);color:#fff}
 .btn-primary:hover{background:var(--brand-hover)}
 .btn-ghost{background:#fff;border-color:var(--line);color:var(--ink)}
-.btn-ghost:hover{border-color:#cbd5e1;background:#f8fafc}
-.btn-danger{background:#fef2f2;color:var(--bad);border-color:#fecaca}
-.btn-danger:hover{background:#fee2e2}
+.btn-ghost:hover{border-color:#dcd7cc;background:var(--surface-2)}
+.btn-danger{background:#f8eae8;color:var(--bad);border-color:#e6c4c0}
+.btn-danger:hover{background:#f2ddd9}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn-sm{padding:6px 11px;font-size:12px;border-radius:8px}
 .inp{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-size:13.5px;background:#fff;color:var(--ink);outline:none;font-family:'Inter',sans-serif}
-.inp:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.inp:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--accsoft)}
 .lbl{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
 /* ===== Aligned toolbar system (no wrap, baseline-perfect) ===== */
 .toolbar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
@@ -137,14 +176,14 @@ body.not-super .super-only{display:none !important;}
 .toolbar .tb-legend{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 @media(min-width:1100px){ .toolbar.nowrap{flex-wrap:nowrap} .toolbar.nowrap .tb-legend{flex-wrap:nowrap} }
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
-.tbl th{text-align:left;padding:10px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--line);background:#f8fafc;font-weight:600;white-space:nowrap;position:sticky;top:0;z-index:1}
-.tbl td{padding:10px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-.tbl tbody tr:hover{background:#f8fafc}
+.tbl th{text-align:left;padding:10px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--line);background:var(--surface-2);font-weight:600;white-space:nowrap;position:sticky;top:0;z-index:1}
+.tbl td{padding:10px 12px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+.tbl tbody tr:hover{background:var(--surface-2)}
 .chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600}
-.chip-ok{background:#ecfdf5;color:#047857}
-.chip-warn{background:#fffbeb;color:#b45309}
-.chip-bad{background:#fef2f2;color:#b91c1c}
-.chip-gray{background:#f1f5f9;color:#475569}
+.chip-ok{background:#e9f3ec;color:#2f7d54}
+.chip-warn{background:#faf1e0;color:#a9701e}
+.chip-bad{background:#f8eae8;color:#b3443c}
+.chip-gray{background:#eef1ee;color:#5c655f}
 .chip-blue{background:var(--brand-soft);color:var(--brand)}
 /* Hiring board */
 .hr-stat{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:#fff;border:1px solid var(--line);border-radius:999px}
@@ -285,61 +324,65 @@ body.no-confidential .confidential-col{display:none!important}
 
 <!-- ================= SHELL ================= -->
 <div id="appShell" class="hidden">
-<button id="navToggle"><i class="fa-solid fa-bars"></i></button><aside class="sidebar">
-  <div class="px-5 py-5 text-center">
-    <div>
-      <div class="leading-none" style="font-family:'Syncopate',sans-serif;font-weight:700;letter-spacing:.2em;font-size:16px;color:#0f172a">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</div>
-      <div class="text-[9px] mt-1.5" style="color:#94a3b8;letter-spacing:.18em">PAYROLL CONSOLE
-    </div>
+<!-- ===== NEXUS TOP BAR ===== -->
+<div class="nxbar1">
+  <a class="nxbrand" href="#">
+    <img src="nexus-logo.png" alt="Nexus" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
+    <div class="fallback" style="display:none"><i class="fa-solid fa-hexagon-nodes"></i></div>
+    <div><b>NEXUS</b><span>HR Console</span></div>
+  </a>
+  <div class="nxsearch"><i class="fa-solid fa-magnifying-glass"></i><input id="nxGlobalSearch" placeholder="Search employees, codes…"></div>
+  <div class="nxgrow"></div>
+  <div class="nxact">
+    <button id="helpBtn" class="nxib" title="How this page works"><i class="fa-solid fa-circle-question"></i></button>
+    <button class="nxib" title="Notifications"><i class="fa-regular fa-bell"></i><span class="d"></span></button>
+    <div class="nxuser" id="nxUserChip"><div class="a">A</div><div><div class="nm">Admin</div><div class="rl" id="adminEmailChip">—</div></div></div>
+    <button id="logoutBtn" class="nxib" title="Logout" style="color:var(--bad)"><i class="fa-solid fa-power-off"></i></button>
   </div>
-  <nav class="mt-2 flex-1" style="overflow-y:auto">
-    <button class="nav-sec" data-group="g1"><span>OVERVIEW</span><i class="fa-solid fa-chevron-down"></i></button>
-    <div class="nav-group" id="g1">
-      <button class="nav-item active" data-page="dashboard"><i class="fa-solid fa-gauge-high"></i> Dashboard</button>
-      <button class="nav-item" data-page="reports"><i class="fa-solid fa-chart-column"></i> Analytics</button>
-      <button class="nav-item" data-page="mis"><i class="fa-solid fa-chart-pie"></i> MIS Report</button>
-    </div>
-    <button class="nav-sec" data-group="g2"><span>WORKFORCE</span><i class="fa-solid fa-chevron-down"></i></button>
-    <div class="nav-group" id="g2">
-      <button class="nav-item" data-page="employees"><i class="fa-solid fa-users"></i> Employees</button>
-      <button class="nav-item" data-page="hiring"><i class="fa-solid fa-user-tie"></i> Hiring</button>
-      <button class="nav-item" data-page="attendance"><i class="fa-solid fa-calendar-days"></i> Attendance</button>
-      <button class="nav-item" data-page="workhours"><i class="fa-solid fa-business-time"></i> Work Hours</button>
-      <button class="nav-item" data-page="shifts"><i class="fa-solid fa-clock-rotate-left"></i> Shifts</button>
-      <button class="nav-item" data-page="leaves"><i class="fa-solid fa-umbrella-beach"></i> Leaves</button>
-      <button class="nav-item" data-page="approvals"><i class="fa-solid fa-clipboard-check"></i> Approvals <span id="apprBadge" class="chip chip-warn hidden" style="margin-left:auto;font-size:9px;padding:1px 6px">0</span></button>
-      <button class="nav-item" data-page="voice"><i class="fa-solid fa-comments"></i> Voice Box <span id="voiceBadge" class="chip chip-warn hidden" style="margin-left:auto;font-size:9px;padding:1px 6px">0</span></button>
-    </div>
-    <button class="nav-sec collapsed" data-group="g3"><span>PAYROLL & FINANCE</span><i class="fa-solid fa-chevron-down"></i></button>
-    <div class="nav-group collapsed" id="g3">
-      <button class="nav-item" data-page="payroll"><i class="fa-solid fa-indian-rupee-sign"></i> Payroll</button>
-      <button class="nav-item" data-page="advances"><i class="fa-solid fa-hand-holding-dollar"></i> Advances</button>
-      <button class="nav-item" data-page="expenses"><i class="fa-solid fa-receipt"></i> Expenses</button>
-      <button class="nav-item" data-page="compliance"><i class="fa-solid fa-scale-balanced"></i> Compliance</button>
-    </div>
-    <button class="nav-sec collapsed" data-group="g4"><span>OPERATIONS</span><i class="fa-solid fa-chevron-down"></i></button>
-    <div class="nav-group collapsed" id="g4">
-      <button class="nav-item" data-page="assets"><i class="fa-solid fa-laptop"></i> Assets</button>
-      <button class="nav-item" data-page="letters"><i class="fa-solid fa-file-signature"></i> Letters</button>
-      <button class="nav-item" data-page="idcards"><i class="fa-solid fa-id-card"></i> ID Cards</button>
-      <button class="nav-item" data-page="exits"><i class="fa-solid fa-person-walking-arrow-right"></i> Exit / FnF</button>
-    </div>
-    <button class="nav-sec collapsed" data-group="g5"><span>SYSTEM</span><i class="fa-solid fa-chevron-down"></i></button>
-    <div class="nav-group collapsed" id="g5">
-      <button class="nav-item" data-page="settings"><i class="fa-solid fa-gear"></i> Settings</button>
-      <button class="nav-item hidden" id="navAdminCtl" data-page="adminctl"><i class="fa-solid fa-user-shield"></i> Admin Control</button>
-    </div>
-  </nav>
-  <button id="logoutBtn" class="nav-item mb-4" style="color:#dc2626"><i class="fa-solid fa-power-off"></i> Logout</button>
-</aside>
+</div>
+<!-- ===== NEXUS DROPDOWN NAV ===== -->
+<div class="nxbar2"><nav class="nxnav">
+  <div class="nxg"><button><i class="fa-solid fa-gauge-high li"></i> Overview <i class="fa-solid fa-chevron-down ca"></i></button>
+    <div class="nxdd">
+      <button class="nav-item nxdi active" data-page="dashboard"><span class="di"><i class="fa-solid fa-gauge-high"></i></span><span style="flex:1"><span class="dt">Dashboard</span><span class="ds">Live attendance & KPIs</span></span></button>
+      <button class="nav-item nxdi" data-page="mis"><span class="di"><i class="fa-solid fa-chart-pie"></i></span><span style="flex:1"><span class="dt">MIS Report</span><span class="ds">Attendance, expense & manpower</span></span></button>
+      <button class="nav-item nxdi" data-page="reports"><span class="di"><i class="fa-solid fa-chart-column"></i></span><span style="flex:1"><span class="dt">Analytics</span><span class="ds">Trends & deep dives</span></span></button>
+    </div></div>
+  <div class="nxg"><button><i class="fa-solid fa-users li"></i> Workforce <i class="fa-solid fa-chevron-down ca"></i><span id="apprBadge" class="bdg hidden">0</span></button>
+    <div class="nxdd">
+      <button class="nav-item nxdi" data-page="employees"><span class="di"><i class="fa-solid fa-users"></i></span><span style="flex:1"><span class="dt">Employees</span><span class="ds">Directory & profiles</span></span></button>
+      <button class="nav-item nxdi" data-page="hiring"><span class="di"><i class="fa-solid fa-user-tie"></i></span><span style="flex:1"><span class="dt">Hiring</span><span class="ds">Candidates & assessment</span></span></button>
+      <button class="nav-item nxdi" data-page="attendance"><span class="di"><i class="fa-solid fa-calendar-days"></i></span><span style="flex:1"><span class="dt">Attendance</span><span class="ds">Monthly register</span></span></button>
+      <button class="nav-item nxdi" data-page="workhours"><span class="di"><i class="fa-solid fa-business-time"></i></span><span style="flex:1"><span class="dt">Work Hours</span><span class="ds">Hours & overtime</span></span></button>
+      <button class="nav-item nxdi" data-page="shifts"><span class="di"><i class="fa-solid fa-clock-rotate-left"></i></span><span style="flex:1"><span class="dt">Shifts</span><span class="ds">Shift master</span></span></button>
+      <button class="nav-item nxdi" data-page="leaves"><span class="di"><i class="fa-solid fa-umbrella-beach"></i></span><span style="flex:1"><span class="dt">Leaves</span><span class="ds">Requests & balances</span></span></button>
+      <button class="nav-item nxdi" data-page="approvals"><span class="di"><i class="fa-solid fa-clipboard-check"></i></span><span style="flex:1"><span class="dt">Approvals</span><span class="ds">Pending items</span></span><span id="apprBadge2" class="dbg hidden">0</span></button>
+      <button class="nav-item nxdi" data-page="voice"><span class="di"><i class="fa-solid fa-comments"></i></span><span style="flex:1"><span class="dt">Voice Box</span><span class="ds">Grievance & kaizen</span></span><span id="voiceBadge" class="dbg hidden">0</span></button>
+    </div></div>
+  <div class="nxg"><button><i class="fa-solid fa-money-check-dollar li"></i> Payroll &amp; Finance <i class="fa-solid fa-chevron-down ca"></i></button>
+    <div class="nxdd">
+      <button class="nav-item nxdi" data-page="payroll"><span class="di"><i class="fa-solid fa-indian-rupee-sign"></i></span><span style="flex:1"><span class="dt">Payroll</span><span class="ds">Salary sheet & payslips</span></span></button>
+      <button class="nav-item nxdi" data-page="advances"><span class="di"><i class="fa-solid fa-hand-holding-dollar"></i></span><span style="flex:1"><span class="dt">Advances</span><span class="ds">Advances & loans</span></span></button>
+      <button class="nav-item nxdi" data-page="expenses"><span class="di"><i class="fa-solid fa-receipt"></i></span><span style="flex:1"><span class="dt">Expenses</span><span class="ds">Reimbursement & UPI</span></span></button>
+      <button class="nav-item nxdi" data-page="compliance"><span class="di"><i class="fa-solid fa-scale-balanced"></i></span><span style="flex:1"><span class="dt">Compliance</span><span class="ds">PF, ESI & statutory</span></span></button>
+    </div></div>
+  <div class="nxg"><button><i class="fa-solid fa-boxes-stacked li"></i> Operations <i class="fa-solid fa-chevron-down ca"></i></button>
+    <div class="nxdd">
+      <button class="nav-item nxdi" data-page="assets"><span class="di"><i class="fa-solid fa-laptop"></i></span><span style="flex:1"><span class="dt">Assets</span><span class="ds">Asset assignment</span></span></button>
+      <button class="nav-item nxdi" data-page="letters"><span class="di"><i class="fa-solid fa-file-signature"></i></span><span style="flex:1"><span class="dt">Letters</span><span class="ds">Offer & experience letters</span></span></button>
+      <button class="nav-item nxdi" data-page="idcards"><span class="di"><i class="fa-solid fa-id-card"></i></span><span style="flex:1"><span class="dt">ID Cards</span><span class="ds">Generate ID cards</span></span></button>
+      <button class="nav-item nxdi" data-page="exits"><span class="di"><i class="fa-solid fa-person-walking-arrow-right"></i></span><span style="flex:1"><span class="dt">Exit / FnF</span><span class="ds">Resignations & F&F</span></span></button>
+    </div></div>
+  <div class="nxg"><button><i class="fa-solid fa-gear li"></i> System <i class="fa-solid fa-chevron-down ca"></i></button>
+    <div class="nxdd">
+      <button class="nav-item nxdi" data-page="settings"><span class="di"><i class="fa-solid fa-gear"></i></span><span style="flex:1"><span class="dt">Settings</span><span class="ds">Departments, units, shifts</span></span></button>
+      <button class="nav-item nxdi hidden" id="navAdminCtl" data-page="adminctl"><span class="di"><i class="fa-solid fa-user-shield"></i></span><span style="flex:1"><span class="dt">Admin Control</span><span class="ds">Users & access</span></span></button>
+    </div></div>
+</nav></div>
 
 <div class="main">
-  <div class="topbar">
+  <div class="topbar" style="padding:14px 24px">
     <h2 id="pageTitle" class="display text-lg font-bold m-0">Dashboard</h2>
-    <div class="flex items-center gap-3">
-      <button id="helpBtn" class="btn btn-ghost btn-sm" title="How this page works"><i class="fa-solid fa-circle-question"></i> Help</button>
-      <span id="adminEmailChip" class="chip chip-gray"><i class="fa-solid fa-user-shield"></i> —</span>
-    </div>
   </div>
 
 <!-- ================= DASHBOARD ================= -->
@@ -2370,7 +2413,8 @@ async function enterApp(){
   if(!user) return;
   $('loginScreen').classList.add('hidden');
   $('appShell').classList.remove('hidden');
-  $('adminEmailChip').innerHTML = '<i class="fa-solid fa-user-shield"></i> ' + esc(user.email);
+  $('adminEmailChip').innerText = user.email;
+  try{ const _ini=(user.email||'A').trim().charAt(0).toUpperCase(); const _av=document.querySelector('#nxUserChip .a'); if(_av)_av.innerText=_ini; const _nm=document.querySelector('#nxUserChip .nm'); if(_nm)_nm.innerText=(user.email||'Admin').split('@')[0]; }catch(e){}
   const { data: { session } } = await sb.auth.getSession();
   ME_EMAIL = ((session && session.user && session.user.email) || '').toLowerCase();
   await loadCore();
@@ -2466,15 +2510,20 @@ function fillEmpSelects(){
 
 /* ---------------- Router ---------------- */
 const TITLES = { mis:'MIS Report', dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', adminctl:'Admin Control Panel' };
-const _ov = document.createElement('div'); _ov.id = 'navOverlay'; document.body.appendChild(_ov);
-const _sb = document.querySelector('.sidebar');
-$('navToggle').addEventListener('click', () => { _sb.classList.toggle('open'); _ov.style.display = _sb.classList.contains('open') ? 'block' : 'none'; });
-_ov.addEventListener('click', () => { _sb.classList.remove('open'); _ov.style.display = 'none'; });
+/* ---- Topbar dropdown open/close ---- */
+function nxCloseDD(){ document.querySelectorAll('.nxg').forEach(g=>g.classList.remove('open')); }
+document.querySelectorAll('.nxg > button').forEach(b=>b.addEventListener('click', e=>{
+  e.stopPropagation(); const g=b.parentElement; const was=g.classList.contains('open'); nxCloseDD(); if(!was) g.classList.add('open');
+}));
+document.querySelectorAll('.nxg').forEach(g=>g.addEventListener('mouseenter', ()=>{ if(document.querySelector('.nxg.open')){ nxCloseDD(); g.classList.add('open'); } }));
+document.addEventListener('click', nxCloseDD);
+function nxSyncGroup(page){ document.querySelectorAll('.nxg').forEach(g=>{ const has=[...g.querySelectorAll('.nav-item[data-page]')].some(b=>b.dataset.page===page); const gb=g.querySelector('button'); if(gb) gb.classList.toggle('on', has); }); }
 document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
   btn.addEventListener('click', () => {
-    if(window.innerWidth <= 920){ _sb.classList.remove('open'); _ov.style.display = 'none'; }
+    nxCloseDD();
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
+    nxSyncGroup(btn.dataset.page);
     const page = btn.dataset.page;
     const allowed = allowedPages();
     if(!canSeeConfidential() && CONFIDENTIAL_PAGES.includes(page)) return notify('You do not have access to confidential (salary) data', 'error');
@@ -2512,10 +2561,7 @@ new MutationObserver(muts => {
   });
 }).observe(document.body, { attributes:true, subtree:true, attributeFilter:['class'] });
 
-document.querySelectorAll('.nav-sec[data-group]').forEach(h => h.addEventListener('click', () => {
-  h.classList.toggle('collapsed');
-  $(h.dataset.group).classList.toggle('collapsed');
-}));
+/* dropdown nav — no collapse handler needed */
 
 /* ---------------- OT Report ---------------- */
 let OTR_ROWS = [];
@@ -7800,8 +7846,7 @@ async function loadApprovals(){
   if($('apCntEx')) $('apCntEx').innerText = (ex.data||[]).length;
   
   const n = (lv.data||[]).length + (ot.data||[]).length + (ex.data||[]).length;
-  $('apprBadge').innerText = n;
-  $('apprBadge').classList.toggle('hidden', n === 0);
+  ['apprBadge','apprBadge2'].forEach(id=>{ const el=$(id); if(el){ el.innerText=n; el.classList.toggle('hidden', n===0); } });
 }
 function _apToggleBtns(pendBtn, apprBtn, mode){
   $(pendBtn).className = 'btn btn-sm ' + (mode === 'PENDING' ? 'btn-primary' : 'btn-ghost');
