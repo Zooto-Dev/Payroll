@@ -1,0 +1,16 @@
+{
+  "name": "Nexus HR Console",
+  "short_name": "Nexus HR",
+  "description": "Nexus HR — Admin & Payroll Console for Zooto Fashion",
+  "start_url": "./Inzo_HR_Admin.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f3ee",
+  "theme_color": "#1f4b9b",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "nexus-logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "nexus-logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "nexus-logo.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
