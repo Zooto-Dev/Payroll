@@ -147,7 +147,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div class="text-center mb-6">
       <h1 class="m-0" style="font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Self Service</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B65</b> — 08 Aug</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B66</b> — 08 Aug</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -173,7 +173,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <div>
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B65</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B66</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -239,6 +239,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <div><label class="lbl">Out Time (optional)</label><input id="afOut" type="time" class="inp"></div>
           <div><label class="lbl">Reason</label><input id="afReason" class="inp" placeholder="Reason"></div>
         </div>
+        <p id="afHint" class="hidden text-[11px] mb-2 p-2 rounded" style="background:#eff6ff;color:#1e40af"></p>
         <label class="lbl">Proof (photo/document) *</label>
         <input id="afProof" type="file" accept="image/*,.pdf" class="inp mb-2">
         <button id="afBtn" class="btn btn-primary w-full justify-center" style="background:#b91c1c"><i class="fa-solid fa-paper-plane"></i> Request Correction</button>
@@ -803,9 +804,34 @@ async function essCancelReq(kind, id){
     else { loadFieldReqs(); loadWfh(); loadGatePass(); }
   }catch(err){ notify(err.message || 'Failed'); }
 }
+async function afPrefill(){
+  try{
+    const codeU = String(CODE||'').trim().toUpperCase();
+    const d = $('afDate').value; if(!d) return;
+    const { data } = await sb.from('attendance').select('in_time, out_time').ilike('employee_code', codeU).eq('date', d).limit(1);
+    const rec = data && data[0];
+    const note = $('afHint');
+    if(rec){
+      // jo already hai wo bhar do + lock; jo missing hai wahi bharna hai
+      if(rec.in_time){ $('afIn').value = String(rec.in_time).substring(0,5); }
+      if(rec.out_time){ $('afOut').value = String(rec.out_time).substring(0,5); }
+      if(note){
+        note.classList.remove('hidden');
+        note.innerHTML = rec.in_time && !rec.out_time
+          ? 'Is din <b>In ' + String(rec.in_time).substring(0,5) + '</b> hai, <b>Out missing</b> — sirf Out time bharo.'
+          : (!rec.in_time && rec.out_time
+            ? 'Is din <b>Out</b> hai, <b>In missing</b> — sirf In time bharo.'
+            : 'Is din ki dono punch already hain — correction sirf badlav ke liye bhejo.');
+      }
+    } else {
+      if(note){ note.classList.add('hidden'); }
+    }
+  }catch(e){}
+}
 async function loadAttFix(){
   const host = $('afList'); if(!host) return;
   if($('afDate') && !$('afDate').value) $('afDate').value = new Date().toISOString().slice(0,10);
+  if($('afDate') && !$('afDate')._wired){ $('afDate')._wired = true; $('afDate').addEventListener('change', afPrefill); afPrefill(); }
   const codeU = String(CODE||'').trim().toUpperCase();
   try{
     const { data } = await sb.from('ess_att_requests').select('*').ilike('employee_code', codeU).eq('req_type','ATT_FIX').order('date', { ascending:false }).limit(8);
@@ -818,8 +844,9 @@ async function loadAttFix(){
 document.addEventListener('click', async e => {
   const b = e.target.closest('#afBtn'); if(!b) return;
   const codeU = String(CODE||'').trim().toUpperCase();
-  const d = $('afDate').value, tin = $('afIn').value;
-  if(!d || !tin) return notify('Date aur In Time dono chahiye');
+  const d = $('afDate').value, tin = $('afIn').value, tout = $('afOut').value;
+  if(!d) return notify('Date chuno');
+  if(!tin && !tout) return notify('In ya Out — kam se kam ek time bharo');
   const f = $('afProof').files && $('afProof').files[0];
   if(!f) return notify('Proof attach karna zaroori hai — bina proof correction nahi hogi');
   b.disabled = true;
@@ -827,7 +854,7 @@ document.addEventListener('click', async e => {
     const path = 'attfix/' + codeU + '_' + Date.now() + '_' + f.name.replace(/[^A-Za-z0-9._-]/g,'_');
     const { error: upErr } = await sb.storage.from('expense-bills').upload(path, f);
     if(upErr) throw upErr;
-    const { error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: d, reason: $('afReason').value.trim()||null, status: 'PENDING', req_type: 'ATT_FIX', fix_in: tin, fix_out: $('afOut').value || null, proof_path: path }]);
+    const { error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: d, reason: $('afReason').value.trim()||null, status: 'PENDING', req_type: 'ATT_FIX', fix_in: tin || null, fix_out: tout || null, proof_path: path }]);
     if(error && String(error.message||'').includes('duplicate')) notify('Us din ki ek request pehle se hai');
     else if(error) throw error;
     else notify('Correction request bheji ✓ — manager approve karega');
@@ -2116,7 +2143,7 @@ function _dbg(tag, val){
       p.onclick = () => p.remove();
       document.body.appendChild(p);
     }
-    if(p) p.textContent = '🔍 BUILD B65 (tap to close)\n' + window._nxDbg.join('\n');
+    if(p) p.textContent = '🔍 BUILD B66 (tap to close)\n' + window._nxDbg.join('\n');
   }catch(e){}
 }
 window.onerror = function(m, s, l){ _dbg('JS-ERROR', { message: String(m) + ' @line ' + l }); };
