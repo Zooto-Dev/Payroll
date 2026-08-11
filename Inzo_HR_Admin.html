@@ -425,6 +425,7 @@ body.no-confidential .confidential-col{display:none!important}
         <label class="text-[11px] flex items-center gap-1" style="color:var(--muted);cursor:pointer" title="Include exited/inactive employees"><input type="checkbox" id="empShowExited"> Show exited</label>
         <button id="empFormBtn" class="btn btn-ghost btn-sm" title="Print a blank joining form for the employee to fill"><i class="fa-solid fa-file-lines"></i> Blank Form</button>
         <button id="empGenderBtn" class="btn btn-ghost btn-sm hidden" style="border-color:#fbcfe8;color:#db2777"><i class="fa-solid fa-venus-mars"></i> Fix Genders (<span id="empGenderCnt">0</span>)</button>
+        <button id="empNoFaceBtn" class="btn btn-ghost btn-sm" style="border-color:#fecaca;color:#dc2626"><i class="fa-solid fa-face-viewfinder"></i> Face Check</button>
         <button id="empExportBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-file-export"></i> Export</button>
         <button id="empImportBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-file-import"></i> Import</button>
         <button id="empAddBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-user-plus"></i> Add Employee</button>
@@ -764,6 +765,19 @@ body.no-confidential .confidential-col{display:none!important}
     </div>
   </div>
 </div>
+
+<!-- No-face check modal -->
+<div class="modal" id="noFaceModal"><div class="modal-box" style="max-width:620px">
+  <div class="flex items-center justify-between mb-1">
+    <h3 class="display font-bold m-0"><i class="fa-solid fa-face-viewfinder" style="color:#dc2626"></i> Face Registration Check</h3>
+    <div class="flex gap-2">
+      <button class="btn btn-ghost btn-sm" onclick="noFaceCSV()"><i class="fa-solid fa-file-csv"></i> CSV</button>
+      <button class="btn btn-ghost btn-sm" onclick="$('noFaceModal').classList.remove('show')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+  </div>
+  <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Ye active employees jinka face DB me register NAHI hai — inhe kiosk pe (search box se) register karo.</p>
+  <div id="noFaceBody" style="max-height:62vh;overflow:auto"></div>
+</div></div>
 
 <!-- Gender fix modal -->
 <div class="modal" id="gfixModal"><div class="modal-box" style="max-width:560px">
@@ -4817,6 +4831,31 @@ function gfixRender(){
     </div>`).join('') : '<p class="text-xs m-0 p-3" style="color:var(--ok)">Sab set ✓ — koi missing nahi!</p>';
 }
 $('empGenderBtn').addEventListener('click', () => { gfixRender(); $('gfixModal').classList.add('show'); });
+
+$('empNoFaceBtn').addEventListener('click', async () => {
+  $('empNoFaceBtn').innerHTML = '<div class="loader-ring"></div>'; 
+  try{
+    const { data } = await sb.from('employees').select('"Employee code", Name, DEPARTMENT, DESIGNATION, Descriptor, Status');
+    const noFace = (data || []).filter(e => String(e.Status||'Active').toUpperCase() !== 'INACTIVE')
+      .filter(e => !e.Descriptor || String(e.Descriptor).length < 20)
+      .sort((a, b) => String(a.DEPARTMENT||'').localeCompare(String(b.DEPARTMENT||'')));
+    window._noFaceRows = [['Code','Name','Department','Designation'], ...noFace.map(e => [e['Employee code'], e.Name, e.DEPARTMENT||'', e.DESIGNATION||''])];
+    $('noFaceBody').innerHTML = noFace.length ? `<div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>Code</th><th>Name</th><th>Department</th></tr></thead><tbody>
+      ${noFace.map(e => `<tr><td class="font-mono text-xs">${esc(e['Employee code'])}</td><td class="font-semibold">${esc(e.Name)}</td><td class="text-xs">${esc(e.DEPARTMENT||'—')}</td></tr>`).join('')}
+      </tbody></table></div><p class="text-xs mt-2 mb-0" style="color:#dc2626"><b>${noFace.length}</b> employee(s) without a registered face.</p>`
+      : '<p class="text-xs m-0 p-3" style="color:var(--ok)">✓ Sabka face registered hai — koi missing nahi!</p>';
+    $('noFaceModal').classList.add('show');
+  }catch(err){ notify(err.message, 'error'); }
+  finally{ $('empNoFaceBtn').innerHTML = '<i class="fa-solid fa-face-viewfinder"></i> Face Check'; }
+});
+function noFaceCSV(){
+  const rows = window._noFaceRows || [];
+  const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'employees_without_face.csv'; a.click();
+}
 
 /* ---------------- Global click delegation ---------------- */
 document.body.addEventListener('click', async e => {
