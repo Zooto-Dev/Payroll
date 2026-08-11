@@ -1,0 +1,16 @@
+{
+  "name": "Nexus ESS — Employee Self Service",
+  "short_name": "Nexus ESS",
+  "description": "Nexus HR — Employee Self Service for Zooto Fashion",
+  "start_url": "./Inzo_ESS.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f3ee",
+  "theme_color": "#1f4b9b",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "nexus-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "nexus-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "nexus-icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

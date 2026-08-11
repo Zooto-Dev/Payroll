@@ -1,0 +1,16 @@
+{
+  "name": "Nexus Attendance Kiosk",
+  "short_name": "Nexus Kiosk",
+  "description": "Nexus HR — Face Attendance Kiosk for Zooto Fashion",
+  "start_url": "./attendance.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "nexus-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "nexus-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "nexus-icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
