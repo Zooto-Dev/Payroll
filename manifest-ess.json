@@ -1,9 +1,10 @@
 {
+  "id": "nexus-employee-portal",
   "name": "Employee Portal",
   "short_name": "Employee Portal",
   "description": "Nexus HR — Employee Portal for Zooto Fashion",
-  "start_url": "./Inzo_ESS.html",
-  "scope": "./",
+  "start_url": "./Inzo_ESS.html?app=ess",
+  "scope": "./Inzo_ESS.html",
   "display": "standalone",
   "background_color": "#f5f3ee",
   "theme_color": "#1f4b9b",
