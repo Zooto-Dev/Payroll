@@ -1,6 +1,6 @@
 {
-  "name": "Nexus Attendance Kiosk",
-  "short_name": "Nexus Kiosk",
+  "name": "Nexus Attendance",
+  "short_name": "Nexus Attendance",
   "description": "Nexus HR — Face Attendance Kiosk for Zooto Fashion",
   "start_url": "./attendance.html",
   "scope": "./",
