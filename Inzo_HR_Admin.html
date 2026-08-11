@@ -52,7 +52,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 /* ============ NEXUS TOPBAR + DROPDOWN NAV ============ */
 .nxbar{height:58px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 20px;position:sticky;top:0;z-index:45}
 .nxbrand{display:flex;align-items:center;gap:10px;flex-shrink:0;text-decoration:none}
-.nxbrand img{height:32px;width:auto;display:block}
+.nxbrand img{height:36px;width:auto;display:block}
 .nxbrand .fallback{width:32px;height:32px;border-radius:8px;background:var(--brand);display:grid;place-items:center;color:#fff;font-size:15px;font-weight:700}
 .nxbrand b{font:700 16px/1 Inter;letter-spacing:.02em;color:#16225a}
 .nxbrand span{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);display:block;margin-top:3px}
@@ -86,10 +86,27 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .nxdi .di{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:13px;flex-shrink:0;background:var(--accsoft);color:var(--brand)}
 .nxdi .dt{font:600 12.5px/1 Inter;color:var(--ink)}
 .nxdi .ds{font-size:10.5px;color:var(--muted);margin-top:3px}
-.nxdi.active{background:var(--accsoft)}.nxdi.active .dt{color:var(--brand)}
+.nav-item.nxdi.active,.nxdi.active{background:var(--accsoft)!important;color:var(--ink)!important}
+.nxdi.active .dt{color:var(--brand)}
+.nxdi.active .ds{color:var(--muted)}
+.nxdi.active .di{background:var(--brand);color:#fff}
 .nxdi .dbg{margin-left:auto;font:700 9.5px Inter;background:var(--warn);color:#fff;padding:2px 6px;border-radius:10px}
+.nxham{display:none;width:40px;height:40px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:17px;cursor:pointer}
 @media(max-width:1150px){.nxsearch{display:none}}
-@media(max-width:960px){.nxbar{gap:8px;padding:0 12px;overflow-x:auto}.nxuser .nm,.nxuser .rl{display:none}.nxbrand span{display:none}}
+@media(max-width:960px){
+  .nxbar{gap:10px;padding:0 14px}
+  .nxham{display:grid;place-items:center;margin-left:auto}
+  .nxuser .nm,.nxuser .rl{display:none}
+  /* nav becomes a full-width drawer under the bar */
+  .nxnav{position:fixed;top:58px;left:0;right:0;bottom:0;height:auto;background:var(--surface);flex-direction:column;align-items:stretch;gap:0;padding:8px;overflow-y:auto;transform:translateX(-100%);transition:transform .22s ease;z-index:60;box-shadow:0 20px 40px rgba(42,40,36,.15)}
+  .nxnav.open{transform:none}
+  .nxg{flex-direction:column;align-items:stretch;border-bottom:1px solid var(--line-soft)}
+  .nxg>button{height:46px;justify-content:flex-start;border-bottom:none;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .nxg>button>i.ca,.nxg .bdg{display:none}
+  .nxg .nxdd{position:static;opacity:1;visibility:visible;transform:none;box-shadow:none;border:none;padding:0 0 8px;min-width:0;background:transparent}
+  .nxdi{padding:11px 12px}
+  .nxact{margin-left:0}
+}
 /* switches */
 .sw{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0}
 .sw input{opacity:0;width:0;height:0}
@@ -326,10 +343,10 @@ body.no-confidential .confidential-col{display:none!important}
 <div id="appShell" class="hidden">
 <!-- ===== NEXUS SINGLE TOP BAR ===== -->
 <div class="nxbar">
+  <button id="nxHam" class="nxham" title="Menu"><i class="fa-solid fa-bars"></i></button>
   <a class="nxbrand" href="#">
     <img src="nexus-logo.png" alt="Nexus" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
     <div class="fallback" style="display:none"><i class="fa-solid fa-hexagon-nodes"></i></div>
-    <div><b>NEXUS</b><span>HR Console</span></div>
   </a>
   <nav class="nxnav">
   <div class="nxg"><button><i class="fa-solid fa-gauge-high li"></i> Overview <i class="fa-solid fa-chevron-down ca"></i></button>
@@ -373,7 +390,6 @@ body.no-confidential .confidential-col{display:none!important}
   <div class="nxsearch"><i class="fa-solid fa-magnifying-glass"></i><input id="nxGlobalSearch" placeholder="Search…"></div>
   <div class="nxact">
     <button id="helpBtn" class="nxib" title="How this page works"><i class="fa-solid fa-circle-question"></i></button>
-    <button class="nxib" title="Notifications"><i class="fa-regular fa-bell"></i><span class="d"></span></button>
     <div class="nxuser" id="nxUserChip"><div class="a">A</div><div><div class="nm">Admin</div><div class="rl" id="adminEmailChip">—</div></div></div>
     <button id="logoutBtn" class="nxib" title="Logout" style="color:var(--bad)"><i class="fa-solid fa-power-off"></i></button>
   </div>
@@ -2541,7 +2557,12 @@ function fillEmpSelects(){
 const TITLES = { mis:'MIS Report', dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', adminctl:'Admin Control Panel' };
 /* ---- Topbar dropdown open/close ---- */
 function nxCloseDD(){ document.querySelectorAll('.nxg').forEach(g=>g.classList.remove('open')); }
+const _nxNav = document.querySelector('.nxnav');
+const _nxHam = document.getElementById('nxHam');
+if(_nxHam){ _nxHam.addEventListener('click', e=>{ e.stopPropagation(); _nxNav.classList.toggle('open'); }); }
+function nxIsMobile(){ return window.innerWidth <= 960; }
 document.querySelectorAll('.nxg > button').forEach(b=>b.addEventListener('click', e=>{
+  if(nxIsMobile()) return;   // mobile: items already expanded in drawer
   e.stopPropagation(); const g=b.parentElement; const was=g.classList.contains('open'); nxCloseDD(); if(!was) g.classList.add('open');
 }));
 document.querySelectorAll('.nxg').forEach(g=>g.addEventListener('mouseenter', ()=>{ if(document.querySelector('.nxg.open')){ nxCloseDD(); g.classList.add('open'); } }));
@@ -2550,6 +2571,7 @@ function nxSyncGroup(page){ document.querySelectorAll('.nxg').forEach(g=>{ const
 document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
   btn.addEventListener('click', () => {
     nxCloseDD();
+    if(_nxNav) _nxNav.classList.remove('open');
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     nxSyncGroup(btn.dataset.page);
