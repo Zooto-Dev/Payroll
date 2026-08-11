@@ -50,13 +50,13 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 /* ---------- Shell ---------- */
 .main{min-height:100vh;display:flex;flex-direction:column}
 /* ============ NEXUS TOPBAR + DROPDOWN NAV ============ */
-.nxbar1{height:60px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:18px;padding:0 24px;position:sticky;top:0;z-index:45}
+.nxbar{height:58px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 20px;position:sticky;top:0;z-index:45}
 .nxbrand{display:flex;align-items:center;gap:10px;flex-shrink:0;text-decoration:none}
 .nxbrand img{height:32px;width:auto;display:block}
 .nxbrand .fallback{width:32px;height:32px;border-radius:8px;background:var(--brand);display:grid;place-items:center;color:#fff;font-size:15px;font-weight:700}
 .nxbrand b{font:700 16px/1 Inter;letter-spacing:.02em;color:#16225a}
 .nxbrand span{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);display:block;margin-top:3px}
-.nxsearch{position:relative;width:300px;max-width:30vw;margin-left:4px}
+.nxsearch{position:relative;width:220px;max-width:22vw}
 .nxsearch input{width:100%;height:38px;border:1px solid var(--line);border-radius:9px;background:var(--surface-2);padding:0 12px 0 36px;font:400 13px Inter;color:var(--ink);outline:none}
 .nxsearch input:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--accsoft);background:#fff}
 .nxsearch>i{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px}
@@ -69,10 +69,9 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .nxuser:hover{background:var(--surface-2)}
 .nxuser .a{width:27px;height:27px;border-radius:7px;background:var(--brand);display:grid;place-items:center;color:#fff;font:600 12px Inter}
 .nxuser .nm{font:600 12px/1 Inter;color:var(--ink)}.nxuser .rl{font-size:9px;color:var(--muted);margin-top:3px}
-.nxbar2{height:48px;background:var(--surface-2);border-bottom:1px solid var(--line);display:flex;align-items:stretch;padding:0 18px;position:sticky;top:60px;z-index:44}
-.nxnav{display:flex;align-items:stretch;gap:1px}
+.nxnav{display:flex;align-items:stretch;gap:1px;height:58px}
 .nxg{position:relative;display:flex;align-items:stretch}
-.nxg>button{display:inline-flex;align-items:center;gap:8px;padding:0 14px;border:none;background:transparent;color:var(--ink);font:550 13px/1 Inter;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:.12s;height:100%}
+.nxg>button{display:inline-flex;align-items:center;gap:7px;padding:0 12px;border:none;background:transparent;color:var(--ink);font:550 12.5px/1 Inter;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:.12s;height:58px}
 .nxg>button>i.li{font-size:13px;color:var(--muted)}
 .nxg>button>i.ca{font-size:9px;color:var(--muted);transition:transform .18s}
 .nxg>button:hover{color:var(--brand)}
@@ -89,7 +88,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .nxdi .ds{font-size:10.5px;color:var(--muted);margin-top:3px}
 .nxdi.active{background:var(--accsoft)}.nxdi.active .dt{color:var(--brand)}
 .nxdi .dbg{margin-left:auto;font:700 9.5px Inter;background:var(--warn);color:#fff;padding:2px 6px;border-radius:10px}
-@media(max-width:940px){.nxsearch{width:150px}.nxuser .nm,.nxuser .rl{display:none}.nxbar2{overflow-x:auto}.nxbar1{gap:10px;padding:0 14px}}
+@media(max-width:1150px){.nxsearch{display:none}}
+@media(max-width:960px){.nxbar{gap:8px;padding:0 12px;overflow-x:auto}.nxuser .nm,.nxuser .rl{display:none}.nxbrand span{display:none}}
 /* switches */
 .sw{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0}
 .sw input{opacity:0;width:0;height:0}
@@ -324,24 +324,14 @@ body.no-confidential .confidential-col{display:none!important}
 
 <!-- ================= SHELL ================= -->
 <div id="appShell" class="hidden">
-<!-- ===== NEXUS TOP BAR ===== -->
-<div class="nxbar1">
+<!-- ===== NEXUS SINGLE TOP BAR ===== -->
+<div class="nxbar">
   <a class="nxbrand" href="#">
     <img src="nexus-logo.png" alt="Nexus" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
     <div class="fallback" style="display:none"><i class="fa-solid fa-hexagon-nodes"></i></div>
     <div><b>NEXUS</b><span>HR Console</span></div>
   </a>
-  <div class="nxsearch"><i class="fa-solid fa-magnifying-glass"></i><input id="nxGlobalSearch" placeholder="Search employees, codes…"></div>
-  <div class="nxgrow"></div>
-  <div class="nxact">
-    <button id="helpBtn" class="nxib" title="How this page works"><i class="fa-solid fa-circle-question"></i></button>
-    <button class="nxib" title="Notifications"><i class="fa-regular fa-bell"></i><span class="d"></span></button>
-    <div class="nxuser" id="nxUserChip"><div class="a">A</div><div><div class="nm">Admin</div><div class="rl" id="adminEmailChip">—</div></div></div>
-    <button id="logoutBtn" class="nxib" title="Logout" style="color:var(--bad)"><i class="fa-solid fa-power-off"></i></button>
-  </div>
-</div>
-<!-- ===== NEXUS DROPDOWN NAV ===== -->
-<div class="nxbar2"><nav class="nxnav">
+  <nav class="nxnav">
   <div class="nxg"><button><i class="fa-solid fa-gauge-high li"></i> Overview <i class="fa-solid fa-chevron-down ca"></i></button>
     <div class="nxdd">
       <button class="nav-item nxdi active" data-page="dashboard"><span class="di"><i class="fa-solid fa-gauge-high"></i></span><span style="flex:1"><span class="dt">Dashboard</span><span class="ds">Live attendance & KPIs</span></span></button>
@@ -378,7 +368,16 @@ body.no-confidential .confidential-col{display:none!important}
       <button class="nav-item nxdi" data-page="settings"><span class="di"><i class="fa-solid fa-gear"></i></span><span style="flex:1"><span class="dt">Settings</span><span class="ds">Departments, units, shifts</span></span></button>
       <button class="nav-item nxdi hidden" id="navAdminCtl" data-page="adminctl"><span class="di"><i class="fa-solid fa-user-shield"></i></span><span style="flex:1"><span class="dt">Admin Control</span><span class="ds">Users & access</span></span></button>
     </div></div>
-</nav></div>
+  </nav>
+  <div class="nxgrow"></div>
+  <div class="nxsearch"><i class="fa-solid fa-magnifying-glass"></i><input id="nxGlobalSearch" placeholder="Search…"></div>
+  <div class="nxact">
+    <button id="helpBtn" class="nxib" title="How this page works"><i class="fa-solid fa-circle-question"></i></button>
+    <button class="nxib" title="Notifications"><i class="fa-regular fa-bell"></i><span class="d"></span></button>
+    <div class="nxuser" id="nxUserChip"><div class="a">A</div><div><div class="nm">Admin</div><div class="rl" id="adminEmailChip">—</div></div></div>
+    <button id="logoutBtn" class="nxib" title="Logout" style="color:var(--bad)"><i class="fa-solid fa-power-off"></i></button>
+  </div>
+</div>
 
 <div class="main">
   <div class="topbar" style="padding:14px 24px">
@@ -522,6 +521,7 @@ body.no-confidential .confidential-col{display:none!important}
       <button id="attCsvBtn" class="btn btn-ghost"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
       <button id="attFixBtn" class="btn btn-ghost"><i class="fa-solid fa-user-clock"></i> Manual Punch / Fix</button>
       <button id="attBulkBtn" class="btn btn-ghost" style="border-color:#bbf7d0;color:#16a34a"><i class="fa-solid fa-file-arrow-up"></i> Bulk Upload</button>
+      <button id="faceAuditBtn" class="btn btn-ghost" style="border-color:#e6c4c0;color:var(--bad)"><i class="fa-solid fa-face-viewfinder"></i> Face Mismatch Audit</button>
       <div class="tb-gap"></div>
       <div class="tb-legend text-[11px]">
         <span class="chip c-P">P</span><span class="chip c-L">L</span><span class="chip c-A">A</span><span class="chip c-WO">WO</span><span class="chip c-H">H</span><span class="chip c-LV">LV</span>
@@ -1616,6 +1616,35 @@ body.no-confidential .confidential-col{display:none!important}
       <button class="btn btn-ghost btn-sm" data-close="fnfModal"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div id="fnfBox"></div>
+  </div>
+</div>
+
+<!-- ================= FACE MISMATCH AUDIT MODAL -->
+<div id="faceAuditModal" class="modal">
+  <div class="modal-box" style="width:760px;max-width:94vw;max-height:90vh;overflow-y:auto">
+    <div class="flex items-center justify-between mb-1">
+      <h3 class="display font-bold text-lg m-0"><i class="fa-solid fa-face-viewfinder" style="color:var(--bad)"></i> Face Mismatch Audit</h3>
+      <button data-close="faceAuditModal" class="btn btn-ghost btn-sm"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Har punch ki <b>captured photo</b> ko us employee ke <b>registered face</b> se compare karta hai. Jahan chehra match nahi karta (kisi aur ne punch kiya par kisi aur ke code pe chadh gaya) wo <b>flag</b> hote hain. Photo browser mein hi check hoti hai — kahin bheji nahi jaati.</p>
+    <div class="toolbar" style="margin-bottom:12px">
+      <div class="fld"><label class="lbl">From</label><input type="date" id="faDate1" class="inp"></div>
+      <div class="fld"><label class="lbl">To</label><input type="date" id="faDate2" class="inp"></div>
+      <div class="fld" style="width:150px"><label class="lbl">Sensitivity</label>
+        <select id="faSens" class="inp"><option value="0.62">Normal (0.62)</option><option value="0.55">Strict (0.55)</option><option value="0.68">Loose (0.68)</option></select></div>
+      <button id="faRunBtn" class="btn btn-primary"><i class="fa-solid fa-play"></i> Run Audit</button>
+    </div>
+    <div id="faProgress" class="hidden" style="margin-bottom:12px">
+      <div style="height:8px;background:var(--line-soft);border-radius:6px;overflow:hidden"><div id="faBar" style="height:100%;width:0;background:var(--brand);transition:width .2s"></div></div>
+      <p id="faProgTxt" class="text-xs mt-2 mb-0" style="color:var(--muted)">Starting…</p>
+    </div>
+    <div id="faSummary" class="hidden" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+      <div class="kpi" style="padding:12px"><div><div class="kpi-num" id="faKTotal" style="font-size:22px">0</div><div class="kpi-lbl">Punches Checked</div></div></div>
+      <div class="kpi" style="padding:12px"><div><div class="kpi-num" id="faKMis" style="font-size:22px;color:var(--bad)">0</div><div class="kpi-lbl">Mismatches</div></div></div>
+      <div class="kpi" style="padding:12px"><div><div class="kpi-num" id="faKRev" style="font-size:22px;color:var(--warn)">0</div><div class="kpi-lbl">Needs Review</div></div></div>
+      <div class="kpi" style="padding:12px"><div><div class="kpi-num" id="faKSkip" style="font-size:22px;color:var(--muted)">0</div><div class="kpi-lbl">No Photo / Face</div></div></div>
+    </div>
+    <div id="faResults"></div>
   </div>
 </div>
 
@@ -3999,6 +4028,145 @@ $('attMonth').value = todayISO().slice(0,7);
 $('attLoadBtn').addEventListener('click', loadRegister);
 
 /* ===================== BULK ATTENDANCE UPLOAD ===================== */
+/* ================= FACE MISMATCH AUDIT ================= */
+let _faDescCache = null;           // code -> Float32Array(128)
+let _faRunning = false;
+function _faParseDesc(str){
+  try{ const a = JSON.parse(str); if(Array.isArray(a) && a.length >= 64) return new Float32Array(a); }catch(e){}
+  return null;
+}
+async function _faLoadDescriptors(){
+  if(_faDescCache) return _faDescCache;
+  _faDescCache = {};
+  const { data } = await sb.from('employees').select('"Employee code", Descriptor').not('Descriptor', 'is', null);
+  (data||[]).forEach(e => { const d = _faParseDesc(e.Descriptor); if(d) _faDescCache[e['Employee code']] = d; });
+  return _faDescCache;
+}
+function _faLoadImg(url){
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => res(img);
+    img.onerror = () => rej(new Error('img load failed'));
+    img.src = url;
+  });
+}
+async function _faDescribe(url){
+  const img = await _faLoadImg(url);
+  let det = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.4 })).withFaceLandmarks().withFaceDescriptor();
+  if(!det) det = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.3 })).withFaceLandmarks().withFaceDescriptor();
+  return det ? det.descriptor : null;
+}
+$('faceAuditBtn').addEventListener('click', () => {
+  const t = todayISO();
+  if(!$('faDate2').value) $('faDate2').value = t;
+  if(!$('faDate1').value){ const d = new Date(); d.setDate(d.getDate() - 6); $('faDate1').value = d.toISOString().slice(0,10); }
+  $('faResults').innerHTML = '';
+  $('faSummary').classList.add('hidden');
+  $('faProgress').classList.add('hidden');
+  $('faceAuditModal').classList.add('show');
+});
+$('faRunBtn').addEventListener('click', async () => {
+  if(_faRunning) return;
+  const d1 = $('faDate1').value, d2 = $('faDate2').value;
+  if(!d1 || !d2) return notify('Select a date range', 'error');
+  if(d1 > d2) return notify('From date is after To date', 'error');
+  const thr = parseFloat($('faSens').value) || 0.62;
+  const revThr = Math.max(0.5, thr - 0.07);   // borderline band below the mismatch threshold
+
+  _faRunning = true;
+  const btn = $('faRunBtn'); btn.disabled = true; btn.innerHTML = '<div class="loader-ring loader-dark"></div> Loading…';
+  $('faProgress').classList.remove('hidden');
+  $('faResults').innerHTML = '';
+  $('faSummary').classList.add('hidden');
+  $('faBar').style.width = '0%';
+  $('faProgTxt').innerText = 'Loading face models…';
+
+  try{
+    await ensureFaceModels();
+    const descMap = await _faLoadDescriptors();
+
+    // fetch punches with photos in range
+    $('faProgTxt').innerText = 'Fetching punches…';
+    const { data: rows, error } = await sb.from('attendance')
+      .select('employee_code, Name, date, in_time, out_time, in_photo_url, out_photo_url')
+      .gte('date', d1).lte('date', d2)
+      .order('date', { ascending:false });
+    if(error) throw error;
+
+    // one job per available photo (IN and OUT separately)
+    const _nm = c => { const e = (typeof EMP!=='undefined'?EMP:[]).find(x => x['Employee code'] === c); return e ? e.Name : c; };
+    const jobs = [];
+    (rows||[]).forEach(r => {
+      if(r.in_photo_url)  jobs.push({ code:r.employee_code, name:r.Name||_nm(r.employee_code), date:r.date, kind:'IN',  time:cleanInTime(r), url:r.in_photo_url });
+      if(r.out_photo_url) jobs.push({ code:r.employee_code, name:r.Name||_nm(r.employee_code), date:r.date, kind:'OUT', time:(r.out_time||''), url:r.out_photo_url });
+    });
+
+    if(!jobs.length){ $('faProgTxt').innerText = 'No punch photos found in this range.'; btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-play"></i> Run Audit'; _faRunning=false; return; }
+
+    let checked=0, mismatch=0, review=0, skip=0;
+    const flagged = [];
+    for(let i=0;i<jobs.length;i++){
+      const j = jobs[i];
+      $('faBar').style.width = Math.round((i/jobs.length)*100) + '%';
+      $('faProgTxt').innerText = `Checking ${i+1} / ${jobs.length} — ${j.name} (${j.date} ${j.kind})`;
+      const stored = descMap[j.code];
+      if(!stored){ skip++; continue; }                 // employee has no registered face → can't compare
+      let punchDesc = null;
+      try{ punchDesc = await _faDescribe(j.url); }catch(e){ punchDesc = null; }
+      if(!punchDesc){ skip++; continue; }               // no detectable face in the punch photo
+      const dist = faceapi.euclideanDistance(punchDesc, stored);
+      checked++;
+      if(dist > thr){ mismatch++; j.dist=dist; j.verdict='MISMATCH'; flagged.push(j); }
+      else if(dist > revThr){ review++; j.dist=dist; j.verdict='REVIEW'; flagged.push(j); }
+      await new Promise(r=>setTimeout(r,0)); // yield so UI updates
+    }
+    $('faBar').style.width = '100%';
+    $('faProgTxt').innerText = `Done — ${checked} compared, ${mismatch} mismatch, ${review} to review.`;
+
+    // summary
+    $('faKTotal').innerText = checked;
+    $('faKMis').innerText = mismatch;
+    $('faKRev').innerText = review;
+    $('faKSkip').innerText = skip;
+    $('faSummary').classList.remove('hidden');
+
+    // results — worst first
+    flagged.sort((a,b)=>b.dist-a.dist);
+    if(!flagged.length){
+      $('faResults').innerHTML = '<div class="card" style="text-align:center;padding:26px;color:var(--ok)"><i class="fa-solid fa-circle-check" style="font-size:26px"></i><p style="margin:10px 0 0;font-weight:600">No mismatches found — every checked punch matched its employee.</p></div>';
+    } else {
+      $('faResults').innerHTML = `
+        <div class="flex items-center justify-between mb-2">
+          <h4 class="display font-bold m-0" style="font-size:14px">Flagged Punches <span class="chip chip-bad">${flagged.length}</span></h4>
+          <button id="faCsvBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+        </div>
+        <div class="space-y-2">${flagged.map(f=>{
+          const isMis = f.verdict==='MISMATCH';
+          return `<div class="card" style="padding:11px;display:flex;align-items:center;gap:12px">
+            <img src="${esc(f.url)}" loading="lazy" style="width:52px;height:52px;border-radius:10px;object-fit:cover;border:2px solid ${isMis?'var(--bad)':'var(--warn)'}" alt="">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;color:var(--ink)">${esc(f.name)} <span class="money" style="color:var(--muted);font-weight:400">${esc(f.code)}</span></div>
+              <div class="text-xs" style="color:var(--muted)">${f.date} · ${f.kind} punch ${f.time?('· '+esc(f.time)):''}</div>
+            </div>
+            <div style="text-align:right">
+              <span class="chip ${isMis?'chip-bad':'chip-warn'}">${isMis?'<i class="fa-solid fa-triangle-exclamation"></i> Mismatch':'<i class="fa-solid fa-magnifying-glass"></i> Review'}</span>
+              <div class="text-xs money" style="color:var(--muted);margin-top:3px">distance ${f.dist.toFixed(3)}</div>
+            </div>
+          </div>`;
+        }).join('')}</div>
+        <p class="text-[11px] mt-3 mb-0" style="color:var(--muted)"><i class="fa-solid fa-circle-info"></i> "Distance" jitni zyada, chehra utna alag. Photo pe click karke bada karke dekh sakte ho. Confirm hone par us employee ka punch <b>Manual Punch / Fix</b> se theek kar do.</p>`;
+      $('faCsvBtn').addEventListener('click', ()=>{
+        const head = 'Code,Name,Date,Punch,Time,Verdict,Distance\n';
+        const body = flagged.map(f=>[f.code,'"'+String(f.name).replace(/"/g,'""')+'"',f.date,f.kind,f.time||'',f.verdict,f.dist.toFixed(3)].join(',')).join('\n');
+        const blob = new Blob([head+body],{type:'text/csv'}); const a=document.createElement('a');
+        a.href=URL.createObjectURL(blob); a.download=`face_mismatch_${d1}_to_${d2}.csv`; a.click();
+      });
+    }
+  }catch(err){ notify(err.message||'Audit failed', 'error'); $('faProgTxt').innerText = 'Error: ' + (err.message||err); }
+  finally{ btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-play"></i> Run Audit'; _faRunning=false; }
+});
+
 $('attBulkBtn').addEventListener('click', () => {
   const t = todayISO();
   if(!$('bulkTo').value) $('bulkTo').value = t;
