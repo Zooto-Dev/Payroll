@@ -1,7 +1,7 @@
 {
-  "name": "Nexus ESS — Employee Self Service",
-  "short_name": "Nexus ESS",
-  "description": "Nexus HR — Employee Self Service for Zooto Fashion",
+  "name": "Employee Portal",
+  "short_name": "Employee Portal",
+  "description": "Nexus HR — Employee Portal for Zooto Fashion",
   "start_url": "./Inzo_ESS.html",
   "scope": "./",
   "display": "standalone",
