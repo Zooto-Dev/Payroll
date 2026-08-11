@@ -1,7 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%234f46e5'/%3E%3Ctext x='50' y='68' font-size='60' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EN%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/png" href="nexus-logo.png">
+<link rel="shortcut icon" href="nexus-logo.png">
+<link rel="apple-touch-icon" href="nexus-logo.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1f4b9b">
+<meta name="apple-mobile-web-app-title" content="Nexus HR">
+<meta name="application-name" content="Nexus HR">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -17,18 +23,19 @@
 <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <style>
 /* ===== NEXUS CINEMATIC SPLASH ===== */
-#nxSplash{position:fixed;inset:0;z-index:99999;background:#f8fafc;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .8s ease, visibility .8s}
+#nxSplash{position:fixed;inset:0;z-index:99999;background:#f5f3ee;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .8s ease, visibility .8s}
 #nxSplash.nx-hide{opacity:0;visibility:hidden;pointer-events:none}
-#nxSplash .nx-glow{position:absolute;width:60vmin;height:60vmin;border-radius:50%;background:radial-gradient(circle, rgba(8,145,178,.10) 0%, transparent 65%);animation:nxPulse 2.6s ease-in-out infinite}
-#nxSplash .nx-word{position:relative;font-family:'Syncopate',sans-serif;font-weight:700;letter-spacing:.22em;text-transform:uppercase;font-size:clamp(34px,9vw,110px);color:#0f172a;user-select:none;display:flex}
+#nxSplash .nx-glow{position:absolute;width:60vmin;height:60vmin;border-radius:50%;background:radial-gradient(circle, rgba(31,75,155,.10) 0%, transparent 65%);animation:nxPulse 2.6s ease-in-out infinite}
+#nxSplash .nx-logo{height:clamp(64px,15vw,120px);width:auto;opacity:0;animation:nxIn .8s cubic-bezier(.2,.8,.2,1) .15s forwards}
+#nxSplash .nx-word{position:relative;font-family:'Syncopate',sans-serif;font-weight:700;letter-spacing:.22em;text-transform:uppercase;font-size:clamp(34px,9vw,110px);color:#16225a;user-select:none;display:flex}
 #nxSplash .nx-l{opacity:0;transform:translateY(26px) scale(.92);animation:nxIn .7s cubic-bezier(.2,.8,.2,1) forwards}
-#nxSplash .nx-c{color:#0891b2;text-shadow:0 0 18px rgba(8,145,178,.35),0 0 50px rgba(8,145,178,.15)}
+#nxSplash .nx-c{color:#1f4b9b;text-shadow:0 0 18px rgba(31,75,155,.30),0 0 50px rgba(31,75,155,.12)}
 #nxSplash .nx-l:nth-child(1){animation-delay:.15s}#nxSplash .nx-l:nth-child(2){animation-delay:.28s}
 #nxSplash .nx-l:nth-child(3){animation-delay:.41s}#nxSplash .nx-l:nth-child(4){animation-delay:.54s}
 #nxSplash .nx-l:nth-child(5){animation-delay:.67s}
 #nxSplash .nx-sub{margin-top:18px;font-family:'Syncopate',sans-serif;font-size:clamp(9px,1.6vw,13px);letter-spacing:.55em;text-transform:uppercase;color:#94a3b8;opacity:0;animation:nxSub .8s ease .95s forwards}
 #nxSplash .nx-bar{margin-top:30px;width:min(220px,50vw);height:2px;background:#e2e8f0;border-radius:2px;overflow:hidden;opacity:0;animation:nxSub .6s ease 1.1s forwards}
-#nxSplash .nx-bar i{display:block;height:100%;width:40%;background:linear-gradient(90deg,transparent,#0891b2,transparent);animation:nxSlide 1.1s ease-in-out infinite}
+#nxSplash .nx-bar i{display:block;height:100%;width:40%;background:linear-gradient(90deg,transparent,#1f4b9b,transparent);animation:nxSlide 1.1s ease-in-out infinite}
 @keyframes nxIn{to{opacity:1;transform:none}}
 @keyframes nxSub{to{opacity:1}}
 @keyframes nxPulse{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.12);opacity:1}}
@@ -129,10 +136,10 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .ac-chip:hover{border-color:#94a3b8}
 .ac-chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
 .ac-chip.on i{color:#fff}
-.ac-avatar{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#0891b2,#2563eb);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+.ac-avatar{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#1f4b9b,#1f4b9b);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
 .ac-row{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:14px;margin-bottom:8px;background:#fff;transition:box-shadow .15s}
 .ac-row:hover{box-shadow:0 4px 16px rgba(15,23,42,.06)}
-.ac-mini{display:inline-block;padding:2px 8px;border-radius:6px;background:#f1f5f9;color:#475569;font-size:10px;margin:1px}
+.ac-mini{display:inline-block;padding:2px 8px;border-radius:6px;background:#f0ede6;color:#475569;font-size:10px;margin:1px}
 #navToggle{display:none!important}
 .sidebar{display:none!important}
 #navOverlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:45}
@@ -147,12 +154,12 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 }
 .nav-item{display:flex;align-items:center;gap:10px;padding:8px 12px;margin:1px 8px;border-radius:9px;color:#64748b;cursor:pointer;font-weight:500;transition:all .15s;border:none;background:transparent;width:calc(100% - 16px);text-align:left;font-size:13px}
 .nav-item i{width:18px;text-align:center}
-.nav-item:hover{color:var(--ink);background:#f1f5f9}
+.nav-item:hover{color:var(--ink);background:#f0ede6}
 .nav-item.active{color:#fff;background:var(--brand)}
 .nav-item.active:hover{color:#fff;background:var(--brand)}
 body.not-super .super-only{display:none !important;}
 .nav-sec{display:flex;align-items:center;justify-content:space-between;width:calc(100% - 16px);margin:6px 8px 0;padding:7px 9px;border:none;background:transparent;font-size:9.5px;font-weight:700;letter-spacing:.12em;color:#94a3b8;cursor:pointer;border-radius:8px;font-family:'Inter',sans-serif}
-.nav-sec:hover{background:#f8fafc;color:#475569}
+.nav-sec:hover{background:#faf8f4;color:#475569}
 .nav-sec i{transition:transform .2s;font-size:10px}
 .nav-group{overflow:hidden;max-height:400px;transition:max-height .25s ease}
 .nav-group.collapsed{max-height:0}
@@ -206,7 +213,7 @@ body.not-super .super-only{display:none !important;}
 .hr-stat{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:#fff;border:1px solid var(--line);border-radius:999px}
 .hr-stat b{color:var(--brand)}
 .hr-board{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:12px;padding-bottom:10px}
-.hr-col{background:#f8fafc;border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;max-height:56vh;min-height:140px}
+.hr-col{background:#faf8f4;border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;max-height:56vh;min-height:140px}
 .hr-col-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;font-size:12px;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line)}
 .hr-count{background:var(--brand-soft);color:var(--brand);font-size:11px;padding:2px 9px;border-radius:999px}
 .hr-col.is-joined .hr-count{background:#ecfdf5;color:#047857}
@@ -236,13 +243,13 @@ body.not-super .super-only{display:none !important;}
 .reg-wrap{overflow-x:auto}
 .reg{border-collapse:collapse;font-size:11px}
 .reg th,.reg td{border:1px solid var(--line);padding:4px 5px;text-align:center;min-width:26px}
-.reg th{background:#f8fafc;font-weight:600;color:var(--muted)}
+.reg th{background:#faf8f4;font-weight:600;color:var(--muted)}
 .reg td.name-cell{text-align:left;min-width:150px;font-weight:600;position:sticky;left:0;background:#fff;white-space:nowrap}
 .reg th.name-cell{position:sticky;left:0;z-index:2}
 .c-P{background:#ecfdf5;color:#047857;font-weight:700}
 .c-L{background:#fffbeb;color:#b45309;font-weight:700}
 .c-A{background:#fef2f2;color:#dc2626}
-.c-WO{background:#f1f5f9;color:#94a3b8}
+.c-WO{background:#f0ede6;color:#94a3b8}
 .c-H{background:var(--brand-soft);color:var(--brand);font-weight:700}
 .c-LV{background:#f5f3ff;color:#7c3aed;font-weight:700}
 .c-WFH{background:#f3e8ff;color:#6b21a8;font-weight:700;font-size:8.5px}
@@ -257,16 +264,16 @@ body.not-super .super-only{display:none !important;}
 .mis-card h4{margin:0 0 12px;font-size:13px;font-weight:700;font-family:'Sora',sans-serif}
 .mis-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:11.5px}
 .mis-row .lbl2{width:110px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#334155;font-weight:600}
-.mis-row .track{flex:1;height:16px;background:#f1f5f9;border-radius:6px;overflow:hidden}
+.mis-row .track{flex:1;height:16px;background:#f0ede6;border-radius:6px;overflow:hidden}
 .mis-row .fill{height:100%;border-radius:6px;display:flex;align-items:center;min-width:2px;transition:width .4s ease}
-.mis-row .val{width:86px;text-align:right;font-weight:700;font-size:11px;color:#0f172a;flex-shrink:0}
+.mis-row .val{width:86px;text-align:right;font-weight:700;font-size:11px;color:#2a2824;flex-shrink:0}
 .mis-donut{width:120px;height:120px;border-radius:50%;position:relative;flex-shrink:0}
 .mis-donut::after{content:'';position:absolute;inset:26px;background:#fff;border-radius:50%}
 .mis-donut .c{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;font-weight:800;font-size:15px;font-family:'Sora',sans-serif}
 .mis-leg{font-size:11px;display:flex;flex-direction:column;gap:6px}
 .mis-leg span i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:6px}
 .mis-click{cursor:pointer;border-radius:8px;transition:background .12s}
-.mis-click:hover{background:#f8fafc}
+.mis-click:hover{background:#faf8f4}
 .mis-cmp{display:flex;align-items:baseline;gap:10px}
 .mis-cmp .big{font-size:26px;font-weight:800;font-family:'Sora',sans-serif}
 .mis-up{color:#dc2626;font-weight:700;font-size:12px}
@@ -286,7 +293,7 @@ body.no-confidential .confidential-col{display:none!important}
 .paper .doc-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid var(--ink);padding-bottom:12px;margin-bottom:20px}
 .paper table.ann{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0}
 .paper table.ann th,.paper table.ann td{border:1px solid #cbd5e1;padding:6px 10px;text-align:left}
-.paper table.ann th{background:#f1f5f9;font-weight:600}
+.paper table.ann th{background:#f0ede6;font-weight:600}
 .paper [contenteditable]:focus{outline:2px dashed var(--brand);outline-offset:2px}
 @media print{
   body *{visibility:hidden}
@@ -295,7 +302,7 @@ body.no-confidential .confidential-col{display:none!important}
   .paper{box-shadow:none;width:auto;min-height:auto;padding:10mm 8mm;page-break-after:always}
   .no-print{display:none !important}
 }
-.idcard{width:54mm;height:85.6mm;background:#fff;border-radius:3.2mm;overflow:hidden;box-shadow:0 8px 20px rgba(15,23,42,.18);font-size:8.5px;line-height:1.35;position:relative;display:flex;flex-direction:column;color:#0f172a}
+.idcard{width:54mm;height:85.6mm;background:#fff;border-radius:3.2mm;overflow:hidden;box-shadow:0 8px 20px rgba(15,23,42,.18);font-size:8.5px;line-height:1.35;position:relative;display:flex;flex-direction:column;color:#2a2824}
 .idcard .id-head{background:var(--brand);color:#fff;text-align:center;padding:2.5mm 2mm 13mm}
 .idcard .id-head .co{font-weight:700;font-size:9px;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .idcard .id-head .ad{font-size:6px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -317,13 +324,14 @@ body.no-confidential .confidential-col{display:none!important}
 
 </style>
 </head>
-<body><div id="nxSplash"><div class="nx-glow"></div><div class="nx-word"><span class="nx-l">N</span><span class="nx-l nx-c">E</span><span class="nx-l">X</span><span class="nx-l nx-c">U</span><span class="nx-l">S</span></div><div class="nx-sub">HR &nbsp;SUITE</div><div class="nx-bar"><i></i></div></div>
+<body><div id="nxSplash"><div class="nx-glow"></div><img src="nexus-logo.png" alt="Nexus" class="nx-logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="nx-word" style="display:none"><span class="nx-l">N</span><span class="nx-l nx-c">E</span><span class="nx-l">X</span><span class="nx-l nx-c">U</span><span class="nx-l">S</span></div><div class="nx-sub">HR &nbsp;SUITE</div><div class="nx-bar"><i></i></div></div>
 
 <!-- ================= LOGIN ================= -->
 <div id="loginScreen" class="fixed inset-0 z-50 flex items-center justify-center" style="background:var(--bg)">
   <div class="card" style="width:100%;max-width:400px;padding:32px">
     <div class="text-center mb-1">
-      <h1 class="m-0" style="font-family:'Syncopate',sans-serif;font-weight:700;font-size:24px;letter-spacing:.22em">N<span style="color:#0891b2">E</span>X<span style="color:#0891b2">U</span>S</h1>
+      <img src="nexus-logo.png" alt="Nexus" style="height:48px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+      <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:24px;letter-spacing:.22em;color:#16225a">N<span style="color:var(--brand)">E</span>X<span style="color:var(--brand)">U</span>S</h1>
       <p class="text-xs mt-2 m-0" style="color:var(--muted);letter-spacing:.14em;text-transform:uppercase">Admin & Payroll Console</p>
     </div>
     <div class="mt-6">
@@ -418,7 +426,7 @@ body.no-confidential .confidential-col{display:none!important}
       <div><div class="kpi-lbl">Absent Today</div><div class="kpi-num" id="dAbsent">—</div><div class="kpi-sub" id="dAbsentPct">—</div></div>
     </div>
     <div class="kpi">
-      <div class="kpi-ic" style="background:#dbeafe;color:#2563eb"><i class="fa-solid fa-users"></i></div>
+      <div class="kpi-ic" style="background:#dbeafe;color:#1f4b9b"><i class="fa-solid fa-users"></i></div>
       <div><div class="kpi-lbl">Total Active</div><div class="kpi-num" id="dTotal">—</div><div class="kpi-sub" id="dDeptCount">—</div></div>
     </div>
     <div class="kpi">
@@ -1067,7 +1075,7 @@ body.no-confidential .confidential-col{display:none!important}
 
 <!-- ================= LETTERS ================= -->
 <div class="page" id="page-letters">
-  <div class="card mb-4" style="background:linear-gradient(135deg,#f8fafc,#eff6ff);border:1px solid #dbeafe">
+  <div class="card mb-4" style="background:linear-gradient(135deg,#faf8f4,#eff6ff);border:1px solid #dbeafe">
     <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-magnifying-glass" style="color:var(--brand)"></i> Verify a Document</h3>
     <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Enter any Reference / Certificate number printed on a letter or certificate to check who it was issued to and when.</p>
     <div class="flex gap-2 flex-wrap">
@@ -1166,7 +1174,7 @@ body.no-confidential .confidential-col{display:none!important}
       </div>
     </div>
     <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Add an employee as an admin, set their department and what they can approve. Each change saves instantly.</p>
-    <div class="p-3 rounded-xl mb-3" style="background:#f8fafc;border:1px solid var(--line)">
+    <div class="p-3 rounded-xl mb-3" style="background:#faf8f4;border:1px solid var(--line)">
       <div class="text-xs font-semibold mb-2"><i class="fa-solid fa-user-plus" style="color:var(--brand)"></i> Add / create an admin</div>
       <div class="flex gap-2 mb-2 flex-wrap items-center">
         <select id="acEmpPick" class="inp" style="flex:1;min-width:220px"><option value="">— Pick an employee —</option></select>
@@ -1180,7 +1188,7 @@ body.no-confidential .confidential-col{display:none!important}
       </div>
     </div>
       <div id="acCreateHint" class="hidden text-[11px] mb-3 p-2 rounded-lg" style="background:#fffbeb;color:#92400e"></div>
-      <div id="acPagesWrap" class="hidden mb-3 p-4 rounded-xl" style="background:#f8fafc;border:1px solid var(--line)">
+      <div id="acPagesWrap" class="hidden mb-3 p-4 rounded-xl" style="background:#faf8f4;border:1px solid var(--line)">
         <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div class="text-sm font-semibold"><i class="fa-solid fa-user-gear" style="color:var(--brand)"></i> <span id="acWho"></span></div>
           <div>
@@ -1404,7 +1412,7 @@ body.no-confidential .confidential-col{display:none!important}
       <button type="button" class="btn btn-primary btn-sm" onclick="fillFromCTC()"><i class="fa-solid fa-wand-magic-sparkles"></i> Auto-fill</button>
     </div>
     <div class="grid grid-cols-4 gap-3" id="epSalWrap"></div>
-    <div class="mt-3 p-3 rounded-xl" style="background:#f8fafc;border:1px solid var(--line)">
+    <div class="mt-3 p-3 rounded-xl" style="background:#faf8f4;border:1px solid var(--line)">
       <div class="flex items-center justify-between">
         <span class="font-semibold text-sm">Monthly Gross (in-hand before deductions)</span>
         <span class="money font-bold text-lg" id="epGross">₹0</span>
@@ -1412,7 +1420,7 @@ body.no-confidential .confidential-col{display:none!important}
       <div id="epCTCInfo" class="text-xs mt-2 pt-2" style="border-top:1px dashed var(--line);color:var(--muted)"></div>
     </div>
     </div><!-- /epSalarySection -->
-    <div id="epSalaryHidden" class="hidden mt-5 p-4 rounded-xl text-sm" style="background:#f8fafc;color:var(--muted)"><i class="fa-solid fa-lock"></i> Salary details are confidential and visible only to the Accounts team.</div>
+    <div id="epSalaryHidden" class="hidden mt-5 p-4 rounded-xl text-sm" style="background:#faf8f4;color:var(--muted)"><i class="fa-solid fa-lock"></i> Salary details are confidential and visible only to the Accounts team.</div>
     <h4 class="display font-bold mt-4 mb-2">Statutory Deductions & Tax</h4>
     <div class="grid grid-cols-2 gap-3 mb-2">
       <div class="col-span-2"><label class="flex items-center gap-2 text-sm"><input type="checkbox" id="epOT"> Overtime allowed for this employee</label></div>
@@ -1515,7 +1523,7 @@ body.no-confidential .confidential-col{display:none!important}
     <div class="text-[11px] font-bold uppercase tracking-wide mb-2" style="color:var(--brand)">Job Details</div>
     <div class="grid grid-cols-2 gap-3 mb-4">
       <div><label class="lbl">Unit / Location</label><select id="aeUnit" class="inp"></select></div>
-      <div><label class="lbl">Employee Code <span class="text-[10px]" style="color:var(--muted)">(auto from unit)</span></label><input id="aeCode" class="inp" style="text-transform:uppercase;background:#f8fafc" readonly></div>
+      <div><label class="lbl">Employee Code <span class="text-[10px]" style="color:var(--muted)">(auto from unit)</span></label><input id="aeCode" class="inp" style="text-transform:uppercase;background:#faf8f4" readonly></div>
       <div><label class="lbl">Department</label><select id="aeDept" class="inp"></select></div>
       <div><label class="lbl">Designation</label><select id="aeDesig" class="inp"></select></div>
       <div><label class="lbl">Date of Joining</label><input id="aeDOJ" type="date" class="inp"></div>
@@ -1699,7 +1707,7 @@ body.no-confidential .confidential-col{display:none!important}
     </div>
     <p class="text-xs mb-3" style="color:var(--muted)">Score each parameter — the total (out of 100) decides the grade &amp; reward automatically, so it's fair and objective.</p>
     <div id="kzScoreRows"></div>
-    <div class="mt-3 p-3 rounded-xl" style="background:#f8fafc;border:1px solid var(--line)">
+    <div class="mt-3 p-3 rounded-xl" style="background:#faf8f4;border:1px solid var(--line)">
       <div class="flex items-center justify-between">
         <span class="font-semibold">Total Score</span>
         <span class="display font-bold text-xl" id="kzTotal">0 / 100</span>
@@ -2322,7 +2330,7 @@ async function renderAdminCtl(){
           <button class="btn btn-danger btn-sm" data-act="ac-del" data-em="${esc(em)}" title="Remove from admin list"><i class="fa-solid fa-trash"></i></button>
         </div></td>
       </tr>`; }).join('')}</tbody>
-  </table></div>` : '<div class="p-4 rounded-xl text-center text-xs" style="background:#f8fafc;color:var(--muted)"><i class="fa-solid fa-users-viewfinder mb-1" style="font-size:18px"></i><br>No admins yet — pick an employee above to add one.</div>';
+  </table></div>` : '<div class="p-4 rounded-xl text-center text-xs" style="background:#faf8f4;color:var(--muted)"><i class="fa-solid fa-users-viewfinder mb-1" style="font-size:18px"></i><br>No admins yet — pick an employee above to add one.</div>';
 }
 document.addEventListener('change', async e => {
   if(e.target.classList && e.target.classList.contains('ac-role')){
@@ -2642,7 +2650,7 @@ $('otrLoadBtn').addEventListener('click', async () => {
   $('otrWrap').innerHTML = OTR_ROWS.length ? `<div style="overflow-x:auto"><table class="tbl">
     <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Days</th><th>Approved Hours</th><th>Rate/hr (×${S.otMult || 2})</th><th>OT Amount</th></tr></thead>
     <tbody>${OTR_ROWS.map(r => `<tr><td>${esc(r.code)}</td><td class="font-semibold">${esc(r.name)}</td><td>${esc(r.dept)}</td><td>${r.days}</td><td class="money">${r.hours}</td><td class="money">${fmtINR(r.rate)}</td><td class="money font-semibold">${fmtINR(r.amount)}</td></tr>`).join('')}
-    <tr style="background:#f8fafc"><th colspan="4">TOTAL</th><th class="money">${totalH}</th><th></th><th class="money">${fmtINR(total)}</th></tr></tbody>
+    <tr style="background:#faf8f4"><th colspan="4">TOTAL</th><th class="money">${totalH}</th><th></th><th class="money">${fmtINR(total)}</th></tr></tbody>
   </table></div>` : '<p class="text-xs m-0" style="color:var(--muted)">No approved overtime in this month.</p>';
   $('otrCsvBtn').classList.toggle('hidden', !OTR_ROWS.length);
 });
@@ -2668,7 +2676,7 @@ $('otrCsvBtn').addEventListener('click', () => {
       const target = url.replace(/#.*$/, '') + '#feedback';
       const S = getSettings();
       const qr = 'https://api.qrserver.com/v1/create-qr-code/?size=340x340&data=' + encodeURIComponent(target);
-      $('printArea').innerHTML = `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;text-align:center;border:3px solid #0f172a;padding:34px 30px">
+      $('printArea').innerHTML = `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;text-align:center;border:3px solid #2a2824;padding:34px 30px">
         <div style="font-size:22px;font-weight:800">${esc(S.name || '')}</div>
         <div style="font-size:30px;font-weight:800;margin-top:18px">VOICE BOX</div>
         <div style="font-size:16px;color:#334155;margin-top:6px">सुझाव एवं शिकायत पेटी • Suggestion & Grievance Box</div>
@@ -2744,7 +2752,7 @@ function renderDeptWise(rows){
   host.innerHTML = depts.length ? depts.map(([d, s]) => {
     const absent = s.total - s.present;
     const pct = s.total ? Math.round(s.present / s.total * 100) : 0;
-    return `<div class="p-2 rounded-lg" style="background:#f8fafc;border:1px solid var(--line)">
+    return `<div class="p-2 rounded-lg" style="background:#faf8f4;border:1px solid var(--line)">
       <div class="flex items-center justify-between mb-1">
         <b class="text-xs">${esc(d)}</b>
         <span class="text-[11px]" style="color:var(--muted)">${s.present}/${s.total} present · ${pct}%</span>
@@ -2910,7 +2918,7 @@ function buildDashCharts(todayRows, total, late, monthRows, slips){
   if($('chTrend')) _dashCharts.trend = new Chart($('chTrend'), {
     type: 'line',
     data: { labels: td.labels, datasets: [
-      { label:'Present', data: td.present, borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.08)', fill:true, tension:.35, pointRadius:2 },
+      { label:'Present', data: td.present, borderColor:'#1f4b9b', backgroundColor:'rgba(37,99,235,.08)', fill:true, tension:.35, pointRadius:2 },
       { label:'Late', data: td.late, borderColor:'#d97706', backgroundColor:'transparent', tension:.35, pointRadius:2 }
     ]},
     options: { plugins: { legend: { position:'top', labels:{ boxWidth:10 } } }, scales: { y: { beginAtZero:true, ticks:{ precision:0 } } }, maintainAspectRatio:false }
@@ -2923,7 +2931,7 @@ function buildDashCharts(todayRows, total, late, monthRows, slips){
   const dEntries = Object.entries(deptCount).sort((a,b) => b[1]-a[1]).slice(0,10);
   if($('chDept')) _dashCharts.dept = new Chart($('chDept'), {
     type: 'bar',
-    data: { labels: dEntries.map(x=>x[0]), datasets: [{ data: dEntries.map(x=>x[1]), backgroundColor:'#2563eb', borderRadius:5 }] },
+    data: { labels: dEntries.map(x=>x[0]), datasets: [{ data: dEntries.map(x=>x[1]), backgroundColor:'#1f4b9b', borderRadius:5 }] },
     options: { indexAxis:'y', plugins:{ legend:{ display:false } }, scales:{ x:{ beginAtZero:true, ticks:{ precision:0 } } }, maintainAspectRatio:false }
   });
 
@@ -2998,7 +3006,7 @@ async function loadDashboard(){
 
     $('dPunchList').innerHTML = rows.length ? rows.map(r => {
       const isLate = isRowLate(r);
-      return `<div class="flex items-center justify-between p-2 rounded-lg" style="background:#f8fafc">
+      return `<div class="flex items-center justify-between p-2 rounded-lg" style="background:#faf8f4">
         <div class="flex items-center gap-2">
           ${r.in_photo_url ? `<img src="${esc(r.in_photo_url)}" loading="lazy" class="w-8 h-8 rounded-full object-cover" alt="">` : '<div class="w-8 h-8 rounded-full" style="background:var(--line)"></div>'}
           <div><div class="font-semibold text-xs">${esc(r.Name)}</div><div class="text-[10px]" style="color:var(--muted)">${esc(r.employee_code)}${(() => { const e = EMP.find(x => x['Employee code'] === r.employee_code); return e && e.DEPARTMENT ? ' • ' + esc(e.DEPARTMENT) : ''; })()}</div></div>
@@ -3303,7 +3311,7 @@ function setWageTypeUI(){
   }
   $('epLineWrap').classList.toggle('hidden', !cat); // management/CTC = no production line
   if(!cat) $('epLine').value = '';
-  document.querySelectorAll('#epSalWrap .sal-part').forEach(i => { i.readOnly = cat; i.style.background = cat ? '#f8fafc' : ''; });
+  document.querySelectorAll('#epSalWrap .sal-part').forEach(i => { i.readOnly = cat; i.style.background = cat ? '#faf8f4' : ''; });
   if(cat) applyCategorySalary();
 }
 function buildSalaryInputs(code){
@@ -4665,7 +4673,7 @@ function renderPayTable(){
       <td class="money font-bold" style="color:var(--brand)" id="net-${i}">${fmtINR(net)}</td>
       <td><button class="btn btn-ghost btn-sm" data-act="view-slip" data-i="${i}"><i class="fa-solid fa-receipt"></i></button></td>
     </tr>`;
-  }).join('') + `<tr style="background:#f8fafc;font-weight:700;border-top:2px solid var(--line)">
+  }).join('') + `<tr style="background:#faf8f4;font-weight:700;border-top:2px solid var(--line)">
     <td>TOTAL — ${PAY_ROWS.length} employees</td><td></td><td></td><td></td>
     <td class="money">${fmtINR(T.gross)}</td><td></td><td class="money">${fmtINR(T.ot)}</td>
     <td class="money">${fmtINR(T.pf)}</td><td class="money">${fmtINR(T.esi)}</td>
@@ -4803,7 +4811,7 @@ function slipHTML(r){
       <div style="transform:rotate(-32deg);font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:46px;color:rgba(15,23,42,.045);white-space:nowrap;letter-spacing:.1em;text-align:center;line-height:2.2">${esc(S.name).toUpperCase()}<br>SYSTEM GENERATED • ORIGINAL<br>${esc(S.name).toUpperCase()}</div>
     </div>
     <div style="position:relative;z-index:1">
-    <div style="background:#0f172a;color:#fff;margin:0 -16mm;padding:8mm 16mm 6mm;display:flex;justify-content:space-between;align-items:flex-end">
+    <div style="background:#2a2824;color:#fff;margin:0 -16mm;padding:8mm 16mm 6mm;display:flex;justify-content:space-between;align-items:flex-end">
       <div>
         <h1 style="margin:0;font-size:19px;letter-spacing:.02em">${esc(S.name)}</h1>
         <p style="margin:3px 0 0;font-size:10px;color:#94a3b8">${esc(unitAddrFor(r.code) || S.addr)}${S.phone ? ' • ' + esc(S.phone) : ''}${S.cin ? ' • ' + esc(S.cin) : ''}</p>
@@ -4813,7 +4821,7 @@ function slipHTML(r){
         <p style="margin:4px 0 0;font-size:10px;color:#94a3b8">${esc(monthLabel(mm))} • ${esc(slipId)}</p>
       </div>
     </div>
-    <div style="height:3px;background:#2563eb;margin:0 -16mm 14px"></div>
+    <div style="height:3px;background:#1f4b9b;margin:0 -16mm 14px"></div>
     <table class="ann"><tbody>
       <tr><th style="width:22%">Employee</th><td style="width:28%">${esc(r.name)}</td><th style="width:22%">Employee Code</th><td>${esc(r.code)}</td></tr>
       <tr><th>Department</th><td>${esc(r.dept || '—')}</td><th>Designation</th><td>${esc(r.desig || '—')}</td></tr>
@@ -4829,13 +4837,13 @@ function slipHTML(r){
         <tr><th>Gross Earnings</th><th style="text-align:right">${(r.earnedGross + r.bonus + (r.otPay||0) + (r.arrears||0) + (r.reward||0) + (r.encash||0)).toLocaleString('en-IN')}</th><th>Total Deductions</th><th style="text-align:right">${totalDed.toLocaleString('en-IN')}</th></tr>
       </tbody>
     </table>
-    <div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;color:#fff;border-radius:10px;padding:12px 16px;margin-top:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;background:#2a2824;color:#fff;border-radius:10px;padding:12px 16px;margin-top:10px">
       <div><b style="letter-spacing:.05em">NET PAY</b><br><span style="font-size:10.5px;color:#94a3b8">Rupees ${esc(numToWords(net))} Only • Bank Transfer</span></div>
       <div class="money" style="font-size:24px;font-weight:700">₹ ${net.toLocaleString('en-IN')}</div>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e8f0;margin-top:16px;padding-top:10px">
       <div style="font-size:9.5px;color:#64748b">
-        <b style="color:#0f172a">Verification Code: ${vc}</b><br>
+        <b style="color:#2a2824">Verification Code: ${vc}</b><br>
         Scan the QR or match this code with HR records to verify authenticity.<br>
         Any alteration to the figures invalidates this code. Generated on ${new Date().toLocaleString('en-IN')}.
       </div>
@@ -4930,8 +4938,8 @@ $('advAgrBtn').addEventListener('click', () => {
   const p = PROFILES[code] || {};
   const S = getSettings();
   const today = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' });
-  $('printArea').innerHTML = `<div style="font-family:Georgia,serif;max-width:720px;margin:auto;padding:34px;border:2px solid #0f172a;position:relative">
-    <div style="text-align:center;border-bottom:2px solid #0f172a;padding-bottom:12px;margin-bottom:18px">
+  $('printArea').innerHTML = `<div style="font-family:Georgia,serif;max-width:720px;margin:auto;padding:34px;border:2px solid #2a2824;position:relative">
+    <div style="text-align:center;border-bottom:2px solid #2a2824;padding-bottom:12px;margin-bottom:18px">
       <h1 style="margin:0;font-size:20px;letter-spacing:.06em">${esc(S.name || '')}</h1>
       <p style="margin:4px 0 0;font-size:11px;color:#475569">${esc(unitAddrFor(code) || S.addr || '')}</p>
       <h2 style="margin:14px 0 0;font-size:15px;letter-spacing:.14em">STAFF LOAN AGREEMENT</h2>
@@ -4942,9 +4950,9 @@ $('advAgrBtn').addEventListener('click', () => {
       Department: ${esc(emp.DEPARTMENT || '—')}) ("the Employee").
     </p>
     <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin:10px 0">
-      <tr><td style="border:1px solid #cbd5e1;padding:7px 10px;background:#f8fafc;width:45%"><b>Loan Amount</b></td><td style="border:1px solid #cbd5e1;padding:7px 10px">₹ ${amount.toLocaleString('en-IN')} (Rupees ${esc(numToWordsA(amount))} only)</td></tr>
-      <tr><td style="border:1px solid #cbd5e1;padding:7px 10px;background:#f8fafc"><b>Monthly EMI (salary deduction)</b></td><td style="border:1px solid #cbd5e1;padding:7px 10px">₹ ${emi.toLocaleString('en-IN')}</td></tr>
-      <tr><td style="border:1px solid #cbd5e1;padding:7px 10px;background:#f8fafc"><b>Tenure</b></td><td style="border:1px solid #cbd5e1;padding:7px 10px">${tenure} month(s), starting from the next payroll</td></tr>
+      <tr><td style="border:1px solid #cbd5e1;padding:7px 10px;background:#faf8f4;width:45%"><b>Loan Amount</b></td><td style="border:1px solid #cbd5e1;padding:7px 10px">₹ ${amount.toLocaleString('en-IN')} (Rupees ${esc(numToWordsA(amount))} only)</td></tr>
+      <tr><td style="border:1px solid #cbd5e1;padding:7px 10px;background:#faf8f4"><b>Monthly EMI (salary deduction)</b></td><td style="border:1px solid #cbd5e1;padding:7px 10px">₹ ${emi.toLocaleString('en-IN')}</td></tr>
+      <tr><td style="border:1px solid #cbd5e1;padding:7px 10px;background:#faf8f4"><b>Tenure</b></td><td style="border:1px solid #cbd5e1;padding:7px 10px">${tenure} month(s), starting from the next payroll</td></tr>
     </table>
     <p style="font-size:12px;line-height:1.85;text-align:justify">
       1. The Employee authorises the Company to deduct the EMI from the monthly salary until the loan is fully recovered.<br>
@@ -4953,8 +4961,8 @@ $('advAgrBtn').addEventListener('click', () => {
       4. This agreement is governed by the Company's policies and applicable law.
     </p>
     <div style="display:flex;justify-content:space-between;margin-top:56px;font-size:12px">
-      <div style="text-align:center"><div style="border-top:1.5px solid #0f172a;padding-top:6px;width:200px">Employee Signature<br><span style="color:#475569">${esc(emp.Name || '')}</span></div></div>
-      <div style="text-align:center"><div style="border-top:1.5px solid #0f172a;padding-top:6px;width:200px">Authorised Signatory<br><span style="color:#475569">${esc(S.hr || '')} — ${esc(S.name || '')}</span></div></div>
+      <div style="text-align:center"><div style="border-top:1.5px solid #2a2824;padding-top:6px;width:200px">Employee Signature<br><span style="color:#475569">${esc(emp.Name || '')}</span></div></div>
+      <div style="text-align:center"><div style="border-top:1.5px solid #2a2824;padding-top:6px;width:200px">Authorised Signatory<br><span style="color:#475569">${esc(S.hr || '')} — ${esc(S.name || '')}</span></div></div>
     </div>
   </div>`;
   AGR_PRINTED = true;
@@ -4993,7 +5001,7 @@ $('advSaveBtn').addEventListener('click', async () => {
 });
 
 /* ================= MIS DASHBOARD ================= */
-const MIS_COLORS = ['#2563eb','#0d9488','#7c3aed','#d97706','#dc2626','#0284c7','#16a34a','#db2777','#64748b','#ca8a04','#4f46e5','#059669'];
+const MIS_COLORS = ['#1f4b9b','#0d9488','#7c3aed','#d97706','#dc2626','#0284c7','#16a34a','#db2777','#64748b','#ca8a04','#1f4b9b','#059669'];
 function misBar(rows, fmt, colorFn, misk){
   // rows: [{label, value, key?}] sorted desc; misk -> drill-down kind (rows become clickable)
   const max = Math.max(...rows.map(r => r.value), 1);
@@ -5057,7 +5065,7 @@ async function loadMis(){
   $('misAttDept').innerHTML = misBar(
     Object.entries(gd).map(([k, v]) => ({ label: k, value: pct(v), head: v.head, present: v.present })).sort((a, b) => b.value - a.value),
     r => r.value + '% <span style="color:var(--muted);font-weight:400">(' + r.head + ')</span>',
-    r => r.value >= 90 ? '#16a34a' : r.value >= 75 ? '#2563eb' : r.value >= 60 ? '#d97706' : '#dc2626', 'attdept');
+    r => r.value >= 90 ? '#16a34a' : r.value >= 75 ? '#1f4b9b' : r.value >= 60 ? '#d97706' : '#dc2626', 'attdept');
   $('misAttLate').innerHTML = misBar(
     Object.entries(gd).map(([k, v]) => ({ label: k, value: v.late, p: v.present })).filter(r => r.value > 0).sort((a, b) => b.value - a.value),
     r => r.value + ' <span style="color:var(--muted);font-weight:400">(' + (r.p ? Math.round(r.value / r.p * 100) : 0) + '%)</span>',
@@ -5066,7 +5074,7 @@ async function loadMis(){
   $('misAttLoc').innerHTML = misBar(
     Object.entries(gl).map(([k, v]) => ({ label: k, value: pct(v), head: v.head })).sort((a, b) => b.value - a.value),
     r => r.value + '% <span style="color:var(--muted);font-weight:400">(' + r.head + ')</span>', null, 'attloc');
-  const gParts = [['Male','#2563eb'],['Female','#db2777'],['Other','#7c3aed'],['Not set','#94a3b8']]
+  const gParts = [['Male','#1f4b9b'],['Female','#db2777'],['Other','#7c3aed'],['Not set','#94a3b8']]
     .map(([k, c]) => ({ label: k + ' ' + (gg[k] ? pct(gg[k]) + '%' : ''), value: gg[k] ? gg[k].present : 0, color: c, misk: 'attgender', key: k })).filter(p => p.value > 0);
   $('misAttGender').innerHTML = misDonut(gParts, workDays + 'd');
 
@@ -5084,7 +5092,7 @@ async function loadMis(){
   const apA = sum(exValid.filter(x => x.status === 'APPROVED')), apP = sum(exValid.filter(x => x.status === 'PAID'));
   $('misExAP').innerHTML = misBar([
     { label: 'Paid', value: apP }, { label: 'Approved (unpaid)', value: apA }, { label: 'Pending', value: sum(exValid.filter(x => x.status === 'PENDING')) }
-  ], r => fmtINR(r.value), (r) => r.label === 'Paid' ? '#16a34a' : r.label.startsWith('Approved') ? '#2563eb' : '#d97706', 'exstat');
+  ], r => fmtINR(r.value), (r) => r.label === 'Paid' ? '#16a34a' : r.label.startsWith('Approved') ? '#1f4b9b' : '#d97706', 'exstat');
   const byK = (arr, kf) => { const g = {}; arr.forEach(x => { const k = kf(x) || '—'; g[k] = (g[k]||0) + (Number(x.amount)||0); }); return g; };
   $('misExDept').innerHTML = misBar(Object.entries(byK(exValid, x => deptOf(x.employee_code))).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => fmtINR(r.value), null, 'exdept');
   $('misExCat').innerHTML = misBar(Object.entries(byK(exValid, x => x.category)).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => fmtINR(r.value), null, 'excat');
@@ -5093,20 +5101,20 @@ async function loadMis(){
   const trendRes = await sb.from('expenses').select('amount, expense_date, status').gte('expense_date', months[0] + '-01').lte('expense_date', months[5] + '-31').limit(20000);
   const tG = {}; (trendRes.data||[]).filter(x => x.status !== 'REJECTED').forEach(x => { const k = String(x.expense_date).slice(0,7); tG[k] = (tG[k]||0) + (Number(x.amount)||0); });
   const mn = ym2 => ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(ym2.slice(5))] + ' ' + ym2.slice(2,4);
-  $('misExTrend').innerHTML = misBar(months.map(k => ({ label: mn(k), value: tG[k] || 0, key: k })), r => fmtINR(r.value), (r, i) => months[i] === ym ? '#2563eb' : '#94a3b8', 'extrend');
+  $('misExTrend').innerHTML = misBar(months.map(k => ({ label: mn(k), value: tG[k] || 0, key: k })), r => fmtINR(r.value), (r, i) => months[i] === ym ? '#1f4b9b' : '#94a3b8', 'extrend');
 
   // ---------- MANPOWER ----------
   const cnt = (kf) => { const g = {}; active.forEach(e => { const k = kf(e) || '—'; g[k] = (g[k]||0) + 1; }); return g; };
   const mpD = cnt(e => String(e.DEPARTMENT||'—').toUpperCase());
   $('misMpDept').innerHTML = misBar(Object.entries(mpD).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => r.value, null, 'mpdept');
   const mpG = cnt(e => genderOf(e['Employee code']));
-  $('misMpGender').innerHTML = misDonut([['Male','#2563eb'],['Female','#db2777'],['Other','#7c3aed'],['Not set','#94a3b8']].map(([k, c]) => ({ label: k, value: mpG[k] || 0, color: c, misk: 'mpgender', key: k })).filter(p => p.value > 0), active.length);
+  $('misMpGender').innerHTML = misDonut([['Male','#1f4b9b'],['Female','#db2777'],['Other','#7c3aed'],['Not set','#94a3b8']].map(([k, c]) => ({ label: k, value: mpG[k] || 0, color: c, misk: 'mpgender', key: k })).filter(p => p.value > 0), active.length);
   const mpT = cnt(e => (PROFILES[e['Employee code']]||{}).employment_type || 'Not set');
   $('misMpType').innerHTML = misBar(Object.entries(mpT).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => r.value,
     r => r.label === 'Permanent' ? '#16a34a' : r.label === 'Contract' ? '#d97706' : MIS_COLORS[4], 'mptype');
   const isWorker = e => { const p = PROFILES[e['Employee code']] || {}; if(p.category) return p.category === 'WORKER'; return /work|piece/i.test(p.grade || '') || p.employment_type === 'Piece Rate' || /HELPER|OPERATOR|WORKER|STITCH|CUTTER|KARIGAR/i.test(e.Designation || ''); };
   const wCnt = active.filter(isWorker).length;
-  $('misMpWS').innerHTML = misDonut([{ label: 'Worker', value: wCnt, color: '#d97706', misk: 'mpws', key: 'WORKER' }, { label: 'Staff', value: active.length - wCnt, color: '#2563eb', misk: 'mpws', key: 'STAFF' }], active.length);
+  $('misMpWS').innerHTML = misDonut([{ label: 'Worker', value: wCnt, color: '#d97706', misk: 'mpws', key: 'WORKER' }, { label: 'Staff', value: active.length - wCnt, color: '#1f4b9b', misk: 'mpws', key: 'STAFF' }], active.length);
   const mpGr = cnt(e => (PROFILES[e['Employee code']]||{}).grade || 'Not set');
   $('misMpGrade').innerHTML = misBar(Object.entries(mpGr).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value).slice(0, 10), r => r.value, null, 'mpgrade');
   const mpL = cnt(e => unitName(e['Employee code']));
@@ -5218,10 +5226,10 @@ function gfixRender(){
   const list = gfixMissing();
   $('gfixLeft').innerText = list.length + ' left';
   $('gfixBody').innerHTML = list.length ? list.map(e => `
-    <div class="flex items-center justify-between gap-2 p-2 rounded-lg mb-1" style="background:#f8fafc" id="gfx-${esc(e['Employee code'])}">
+    <div class="flex items-center justify-between gap-2 p-2 rounded-lg mb-1" style="background:#faf8f4" id="gfx-${esc(e['Employee code'])}">
       <span class="text-xs"><b>${esc(e.Name)}</b> <span style="color:var(--muted)">${esc(e['Employee code'])} · ${esc(e.DEPARTMENT||'—')}</span></span>
       <span style="white-space:nowrap">
-        <button class="btn btn-ghost btn-sm" data-act="gfix" data-code="${esc(e['Employee code'])}" data-g="Male" style="border-color:#bfdbfe;color:#2563eb"><i class="fa-solid fa-mars"></i> M</button>
+        <button class="btn btn-ghost btn-sm" data-act="gfix" data-code="${esc(e['Employee code'])}" data-g="Male" style="border-color:#bfdbfe;color:#1f4b9b"><i class="fa-solid fa-mars"></i> M</button>
         <button class="btn btn-ghost btn-sm" data-act="gfix" data-code="${esc(e['Employee code'])}" data-g="Female" style="border-color:#fbcfe8;color:#db2777"><i class="fa-solid fa-venus"></i> F</button>
       </span>
     </div>`).join('') : '<p class="text-xs m-0 p-3" style="color:var(--ok)">Sab set ✓ — koi missing nahi!</p>';
@@ -5783,14 +5791,14 @@ function letterShell(title, refNo, body){
 
 function certShell(title, name, line1, line2, meta){
   const S = getSettings();
-  return `<div class="paper" contenteditable="true" spellcheck="false" style="display:flex;flex-direction:column;justify-content:center;text-align:center;border:6px double #0f172a;padding:22mm 18mm;position:relative">
+  return `<div class="paper" contenteditable="true" spellcheck="false" style="display:flex;flex-direction:column;justify-content:center;text-align:center;border:6px double #2a2824;padding:22mm 18mm;position:relative">
     <div style="position:absolute;inset:8mm;border:1px solid #cbd5e1;pointer-events:none"></div>
     <p style="font-size:11px;letter-spacing:.3em;color:#64748b;margin:0">${esc(S.name).toUpperCase()}</p>
     <p style="font-size:9px;color:#94a3b8;margin:2px 0 26px">${esc(S.addr)}</p>
-    <h1 style="font-family:'Space Grotesk',sans-serif;font-size:30px;margin:0 0 4px;letter-spacing:.06em;color:#0f172a">${esc(title)}</h1>
-    <div style="width:60px;height:3px;background:#2563eb;margin:10px auto 24px"></div>
+    <h1 style="font-family:'Space Grotesk',sans-serif;font-size:30px;margin:0 0 4px;letter-spacing:.06em;color:#2a2824">${esc(title)}</h1>
+    <div style="width:60px;height:3px;background:#1f4b9b;margin:10px auto 24px"></div>
     <p style="font-size:13px;color:#334155;margin:0 0 6px">This certificate is proudly presented to</p>
-    <h2 style="font-family:'Space Grotesk',sans-serif;font-size:26px;margin:0 0 18px;color:#2563eb">${esc(name)}</h2>
+    <h2 style="font-family:'Space Grotesk',sans-serif;font-size:26px;margin:0 0 18px;color:#1f4b9b">${esc(name)}</h2>
     <p style="font-size:13px;line-height:1.8;color:#334155;max-width:130mm;margin:0 auto 8px">${line1}</p>
     ${line2 ? `<p style="font-size:12px;color:#64748b;margin:0 auto;max-width:130mm">${line2}</p>` : ''}
     <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:34mm;padding:0 6mm">
@@ -6038,7 +6046,7 @@ $('empFormBtn').addEventListener('click', () => {
   const line = w => `<div style="border-bottom:1.2px solid #475569;height:22px;width:${w || '100%'}"></div>`;
   const F = (en, hi, inner) => `<div style="margin-bottom:11px"><div style="font-size:9.5px;font-weight:700;color:#111;margin-bottom:4px">${en} <span style="font-weight:400;color:#555">/ ${hi}</span></div>${inner}</div>`;
   const CB = opts => `<div style="display:flex;gap:18px;padding:3px 0">${opts.map(o => `<span style="font-size:11px"><span style="display:inline-block;width:13px;height:13px;border:1.3px solid #111;vertical-align:-2px;margin-right:5px"></span>${o}</span>`).join('')}</div>`;
-  const SEC = (n, en, hi) => `<div style="background:#f1f5f9;border-left:4px solid #0f172a;padding:5px 10px;margin:16px 0 10px;font-size:11.5px;font-weight:700;letter-spacing:.04em">${n}. ${en} <span style="font-weight:400;color:#555">/ ${hi}</span></div>`;
+  const SEC = (n, en, hi) => `<div style="background:#f0ede6;border-left:4px solid #2a2824;padding:5px 10px;margin:16px 0 10px;font-size:11.5px;font-weight:700;letter-spacing:.04em">${n}. ${en} <span style="font-weight:400;color:#555">/ ${hi}</span></div>`;
   $('printArea').innerHTML = `<div style="font-family:Arial,sans-serif;max-width:740px;margin:auto;color:#111">
     <table style="width:100%;margin-bottom:4px"><tr>
       <td>
@@ -6092,7 +6100,7 @@ $('empFormBtn').addEventListener('click', () => {
       </tr></table>
     </div>
 
-    <div style="border:1.3px dashed #64748b;padding:8px 12px;margin-top:10px;background:#f8fafc">
+    <div style="border:1.3px dashed #64748b;padding:8px 12px;margin-top:10px;background:#faf8f4">
       <div style="font-size:10px;font-weight:700;letter-spacing:.06em;margin-bottom:7px">FOR OFFICE USE ONLY / केवल कार्यालय उपयोग हेतु</div>
       <table style="width:100%;font-size:9.5px"><tr>
         <td style="width:25%;padding-right:12px">Employee Code${line()}</td>
@@ -6322,7 +6330,7 @@ function renderUnits(){
   const units = (SETTINGS && SETTINGS.units) || [];
   $('unitList').innerHTML = units.length ? units.map((u, i) => {
     const count = EMP.filter(e => String(e['Employee code']).toUpperCase().startsWith(u.code)).length;
-    return `<div class="flex items-center justify-between p-2 rounded-lg text-sm" style="background:#f8fafc">
+    return `<div class="flex items-center justify-between p-2 rounded-lg text-sm" style="background:#faf8f4">
       <span><b>${esc(u.code)}</b> — ${esc(u.name)} <span class="chip chip-gray">${count} employees</span>${u.addr ? `<br><span class="text-[10px]" style="color:var(--muted)"><i class="fa-solid fa-location-dot"></i> ${esc(u.addr)}</span>` : ''}</span>
       <button class="btn btn-danger btn-sm" data-act="unit-del" data-i="${i}"><i class="fa-solid fa-trash"></i></button>
     </div>`;
@@ -6386,7 +6394,7 @@ function renderLines(){
   const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
   $('plList').innerHTML = LINES.length ? LINES.map(l => {
     const assigned = EMP.filter(e => String(e.LINE||'').trim().toLowerCase() === String(l.name).trim().toLowerCase() && String(e.Status).toUpperCase() === 'ACTIVE').length;
-    return `<div class="flex items-center justify-between p-2 rounded-lg text-sm flex-wrap gap-1" style="background:#f8fafc">
+    return `<div class="flex items-center justify-between p-2 rounded-lg text-sm flex-wrap gap-1" style="background:#faf8f4">
       <span><b>${esc(l.name)}</b> <span class="chip chip-blue">Capacity ${l.capacity}</span> <span class="chip chip-gray">${assigned} assigned</span>
         ${l.supervisor_code ? `<span class="chip chip-ok"><i class="fa-solid fa-user-tie"></i> ${esc(nameOf(l.supervisor_code))}</span>` : '<span class="chip chip-warn">No supervisor</span>'}</span>
       <span>
@@ -6423,7 +6431,7 @@ function renderContractors(){
   const cnt = {};
   Object.keys(PROFILES).forEach(c => { const n = String((PROFILES[c]||{}).contractor_name||'').trim().toUpperCase(); if(n) cnt[n] = (cnt[n]||0)+1; });
   host.innerHTML = CONTRACTORS.length ? CONTRACTORS.map(c => `
-    <div class="flex items-center justify-between p-2 rounded-lg text-sm flex-wrap gap-1" style="background:#f8fafc">
+    <div class="flex items-center justify-between p-2 rounded-lg text-sm flex-wrap gap-1" style="background:#faf8f4">
       <span><b>${esc(c.name)}</b>${c.firm?` <span class="chip chip-blue">${esc(c.firm)}</span>`:''}${c.phone?` <span class="text-xs" style="color:var(--muted)"><i class="fa-solid fa-phone"></i> ${esc(c.phone)}</span>`:''}
         <span class="chip chip-gray">${cnt[String(c.name).trim().toUpperCase()]||0} employees</span>
         ${c.gstin?`<span class="text-[10px]" style="color:var(--muted)">GST: ${esc(c.gstin)}</span>`:''}</span>
@@ -6469,12 +6477,12 @@ function renderCompMgr(){
   if(!EARN_EDIT) EARN_EDIT = JSON.parse(JSON.stringify(S.earnComps));
   if(!DED_EDIT) DED_EDIT = JSON.parse(JSON.stringify(S.dedComps));
   $('ecList').innerHTML = EARN_EDIT.map((c, i) =>
-    `<div class="flex items-center justify-between p-2 rounded-lg text-sm" style="background:#f8fafc">
+    `<div class="flex items-center justify-between p-2 rounded-lg text-sm" style="background:#faf8f4">
       <span><b>${esc(c.name)}</b> ${c.pf ? '<span class="chip chip-blue">PF wages</span>' : ''}</span>
       <button class="btn btn-danger btn-sm" data-act="ec-del" data-i="${i}"><i class="fa-solid fa-trash"></i></button>
     </div>`).join('') || '<p class="text-xs m-0" style="color:var(--bad)">At least one earning component is required.</p>';
   $('dcList').innerHTML = DED_EDIT.length ? DED_EDIT.map((c, i) =>
-    `<div class="flex items-center justify-between p-2 rounded-lg text-sm" style="background:#f8fafc">
+    `<div class="flex items-center justify-between p-2 rounded-lg text-sm" style="background:#faf8f4">
       <span><b>${esc(c.name)}</b></span>
       <button class="btn btn-danger btn-sm" data-act="dc-del" data-i="${i}"><i class="fa-solid fa-trash"></i></button>
     </div>`).join('') : '<p class="text-xs m-0" style="color:var(--muted)">No custom deductions defined.</p>';
@@ -6567,7 +6575,7 @@ $('epFaceBtn').addEventListener('click', async () => {
 
 function renderHolidays(){
   $('holList').innerHTML = HOLIDAYS.length ? HOLIDAYS.map(h =>
-    `<div class="flex items-center justify-between p-2 rounded-lg" style="background:#f8fafc">
+    `<div class="flex items-center justify-between p-2 rounded-lg" style="background:#faf8f4">
       <span><b>${fmtDate(h.date)}</b> — ${esc(h.name || '')}</span>
       <button class="btn btn-danger btn-sm" data-act="del-hol" data-id="${h.id}"><i class="fa-solid fa-trash"></i></button>
     </div>`).join('') : '<p class="text-xs" style="color:var(--muted)">No holidays added.</p>';
@@ -6804,7 +6812,7 @@ async function loadDocs(code){
     const { data, error } = await sb.from('hr_documents').select('*').eq('employee_code', code).order('uploaded_at', { ascending:false });
     if(error) throw error;
     $('docList').innerHTML = (data && data.length) ? data.map(d =>
-      `<div class="flex items-center justify-between p-2 rounded-lg" style="background:#f8fafc">
+      `<div class="flex items-center justify-between p-2 rounded-lg" style="background:#faf8f4">
         <span><span class="chip chip-blue">${esc(d.doc_type)}</span> ${esc(d.file_name || '')}</span>
         <span>
           <button class="btn btn-ghost btn-sm" data-act="view-doc" data-path="${esc(d.file_path)}"><i class="fa-solid fa-eye"></i></button>
@@ -7146,7 +7154,7 @@ function renderCart(){
   const host = $('asCart'); if(!host) return;
   if(!ISSUE_CART.length){ host.innerHTML = ''; return; }
   host.innerHTML = `<div style="border:1px solid var(--line);border-radius:10px;overflow:hidden">
-    <div class="text-[11px] font-semibold px-2 py-1" style="background:#f8fafc;color:var(--muted)">ITEMS TO ISSUE (${ISSUE_CART.length})</div>
+    <div class="text-[11px] font-semibold px-2 py-1" style="background:#faf8f4;color:var(--muted)">ITEMS TO ISSUE (${ISSUE_CART.length})</div>
     ${ISSUE_CART.map((c,i) => `<div class="flex items-center justify-between px-2 py-1 text-xs" style="border-top:1px solid var(--line)">
       <span>${esc(c.asset_type)}${c.brand?' · '+esc(c.brand):''}${c.serial_no?' · '+esc(c.serial_no):''} <b>×${c.quantity}</b>${c.accessories?' <span style="color:var(--muted)">('+esc(c.accessories)+')</span>':''}</span>
       <button class="btn btn-ghost btn-sm" onclick="removeCartItem(${i})"><i class="fa-solid fa-xmark" style="color:var(--bad)"></i></button>
@@ -7341,7 +7349,7 @@ $('cmpLoadBtn').addEventListener('click', async () => {
     <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>IP No.</th><th>Name</th><th style="text-align:right">Days</th><th style="text-align:right">ESI Wages</th><th style="text-align:right">EE 0.75%</th><th style="text-align:right">ER 3.25%</th></tr></thead>
     <tbody>${esiBody}</tbody>
     <tfoot><tr class="font-bold"><td colspan="4">TOTAL</td><td class="money" style="text-align:right">${esiEE.toLocaleString('en-IN')}</td><td class="money" style="text-align:right">${esiER.toLocaleString('en-IN')}</td></tr></tfoot></table></div>
-    <div class="mt-3 text-sm p-3 rounded-xl" style="background:#f8fafc"><b>Total ESIC Payable: <span class="money">${fmtINR(esiEE + esiER)}</span></b></div>
+    <div class="mt-3 text-sm p-3 rounded-xl" style="background:#faf8f4"><b>Total ESIC Payable: <span class="money">${fmtINR(esiEE + esiER)}</span></b></div>
   </div>
   <div class="card" id="tdsCard">
     <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
@@ -7495,7 +7503,7 @@ async function openFnF(id){
       <div><label class="lbl">Notice Shortfall Recovery Days</label><input id="fnfNotice" type="number" class="inp fnf-in" value="${fnf.notice ?? 0}"></div>
       <div><label class="lbl">Other Recovery (₹)</label><input id="fnfOther" type="number" class="inp fnf-in" value="${fnf.other ?? 0}"></div>
     </div>
-    <div class="flex items-center justify-between mt-4 p-3 rounded-xl" style="background:#f8fafc;border:1px solid var(--line)">
+    <div class="flex items-center justify-between mt-4 p-3 rounded-xl" style="background:#faf8f4;border:1px solid var(--line)">
       <span class="font-semibold">Net Settlement <span class="text-[10px]" style="color:var(--muted)">(per-day = gross/30 = ${fmtINR(perDay)})</span></span>
       <span class="money font-bold text-lg" id="fnfNet">₹0</span>
     </div>
@@ -7628,7 +7636,7 @@ async function loadEngagement(){
     if(p.dob && p.dob.slice(5,7) === mm) items.push({ d: p.dob.slice(8,10), txt: `🎂 ${e.Name} — Birthday (${fmtDate(p.dob).slice(0,6)})` });
     if(e.DOJ){ const d = new Date(e.DOJ); if(!isNaN(d) && String(d.getMonth()+1).padStart(2,'0') === mm){ const yrs = new Date().getFullYear() - d.getFullYear(); if(yrs > 0) items.push({ d: String(d.getDate()).padStart(2,'0'), txt: `🏆 ${e.Name} — ${yrs} years completed (Work Anniversary)` }); } }
   });
-  $('dCelebrate').innerHTML = items.length ? items.sort((a,b) => a.d.localeCompare(b.d)).map(i => `<div class="p-2 rounded-lg" style="background:#f8fafc">${esc(i.txt)}</div>`).join('') : '<p style="color:var(--muted)">No birthdays or anniversaries this month.</p>';
+  $('dCelebrate').innerHTML = items.length ? items.sort((a,b) => a.d.localeCompare(b.d)).map(i => `<div class="p-2 rounded-lg" style="background:#faf8f4">${esc(i.txt)}</div>`).join('') : '<p style="color:var(--muted)">No birthdays or anniversaries this month.</p>';
   try{
     const { data } = await sb.from('announcements').select('*').order('created_at', { ascending:false }).limit(5);
     $('annList').innerHTML = (data && data.length) ? data.map(a =>
@@ -7683,7 +7691,7 @@ function idCardHTML(e, photo, validTill){
     </div>
     <div style="display:flex;align-items:flex-end;justify-content:space-between;padding:0 4mm 3mm">
       <img src="${qr}" style="width:13mm;height:13mm" alt="QR">
-      <div style="text-align:right;font-size:6.5px;color:#64748b">Authorised Signatory<br><b style="font-size:8px;color:#0f172a">${esc(S.hr || '')}</b></div>
+      <div style="text-align:right;font-size:6.5px;color:#64748b">Authorised Signatory<br><b style="font-size:8px;color:#2a2824">${esc(S.hr || '')}</b></div>
     </div>
   </div>
   <div class="idcard">
@@ -7700,7 +7708,7 @@ function idCardHTML(e, photo, validTill){
         <b>${esc(S.name)}</b><br>${esc(S.addr)}<br>${S.phone ? 'Ph: ' + esc(S.phone) : ''} ${S.email ? '• ' + esc(S.email) : ''}
       </div>
     </div>
-    <div style="background:#0f172a;color:#94a3b8;text-align:center;padding:2mm;font-size:6.5px">${esc(code)} • Issued ${new Date().toLocaleDateString('en-IN')}</div>
+    <div style="background:#2a2824;color:#94a3b8;text-align:center;padding:2mm;font-size:6.5px">${esc(code)} • Issued ${new Date().toLocaleDateString('en-IN')}</div>
   </div>`;
 }
 $('idEmp').addEventListener('change', () => {
@@ -7822,7 +7830,7 @@ $('helpBtn').addEventListener('click', () => {
   const key = page ? page.id.replace('page-', '') : 'dashboard';
   $('helpTitle').innerText = 'How ' + (TITLES[key] || 'this page') + ' works';
   $('helpBody').innerHTML = (HELP[key] || ['No tips for this page.']).map((t, i) =>
-    `<div class="flex gap-3 p-2 rounded-lg" style="background:#f8fafc"><span class="chip chip-blue" style="height:fit-content">${i+1}</span><span>${t}</span></div>`).join('');
+    `<div class="flex gap-3 p-2 rounded-lg" style="background:#faf8f4"><span class="chip chip-blue" style="height:fit-content">${i+1}</span><span>${t}</span></div>`).join('');
   $('helpModal').classList.add('show');
 });
 
@@ -7850,7 +7858,7 @@ async function renderSetupChecklist(){
   }
   card.innerHTML = `<h3 class="display font-bold mt-0 mb-3"><i class="fa-solid fa-list-check" style="color:var(--brand)"></i> Getting Started — ${steps.length - pending}/${steps.length} complete</h3>
     <div class="grid lg:grid-cols-2 gap-2">` + steps.map(s =>
-      `<button class="flex items-center gap-2 p-2 rounded-lg text-left" style="background:${s.ok ? '#ecfdf5' : '#f8fafc'};border:1px solid ${s.ok ? '#a7f3d0' : 'var(--line)'};cursor:pointer" data-goto="${s.page}">
+      `<button class="flex items-center gap-2 p-2 rounded-lg text-left" style="background:${s.ok ? '#ecfdf5' : '#faf8f4'};border:1px solid ${s.ok ? '#a7f3d0' : 'var(--line)'};cursor:pointer" data-goto="${s.page}">
         <i class="fa-solid ${s.ok ? 'fa-circle-check' : 'fa-circle'} " style="color:${s.ok ? 'var(--ok)' : '#cbd5e1'}"></i>
         <span class="text-sm ${s.ok ? '' : 'font-semibold'}">${s.label}</span>
         ${s.ok ? '' : '<i class="fa-solid fa-arrow-right ml-auto" style="color:var(--muted)"></i>'}
@@ -7867,7 +7875,7 @@ async function loadVoice(){
   if(error) return notify(error.message + ' — have you run the V9 migration SQL?', 'error');
   const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
   const stChip = s => ({ OPEN:'chip-warn', IN_REVIEW:'chip-blue', RESOLVED:'chip-ok', APPROVED:'chip-ok', REJECTED:'chip-bad' }[s] || 'chip-gray');
-  const card = f => `<div class="p-3 rounded-lg" style="background:#f8fafc;border:1px solid var(--line)">
+  const card = f => `<div class="p-3 rounded-lg" style="background:#faf8f4;border:1px solid var(--line)">
     <div class="flex items-center justify-between mb-1">
       <b class="text-xs">${esc(nameOf(f.employee_code))} <span style="color:var(--muted)">(${esc(f.employee_code)})</span></b>
       <span class="chip ${stChip(f.status)}" style="font-size:10px">${esc(f.status.replace('_',' '))}${f.type === 'KAIZEN' && f.reward > 0 ? ' • ' + fmtINR(f.reward) : ''}</span>
@@ -7964,7 +7972,7 @@ async function loadApprovals(){
   }
   const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
   const item = (title, sub, actA, actR, id) =>
-    `<div class="p-2 rounded-lg flex items-center justify-between" style="background:#f8fafc">
+    `<div class="p-2 rounded-lg flex items-center justify-between" style="background:#faf8f4">
       <div><div class="font-semibold text-xs">${title}</div><div class="text-[10px]" style="color:var(--muted)">${sub}</div></div>
       <div style="white-space:nowrap">
         <button class="btn btn-ghost btn-sm" data-act="${actA}" data-id="${id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
@@ -7997,7 +8005,7 @@ async function loadApprovals(){
           <button class="btn btn-ghost btn-sm" data-act="ot-view" data-g="${esc(gid)}"><i class="fa-solid fa-eye"></i></button>
           <button class="btn btn-ghost btn-sm" data-act="ot-appr-grp" data-ids="${ids}" title="Approve all"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
           <button class="btn btn-danger btn-sm" data-act="ot-rej-grp" data-ids="${ids}"><i class="fa-solid fa-xmark"></i></button></td></tr>
-      <tr class="hidden" id="otg-${esc(gid)}"><td colspan="6" style="background:#f8fafc">
+      <tr class="hidden" id="otg-${esc(gid)}"><td colspan="6" style="background:#faf8f4">
         <div class="text-[11px] space-y-1 p-1">${rows.map(r => `<div class="flex justify-between"><span>${esc(nameOf(r.employee_code))} <span style="color:var(--muted)">(${esc(r.employee_code)})</span></span><span>${r.hours} hrs</span></div>`).join('')}</div></td></tr>`;
     }).join('')}</tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
   $('apExp').innerHTML = (ex.data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
@@ -8076,7 +8084,7 @@ function renderBotList(q){
   q = (q||'').toLowerCase();
   $('botList').innerHTML = activeEmps()
     .filter(e => !q || [e.Name, e['Employee code'], e.DEPARTMENT, e.LINE].join(' ').toLowerCase().includes(q))
-    .map(e => `<label class="flex items-center gap-2 p-2 rounded-lg text-sm" style="background:#f8fafc;cursor:pointer">
+    .map(e => `<label class="flex items-center gap-2 p-2 rounded-lg text-sm" style="background:#faf8f4;cursor:pointer">
       <input type="checkbox" class="bot-chk" value="${esc(e['Employee code'])}">
       <span><b>${esc(e.Name)}</b> <span style="color:var(--muted)">${esc(e['Employee code'])} • ${esc(e.DEPARTMENT||'—')}${e.LINE ? ' • ' + esc(e.LINE) : ''}</span></span>
     </label>`).join('');
@@ -8115,7 +8123,7 @@ $('botSaveBtn').addEventListener('click', async () => {
 async function loadRevisions(code){
   const { data } = await sb.from('salary_revisions').select('*').eq('employee_code', code).order('created_at', { ascending:false }).limit(10);
   $('epRevList').innerHTML = (data && data.length) ? data.map(r =>
-    `<div class="p-2 rounded-lg flex justify-between" style="background:#f8fafc">
+    `<div class="p-2 rounded-lg flex justify-between" style="background:#faf8f4">
       <span>${fmtDate(r.effective_date)} — ${esc(r.note || 'Revision')}</span>
       <span class="money">${fmtINR(r.old_gross)} → <b>${fmtINR(r.new_gross)}</b></span></div>`).join('')
     : '<p class="m-0" style="color:var(--muted)">No revisions recorded.</p>';
@@ -8289,11 +8297,11 @@ $('holAddBtn').addEventListener('click', async () => {
 .colf-actions a{ color:var(--brand); cursor:pointer; font-size:11px; }
 .colf-list{ max-height:180px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:4px; }
 .colf-list label{ display:flex; align-items:center; gap:6px; padding:3px 4px; cursor:pointer; border-radius:5px; }
-.colf-list label:hover{ background:#f1f5f9; }
+.colf-list label:hover{ background:#f0ede6; }
 .colf-foot{ display:flex; gap:6px; margin-top:8px; }
 .colf-foot button{ flex:1; padding:6px; border-radius:8px; border:none; cursor:pointer; font-size:12px; }
 .colf-apply{ background:var(--brand); color:#fff; }
-.colf-reset{ background:#f1f5f9; color:#334155; }
+.colf-reset{ background:#f0ede6; color:#334155; }
 </style>
 </body>
 </html>
