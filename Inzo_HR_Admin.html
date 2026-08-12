@@ -3658,6 +3658,36 @@ async function candEmail(c, type, extra){
   return r || {};
 }
 
+function interviewFormFields(c){
+  return `<div class="grid grid-cols-2 gap-3 mb-2">
+      <div><label class="lbl">Mode of Interview</label><select id="candIvMode" class="inp">
+        <option value="FACE_TO_FACE" ${c.interview_mode!=='VIRTUAL'?'selected':''}>Face to Face</option>
+        <option value="VIRTUAL" ${c.interview_mode==='VIRTUAL'?'selected':''}>Virtual (Google Meet)</option>
+      </select></div>
+      <div><label class="lbl">Interview Date</label><input id="candIvDate" type="date" class="inp" value="${c.interview_date||''}"></div>
+      <div><label class="lbl">Time</label><input id="candIvTime" type="time" class="inp" value="${c.interview_time||''}"></div>
+      <div id="candVenueWrap"><label class="lbl">Venue (face-to-face)</label><input id="candIvVenue" class="inp" value="${esc(c.interview_venue||'Zooto Fashion Pvt Ltd, Plot 300, Sector 6, IMT Manesar, Gurugram')}"></div>
+      <div class="col-span-2"><label class="lbl">Interview Panel (emails, comma-separated)</label><input id="candIvPanel" class="inp" placeholder="hr@zootofashion.com, manager@zootofashion.com" value="${esc(c.interviewers||'')}"></div>
+    </div>
+    <p class="text-[11px] mb-2" style="color:var(--muted)">Candidate ko details email hongi. Virtual pe Google Calendar event + Google Meet link banega, aur panel + candidate ko invite jaayega.</p>`;
+}
+function editInterview(id){
+  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
+  const box = document.getElementById('candStageBox'); if(!box) return;
+  box.innerHTML = `<div class="text-[11px] font-bold uppercase tracking-wide mb-2" style="color:var(--brand)"><i class="fa-solid fa-pen"></i> Edit / Re-schedule Interview</div>
+    <p class="text-[11px] mb-2" style="color:var(--muted)">Panel mein email add/hata do ya date/time badlo, phir "Update & Re-send".</p>
+    ${interviewFormFields(c)}
+    <div class="flex gap-2 flex-wrap">
+      <button class="btn btn-primary btn-sm" onclick="scheduleInterview('${id}')"><i class="fa-solid fa-calendar-check"></i> Update & Re-send Invite</button>
+      <button class="btn btn-ghost btn-sm" onclick="cancelEditInterview('${id}')">Cancel</button>
+    </div>`;
+}
+function cancelEditInterview(id){
+  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
+  const box = document.getElementById('candStageBox'); if(box) box.innerHTML = candStageActions(c);
+}
+function nxCopy(t){ try{ navigator.clipboard.writeText(t); notify('Copied','success'); }catch(e){ notify('Copy failed','error'); } }
+
 function candStageActions(c){
   const id = c.id;
   const docsList = [['aadhaar','Aadhaar Card'],['pan','PAN Card'],['bank','Bank Details / Cancelled Cheque'],['salary_slip','Last Salary Slips']];
@@ -3677,17 +3707,7 @@ function candStageActions(c){
   }
 
   if(c.stage === 'SHORTLISTED'){
-    html += `<div class="grid grid-cols-2 gap-3 mb-2">
-      <div><label class="lbl">Mode of Interview</label><select id="candIvMode" class="inp">
-        <option value="FACE_TO_FACE" ${c.interview_mode!=='VIRTUAL'?'selected':''}>Face to Face</option>
-        <option value="VIRTUAL" ${c.interview_mode==='VIRTUAL'?'selected':''}>Virtual (Google Meet)</option>
-      </select></div>
-      <div><label class="lbl">Interview Date</label><input id="candIvDate" type="date" class="inp" value="${c.interview_date||''}"></div>
-      <div><label class="lbl">Time</label><input id="candIvTime" type="time" class="inp" value="${c.interview_time||''}"></div>
-      <div id="candVenueWrap"><label class="lbl">Venue (face-to-face)</label><input id="candIvVenue" class="inp" value="${esc(c.interview_venue||'Zooto Fashion Pvt Ltd, Plot 300, Sector 6, IMT Manesar, Gurugram')}"></div>
-      <div class="col-span-2"><label class="lbl">Interview Panel (emails, comma-separated)</label><input id="candIvPanel" class="inp" placeholder="hr@zootofashion.com, manager@zootofashion.com" value="${esc(c.interviewers||'')}"></div>
-    </div>
-    <p class="text-[11px] mb-2" style="color:var(--muted)">Scheduling emails the candidate the details. Virtual interviews also create a Google Calendar event (with the panel + candidate invited).</p>
+    html += interviewFormFields(c) + `
     <div class="flex gap-2 flex-wrap">
       <button class="btn btn-primary btn-sm" onclick="scheduleInterview('${id}')"><i class="fa-solid fa-calendar-check"></i> Schedule Interview & Send Invite</button>
       <button class="btn btn-danger btn-sm" onclick="moveCandidate('${id}','REJECTED')">Reject (sends email)</button>
@@ -3695,7 +3715,18 @@ function candStageActions(c){
   }
 
   if(c.stage === 'INTERVIEW'){
-    html += `<div class="text-xs mb-2 p-2 rounded" style="background:var(--brand-soft)"><b>Scheduled:</b> ${c.interview_date?fmtDate(c.interview_date):'—'} ${esc(c.interview_time||'')} · ${c.interview_mode==='VIRTUAL'?'Virtual':'Face to Face'}${c.interview_venue && c.interview_mode!=='VIRTUAL' ? ' · ' + esc(c.interview_venue) : ''}</div>
+    const meetRow = (c.interview_mode==='VIRTUAL')
+      ? (c.meet_link
+          ? `<div class="text-xs mb-2 p-2 rounded flex items-center gap-2 flex-wrap" style="background:#eef6ff;word-break:break-all"><i class="fa-solid fa-video" style="color:var(--brand)"></i><a href="${esc(c.meet_link)}" target="_blank" style="color:var(--brand);font-weight:600">${esc(c.meet_link)}</a><button type="button" class="btn btn-ghost btn-sm" onclick="nxCopy('${esc(c.meet_link)}')"><i class="fa-solid fa-copy"></i> Copy</button></div>`
+          : `<div class="text-[11px] mb-2 p-2 rounded" style="background:#fff7ed;color:var(--warn)"><i class="fa-solid fa-triangle-exclamation"></i> Google Meet link nahi bana. "Edit / Re-schedule" se dobara try karo (GAS <b>candcal</b> + Calendar API check karo).</div>`)
+      : '';
+    html += `<div class="text-xs mb-2 p-2 rounded" style="background:var(--brand-soft)"><b>Scheduled:</b> ${c.interview_date?fmtDate(c.interview_date):'—'} ${esc(c.interview_time||'')} · ${c.interview_mode==='VIRTUAL'?'Virtual (Google Meet)':'Face to Face'}${c.interview_venue && c.interview_mode!=='VIRTUAL' ? ' · ' + esc(c.interview_venue) : ''}</div>
+    ${meetRow}
+    ${c.interviewers ? `<div class="text-[11px] mb-2" style="color:var(--muted)"><b>Panel:</b> ${esc(c.interviewers)}</div>` : ''}
+    <div class="flex gap-2 flex-wrap mb-3" style="border-bottom:1px dashed var(--line);padding-bottom:10px">
+      <button class="btn btn-ghost btn-sm" onclick="editInterview('${id}')"><i class="fa-solid fa-pen"></i> Edit / Re-schedule</button>
+      <button class="btn btn-ghost btn-sm" onclick="moveCandidate('${id}','SHORTLISTED')"><i class="fa-solid fa-arrow-left"></i> Back to Shortlisted</button>
+    </div>
     <div class="grid grid-cols-2 gap-3 mb-2">
       <div><label class="lbl">Interview Score (/100)</label><input id="candIvScore" type="number" class="inp" value="${c.interview_score||''}"></div>
       <div class="col-span-2"><label class="lbl">Interview Notes</label><input id="candIvNotes" class="inp" value="${esc(c.interview_notes||'')}"></div>
@@ -3837,22 +3868,30 @@ $('candSaveBtn').addEventListener('click', async () => {
 async function scheduleInterview(id){
   const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
   const mode = $('candIvMode').value, date = $('candIvDate').value, time = $('candIvTime').value;
-  const venue = $('candIvVenue').value, panel = $('candIvPanel').value;
+  const venue = $('candIvVenue') ? $('candIvVenue').value : (c.interview_venue||''), panel = $('candIvPanel').value;
   if(!date || !time) return notify('Interview date and time are required', 'error');
-  const upd = { stage:'INTERVIEW', interview_mode:mode, interview_date:date, interview_time:time, interview_venue:venue||null, interviewers:panel||null, updated_at:new Date().toISOString() };
-  const { error } = await sb.from('candidates').update(upd).eq('id', id);
-  if(error) return notify(error.message, 'error');
-  Object.assign(c, upd);
-  // email the candidate
-  await candEmail(c, 'interview', { mode, date, time, venue: venue||'', panel: panel||'' });
-  // virtual -> also create the calendar event (panel + candidate invited)
+  let meetLink = null, calMsg = '';
+  // Virtual -> create/refresh the Google Calendar event + Google Meet link FIRST, so we can store & email it.
   if(mode === 'VIRTUAL'){
+    notify('Creating Google Calendar + Meet…', 'info');
     const r = await nxGas('candcal', { to: c.email||'', name: c.name, position: c.position||'', date, time, panel: panel||'', company: (getSettings().name)||'Zooto Fashion Pvt Ltd' });
-    if(r && r.ok) notify('Google Calendar invite created', 'success');
-    else notify('Calendar failed: ' + ((r && r.error) || 'check GAS'), 'error');
+    if(r && r.ok){ meetLink = r.meetLink || r.meet || r.hangoutLink || null; calMsg = meetLink ? 'Google Meet link ban gaya' : 'Calendar event bana (Meet link nahi mila — GAS Calendar API on hai?)'; }
+    else { notify('Calendar failed: ' + ((r && r.error) || 'check GAS candcal'), 'error'); }
   }
-  $('candModal').classList.remove('show');
-  loadHiring();
+  const upd = { stage:'INTERVIEW', interview_mode:mode, interview_date:date, interview_time:time,
+                interview_venue:(mode==='VIRTUAL'?null:(venue||null)), interviewers:panel||null,
+                meet_link:(mode==='VIRTUAL'?(meetLink||null):null), updated_at:new Date().toISOString() };
+  const { error } = await sb.from('candidates').update(upd).eq('id', id);
+  if(error) return notify(error.message + '  (candidates.meet_link column bana hai?)', 'error');
+  Object.assign(c, upd);
+  const idx = CANDIDATES.findIndex(x=>String(x.id)===String(id)); if(idx>=0) Object.assign(CANDIDATES[idx], upd);
+  // email the candidate (Meet link included for virtual)
+  await candEmail(c, 'interview', { mode, date, time, venue: venue||'', panel: panel||'', meetLink: meetLink||'' });
+  if(calMsg) notify(calMsg, meetLink ? 'success' : 'info');
+  notify('Interview scheduled & invite sent', 'success');
+  // re-render the stage box in place so the summary + Meet link show right away
+  const box = document.getElementById('candStageBox'); if(box) box.innerHTML = candStageActions(c);
+  renderHiring();
 }
 async function sendDocRequest(id){
   const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
