@@ -5432,6 +5432,14 @@ document.body.addEventListener('click', async e => {
     // STEP 2 — open the objective scorecard; grade + reward come from the score.
     openKzScore(el.dataset.id, el.dataset.code, el.dataset.note || '');
   }
+  if(act === 'vb-kundo'){
+    // undo a mistakenly-submitted closing -> back to "Executing" (employee can re-submit)
+    if(!(await nxConfirm('Is Kaizen ki closing hata di jaayegi (report + attachment + review request). Wapas "Executing" pe aa jaayega taaki employee sahi closing dobara submit kar sake. Undo karein?', 'Undo Closing'))) return;
+    const { error } = await sb.from('feedback').update({ kz_closing: null, kz_closing_file: null, kz_review_requested_at: null }).eq('id', el.dataset.id);
+    if(error) return notify(error.message, 'error');
+    notify('Closing hata di — Kaizen wapas Executing pe hai', 'success');
+    loadVoice();
+  }
   if(act === 'ex-receipt'){
     const { data, error } = await sb.storage.from('expense-bills').createSignedUrl(el.dataset.path, 120);
     if(error) return notify(error.message, 'error');
@@ -7973,7 +7981,7 @@ async function loadVoice(){
       ${(f.type === 'KAIZEN' && f.status === 'APPROVED' && f.kz_stage !== 'COMPLETED') ? `${f.kz_review_requested_at
           ? `<span class="chip" style="align-self:center;background:#fef3c7;color:#92400e"><i class="fa-solid fa-flag-checkered"></i> Review requested</span>`
           : `<span class="chip chip-blue" style="align-self:center"><i class="fa-solid fa-person-running"></i> Executing</span>`}
-        <button class="btn btn-primary btn-sm" data-act="vb-kcomplete" data-id="${f.id}" data-code="${esc(f.employee_code)}" data-note="${esc(f.admin_note||'')}"><i class="fa-solid fa-award"></i> ${f.kz_review_requested_at ? 'Review & Complete' : 'Mark Complete'}</button>` : ''}
+        <button class="btn btn-primary btn-sm" data-act="vb-kcomplete" data-id="${f.id}" data-code="${esc(f.employee_code)}" data-note="${esc(f.admin_note||'')}"><i class="fa-solid fa-award"></i> ${f.kz_review_requested_at ? 'Review & Complete' : 'Mark Complete'}</button>${f.kz_review_requested_at ? ` <button class="btn btn-ghost btn-sm" data-act="vb-kundo" data-id="${f.id}"><i class="fa-solid fa-rotate-left"></i> Undo Closing</button>` : ''}` : ''}
       ${(f.type === 'KAIZEN' && f.kz_stage === 'COMPLETED') ? `<span class="chip chip-ok" style="align-self:center"><i class="fa-solid fa-circle-check"></i> Completed${f.reward?' · '+fmtINR(f.reward):''}</span>` : ''}
     </div>
   </div>`;
