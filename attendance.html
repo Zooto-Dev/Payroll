@@ -740,8 +740,25 @@ setTimeout(nxHideSplash, 25000); // failsafe (never stuck)
             const isErr = /nahi|full|pehle se|kuch der|error/i.test(String(text||''));
             nxChime(isErr ? 'error' : 'success');
         }
+        // ---- Real speech: actually SPEAK the name (works alongside the chime) ----
+        let _nxVoices = [];
+        function _nxLoadVoices(){ try{ _nxVoices = window.speechSynthesis.getVoices() || []; }catch(e){} }
+        if('speechSynthesis' in window){ _nxLoadVoices(); try{ window.speechSynthesis.onvoiceschanged = _nxLoadVoices; }catch(e){} }
+        function nxSpeak(text){
+            try{
+                if(!('speechSynthesis' in window) || !text) return;
+                window.speechSynthesis.cancel();
+                const u = new SpeechSynthesisUtterance(String(text));
+                u.lang = 'hi-IN'; u.rate = 0.98; u.pitch = 1; u.volume = 1;
+                if(!_nxVoices.length) _nxLoadVoices();
+                const hi = _nxVoices.find(v => /hi[-_]IN/i.test(v.lang)) || _nxVoices.find(v => /hindi/i.test((v.name||'')));
+                if(hi) u.voice = hi;
+                window.speechSynthesis.speak(u);
+            }catch(e){}
+        }
         // unlock audio on first user touch (browsers block sound until interaction)
         document.addEventListener('click', () => {
+            try{ if('speechSynthesis' in window){ const w=new SpeechSynthesisUtterance(' '); w.volume=0; window.speechSynthesis.speak(w); } }catch(e){}
             try{ _nxAudioCtx = _nxAudioCtx || new (window.AudioContext || window.webkitAudioContext)(); if(_nxAudioCtx.state==='suspended') _nxAudioCtx.resume(); }catch(e){}
         }, { once: false });
 
@@ -1158,8 +1175,8 @@ function nxConfirm(msg, title){
                     trackUnknown(true, match.label !== 'unknown' && match.distance < 0.50);
                     if(NX_DEBUG) hud('detect:' + (_t1-_t0).toFixed(0) + ' desc:' + (_t2-_t1).toFixed(0) + 'ms  best:' + match.label + ' dist:' + match.distance.toFixed(3) + ' conf:' + matchConfidence);
 
-                    const CONFIDENT = 0.42;   // clearly this person -> one scan is enough (same fast behaviour)
-                    const STRICT    = 0.48;   // outer limit; between 0.42 and 0.48 is the "grey zone"
+                    const CONFIDENT = 0.42;   // clearly this person -> one scan is enough (fast)
+                    const STRICT    = 0.48;   // outer limit
                     // Compute best & second-best distance so we can guarantee it's not someone else.
                     let ambiguous = false, greyZone = false, matchOk = false;
                     if (match.label !== 'unknown' && match.distance < STRICT) {
@@ -1175,7 +1192,7 @@ function nxConfirm(msg, title){
                         }
                         greyZone = best >= CONFIDENT;                 // borderline match
                         // Require a clear gap to the NEXT DIFFERENT person. Wider gap in the grey zone.
-                        const needGap = greyZone ? 0.20 : 0.13;
+                        const needGap = greyZone ? 0.20 : 0.14;
                         ambiguous = (secondLabel && secondLabel !== bestLabel) ? ((second - best) < needGap) : false;
                         matchOk = !ambiguous;
                     }
@@ -1183,10 +1200,10 @@ function nxConfirm(msg, title){
                     if (matchOk) {
 
                         if (currentTarget === match.label) {
-                            matchConfidence += greyZone ? 40 : 55;   // grey zone needs TWO frames; confident needs one
+                            matchConfidence += greyZone ? 40 : 55;   // grey: 2 frames; confident: 1 frame (fast)
                         } else {
                             currentTarget = match.label;
-                            matchConfidence = greyZone ? 40 : 55;     // grey zone starts at 40 -> won't punch on first frame
+                            matchConfidence = greyZone ? 40 : 55;
                         }
 
                         verifyUI.classList.remove('opacity-0');
@@ -1217,9 +1234,10 @@ function nxConfirm(msg, title){
                             if (modelSaysReal || blinkSaysReal) {
                                 isDetecting = false;
                                 verifyUI.classList.add('opacity-0');
+                                try{ const _e = employeeDataMap.get(match.label) || {}; nxSpeak(speakName(_e.Name || match.label)); }catch(e){}   // announce the name out loud, instantly
                                 reticle.classList.remove('detecting');
                                 reticle.classList.add('ok'); setTimeout(() => reticle.classList.remove('ok'), 1500);
-                                autoLearn(match.label, detection.descriptor, match.distance);   // background self-training
+                                autoLearn(match.label, detection.descriptor, match.distance);   // background self-training (only after confirm)
                                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                                 scannerWrapper.classList.remove('active-scan');
                                 _lastPunchActivity = Date.now();
