@@ -1,13 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<link rel="icon" type="image/png" href="nexus-logo.png">
-<link rel="shortcut icon" href="nexus-logo.png">
-<link rel="apple-touch-icon" href="nexus-logo.png">
+<link rel="icon" type="image/png" sizes="192x192" href="nexus-icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="nexus-icon-512.png">
+<link rel="shortcut icon" href="nexus-icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="nexus-icon-180.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1f4b9b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Nexus HR">
 <meta name="application-name" content="Nexus HR">
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -3972,6 +3976,18 @@ function whDateBounds(){
   }
   return [$('whFrom').value, $('whTo').value];
 }
+function whThumb(url, label){
+  if(!url) return '<span style="color:var(--faint);font-size:11px">\u2014</span>';
+  return `<img src="${esc(url)}" loading="lazy" class="wh-thumb" data-full="${esc(url)}" title="${label} photo — click to enlarge" style="width:40px;height:40px;border-radius:7px;object-fit:cover;cursor:pointer;border:1px solid var(--line);display:block">`;
+}
+function whPhoto(url){
+  if(!url) return;
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:20px;cursor:zoom-out';
+  ov.innerHTML = `<img src="${esc(url)}" style="max-width:92vw;max-height:92vh;border-radius:12px;box-shadow:0 12px 44px rgba(0,0,0,.5)">`;
+  ov.addEventListener('click', () => ov.remove());
+  document.body.appendChild(ov);
+}
 async function loadWorkHours(){
   const [from, to] = whDateBounds();
   if(!from || !to) return notify('Select the date(s) first', 'error');
@@ -4005,7 +4021,7 @@ async function loadWorkHours(){
       if((!worked || worked<=0) && inT && outT){ let ms = new Date(r.date+'T'+outT+':00') - new Date(r.date+'T'+inT+':00'); if(ms<0) ms+=86400000; worked = ms/3600000; }
       const excess = worked > std ? (worked - std) : 0;
       gTotal += worked; gExcess += excess; if(worked>0) gDays++;
-      return { code, name: emp.Name || r.Name || code, dept: emp.DEPARTMENT || '', desig: emp.DESIGNATION || '', unit: unitNm(code), date: r.date, inT, outT, worked, excess, late: isRowLate(r) };
+      return { code, name: emp.Name || r.Name || code, dept: emp.DEPARTMENT || '', desig: emp.DESIGNATION || '', unit: unitNm(code), date: r.date, inT, outT, worked, excess, late: isRowLate(r), inPhoto: r.in_photo_url || '', outPhoto: r.out_photo_url || '' };
     };
     const items = rows.map(build);
 
@@ -4017,7 +4033,9 @@ async function loadWorkHours(){
       <td class="text-xs">${esc(x.desig || '\u2014')}</td>
       <td class="text-xs">${esc(x.unit || '\u2014')}</td>
       <td>${x.inT || '\u2014'}${x.late && x.inT ? ' <span class="chip c-L" style="font-size:9px">L</span>' : ''}</td>
+      <td>${whThumb(x.inPhoto, 'In')}</td>
       <td>${x.outT || '<span style=\'color:var(--bad)\'>missing</span>'}</td>
+      <td>${whThumb(x.outPhoto, 'Out')}</td>
       <td>${fmtHrs(x.worked)}</td>
       <td style="color:${x.excess>0?'var(--ok)':'var(--muted)'};font-weight:${x.excess>0?'600':'400'}">${x.excess>0?fmtHrs(x.excess):'\u2014'}</td>
     </tr>`).join('');
@@ -4035,20 +4053,21 @@ async function loadWorkHours(){
       <div style="overflow-x:auto;max-height:70vh;overflow-y:auto"><table class="tbl">
         <thead style="position:sticky;top:0;background:#fff;z-index:1"><tr>
           ${multiDay ? '<th>Date</th>' : ''}
-          <th>Employee Code</th><th>Employee Name</th><th>Department</th><th>Designation</th><th>Unit</th><th>In Time</th><th>Out Time</th><th>Total Hours</th><th>Excess Hours</th>
+          <th>Employee Code</th><th>Employee Name</th><th>Department</th><th>Designation</th><th>Unit</th><th>In Time</th><th>In Photo</th><th>Out Time</th><th>Out Photo</th><th>Total Hours</th><th>Excess Hours</th>
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table></div>`;
+    host.querySelectorAll('.wh-thumb').forEach(img => img.addEventListener('click', () => whPhoto(img.dataset.full)));
   }catch(err){ host.innerHTML = `<p style="color:var(--bad)">Error: ${esc(err.message)}</p>`; }
 }
 function exportWorkHours(){
   const d = window._whData; if(!d || !d.items.length) return notify('Load data first', 'error');
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
-  const head = (d.multiDay ? ['Date'] : []).concat(['Employee Code','Employee Name','Department','Designation','Unit','In Time','Out Time','Total Hours','Excess Hours']);
+  const head = (d.multiDay ? ['Date'] : []).concat(['Employee Code','Employee Name','Department','Designation','Unit','In Time','Out Time','Total Hours','Excess Hours','In Photo URL','Out Photo URL']);
   const lines = [head.join(',')];
   d.items.forEach(x => {
     const base = d.multiDay ? [x.date] : [];
-    lines.push(base.concat([x.code, x.name, x.dept||'', x.desig||'', x.unit||'', x.inT||'', x.outT||'', x.worked.toFixed(2), x.excess.toFixed(2)]).map(q).join(','));
+    lines.push(base.concat([x.code, x.name, x.dept||'', x.desig||'', x.unit||'', x.inT||'', x.outT||'', x.worked.toFixed(2), x.excess.toFixed(2), x.inPhoto||'', x.outPhoto||'']).map(q).join(','));
   });
   dlText('Work_Hours_'+d.from+(d.multiDay?('_to_'+d.to):'')+'.csv', lines.join('\n'), 'text/csv');
 }
