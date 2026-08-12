@@ -1777,7 +1777,7 @@ async function ensurePin(){
 function nxGas(action, params){
   return new Promise((resolve) => {
     const cb = 'nxg' + Math.floor(Math.random() * 1e6);
-    const timer = setTimeout(() => { delete window[cb]; resolve({ error: 'Timeout — check internet / GAS deployment' }); }, 15000);
+    const timer = setTimeout(() => { delete window[cb]; resolve({ error: 'Timeout — check internet / GAS deployment' }); }, 20000);
     window[cb] = data => { clearTimeout(timer); delete window[cb]; const s = document.getElementById(cb); if(s) s.remove(); resolve(data || {}); };
     const s = document.createElement('script');
     s.id = cb;
@@ -3885,10 +3885,14 @@ async function scheduleInterview(id){
   if(error) return notify(error.message + '  (candidates.meet_link column bana hai?)', 'error');
   Object.assign(c, upd);
   const idx = CANDIDATES.findIndex(x=>String(x.id)===String(id)); if(idx>=0) Object.assign(CANDIDATES[idx], upd);
-  // email the candidate (Meet link included for virtual)
-  await candEmail(c, 'interview', { mode, date, time, venue: venue||'', panel: panel||'', meetLink: meetLink||'' });
   if(calMsg) notify(calMsg, meetLink ? 'success' : 'info');
-  notify('Interview scheduled & invite sent', 'success');
+  // email the candidate (Meet link included for virtual) — this can be slow/time out; it's separate from scheduling
+  const mailRes = await candEmail(c, 'interview', { mode, date, time, venue: venue||'', panel: panel||'', meetLink: meetLink||'' });
+  const mailOk = !!(mailRes && mailRes.ok);
+  notify(mailOk
+      ? 'Interview scheduled — invite email sent ✓'
+      : 'Interview scheduled ✓  (email nahi gaya — "Edit / Re-schedule" se dobara bhejo)',
+    mailOk ? 'success' : 'info');
   // re-render the stage box in place so the summary + Meet link show right away
   const box = document.getElementById('candStageBox'); if(box) box.innerHTML = candStageActions(c);
   renderHiring();
