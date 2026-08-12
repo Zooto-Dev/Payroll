@@ -242,8 +242,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <div class="text-[11px] mt-0 mb-2 hidden p-2 rounded" id="afInfo" style="background:#fef2f2;color:#7f1d1d;line-height:1.5">Punch miss ho gaya (kiosk issue / bhool)? Correct time ke saath request bhejo. <b>Proof mandatory</b> — gate register photo, duty slip, ya koi supporting document. Manager approval par attendance record ban jayega.</div>
         <div class="grid grid-cols-2 gap-2 mb-2">
           <div><label class="lbl">Date</label><input id="afDate" type="date" class="inp"></div>
-          <div><label class="lbl">In Time</label><input id="afIn" type="time" class="inp"></div>
-          <div><label class="lbl">Out Time (optional)</label><input id="afOut" type="time" class="inp"></div>
+          <div><label class="lbl">In Time (24h)</label><input id="afIn" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" class="inp" oninput="nxTimeFmt(this)"></div>
+          <div><label class="lbl">Out Time (24h, optional)</label><input id="afOut" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" class="inp" oninput="nxTimeFmt(this)"></div>
           <div><label class="lbl">Reason</label><input id="afReason" class="inp" placeholder="Reason"></div>
         </div>
         <p id="afHint" class="hidden text-[11px] mb-2 p-2 rounded" style="background:#eff6ff;color:#1e40af"></p>
@@ -848,12 +848,20 @@ async function loadAttFix(){
     }).join('') : '';
   }catch(e){}
 }
+function nxTimeFmt(el){
+  let v = String(el.value).replace(/[^0-9]/g,'').slice(0,4);
+  if(v.length >= 3) v = v.slice(0,2) + ':' + v.slice(2);
+  el.value = v;
+}
 document.addEventListener('click', async e => {
   const b = e.target.closest('#afBtn'); if(!b) return;
   const codeU = String(CODE||'').trim().toUpperCase();
-  const d = $('afDate').value, tin = $('afIn').value, tout = $('afOut').value;
+  const d = $('afDate').value, tin = ($('afIn').value||'').trim(), tout = ($('afOut').value||'').trim();
   if(!d) return notify('Date chuno');
   if(!tin && !tout) return notify('In ya Out — kam se kam ek time bharo');
+  const T24 = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if(tin && !T24.test(tin)) return notify('In Time galat — 24-hour HH:MM daalo (jaise 09:30 ya 18:00)');
+  if(tout && !T24.test(tout)) return notify('Out Time galat — 24-hour HH:MM daalo (jaise 17:45)');
   const f = $('afProof').files && $('afProof').files[0];
   if(!f) return notify('Proof attach karna zaroori hai — bina proof correction nahi hogi');
   b.disabled = true;
@@ -861,7 +869,7 @@ document.addEventListener('click', async e => {
     const path = 'attfix/' + codeU + '_' + Date.now() + '_' + f.name.replace(/[^A-Za-z0-9._-]/g,'_');
     const { error: upErr } = await sb.storage.from('expense-bills').upload(path, f);
     if(upErr) throw upErr;
-    const { error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: d, reason: $('afReason').value.trim()||null, status: 'PENDING', req_type: 'ATT_FIX', fix_in: tin || null, fix_out: tout || null, proof_path: path }]);
+    const { error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: d, reason: $('afReason').value.trim()||null, status: 'PENDING', req_type: 'ATT_FIX', fix_in: (tin || null), fix_out: (tout || null), proof_path: path }]);
     if(error && String(error.message||'').includes('duplicate')) notify('Us din ki ek request pehle se hai');
     else if(error) throw error;
     else notify('Correction request bheji ✓ — manager approve karega');
