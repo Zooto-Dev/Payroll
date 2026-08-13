@@ -3649,7 +3649,7 @@ $('hrAddBtn').addEventListener('click', () => openCand(null));
 $('hrStageFilter').addEventListener('change', renderHiring);
 
 // ===================== VACANCIES (Careers) =====================
-const CAREERS_URL = 'https://zootofashion.com/careers.html';
+const CAREERS_URL = 'https://zootofashion.com/#careers';
 let JOBS = [];
 $('hrVacBtn').addEventListener('click', () => { $('hrVacPanel').classList.toggle('hidden'); if(!$('hrVacPanel').classList.contains('hidden')) loadJobs(); });
 $('hrCareersBtn').addEventListener('click', () => { nxCopy(CAREERS_URL); });
@@ -3744,7 +3744,7 @@ async function deleteJob(id){
   if(error) return notify(error.message, 'error');
   notify('Vacancy deleted', 'success'); loadJobs();
 }
-function shareJob(id){ nxCopy(CAREERS_URL + '?job=' + id); }
+function shareJob(id){ nxCopy('https://zootofashion.com/?job=' + id + '#careers'); }
 
 function candPortalLink(c){ return HR_PORTAL_URL + '?t=' + (c.portal_token || ''); }
 async function candEnsureToken(c){
