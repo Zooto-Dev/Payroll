@@ -1800,6 +1800,7 @@ function nxGas(action, params){
 }
 const nxGasSetPassword = (email, password, pin) => nxGas('setpwd', { email, password, pin });
 function nxLoadConfig(){
+
   return new Promise((resolve, reject) => {
     const cached = (() => { try { return JSON.parse(localStorage.getItem('nx_cfg') || 'null'); } catch(e){ return null; } })();
     let settled = false;
@@ -1808,7 +1809,7 @@ function nxLoadConfig(){
       if(settled) return; settled = true;
       delete window[cb];
       if(cached && cached.url) resolve(cached);           // offline / GAS down -> last known config
-      else reject(new Error('Could not load configuration. Check the internet connection and the GAS deployment.'));
+      else reject(new Error('GAS ne 8 sec mein jawab nahi diya. Wajah: (1) deployment "Who has access" = Anyone nahi hai, (2) /exec URL galat/purana hai, ya (3) network. Test: NX_CONFIG_URL browser mein kholo.'));
     }, 8000);
     window[cb] = data => {
       if(settled) return; settled = true;
@@ -1817,12 +1818,12 @@ function nxLoadConfig(){
         try { localStorage.setItem('nx_cfg', JSON.stringify(data)); } catch(e){}
         resolve(data);
       } else if(cached && cached.url) resolve(cached);
-      else reject(new Error(data && data.error ? data.error : 'Configuration incomplete — fill the SUPABASE sheet and run testConfig in GAS.'));
+      else reject(new Error(data && data.error ? ('GAS error: ' + data.error) : ('GAS se url/key nahi aayi. GAS ne bheja: ' + JSON.stringify(data).slice(0,180))));
     };
     const s = document.createElement('script');
     s.src = NX_CONFIG_URL + '?callback=' + cb + '&t=' + Date.now();
     s.onerror = () => { if(settled) return; settled = true; clearTimeout(timer); delete window[cb];
-      if(cached && cached.url) resolve(cached); else reject(new Error('Configuration endpoint unreachable.')); };
+      if(cached && cached.url) resolve(cached); else reject(new Error('GAS tak pahuncha nahi ja saka (script load fail) — matlab GAS ne login-page/redirect bheja ya URL galat. Fix: Deploy -> Manage deployments -> Edit -> "Who has access" = Anyone (sirf Anyone), "Execute as" = Me -> New version.')); };
     document.head.appendChild(s);
   });
 }
@@ -4148,7 +4149,7 @@ async function loadWorkHours(){
   const host = $('whResult');
   host.innerHTML = '<p style="color:var(--muted)">Loading\u2026</p>';
   try{
-    let q = sb.from('attendance').select('*').gte('date', from).lte('date', to).order('date').order('employee_code');
+    let q = sb.from('attendance').select('*').gte('date', from).lte('date', to).order('date').order('employee_code').limit(100000);
     const { data, error } = await q;
     if(error) throw error;
     let rows = data || [];
