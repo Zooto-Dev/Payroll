@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Careers — Zooto Fashion Pvt Ltd</title>
+<link rel="icon" type="image/png" sizes="192x192" href="nexus-icon-192.png">
+<meta name="theme-color" content="#1f4b9b">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=Syncopate:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --brand:#1f4b9b; --brand-hover:#183c7d; --brand-soft:#eaf0fa;
+    --ink:#2a2824; --muted:#7c766c; --line:#e7e3da; --line-soft:#f0ede6;
+    --bg:#f5f3ee; --surface:#fff; --surface-2:#faf8f4;
+    --ok:#3a7d54; --warn:#a9701e; --bad:#b3443c; --navy:#16225a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;font-size:14px;-webkit-font-smoothing:antialiased;line-height:1.5}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px 60px}
+  .top{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+  .top-in{max-width:760px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px}
+  .top img{height:30px;width:auto}
+  .top .fb{font-family:'Syncopate',sans-serif;font-weight:700;letter-spacing:.12em;color:var(--navy);font-size:16px}
+  .hero{padding:34px 0 10px}
+  .hero .ey{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--brand);font-weight:600;margin-bottom:10px}
+  .hero h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(26px,6vw,40px);line-height:1.05;margin:0 0 10px;color:var(--navy);letter-spacing:-.02em}
+  .hero p{margin:0;color:var(--muted);max-width:52ch}
+  .jobs{display:grid;gap:12px;margin-top:22px}
+  .job{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 18px 16px;transition:box-shadow .15s,transform .15s}
+  .job:hover{box-shadow:0 8px 26px rgba(31,75,155,.08);transform:translateY(-1px)}
+  .job h3{font-family:'Space Grotesk',sans-serif;font-size:18px;margin:0 0 4px;color:var(--navy)}
+  .meta{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 10px}
+  .tag{font-size:11px;background:var(--surface-2);border:1px solid var(--line);color:var(--muted);padding:3px 9px;border-radius:20px;display:inline-flex;align-items:center;gap:5px}
+  .tag i{color:var(--brand)}
+  .job .desc{color:var(--muted);font-size:13px;margin:0 0 14px;white-space:pre-line}
+  .job-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .open-count{font-size:12px;color:var(--ok);font-weight:600}
+  .btn{border:none;border-radius:11px;padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;display:inline-flex;align-items:center;gap:8px;transition:background .15s}
+  .btn-primary{background:var(--brand);color:#fff}
+  .btn-primary:hover{background:var(--brand-hover)}
+  .btn-ghost{background:var(--surface-2);color:var(--ink);border:1px solid var(--line)}
+  .btn-ghost:hover{background:var(--line-soft)}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+  .btn-block{width:100%;justify-content:center}
+  .general{margin-top:16px;text-align:center}
+  .general button{background:none;border:none;color:var(--brand);font-weight:600;cursor:pointer;font-size:13px;text-decoration:underline;text-underline-offset:3px}
+  .lbl{display:block;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:6px}
+  .req{color:var(--bad)}
+  .inp{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;outline:none;font-family:'Inter',sans-serif;background:var(--surface)}
+  .inp:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:520px){.grid2{grid-template-columns:1fr}}
+  .field{margin-bottom:14px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px;margin-top:22px}
+  .card h2{font-family:'Space Grotesk',sans-serif;font-size:20px;margin:0 0 4px;color:var(--navy)}
+  .card .sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+  .filebtn{display:flex;align-items:center;gap:10px;border:1px dashed var(--line);border-radius:10px;padding:12px;background:var(--surface-2);cursor:pointer}
+  .filebtn i{color:var(--brand);font-size:18px}
+  .filebtn .fn{font-size:13px;color:var(--muted)}
+  .back{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;margin-bottom:8px;padding:0}
+  .center{text-align:center;padding:60px 20px}
+  .spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:sp 1s linear infinite;margin:0 auto 14px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .done-ico{width:74px;height:74px;border-radius:50%;background:var(--brand-soft);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:34px;margin:0 auto 18px}
+  #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 20px;border-radius:12px;font-size:13px;display:none;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+  .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:34px}
+  .empty{background:var(--surface);border:1px dashed var(--line);border-radius:16px;padding:34px 20px;text-align:center;color:var(--muted);margin-top:22px}
+</style>
+</head>
+<body>
+<div class="top"><div class="top-in">
+  <img src="nexus-logo.png" alt="Zooto Fashion" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
+  <span class="fb" style="display:none">ZOOTO</span>
+</div></div>
+
+<div class="wrap">
+  <div id="app">
+    <div class="center"><div class="spin"></div><p style="color:var(--muted)">Loading openings…</p></div>
+  </div>
+  <p class="foot">Zooto Fashion Pvt Ltd · Plot 300, Sector 6, IMT Manesar, Gurugram</p>
+</div>
+<div id="toast"></div>
+
+<script>
+const NX_CONFIG_URL = 'https://script.google.com/macros/s/AKfycbyLyxuzYzGZ1odibF_-ORvn314hFY_zKg4595HpDZrhMObhqbcAh_LIw60sTc4b_dPI/exec';
+let sb = null, JOBS = [];
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){ const t=$('toast'); t.innerText=m; t.style.display='block'; setTimeout(()=>t.style.display='none',3200); }
+
+function loadConfig(){
+  return new Promise((resolve, reject) => {
+    const cb = 'cfg' + Math.floor(Math.random()*1e6);
+    const timer = setTimeout(() => { delete window[cb]; reject(new Error('Could not load — check internet')); }, 15000);
+    window[cb] = data => { clearTimeout(timer); delete window[cb]; resolve(data); };
+    const s = document.createElement('script');
+    s.src = NX_CONFIG_URL + '?callback=' + cb + '&t=' + Date.now();
+    s.onerror = () => { clearTimeout(timer); reject(new Error('Could not reach the service')); };
+    document.body.appendChild(s);
+  });
+}
+
+async function init(){
+  try{
+    const cfg = await loadConfig();
+    if(!cfg || !cfg.url) throw new Error('Service configuration failed.');
+    sb = supabase.createClient(cfg.url, cfg.key);
+    const { data, error } = await sb.rpc('nx_open_jobs');
+    if(error) throw error;
+    JOBS = data || [];
+    renderList();
+  }catch(err){
+    $('app').innerHTML = `<div class="empty"><i class="fa-solid fa-triangle-exclamation" style="color:var(--bad);font-size:24px"></i><p style="margin-top:10px">${esc(err.message)}</p></div>`;
+  }
+}
+
+function renderList(){
+  const openings = JOBS.filter(j => (j.status||'OPEN')==='OPEN');
+  $('app').innerHTML = `
+    <div class="hero">
+      <div class="ey">We're hiring</div>
+      <h1>Build with Zooto Fashion.</h1>
+      <p>Garment &amp; footwear manufacturing at IMT Manesar. Browse our current openings and apply in a minute — no account needed.</p>
+    </div>
+    ${openings.length ? `<div class="jobs">${openings.map(jobCard).join('')}</div>` : `
+      <div class="empty">
+        <i class="fa-regular fa-folder-open" style="font-size:26px;color:var(--muted)"></i>
+        <p style="margin-top:10px">No open positions right now — but we're always keen to meet good people.</p>
+      </div>`}
+    <div class="general">
+      <button onclick="openForm('')">${openings.length ? "Don't see your role? Send a general application →" : 'Send a general application →'}</button>
+    </div>`;
+}
+
+function jobCard(j){
+  const tags = [];
+  if(j.department) tags.push(`<span class="tag"><i class="fa-solid fa-sitemap"></i>${esc(j.department)}</span>`);
+  if(j.type)       tags.push(`<span class="tag"><i class="fa-solid fa-briefcase"></i>${esc(j.type)}</span>`);
+  if(j.location)   tags.push(`<span class="tag"><i class="fa-solid fa-location-dot"></i>${esc(j.location)}</span>`);
+  if(j.experience) tags.push(`<span class="tag"><i class="fa-solid fa-clock"></i>${esc(j.experience)}</span>`);
+  return `<div class="job">
+    <h3>${esc(j.title)}</h3>
+    <div class="meta">${tags.join('')}</div>
+    ${j.description ? `<p class="desc">${esc(String(j.description).slice(0,320))}${String(j.description).length>320?'…':''}</p>` : ''}
+    <div class="job-foot">
+      ${Number(j.openings)>0 ? `<span class="open-count"><i class="fa-solid fa-user-plus"></i> ${j.openings} opening${Number(j.openings)>1?'s':''}</span>` : '<span></span>'}
+      <button class="btn btn-primary" onclick="openForm('${esc(j.title)}','${esc(j.department||'')}')"><i class="fa-solid fa-paper-plane"></i> Apply now</button>
+    </div>
+  </div>`;
+}
+
+function openForm(position, department){
+  window.scrollTo({top:0,behavior:'smooth'});
+  $('app').innerHTML = `
+    <div class="card">
+      <button class="back" onclick="renderList()"><i class="fa-solid fa-arrow-left"></i> All openings</button>
+      <h2>${position ? 'Apply — ' + esc(position) : 'General Application'}</h2>
+      <p class="sub">Fill your details below. Our HR team will review and get back to you.</p>
+
+      <div class="field"><label class="lbl">Full Name <span class="req">*</span></label><input id="fName" class="inp" placeholder="Your full name" autocomplete="name"></div>
+      <div class="grid2">
+        <div class="field"><label class="lbl">Phone <span class="req">*</span></label><input id="fPhone" class="inp" inputmode="numeric" placeholder="10-digit mobile" autocomplete="tel"></div>
+        <div class="field"><label class="lbl">Email</label><input id="fEmail" class="inp" type="email" placeholder="you@email.com" autocomplete="email"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label class="lbl">Position applying for</label><input id="fPos" class="inp" value="${esc(position||'')}" placeholder="e.g. Helper, Supervisor"></div>
+        <div class="field"><label class="lbl">Total Experience</label><input id="fExp" class="inp" placeholder="e.g. 3 years / Fresher"></div>
+      </div>
+      <div class="field"><label class="lbl">Expected Monthly Salary (₹)</label><input id="fSal" class="inp" inputmode="numeric" placeholder="e.g. 18000"></div>
+      <input type="hidden" id="fDept" value="${esc(department||'')}">
+
+      <div class="field">
+        <label class="lbl">Resume (PDF / DOC / Image)</label>
+        <label class="filebtn" for="fResume"><i class="fa-solid fa-cloud-arrow-up"></i><span class="fn" id="fResumeName">Tap to attach your resume (optional, under 8 MB)</span></label>
+        <input type="file" id="fResume" accept=".pdf,.doc,.docx,image/*" style="display:none" onchange="document.getElementById('fResumeName').innerText = (this.files[0] ? this.files[0].name : 'Tap to attach your resume')">
+      </div>
+
+      <button class="btn btn-primary btn-block" id="fSubmit" style="margin-top:6px"><i class="fa-solid fa-paper-plane"></i> Submit Application</button>
+    </div>`;
+  $('fSubmit').addEventListener('click', submitApp);
+}
+
+async function submitApp(){
+  const name = ($('fName').value||'').trim();
+  const phone = ($('fPhone').value||'').replace(/\D/g,'');
+  const email = ($('fEmail').value||'').trim();
+  const pos = ($('fPos').value||'').trim();
+  const dept = ($('fDept').value||'').trim();
+  const exp = ($('fExp').value||'').trim();
+  const sal = Number(($('fSal').value||'').replace(/[^0-9]/g,'')) || null;
+  if(!name) return toast('Please enter your name');
+  if(phone.length < 10) return toast('Please enter a valid 10-digit phone');
+  if(email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast('Email address looks invalid');
+
+  const btn = $('fSubmit'); btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Submitting…';
+  try{
+    let resumePath = null;
+    const rf = $('fResume').files && $('fResume').files[0];
+    if(rf){
+      if(rf.size > 8*1024*1024) throw new Error('Resume must be under 8 MB');
+      resumePath = 'careers/' + Date.now() + '_' + name.replace(/[^A-Za-z0-9]/g,'_').slice(0,24) + '_' + rf.name.replace(/[^A-Za-z0-9._-]/g,'_');
+      const { error: upErr } = await sb.storage.from('hr-docs').upload(resumePath, rf);
+      if(upErr) throw new Error('Resume upload failed: ' + upErr.message);
+    }
+    const { data, error } = await sb.rpc('nx_apply_job', {
+      p_name: name, p_phone: phone, p_email: email || null, p_position: pos || null,
+      p_department: dept || null, p_experience: exp || null, p_expected_salary: sal, p_resume_url: resumePath
+    });
+    if(error) throw error;
+    if(data && data.error) throw new Error(data.error);
+    showDone(name);
+  }catch(err){
+    btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit Application';
+    toast(err.message || 'Something went wrong');
+  }
+}
+
+function showDone(name){
+  window.scrollTo({top:0,behavior:'smooth'});
+  $('app').innerHTML = `
+    <div class="card" style="text-align:center;padding:44px 24px">
+      <div class="done-ico"><i class="fa-solid fa-check"></i></div>
+      <h2>Application received!</h2>
+      <p class="sub" style="margin-bottom:20px">Thank you, ${esc(name.split(' ')[0])}. Our HR team has your details and will reach out if there's a fit. All the best! 🌟</p>
+      <button class="btn btn-ghost" onclick="renderList()"><i class="fa-solid fa-arrow-left"></i> Back to openings</button>
+    </div>`;
+}
+
+init();
+</script>
+</body>
+</html>
