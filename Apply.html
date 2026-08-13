@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Careers — Zooto Fashion Pvt Ltd</title>
-<link rel="icon" type="image/png" sizes="192x192" href="nexus-icon-192.png">
+<link rel="icon" type="image/png" href="logo.png">
 <meta name="theme-color" content="#1f4b9b">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=Syncopate:wght@700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -71,7 +71,7 @@
 </head>
 <body>
 <div class="top"><div class="top-in">
-  <img src="nexus-logo.png" alt="Zooto Fashion" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
+  <img src="logo.png" alt="Zooto Fashion" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
   <span class="fb" style="display:none">ZOOTO</span>
 </div></div>
 
@@ -110,6 +110,11 @@ async function init(){
     const { data, error } = await sb.rpc('nx_open_jobs');
     if(error) throw error;
     JOBS = data || [];
+    const jp = new URLSearchParams(location.search).get('job');
+    if(jp){
+      const j = JOBS.find(x => String(x.id) === String(jp));
+      if(j){ openForm(j.title, j.department||'', j.id); return; }
+    }
     renderList();
   }catch(err){
     $('app').innerHTML = `<div class="empty"><i class="fa-solid fa-triangle-exclamation" style="color:var(--bad);font-size:24px"></i><p style="margin-top:10px">${esc(err.message)}</p></div>`;
@@ -122,7 +127,7 @@ function renderList(){
     <div class="hero">
       <div class="ey">We're hiring</div>
       <h1>Build with Zooto Fashion.</h1>
-      <p>Garment &amp; footwear manufacturing at IMT Manesar. Browse our current openings and apply in a minute — no account needed.</p>
+      <p>Footwear manufacturing at IMT Manesar, Sector 6, Gurugram. Browse our current openings, read the full role, and apply in a minute — no account needed.</p>
     </div>
     ${openings.length ? `<div class="jobs">${openings.map(jobCard).join('')}</div>` : `
       <div class="empty">
@@ -143,15 +148,43 @@ function jobCard(j){
   return `<div class="job">
     <h3>${esc(j.title)}</h3>
     <div class="meta">${tags.join('')}</div>
-    ${j.description ? `<p class="desc">${esc(String(j.description).slice(0,320))}${String(j.description).length>320?'…':''}</p>` : ''}
+    ${j.description ? `<p class="desc">${esc(String(j.description).slice(0,160))}${String(j.description).length>160?'…':''}</p>` : ''}
     <div class="job-foot">
       ${Number(j.openings)>0 ? `<span class="open-count"><i class="fa-solid fa-user-plus"></i> ${j.openings} opening${Number(j.openings)>1?'s':''}</span>` : '<span></span>'}
-      <button class="btn btn-primary" onclick="openForm('${esc(j.title)}','${esc(j.department||'')}')"><i class="fa-solid fa-paper-plane"></i> Apply now</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="viewJob('${j.id}')"><i class="fa-solid fa-file-lines"></i> View details</button>
+        <button class="btn btn-primary" onclick="openForm('${esc(j.title)}','${esc(j.department||'')}','${j.id}')"><i class="fa-solid fa-paper-plane"></i> Apply now</button>
+      </div>
     </div>
   </div>`;
 }
 
-function openForm(position, department){
+function viewJob(id){
+  const j = JOBS.find(x => String(x.id) === String(id)); if(!j) return;
+  const tags = [];
+  if(j.department) tags.push(`<span class="tag"><i class="fa-solid fa-sitemap"></i>${esc(j.department)}</span>`);
+  if(j.type)       tags.push(`<span class="tag"><i class="fa-solid fa-briefcase"></i>${esc(j.type)}</span>`);
+  if(j.location)   tags.push(`<span class="tag"><i class="fa-solid fa-location-dot"></i>${esc(j.location)}</span>`);
+  if(j.experience) tags.push(`<span class="tag"><i class="fa-solid fa-clock"></i>${esc(j.experience)}</span>`);
+  const ov = document.createElement('div');
+  ov.className = 'jd-ov';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:200;background:rgba(20,24,20,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = `
+    <div class="jd-card" style="background:var(--surface);width:100%;max-width:620px;max-height:86vh;overflow-y:auto;border-radius:20px;padding:26px 24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.28)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px">
+        <h2 style="font-family:'Space Grotesk',sans-serif;color:var(--navy);margin:0;font-size:24px;line-height:1.15">${esc(j.title)}</h2>
+        <button aria-label="Close" onclick="this.closest('.jd-ov').remove()" style="background:var(--surface-2);border:1px solid var(--line);border-radius:50%;width:34px;height:34px;cursor:pointer;flex-shrink:0;color:var(--muted)"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="meta" style="margin:14px 0 16px">${tags.join('')}</div>
+      ${Number(j.openings)>0 ? `<div class="open-count" style="margin-bottom:16px"><i class="fa-solid fa-user-plus"></i> ${j.openings} opening${Number(j.openings)>1?'s':''}</div>` : ''}
+      <div style="font-weight:700;color:var(--ink);font-size:12px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:9px">Job Description</div>
+      <div style="color:var(--muted);font-size:14.5px;line-height:1.7;white-space:pre-line">${j.description ? esc(j.description) : 'Full details will be shared during the interview. Apply below to get started.'}</div>
+      <button class="btn btn-primary btn-block" style="margin-top:24px" onclick="this.closest('.jd-ov').remove();openForm('${esc(j.title)}','${esc(j.department||'')}','${j.id}')"><i class="fa-solid fa-paper-plane"></i> Apply for this role</button>
+    </div>`;
+  ov.addEventListener('click', e => { if(e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+function openForm(position, department, jobId){
   window.scrollTo({top:0,behavior:'smooth'});
   $('app').innerHTML = `
     <div class="card">
@@ -170,6 +203,7 @@ function openForm(position, department){
       </div>
       <div class="field"><label class="lbl">Expected Monthly Salary (₹)</label><input id="fSal" class="inp" inputmode="numeric" placeholder="e.g. 18000"></div>
       <input type="hidden" id="fDept" value="${esc(department||'')}">
+      <input type="hidden" id="fJob" value="${jobId != null ? esc(String(jobId)) : ''}">
 
       <div class="field">
         <label class="lbl">Resume (PDF / DOC / Image)</label>
@@ -204,9 +238,11 @@ async function submitApp(){
       const { error: upErr } = await sb.storage.from('hr-docs').upload(resumePath, rf);
       if(upErr) throw new Error('Resume upload failed: ' + upErr.message);
     }
+    const jobId = ($('fJob') && $('fJob').value || '').trim();
     const { data, error } = await sb.rpc('nx_apply_job', {
       p_name: name, p_phone: phone, p_email: email || null, p_position: pos || null,
-      p_department: dept || null, p_experience: exp || null, p_expected_salary: sal, p_resume_url: resumePath
+      p_department: dept || null, p_experience: exp || null, p_expected_salary: sal,
+      p_resume_url: resumePath, p_job_id: jobId ? Number(jobId) : null
     });
     if(error) throw error;
     if(data && data.error) throw new Error(data.error);
