@@ -524,6 +524,8 @@ body.no-confidential .confidential-col{display:none!important}
   <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
     <div class="flex gap-2 items-center flex-wrap">
       <button id="hrAddBtn" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Add Candidate</button>
+      <button id="hrVacBtn" class="btn btn-ghost"><i class="fa-solid fa-briefcase"></i> Vacancies</button>
+      <button id="hrCareersBtn" class="btn btn-ghost"><i class="fa-solid fa-share-nodes"></i> Careers Link</button>
       <select id="hrStageFilter" class="inp" style="width:170px">
         <option value="">All stages</option>
         <option value="APPLIED">Applied</option>
@@ -536,6 +538,14 @@ body.no-confidential .confidential-col{display:none!important}
       </select>
     </div>
     <div class="flex gap-3 text-xs" id="hrStats" style="color:var(--muted)"></div>
+  </div>
+  <div id="hrVacPanel" class="card hidden" style="margin-bottom:14px">
+    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+      <h3 class="display font-bold m-0" style="font-size:15px"><i class="fa-solid fa-briefcase" style="color:var(--brand)"></i> Vacancies <span class="text-[11px] font-normal" style="color:var(--muted)">— candidate ye form khud bhar sakta hai</span></h3>
+      <button id="hrNewJobBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i> New Vacancy</button>
+    </div>
+    <div id="hrJobForm" class="hidden" style="border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:var(--surface-2)"></div>
+    <div id="hrVacList"><p class="text-xs m-0" style="color:var(--muted)">Loading…</p></div>
   </div>
   <div id="hrBoard"><p style="color:var(--muted)">Loading…</p></div>
 </div>
@@ -3637,6 +3647,104 @@ function renderHiring(){
 }
 $('hrAddBtn').addEventListener('click', () => openCand(null));
 $('hrStageFilter').addEventListener('change', renderHiring);
+
+// ===================== VACANCIES (Careers) =====================
+const CAREERS_URL = 'https://zooto-dev.github.io/Payroll/Apply.html';
+let JOBS = [];
+$('hrVacBtn').addEventListener('click', () => { $('hrVacPanel').classList.toggle('hidden'); if(!$('hrVacPanel').classList.contains('hidden')) loadJobs(); });
+$('hrCareersBtn').addEventListener('click', () => { nxCopy(CAREERS_URL); });
+$('hrNewJobBtn').addEventListener('click', () => openJobForm(null));
+
+async function loadJobs(){
+  const host = $('hrVacList'); if(!host) return;
+  try{
+    const { data, error } = await sb.from('jobs').select('*').order('created_at', { ascending:false });
+    if(error) throw error;
+    JOBS = data || [];
+  }catch(err){ host.innerHTML = `<p class="text-xs m-0" style="color:var(--bad)">Error: ${esc(err.message)} — V66 SQL chalaya hai?</p>`; return; }
+  renderJobs();
+}
+function renderJobs(){
+  const host = $('hrVacList');
+  if(!JOBS.length){ host.innerHTML = '<p class="text-xs m-0" style="color:var(--muted)">Koi vacancy nahi. "New Vacancy" se banao — phir Careers link candidate ko bhejo.</p>'; return; }
+  host.innerHTML = `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Title</th><th>Dept</th><th>Type</th><th>Openings</th><th>Status</th><th>Applicants</th><th></th></tr></thead>
+    <tbody>${JOBS.map(j => {
+      const apps = CANDIDATES.filter(c => String(c.job_id) === String(j.id)).length;
+      const open = j.status === 'OPEN';
+      return `<tr>
+        <td class="font-semibold">${esc(j.title)}</td>
+        <td class="text-xs">${esc(j.department||'—')}</td>
+        <td class="text-xs">${esc(j.type||'—')}</td>
+        <td class="text-xs">${j.openings||1}</td>
+        <td><span class="chip ${open?'chip-ok':'chip-gray'}">${open?'OPEN':'CLOSED'}</span></td>
+        <td class="text-xs">${apps}</td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-ghost btn-sm" title="Share link" data-jact="share" data-id="${j.id}"><i class="fa-solid fa-share-nodes"></i></button>
+          <button class="btn btn-ghost btn-sm" title="Edit" data-jact="edit" data-id="${j.id}"><i class="fa-solid fa-pen"></i></button>
+          <button class="btn btn-ghost btn-sm" title="${open?'Close':'Re-open'}" data-jact="toggle" data-id="${j.id}"><i class="fa-solid ${open?'fa-lock':'fa-lock-open'}"></i></button>
+          <button class="btn btn-ghost btn-sm" title="Delete" data-jact="del" data-id="${j.id}"><i class="fa-solid fa-trash" style="color:var(--bad)"></i></button>
+        </td></tr>`;
+    }).join('')}</tbody></table></div>`;
+  host.querySelectorAll('[data-jact]').forEach(b => b.addEventListener('click', () => {
+    const id = b.dataset.id, a = b.dataset.jact;
+    if(a==='share') shareJob(id);
+    else if(a==='edit') openJobForm(id);
+    else if(a==='toggle') toggleJob(id);
+    else if(a==='del') deleteJob(id);
+  }));
+}
+function openJobForm(id){
+  const j = id ? JOBS.find(x => String(x.id) === String(id)) : {};
+  const box = $('hrJobForm'); box.classList.remove('hidden');
+  box.innerHTML = `
+    <div class="text-[11px] font-bold uppercase tracking-wide mb-2" style="color:var(--brand)">${id?'Edit':'New'} Vacancy</div>
+    <div class="grid grid-cols-2 gap-3 mb-2">
+      <div class="col-span-2"><label class="lbl">Job Title *</label><input id="jbTitle" class="inp" value="${esc(j.title||'')}" placeholder="e.g. Helper — Assembly Line"></div>
+      <div><label class="lbl">Department</label><input id="jbDept" class="inp" value="${esc(j.department||'')}" placeholder="e.g. PRODUCTION"></div>
+      <div><label class="lbl">Type</label><input id="jbType" class="inp" value="${esc(j.type||'Full-time')}" placeholder="Full-time"></div>
+      <div><label class="lbl">Experience</label><input id="jbExp" class="inp" value="${esc(j.experience||'')}" placeholder="e.g. 0–2 years / Fresher"></div>
+      <div><label class="lbl">Openings</label><input id="jbOpen" type="number" class="inp" value="${j.openings||1}"></div>
+      <div class="col-span-2"><label class="lbl">Location</label><input id="jbLoc" class="inp" value="${esc(j.location||'IMT Manesar, Gurugram')}"></div>
+      <div class="col-span-2"><label class="lbl">Description / Requirements</label><textarea id="jbDesc" class="inp" rows="3" placeholder="Role, skills, shift, etc.">${esc(j.description||'')}</textarea></div>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <button class="btn btn-primary btn-sm" id="jbSave"><i class="fa-solid fa-floppy-disk"></i> ${id?'Update':'Create'} Vacancy</button>
+      <button class="btn btn-ghost btn-sm" id="jbCancel">Cancel</button>
+    </div>`;
+  $('jbCancel').addEventListener('click', () => { box.classList.add('hidden'); box.innerHTML=''; });
+  $('jbSave').addEventListener('click', () => saveJob(id));
+}
+async function saveJob(id){
+  const title = $('jbTitle').value.trim();
+  if(!title) return notify('Job title zaroori hai', 'error');
+  const row = {
+    title, department: $('jbDept').value.trim()||null, type: $('jbType').value.trim()||null,
+    experience: $('jbExp').value.trim()||null, openings: Number($('jbOpen').value)||1,
+    location: $('jbLoc').value.trim()||null, description: $('jbDesc').value.trim()||null
+  };
+  try{
+    if(id){ const { error } = await sb.from('jobs').update(row).eq('id', id); if(error) throw error; }
+    else { row.status='OPEN'; row.created_by = ME_EMAIL; const { error } = await sb.from('jobs').insert([row]); if(error) throw error; }
+    notify('Vacancy saved', 'success');
+    $('hrJobForm').classList.add('hidden'); $('hrJobForm').innerHTML='';
+    loadJobs();
+  }catch(err){ notify(err.message, 'error'); }
+}
+async function toggleJob(id){
+  const j = JOBS.find(x => String(x.id) === String(id)); if(!j) return;
+  const ns = j.status === 'OPEN' ? 'CLOSED' : 'OPEN';
+  const { error } = await sb.from('jobs').update({ status: ns }).eq('id', id);
+  if(error) return notify(error.message, 'error');
+  notify(ns==='OPEN'?'Vacancy re-opened':'Vacancy closed', 'success'); loadJobs();
+}
+async function deleteJob(id){
+  if(!(await nxConfirm('Ye vacancy delete karein? (jo candidates isse apply kar chuke wo pipeline mein rahenge)', 'Delete Vacancy'))) return;
+  const { error } = await sb.from('jobs').delete().eq('id', id);
+  if(error) return notify(error.message, 'error');
+  notify('Vacancy deleted', 'success'); loadJobs();
+}
+function shareJob(id){ nxCopy(CAREERS_URL + '?job=' + id); }
 
 function candPortalLink(c){ return HR_PORTAL_URL + '?t=' + (c.portal_token || ''); }
 async function candEnsureToken(c){
