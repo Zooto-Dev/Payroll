@@ -311,7 +311,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
             <option value="HD">Half Day</option>
           </select></div>
           <div id="gpSlotWrap"><label class="lbl">Time</label><select id="gpSlot" class="inp">
-            <option value="MORNING">Morning — arrive 2 hrs late</option>
+            <option value="MORNING">Morning — arrive up to 3 hrs late</option>
             <option value="EVENING">Evening — leave 2 hrs early</option>
           </select></div>
           <div><label class="lbl">Date</label><input id="gpDate" type="date" class="inp"></div>
@@ -1531,6 +1531,12 @@ async function delExpense(id){
 }
 function renderExpenses(){
   const ex = D.expenses || [];
+  if(ex.length && ex.some(x => !x.id) && !window._claimsIdLoaded){
+    window._claimsIdLoaded = true;
+    const codeU = String(CODE||'').trim().toUpperCase();
+    sb.from('expenses').select('*').ilike('employee_code', codeU).order('created_at', { ascending:false }).limit(40)
+      .then(({ data }) => { if(data && data.length){ D.expenses = data; renderExpenses(); } }).catch(()=>{});
+  }
   $('exBox').innerHTML = ex.length ? ex.map(x => {
     const chip = { PENDING:'chip-warn', APPROVED:'chip-blue', PAID:'chip-ok', REJECTED:'chip-bad' }[x.status] || 'chip-gray';
     const paidNote = x.status === 'PAID' && x.paid_at ? `<div class="text-[10px]" style="color:var(--ok)">Paid on ${fmtDate(String(x.paid_at).slice(0,10))} ✓${x.payment_ref ? ` · <a href="#" onclick="essViewProof('${esc(x.payment_ref)}');return false" style="color:var(--brand)">View payment proof</a>` : ''}</div>` : '';
