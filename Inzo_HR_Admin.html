@@ -4518,7 +4518,7 @@ async function loadRegister(){
         if(r){
           const hasSL = (gateSLRegMap[code]||new Set()).has(x.iso);
           const hasHD = (gateHDRegMap[code]||new Set()).has(x.iso);
-          const isL = isRowLate(r) && !hasSL;   // approved short-leave = late excused
+          const isL = isRowLate(r) && !hasSL && !hasHD;   // approved short-leave OR half-day = late excused
           cls = hasHD ? 'c-WFH' : (isL ? 'c-L' : 'c-P');
           txt = hasHD ? 'HD' : (hasSL ? 'SL' : (isL ? 'L' : 'P'));
           p++; if(isL) l++;
