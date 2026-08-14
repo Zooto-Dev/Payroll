@@ -971,8 +971,18 @@ document.addEventListener('click', async e => {
   const codeU = String(CODE||'').trim().toUpperCase();
   const d = $('gpDate').value;
   if(!d) return notify('Date chuno');
+  // Monthly limit: 2 Short Leave + 1 Half Day per month
+  const kind = $('gpKind').value;
+  const ym = String(d).slice(0,7);
   try{
-    const { data, error } = await sb.rpc('ess_gate_request', { p_code: codeU, p_phone: PHONE, p_date: d, p_kind: $('gpKind').value, p_slot: $('gpKind').value === 'SL' ? $('gpSlot').value : null, p_reason: $('gpReason').value.trim() || null });
+    const { data: used } = await sb.from('ess_att_requests').select('req_type,status').ilike('employee_code', codeU).in('req_type',['GATE_SL','GATE_HD']).neq('status','REJECTED').gte('date', ym+'-01').lte('date', ym+'-31');
+    const slUsed = (used||[]).filter(g => g.req_type === 'GATE_SL').length;
+    const hdUsed = (used||[]).filter(g => g.req_type === 'GATE_HD').length;
+    if(kind === 'SL' && slUsed >= 2) return notify('Is month ki 2 Short Leave limit ho chuki hai');
+    if(kind === 'HD' && hdUsed >= 1) return notify('Is month ki 1 Half Day limit ho chuki hai');
+  }catch(e){}
+  try{
+    const { data, error } = await sb.rpc('ess_gate_request', { p_code: codeU, p_phone: PHONE, p_date: d, p_kind: kind, p_slot: kind === 'SL' ? $('gpSlot').value : null, p_reason: $('gpReason').value.trim() || null });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
     notify('Gate pass request bheji ✓ — manager approve karega');
