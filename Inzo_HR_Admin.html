@@ -4622,7 +4622,7 @@ async function loadRegister(){
         if(r){
           const hasSL = (gateSLRegMap[code]||new Set()).has(x.iso);
           const hasHD = (gateHDRegMap[code]||new Set()).has(x.iso);
-          const isL = isRowLate(r) && !hasSL && !hasHD;   // approved short-leave OR half-day = late excused
+          const isL = isRowLate(r) && !hasHD;   // is_late already accounts for morning short-leave grace; half-day fully excused
           cls = hasHD ? 'c-WFH' : (isL ? 'c-L' : 'c-P');
           txt = hasHD ? 'HD' : (hasSL ? 'SL' : (isL ? 'L' : 'P'));
           p++; if(isL) l++;
@@ -5745,9 +5745,29 @@ document.body.addEventListener('click', async e => {
       notify('Correction approved — attendance record created for ' + fmtDate(r.date), 'success');
     } else {
       await sb.from('ess_att_requests').update({ status: act === 'ea-appr' ? 'APPROVED' : 'REJECTED', approved_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
-      // approved Short-Leave / Half-Day = us din late maaf -> is_late false kar do (dashboard/ESS sab sahi dikhein)
-      if(act === 'ea-appr' && (r.req_type === 'GATE_SL' || r.req_type === 'GATE_HD') && r.date){
-        try{ await sb.from('attendance').update({ is_late: false }).ilike('employee_code', r.employee_code).eq('date', r.date); }catch(e){}
+      // Recompute late for that day based on the leave:
+      //  - Half Day  -> not late
+      //  - Morning Short Leave -> allowed to arrive up to (normal cutoff + 3 hours); late only after that
+      if(act === 'ea-appr' && (r.req_type === 'GATE_HD' || (r.req_type === 'GATE_SL' && r.gp_slot === 'MORNING')) && r.date){
+        try{
+          const { data: aRows } = await sb.from('attendance').select('*').ilike('employee_code', r.employee_code).eq('date', r.date).limit(1);
+          if(aRows && aRows[0]){
+            const rec = aRows[0];
+            let late = false;
+            if(r.req_type === 'GATE_SL'){
+              const m = String(rec.in_time||'').match(/([0-2]?\d):([0-5]\d)/);
+              if(m){
+                const emp = EMP.find(e => String(e['Employee code']).toUpperCase() === String(r.employee_code).toUpperCase());
+                const dept = String((emp && emp.DEPARTMENT)||'').toUpperCase();
+                const S = getSettings();
+                const early = String((S && S.earlyDepts)||'PRODUCTION,STORE').toUpperCase().split(',').some(x => x.trim() && dept.includes(x.trim()));
+                const cut = (early ? 9*60+10 : 10*60) + 3*60;   // + 3-hour short-leave grace
+                late = (Number(m[1])*60 + Number(m[2])) > cut;
+              }
+            }
+            await sb.from('attendance').update({ is_late: late }).eq('id', rec.id);
+          }
+        }catch(e){}
       }
       notify(act === 'ea-appr' ? 'Approved' : 'Request rejected', 'success');
     }
