@@ -4144,12 +4144,14 @@ async function loadWorkHours(){
   const [from, to] = whDateBounds();
   if(!from || !to) return notify('Select the date(s) first', 'error');
   if(to < from) return notify('End date is before start date', 'error');
+  const _nextDay = d => { const dt = new Date(d + 'T00:00:00'); dt.setDate(dt.getDate()+1); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`; };
+  const toEx = _nextDay(to);
   const empFilter = ($('whEmp').value || '').split('\u2014')[0].trim().toUpperCase();
   const std = Number($('whStd').value) || 8;
   const host = $('whResult');
   host.innerHTML = '<p style="color:var(--muted)">Loading\u2026</p>';
   try{
-    let q = sb.from('attendance').select('*').gte('date', from).lte('date', to).order('date').order('employee_code').limit(100000);
+    let q = sb.from('attendance').select('*').gte('date', from).lt('date', toEx).order('date').order('employee_code').limit(100000);
     const { data, error } = await q;
     if(error) throw error;
     let rows = data || [];
@@ -5143,7 +5145,7 @@ $('advAgrBtn').addEventListener('click', () => {
     </p>
     <div style="display:flex;justify-content:space-between;margin-top:56px;font-size:12px">
       <div style="text-align:center"><div style="border-top:1.5px solid #2a2824;padding-top:6px;width:200px">Employee Signature<br><span style="color:#475569">${esc(emp.Name || '')}</span></div></div>
-      <div style="text-align:center"><div style="border-top:1.5px solid #2a2824;padding-top:6px;width:200px">Authorised Signatory<br><span style="color:#475569">${esc(S.hr || '')} — ${esc(S.name || '')}</span></div></div>
+      <div style="text-align:center"><img src="signature.png" alt="" style="height:44px;width:auto;display:block;margin:0 auto -2px" onerror="this.style.display='none'"><div style="border-top:1.5px solid #2a2824;padding-top:6px;width:200px">Authorised Signatory<br><span style="color:#475569">${esc(S.hr || '')} — ${esc(S.name || '')}</span></div></div>
     </div>
   </div>`;
   AGR_PRINTED = true;
@@ -5818,7 +5820,7 @@ document.body.addEventListener('click', async e => {
     printHTML(`<div class="paper" style="min-height:auto;width:auto"><h2 style="margin:0 0 2px;font-size:15px">Register of Wages (Form B) — ${esc(S.name)}</h2>
       <p style="margin:0 0 10px;font-size:11px;color:#64748b">${esc(S.addr)} • Wage period: ${monthLabel(ym)}</p>
       <table class="ann" style="font-size:10px"><thead><tr><th>#</th><th>Employee</th><th>Father's Name</th><th>Designation</th><th>Days</th><th>OT Hrs</th><th>Earnings</th><th>OT Pay</th><th>Deductions</th><th>Net Paid</th></tr></thead><tbody>${rows}</tbody></table>
-      <div style="margin-top:30px;text-align:right"><p style="border-top:1px solid #94a3b8;display:inline-block;padding-top:4px">Authorised Signatory — ${esc(S.hr||'')}</p></div></div>`);
+      <div style="margin-top:30px;text-align:right"><img src="signature.png" alt="" style="height:44px;width:auto;display:inline-block;margin:0 0 -2px" onerror="this.style.display='none'"><br><p style="border-top:1px solid #94a3b8;display:inline-block;padding-top:4px">Authorised Signatory — ${esc(S.hr||'')}</p></div></div>`);
   }
   if(act === 'cmp-muster'){
     const ym = PAYX().ym;
@@ -5968,7 +5970,7 @@ function letterShell(title, refNo, body){
     <div style="margin-top:44px;display:flex;justify-content:space-between;align-items:flex-end">
       <div>
         <p style="margin:0 0 34px">For <b>${esc(S.name)}</b></p>
-        <p style="margin:0;border-top:1px solid #94a3b8;padding-top:5px;display:inline-block"><b>${esc(S.hr || 'Authorised Signatory')}</b><br><span style="font-size:11px;color:#64748b">${esc(S.hrDesig || '')}</span></p>
+        <img src="signature.png" alt="" style="height:44px;width:auto;display:inline-block;margin:0 0 -2px" onerror="this.style.display='none'"><br><p style="margin:0;border-top:1px solid #94a3b8;padding-top:5px;display:inline-block"><b>${esc(S.hr || 'Authorised Signatory')}</b><br><span style="font-size:11px;color:#64748b">${esc(S.hrDesig || '')}</span></p>
       </div>
       <div style="text-align:right">
         <p style="margin:0 0 34px">Accepted &amp; Agreed</p>
@@ -5992,7 +5994,7 @@ function certShell(title, name, line1, line2, meta){
     ${line2 ? `<p style="font-size:12px;color:#64748b;margin:0 auto;max-width:130mm">${line2}</p>` : ''}
     <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:34mm;padding:0 6mm">
       <div style="text-align:center;font-size:11px;color:#64748b">${meta}</div>
-      <div style="text-align:center"><p style="margin:0;border-top:1px solid #94a3b8;padding-top:5px;font-size:12px"><b>${esc(S.hr || 'Authorised Signatory')}</b><br><span style="font-size:10px;color:#64748b">${esc(S.hrDesig || '')}, ${esc(S.name)}</span></p></div>
+      <div style="text-align:center"><img src="signature.png" alt="" style="height:44px;width:auto;display:block;margin:0 auto -2px" onerror="this.style.display='none'"><p style="margin:0;border-top:1px solid #94a3b8;padding-top:5px;font-size:12px"><b>${esc(S.hr || 'Authorised Signatory')}</b><br><span style="font-size:10px;color:#64748b">${esc(S.hrDesig || '')}, ${esc(S.name)}</span></p></div>
     </div>
   </div>`;
 }
@@ -6285,7 +6287,7 @@ $('empFormBtn').addEventListener('click', () => {
       I declare that the above information is true and I agree to follow the company's rules.</div>
       <table style="width:100%;margin-top:30px"><tr>
         <td style="text-align:center;width:50%"><div style="border-top:1.2px solid #111;margin:0 30px;padding-top:4px;font-size:10px">कर्मचारी के हस्ताक्षर व तिथि<br>Employee Signature & Date</div></td>
-        <td style="text-align:center"><div style="border-top:1.2px solid #111;margin:0 30px;padding-top:4px;font-size:10px">HR / अधिकृत हस्ताक्षर<br>HR / Authorised Signatory</div></td>
+        <td style="text-align:center"><img src="signature.png" alt="" style="height:44px;width:auto;display:block;margin:0 auto -2px" onerror="this.style.display='none'"><div style="border-top:1.2px solid #111;margin:0 30px;padding-top:4px;font-size:10px">HR / अधिकृत हस्ताक्षर<br>HR / Authorised Signatory</div></td>
       </tr></table>
     </div>
 
