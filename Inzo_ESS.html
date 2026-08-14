@@ -1462,7 +1462,7 @@ async function monthRows(ym){
 }
 function essLate(r){
   if(!r) return false;
-  if(r.is_late === true) return true;
+  if(typeof r.is_late === 'boolean') return r.is_late;   // trust the column (SL/HD approved = false = not late)
   if(String(r.in_time||'').toUpperCase().includes('LATE')) return true;
   const m = String(r.in_time||'').match(/([0-2]?\d:[0-5]\d)/);
   if(!m) return false;
