@@ -1455,9 +1455,15 @@ $('calPrev').addEventListener('click', () => { CAL_YM = shiftMonth(CAL_YM, -1); 
 $('calNext').addEventListener('click', () => { CAL_YM = shiftMonth(CAL_YM, 1); renderCalendar(); });
 async function monthRows(ym){
   if(CAL_CACHE[ym]) return CAL_CACHE[ym];
-  const { data, error } = await sb.rpc('ess_get_attendance', { p_code: CODE, p_phone: PHONE, p_month: ym });
-  if(error || (data && data.error)) return [];
-  CAL_CACHE[ym] = data.rows || [];
+  // read attendance directly so we get the real is_late column (RPC didn't return it)
+  const codeU = String(CODE||'').trim().toUpperCase();
+  const { data, error } = await sb.from('attendance').select('*').ilike('employee_code', codeU).gte('date', ym + '-01').lte('date', ym + '-31').limit(2000);
+  if(error) {
+    const r = await sb.rpc('ess_get_attendance', { p_code: CODE, p_phone: PHONE, p_month: ym });
+    CAL_CACHE[ym] = (r.data && r.data.rows) || [];
+    return CAL_CACHE[ym];
+  }
+  CAL_CACHE[ym] = data || [];
   return CAL_CACHE[ym];
 }
 function essLate(r){
