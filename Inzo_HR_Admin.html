@@ -300,11 +300,12 @@ body.no-confidential .confidential-col{display:none!important}
 .paper table.ann th{background:#f0ede6;font-weight:600}
 .paper [contenteditable]:focus{outline:2px dashed var(--brand);outline-offset:2px}
 @media print{
-  body *{visibility:hidden}
-  #printArea,#printArea *{visibility:visible}
-  #printArea{position:absolute;left:0;top:0;width:100%}
-  .paper{box-shadow:none;width:auto;min-height:auto;padding:10mm 8mm;page-break-after:always}
+  html,body{ margin:0 !important; padding:0 !important; background:#fff !important; }
+  body > *:not(#printArea){ display:none !important; }   /* hide the whole app -> no blank pages */
+  #printArea{ position:static; width:auto; }
+  .paper{ box-shadow:none !important; margin:0 auto !important; }   /* keep full A4 size (no shrink) */
   .no-print{display:none !important}
+  @page{ margin:0; }   /* removes the browser date/URL/page-number header & footer */
 }
 .idcard{width:54mm;height:85.6mm;background:#fff;border-radius:3.2mm;overflow:hidden;box-shadow:0 8px 20px rgba(15,23,42,.18);font-size:8.5px;line-height:1.35;position:relative;display:flex;flex-direction:column;color:#2a2824}
 .idcard .id-head{background:var(--brand);color:#fff;text-align:center;padding:2.5mm 2mm 13mm}
