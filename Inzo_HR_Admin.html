@@ -440,6 +440,15 @@ body.no-confidential .confidential-col{display:none!important}
     </div>
   </div>
 
+  <!-- UNIT-WISE LIVE ATTENDANCE (TODAY) -->
+  <div class="card mt-4">
+    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+      <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-industry" style="color:var(--brand)"></i> Unit-wise Attendance — Today</h3>
+      <span class="text-[11px]" style="color:var(--muted)">Live snapshot · Present / Absent / Gate Pass / Leave-WFH</span>
+    </div>
+    <div id="dashUnitWise" style="overflow-x:auto"></div>
+  </div>
+
   <!-- CHARTS ROW -->
   <div class="grid lg:grid-cols-3 gap-4 mt-4">
     <div class="card">
@@ -2070,7 +2079,8 @@ function showAttList(kind){
   } else {
     title = 'Absent Today';
     const present = new Set(rows.map(r => r.employee_code));
-    list = activeEmps().filter(e => !present.has(e['Employee code'])).map(e => ({ code:e['Employee code'], name:e.Name, dept:e.DEPARTMENT, absent:true }));
+    const _exc = window._todayExcused || new Set();
+    list = activeEmps().filter(e => !present.has(e['Employee code']) && !_exc.has(String(e['Employee code']).toUpperCase())).map(e => ({ code:e['Employee code'], name:e.Name, dept:e.DEPARTMENT, absent:true }));
   }
   const body = list.length ? list.map(x => `
     <div class="flex items-center gap-3 p-2 rounded-lg" style="border:1px solid var(--line)">
@@ -2522,7 +2532,7 @@ nxLoadConfig().then(c => {
 async function loadCore(){
   try{
     const [empRes, faceRes, profRes, setRes, holRes, shRes, plRes] = await Promise.all([
-      sb.from('employees').select('Name, "Employee code", Status, DEPARTMENT, DESIGNATION, DOJ, LINE').order('Name'),
+      sb.from('employees').select('Name, "Employee code", Status, DEPARTMENT, DESIGNATION, DOJ, LINE, UNIT').order('Name'),
       sb.from('employees').select('"Employee code"').not('Descriptor', 'is', null),
       sb.from('hr_profiles').select('*'),
       sb.from('company_settings').select('data').eq('id', 1).maybeSingle(),
@@ -2973,6 +2983,52 @@ async function loadTrendData(){
   const labels = Object.keys(days).map(d => d.slice(8)+'/'+d.slice(5,7));
   window._trendData = { labels, present: Object.values(days).map(x=>x.p), late: Object.values(days).map(x=>x.l) };
 }
+function renderUnitWise(presentCodes, gateSet, leaveWfhSet){
+  const host = $('dashUnitWise'); if(!host) return;
+  const S = getSettings();
+  const unitName = u => { const un = ((S && S.units)||[]).find(x => String(x.code) === String(u)); return un ? un.name : (u || 'Unassigned'); };
+  const groups = {};
+  activeEmps().forEach(e => {
+    const c = String(e['Employee code']).toUpperCase();
+    const u = e.UNIT || String(e['Employee code']||'').slice(0,4) || 'NA';
+    (groups[u] = groups[u] || { total:0, present:0, gate:0, leave:0 }).total++;
+    if(presentCodes.has(c)) groups[u].present++;
+    else if(gateSet.has(c)) groups[u].gate++;
+    else if(leaveWfhSet.has(c)) groups[u].leave++;
+  });
+  const keys = Object.keys(groups).sort();
+  if(!keys.length){ host.innerHTML = '<p style="color:var(--muted)">No units found.</p>'; return; }
+  let tot={total:0,present:0,gate:0,leave:0,absent:0};
+  const rows = keys.map(u => {
+    const g = groups[u];
+    const absent = Math.max(0, g.total - g.present - g.gate - g.leave);
+    tot.total+=g.total; tot.present+=g.present; tot.gate+=g.gate; tot.leave+=g.leave; tot.absent+=absent;
+    const pct = g.total ? Math.round(g.present/g.total*100) : 0;
+    return `<tr>
+      <td style="font-weight:600">${esc(unitName(u))}</td>
+      <td style="text-align:center">${g.total}</td>
+      <td style="text-align:center;color:#16a34a;font-weight:600">${g.present}</td>
+      <td style="text-align:center;color:#dc2626;font-weight:600">${absent}</td>
+      <td style="text-align:center;color:#a9701e">${g.gate}</td>
+      <td style="text-align:center;color:#7c3aed">${g.leave}</td>
+      <td style="text-align:center"><div style="background:#eef2f7;border-radius:6px;height:7px;width:60px;display:inline-block;overflow:hidden;vertical-align:middle"><div style="height:100%;width:${pct}%;background:${pct>=80?'#16a34a':pct>=50?'#a9701e':'#dc2626'}"></div></div> <span class="text-[11px]" style="color:var(--muted)">${pct}%</span></td>
+    </tr>`;
+  }).join('');
+  host.innerHTML = `<table class="reg" style="width:100%;min-width:560px;font-size:12.5px">
+    <thead><tr>
+      <th style="text-align:left">Unit</th><th>Total</th><th>Present</th><th>Absent</th><th>Gate Pass</th><th>Leave/WFH</th><th>Present %</th>
+    </tr></thead>
+    <tbody>${rows}
+      <tr style="border-top:2px solid var(--line);font-weight:700;background:var(--surface-2)">
+        <td>TOTAL</td><td style="text-align:center">${tot.total}</td>
+        <td style="text-align:center;color:#16a34a">${tot.present}</td>
+        <td style="text-align:center;color:#dc2626">${tot.absent}</td>
+        <td style="text-align:center;color:#a9701e">${tot.gate}</td>
+        <td style="text-align:center;color:#7c3aed">${tot.leave}</td>
+        <td style="text-align:center">${tot.total?Math.round(tot.present/tot.total*100):0}%</td>
+      </tr>
+    </tbody></table>`;
+}
 async function loadDashboard(){
   await loadTrendData();
   renderNoSalaryCard();
@@ -2985,25 +3041,39 @@ async function loadDashboard(){
   $('dToday').innerText = fmtDate(today);
   try{
     const ym = today.slice(0,7);
-    const [attRes, slipRes, monthRes] = await Promise.all([
+    const [attRes, slipRes, monthRes, lvRes, wfhRes] = await Promise.all([
       sb.from('attendance').select('*').eq('date', today).order('created_at', { ascending:false }),
       sb.from('payslips').select('net_pay, month').order('created_at', { ascending:false }).limit(200),
-      sb.from('attendance').select('employee_code, Name, in_time, is_late').gte('date', ym + '-01').lte('date', ym + '-31')
+      sb.from('attendance').select('employee_code, Name, in_time, is_late').gte('date', ym + '-01').lte('date', ym + '-31'),
+      sb.from('leaves').select('employee_code').eq('status','APPROVED').lte('from_date', today).gte('to_date', today),
+      sb.from('ess_att_requests').select('employee_code, req_type').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).eq('date', today)
     ]);
     const rows = attRes.data || [];
+    // employees who are excused today (approved leave / WFH / gate pass) -> NOT absent
+    const excused = new Set();
+    (lvRes.data||[]).forEach(l => excused.add(String(l.employee_code).toUpperCase()));
+    (wfhRes.data||[]).forEach(w => excused.add(String(w.employee_code).toUpperCase()));
+    const presentCodes = new Set(rows.map(r => String(r.employee_code).toUpperCase()));
+    window._todayExcused = excused;
+    // gate-pass set (GATE_SL/GATE_HD) vs leave/WFH set — for the unit-wise table
+    const gateSet = new Set(), leaveWfhSet = new Set();
+    (wfhRes.data||[]).forEach(w => { const c = String(w.employee_code).toUpperCase(); if(w.req_type==='WFH') leaveWfhSet.add(c); else gateSet.add(c); });
+    (lvRes.data||[]).forEach(l => leaveWfhSet.add(String(l.employee_code).toUpperCase()));
+    renderUnitWise(presentCodes, gateSet, leaveWfhSet);
     const total = activeEmps().length;
+    const absentReal = activeEmps().filter(e => { const c = String(e['Employee code']).toUpperCase(); return !presentCodes.has(c) && !excused.has(c); }).length;
     const late = rows.filter(isRowLate).length;
     window._todayAtt = rows; // for the click-through lists
     // monthly late board uses is_late
     if(window._monthLateRows === undefined) window._monthLateRows = (monthRes.data||[]).filter(isRowLate);
     $('dPresent').innerText = rows.length;
     $('dLate').innerText = late;
-    $('dAbsent').innerText = Math.max(0, total - rows.length);
+    $('dAbsent').innerText = absentReal;
 
     // KPI extras
     const presentPct = total ? Math.round(rows.length / total * 100) : 0;
     if($('dPresentPct')) $('dPresentPct').innerText = presentPct + '% of ' + total;
-    if($('dAbsentPct')) $('dAbsentPct').innerText = (total ? Math.round((total-rows.length)/total*100) : 0) + '% of ' + total;
+    if($('dAbsentPct')) $('dAbsentPct').innerText = (total ? Math.round(absentReal/total*100) : 0) + '% of ' + total;
     if($('dTotal')) $('dTotal').innerText = total;
     const deptSet = new Set(activeEmps().map(e => e.DEPARTMENT).filter(Boolean));
     if($('dDeptCount')) $('dDeptCount').innerText = deptSet.size + ' departments';
