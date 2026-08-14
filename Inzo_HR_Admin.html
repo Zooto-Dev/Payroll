@@ -440,15 +440,6 @@ body.no-confidential .confidential-col{display:none!important}
     </div>
   </div>
 
-  <!-- UNIT-WISE LIVE ATTENDANCE (TODAY) -->
-  <div class="card mt-4">
-    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-      <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-industry" style="color:var(--brand)"></i> Unit-wise Attendance — Today</h3>
-      <span class="text-[11px]" style="color:var(--muted)">Live snapshot · Present / Absent / Gate Pass / Leave-WFH</span>
-    </div>
-    <div id="dashUnitWise" style="overflow-x:auto"></div>
-  </div>
-
   <!-- CHARTS ROW -->
   <div class="grid lg:grid-cols-3 gap-4 mt-4">
     <div class="card">
@@ -781,6 +772,12 @@ body.no-confidential .confidential-col{display:none!important}
     <div class="mis-card"><h4><i class="fa-solid fa-user-clock" style="color:#dc2626"></i> Department-wise Late</h4><div id="misAttLate"></div></div>
     <div class="mis-card"><h4><i class="fa-solid fa-venus-mars" style="color:#7c3aed"></i> Gender-wise Attendance</h4><div id="misAttGender" class="flex items-center gap-5"></div></div>
     <div class="mis-card"><h4><i class="fa-solid fa-location-dot" style="color:#0d9488"></i> Location-wise Attendance</h4><div id="misAttLoc"></div></div>
+  </div>
+
+  <div class="mis-sec"><i class="fa-solid fa-satellite-dish"></i> LIVE — TODAY <span style="font-weight:400;font-size:11px;text-transform:none;letter-spacing:0;color:var(--muted)">(kisi bhi row par click karo — us group ke employees dikhenge)</span></div>
+  <div class="grid lg:grid-cols-2 gap-4">
+    <div class="mis-card"><h4><i class="fa-solid fa-industry" style="color:var(--brand)"></i> Unit-wise Attendance — Today</h4><div id="misUnitToday" style="overflow-x:auto"></div></div>
+    <div class="mis-card"><h4><i class="fa-solid fa-business-time" style="color:#7c3aed"></i> Shift-wise Attendance — Today</h4><div id="misShiftToday" style="overflow-x:auto"></div></div>
   </div>
 
   <div class="mis-sec"><i class="fa-solid fa-receipt"></i> EXPENSE / REIMBURSEMENT</div>
@@ -3054,12 +3051,10 @@ async function loadDashboard(){
     (lvRes.data||[]).forEach(l => excused.add(String(l.employee_code).toUpperCase()));
     (wfhRes.data||[]).forEach(w => excused.add(String(w.employee_code).toUpperCase()));
     const presentCodes = new Set(rows.map(r => String(r.employee_code).toUpperCase()));
+    // night-shift employees are on a different clock -> don't flag them absent during the day
+    const nightIds = new Set((SHIFTS||[]).filter(sh => sh.is_night).map(sh => String(sh.id)));
+    Object.entries(PROFILES||{}).forEach(([c,p]) => { if(p && nightIds.has(String(p.shift_id))) excused.add(String(c).toUpperCase()); });
     window._todayExcused = excused;
-    // gate-pass set (GATE_SL/GATE_HD) vs leave/WFH set — for the unit-wise table
-    const gateSet = new Set(), leaveWfhSet = new Set();
-    (wfhRes.data||[]).forEach(w => { const c = String(w.employee_code).toUpperCase(); if(w.req_type==='WFH') leaveWfhSet.add(c); else gateSet.add(c); });
-    (lvRes.data||[]).forEach(l => leaveWfhSet.add(String(l.employee_code).toUpperCase()));
-    renderUnitWise(presentCodes, gateSet, leaveWfhSet);
     const total = activeEmps().length;
     const absentReal = activeEmps().filter(e => { const c = String(e['Employee code']).toUpperCase(); return !presentCodes.has(c) && !excused.has(c); }).length;
     const late = rows.filter(isRowLate).length;
@@ -5308,9 +5303,88 @@ function misDonut(parts, centerText){
   return `<div class="mis-donut" style="background:conic-gradient(${segs || '#e2e8f0 0deg 360deg'})"><div class="c">${centerText}</div></div>
     <div class="mis-leg">${parts.map(p => `<span ${p.misk ? `class="mis-click" data-misk="${p.misk}" data-miskey="${esc(p.key)}" style="cursor:pointer"` : ''}><i style="background:${p.color}"></i>${esc(p.label)}: <b>${p.value}</b> (${Math.round(p.value / total * 100)}%)</span>`).join('')}</div>`;
 }
+function buildLiveGroups(keyFn){
+  const L = window._misLive; const out = {};
+  activeEmps().forEach(e => {
+    const c = String(e['Employee code']).toUpperCase();
+    const k = keyFn(e) || 'Unassigned';
+    const g = (out[k] = out[k] || { present:[], absent:[], gate:[], leave:[] });
+    const item = { c, n: e.Name };
+    if(L.present.has(c)) g.present.push(item);
+    else if(L.gate.has(c)) g.gate.push(item);
+    else if(L.leaveWfh.has(c)) g.leave.push(item);
+    else g.absent.push(item);
+  });
+  return out;
+}
+function renderLiveGroup(host, keyFn, kind){
+  const el = document.getElementById(host); if(!el || !window._misLive) return;
+  const groups = buildLiveGroups(keyFn);
+  const keys = Object.keys(groups).sort();
+  window._liveGroups = window._liveGroups || {};
+  window._liveGroups[kind] = { keys, groups };
+  if(!keys.length){ el.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">No data.</p>'; return; }
+  let tot = { total:0, present:0, absent:0, gate:0, leave:0 };
+  const rows = keys.map((k, i) => {
+    const g = groups[k];
+    const t = g.present.length + g.absent.length + g.gate.length + g.leave.length;
+    tot.total+=t; tot.present+=g.present.length; tot.absent+=g.absent.length; tot.gate+=g.gate.length; tot.leave+=g.leave.length;
+    return `<tr style="cursor:pointer" onclick="openLiveDrill('${kind}',${i})" title="Click for names">
+      <td style="font-weight:600">${esc(k)}</td>
+      <td style="text-align:center">${t}</td>
+      <td style="text-align:center;color:#16a34a;font-weight:600">${g.present.length}</td>
+      <td style="text-align:center;color:#dc2626;font-weight:600">${g.absent.length}</td>
+      <td style="text-align:center;color:#a9701e">${g.gate.length}</td>
+      <td style="text-align:center;color:#7c3aed">${g.leave.length}</td></tr>`;
+  }).join('');
+  el.innerHTML = `<table class="reg" style="width:100%;min-width:420px;font-size:12px">
+    <thead><tr><th style="text-align:left">${kind==='unit'?'Unit':'Shift'}</th><th>Total</th><th>Present</th><th>Absent</th><th>Gate</th><th>Leave/WFH</th></tr></thead>
+    <tbody>${rows}
+    <tr style="border-top:2px solid var(--line);font-weight:700;background:var(--surface-2)"><td>TOTAL</td><td style="text-align:center">${tot.total}</td><td style="text-align:center;color:#16a34a">${tot.present}</td><td style="text-align:center;color:#dc2626">${tot.absent}</td><td style="text-align:center;color:#a9701e">${tot.gate}</td><td style="text-align:center;color:#7c3aed">${tot.leave}</td></tr>
+    </tbody></table>`;
+}
+function openLiveDrill(kind, idx){
+  const G = (window._liveGroups||{})[kind]; if(!G) return;
+  const key = G.keys[idx]; const g = G.groups[key]; if(!g) return;
+  const sec = (title, arr, color) => arr.length ? `<div style="margin-bottom:12px"><div style="font-weight:700;color:${color};font-size:12px;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em">${title} — ${arr.length}</div>${arr.map(x=>`<div style="font-size:12.5px;padding:3px 0;border-bottom:1px solid var(--line-soft)">${esc(x.n||'')} <span style="color:var(--muted)">${esc(x.c)}</span></div>`).join('')}</div>` : '';
+  const body = sec('Present', g.present, '#16a34a') + sec('Absent', g.absent, '#dc2626') + sec('Gate Pass', g.gate, '#a9701e') + sec('Leave / WFH', g.leave, '#7c3aed');
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(20,24,20,.5);display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = `<div style="background:#fff;border-radius:16px;max-width:520px;width:100%;max-height:82vh;overflow-y:auto;padding:20px 22px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h3 class="display font-bold m-0 text-sm">${esc(key)} — Today (${kind})</h3>
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="background:var(--surface-2);border:1px solid var(--line);border-radius:50%;width:30px;height:30px;cursor:pointer">✕</button>
+    </div>${body || '<p style="color:var(--muted)">No employees in this group.</p>'}</div>`;
+  ov.addEventListener('click', e => { if(e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+async function loadMisLiveToday(){
+  const today = todayISO();
+  try{
+    const [attR, lvR, wfhR, shR, prR] = await Promise.all([
+      sb.from('attendance').select('employee_code').eq('date', today).limit(100000),
+      sb.from('leaves').select('employee_code').eq('status','APPROVED').lte('from_date', today).gte('to_date', today),
+      sb.from('ess_att_requests').select('employee_code, req_type').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).eq('date', today),
+      sb.from('shifts').select('*'),
+      sb.from('hr_profiles').select('employee_code, shift_id')
+    ]);
+    const present = new Set((attR.data||[]).map(r => String(r.employee_code).toUpperCase()));
+    const gate = new Set(), leaveWfh = new Set();
+    (wfhR.data||[]).forEach(w => { const c = String(w.employee_code).toUpperCase(); if(w.req_type==='WFH') leaveWfh.add(c); else gate.add(c); });
+    (lvR.data||[]).forEach(l => leaveWfh.add(String(l.employee_code).toUpperCase()));
+    const shById = {}; (shR.data||[]).forEach(x => shById[String(x.id)] = x);
+    const empShift = {}; (prR.data||[]).forEach(p => { const sh = p.shift_id ? shById[String(p.shift_id)] : null; empShift[String(p.employee_code).toUpperCase()] = sh ? sh.name : 'Unassigned'; });
+    window._misLive = { present, gate, leaveWfh, empShift };
+    const S = getSettings();
+    const unitNm = e => { const u = e.UNIT || String(e['Employee code']||'').slice(0,4); const un = ((S && S.units)||[]).find(x => String(x.code) === String(u)); return un ? un.name : (u || 'Unassigned'); };
+    renderLiveGroup('misUnitToday', unitNm, 'unit');
+    renderLiveGroup('misShiftToday', e => empShift[String(e['Employee code']).toUpperCase()] || 'Unassigned', 'shift');
+  }catch(e){ console.warn('misLive', e); }
+}
 async function loadMis(){
   if(!$('misMonth').value) $('misMonth').value = new Date().toISOString().slice(0,7);
   const ym = $('misMonth').value;
+  loadMisLiveToday();
   const [y, m] = ym.split('-').map(Number);
   const prevYm = m === 1 ? `${y-1}-12` : `${y}-${String(m-1).padStart(2,'0')}`;
   $('misKpis').innerHTML = '<div class="mis-kpi" style="grid-column:1/-1"><div class="s">Loading MIS data…</div></div>';
