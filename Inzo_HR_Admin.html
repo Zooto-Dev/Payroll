@@ -3876,6 +3876,7 @@ function candStageActions(c){
     <div id="candOfferBreak" class="text-[11px] mb-2 p-2 rounded" style="background:var(--brand-soft)">${alloc ? candBreakupText(g) : 'Enter the agreed salary to see the breakup.'}</div>
     <div class="flex gap-2 flex-wrap mb-3">
       <button class="btn btn-primary btn-sm" onclick="sendOfferEmail('${id}')"><i class="fa-solid fa-envelope-open-text"></i> Send Offer Email (with breakup)</button>
+      <button class="btn btn-ghost btn-sm" onclick="printCandidateOffer('${id}')"><i class="fa-solid fa-file-pdf"></i> Offer Letter (PDF)</button>
     </div>
     <div class="text-[11px] font-bold uppercase tracking-wide mb-1" style="color:var(--brand)">Resignation Acceptance (from current employer)</div>
     ${c.resignation_url
@@ -4016,6 +4017,29 @@ async function sendDocRequest(id){
   c.doc_due_date = due;
   await candEmail(c, 'docs', { link: candPortalLink(c), due });
   $('candStageBox').innerHTML = candStageActions(c);
+}
+function printCandidateOffer(id){
+  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
+  const g = Number(($('candAgreed')||{}).value) || Number(c.agreed_salary) || 0;
+  const jd = (($('candJoinDate')||{}).value) || c.join_date;
+  if(!g) return notify('Enter the agreed salary first', 'error');
+  if(!jd) return notify('Set the joining date first', 'error');
+  const S = getSettings();
+  const yr = new Date().getFullYear();
+  const name = c.name || '', desig = c.position || 'the offered position', dept = c.department || '';
+  const html = letterShell('OFFER OF EMPLOYMENT', `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/OFR/${yr}/${Math.floor(100+Math.random()*900)}`,
+    `<p>Dear <b>${esc(name)}</b>,</p>
+      <p>Further to your application and the subsequent interview you had with us, we are pleased to offer you the position of <b>${esc(desig)}</b>${dept ? ' in our <b>' + esc(dept) + '</b> department' : ''} at ${esc(S.name)}, on the following terms:</p>
+      <ol style="padding-left:18px">
+        <li><b>Date of Joining:</b> On or before <b>${fmtDate(jd)}</b>. This offer stands withdrawn if you do not report by this date, unless extended in writing.</li>
+        <li><b>Compensation:</b> Your gross salary will be <b>₹${g.toLocaleString('en-IN')}/- per month</b> (Rupees ${esc(numToWords(g))} Only), as detailed in Annexure A.</li>
+        <li><b>Probation:</b> You will be on probation for a period of <b>${S.probation} months</b> from the date of joining, extendable at the discretion of the management.</li>
+        <li><b>Documents:</b> Please bring originals and photocopies of your educational certificates, identity proof (Aadhaar/PAN), bank details and passport-size photographs at the time of joining.</li>
+        <li>This offer is contingent upon satisfactory verification of your documents and background.</li>
+      </ol>
+      <p>Please sign and return a copy of this letter as a token of your acceptance. We look forward to welcoming you to the team.</p>
+      ${annexureHTML(g, null)}`);
+  printHTML(html);
 }
 async function sendOfferEmail(id){
   const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
