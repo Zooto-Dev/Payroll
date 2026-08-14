@@ -3934,6 +3934,7 @@ function candStageActions(c){
       ${submitted < docsList.length
         ? `<button class="btn btn-primary btn-sm" disabled style="opacity:.45;cursor:not-allowed" title="Pehle saare documents aane do">Move to Offer Stage — ${docsList.length - submitted} doc pending</button>`
         : `<button class="btn btn-primary btn-sm" onclick="moveCandidate('${id}','OFFERED')"><i class="fa-solid fa-circle-check"></i> Move to Offer Stage</button>`}
+      <button class="btn btn-ghost btn-sm" onclick="moveCandidate('${id}','INTERVIEW')"><i class="fa-solid fa-arrow-left"></i> Back to Interview</button>
       <button class="btn btn-danger btn-sm" onclick="moveCandidate('${id}','REJECTED')">Reject (sends email)</button>
     </div>
     ${submitted < docsList.length ? `<p class="text-[11px] mt-2" style="color:var(--warn)"><i class="fa-solid fa-lock"></i> Offer tab tak nahi de sakte jab tak saare ${docsList.length} documents na aa jaayein.</p>` : ''}`;
