@@ -1518,12 +1518,24 @@ async function renderCalendar(){
 }
 
 /* ---------- Requests: expenses + resignation ---------- */
+async function delExpense(id){
+  if(!window.confirm('Ye pending claim delete karein? Wapas nahi aayega.')) return;
+  try{
+    const { data, error } = await sb.rpc('ess_delete_expense', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: id });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    D.expenses = (D.expenses||[]).filter(x => String(x.id) !== String(id));
+    renderExpenses();
+    notify('Claim delete ho gaya ✓');
+  }catch(err){ notify('Delete failed: ' + (err.message || err)); }
+}
 function renderExpenses(){
   const ex = D.expenses || [];
   $('exBox').innerHTML = ex.length ? ex.map(x => {
     const chip = { PENDING:'chip-warn', APPROVED:'chip-blue', PAID:'chip-ok', REJECTED:'chip-bad' }[x.status] || 'chip-gray';
     const paidNote = x.status === 'PAID' && x.paid_at ? `<div class="text-[10px]" style="color:var(--ok)">Paid on ${fmtDate(String(x.paid_at).slice(0,10))} ✓${x.payment_ref ? ` · <a href="#" onclick="essViewProof('${esc(x.payment_ref)}');return false" style="color:var(--brand)">View payment proof</a>` : ''}</div>` : '';
-    return `<div class="row"><span><b>${esc(x.category)}</b> ${fmtDate(x.expense_date)} — ${fmtINR(x.amount)}${paidNote}</span><span class="chip ${chip}">${esc(x.status)}</span></div>`;
+    const canDel = x.status === 'PENDING' && x.id;
+    return `<div class="row"><span><b>${esc(x.category)}</b> ${fmtDate(x.expense_date)} — ${fmtINR(x.amount)}${paidNote}</span><span style="display:flex;align-items:center;gap:8px"><span class="chip ${chip}">${esc(x.status)}</span>${canDel ? `<button onclick="delExpense(${x.id})" title="Delete this pending claim" style="background:none;border:none;color:var(--bad);cursor:pointer;font-size:13px"><i class="fa-solid fa-trash"></i></button>` : ''}</span></div>`;
   }).join('') : '<p class="m-0" style="color:var(--muted)">No claims yet.</p>';
   // UPI prefill (from RPC profile, else direct read once)
   if($('myUpi') && !$('myUpi').value){
@@ -1667,7 +1679,11 @@ $('exBtn').addEventListener('click', async () => {
       // FIX & RESUBMIT: the SAME claim goes back as PENDING with corrections
       const r = await sb.rpc('ess_resubmit_expense', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: window._editExpId, p_category: $('exCat').value, p_amount: Number($('exAmt').value), p_date: $('exDate').value || null, p_note: $('exNote').value || null });
       data = r.data; error = r.error;
-      if(!error && data && !data.error){ window._editExpId = null; $('exBtn').innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit Claim'; window._essRejected = (window._essRejected||[]).filter(x => true); loadMyPayments(); }
+      if(!error && data && !data.error){
+        const _rid = window._editExpId;
+        if(receipts.length){ try{ await sb.rpc('ess_update_expense_receipts', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: _rid, p_files: receipts }); }catch(e){} }
+        window._editExpId = null; $('exBtn').innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit Claim'; window._essRejected = (window._essRejected||[]).filter(x => true); loadMyPayments();
+      }
     } else {
       const r = await sb.rpc('ess_apply_expense_v2', { p_code: CODE, p_phone: PHONE, p_category: $('exCat').value, p_amount: Number($('exAmt').value), p_date: $('exDate').value, p_note: $('exNote').value, p_files: receipts });
       data = r.data; error = r.error;
