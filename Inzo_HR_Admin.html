@@ -4151,10 +4151,14 @@ async function loadWorkHours(){
   const host = $('whResult');
   host.innerHTML = '<p style="color:var(--muted)">Loading\u2026</p>';
   try{
-    let q = sb.from('attendance').select('*').gte('date', from).lt('date', toEx).order('date').order('employee_code').limit(100000);
-    const { data, error } = await q;
-    if(error) throw error;
-    let rows = data || [];
+    // paginate in 1000-row pages so Supabase's "Max rows" cap can't cut off later dates
+    let rows = [];
+    for(let pageFrom = 0; pageFrom < 500000; pageFrom += 1000){
+      const { data, error } = await sb.from('attendance').select('*').gte('date', from).lt('date', toEx).order('date').order('employee_code').range(pageFrom, pageFrom + 999);
+      if(error) throw error;
+      rows = rows.concat(data || []);
+      if(!data || data.length < 1000) break;
+    }
     if(empFilter) rows = rows.filter(r => String(r.employee_code||'').toUpperCase() === empFilter);
     if(!rows.length){ host.innerHTML = `<p style="color:var(--muted)">No attendance found for this selection.</p>`; return; }
 
