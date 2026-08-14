@@ -604,6 +604,7 @@ setTimeout(nxHideSplash, 25000); // failsafe (never stuck)
         /* ---- Nexus config from the GAS endpoint (keys live in the SUPABASE sheet) ---- */
         const NX_CONFIG_URL = 'https://script.google.com/macros/s/AKfycbyLyxuzYzGZ1odibF_-ORvn314hFY_zKg4595HpDZrhMObhqbcAh_LIw60sTc4b_dPI/exec';
         function nxLoadConfig(){
+
           return new Promise((resolve, reject) => {
             const cached = (() => { try { return JSON.parse(localStorage.getItem('nx_cfg') || 'null'); } catch(e){ return null; } })();
             let settled = false;
@@ -612,7 +613,7 @@ setTimeout(nxHideSplash, 25000); // failsafe (never stuck)
               if(settled) return; settled = true;
               delete window[cb];
               if(cached && cached.url) resolve(cached);           // offline / GAS down -> last known config
-              else reject(new Error('Could not load configuration. Check the internet connection and the GAS deployment.'));
+              else reject(new Error('GAS ne 8 sec mein jawab nahi diya. Wajah: (1) deployment "Who has access" = Anyone nahi hai, (2) /exec URL galat/purana hai, ya (3) network. Test: NX_CONFIG_URL browser mein kholo.'));
             }, 8000);
             window[cb] = data => {
               if(settled) return; settled = true;
@@ -621,12 +622,12 @@ setTimeout(nxHideSplash, 25000); // failsafe (never stuck)
                 try { localStorage.setItem('nx_cfg', JSON.stringify(data)); } catch(e){}
                 resolve(data);
               } else if(cached && cached.url) resolve(cached);
-              else reject(new Error(data && data.error ? data.error : 'Configuration incomplete — fill the SUPABASE sheet and run testConfig in GAS.'));
+              else reject(new Error(data && data.error ? ('GAS error: ' + data.error) : ('GAS se url/key nahi aayi. GAS ne bheja: ' + JSON.stringify(data).slice(0,180))));
             };
             const s = document.createElement('script');
             s.src = NX_CONFIG_URL + '?callback=' + cb + '&t=' + Date.now();
             s.onerror = () => { if(settled) return; settled = true; clearTimeout(timer); delete window[cb];
-              if(cached && cached.url) resolve(cached); else reject(new Error('Configuration endpoint unreachable.')); };
+              if(cached && cached.url) resolve(cached); else reject(new Error('GAS tak pahuncha nahi ja saka (script load fail) — matlab GAS ne login-page/redirect bheja ya URL galat. Fix: Deploy -> Manage deployments -> Edit -> "Who has access" = Anyone (sirf Anyone), "Execute as" = Me -> New version.')); };
             document.head.appendChild(s);
           });
         }
@@ -1858,6 +1859,27 @@ function nxConfirm(msg, title){
                         return;
                     }
                 } else {
+                    let _nightOut = false;
+                    // ---- NIGHT SHIFT: open punch from YESTERDAY (in, no out) within 16h -> this punch is the OUT ----
+                    if (!offlineProcessData) {
+                        try {
+                            const _y = new Date(localDate.getTime() - 24*3600*1000);
+                            const _yStr = `${_y.getFullYear()}-${String(_y.getMonth()+1).padStart(2,'0')}-${String(_y.getDate()).padStart(2,'0')}`;
+                            const _yr = await supabaseClient.from('attendance').select('*').eq('employee_code', empCode).eq('date', _yStr).is('out_time', null).order('created_at',{ascending:false}).limit(1);
+                            if (_yr.data && _yr.data.length && _yr.data[0].in_time) {
+                                const _rec = _yr.data[0];
+                                const _inMs = new Date(`${_yStr}T${String(_rec.in_time).substring(0,8)}`).getTime();
+                                const _gapH = (localDate.getTime() - _inMs) / 3600000;
+                                if (_gapH > 1 && _gapH < 16) {
+                                    const _tot = localDate.getTime() - _inMs;
+                                    const _totStr = `${String(Math.floor(_tot/3600000)).padStart(2,'0')}:${String(Math.floor((_tot%3600000)/60000)).padStart(2,'0')}:00`;
+                                    const _u = await supabaseClient.from('attendance').update({ out_time: timeStr, out_photo_url: photoUrl, total_hours: _totStr }).eq('id', _rec.id);
+                                    if (!_u.error) { _nightOut = true; punchType = "OUT"; successMessage = speakName(empName) + ", aapka night shift punch out safal raha."; }
+                                }
+                            }
+                        } catch(e){ console.warn('night-shift out check skipped', e); }
+                    }
+                    if(!_nightOut){
                     // ---- Line manpower capacity check (IN punch only) ----
                     const myLine = empData && empData.LINE ? String(empData.LINE).trim() : '';
                     if (myLine && (window.productionLines || []).length) {
@@ -1922,6 +1944,7 @@ function nxConfirm(msg, title){
                     }
                     successMessage = speakName(empName) + ", aapka punch in safal raha.";
                     if(isLate && !offlineProcessData) successMessage += " Dhyan rahe, aap late hain.";
+                    }
                 }
 
                 if(!offlineProcessData) {
