@@ -911,6 +911,20 @@ function nxConfirm(msg, title){
                         if(!sRes.error && sRes.data){ window.NX_SETTINGS = sRes.data.data || {}; localStorage.setItem('cached_settings', JSON.stringify(window.NX_SETTINGS)); }
                         const plRes = await supabaseClient.from('production_lines').select('*');
                         if(!plRes.error){ window.productionLines = plRes.data || []; localStorage.setItem('cached_lines', JSON.stringify(window.productionLines)); }
+                        // ---- SHIFT MAP: who is on a night shift (for correct cross-day IN/OUT) ----
+                        try {
+                            const [shRes, prRes] = await Promise.all([
+                                supabaseClient.from('shifts').select('*'),
+                                supabaseClient.from('hr_profiles').select('employee_code, shift_id')
+                            ]);
+                            const shById = {}; (shRes.data||[]).forEach(sh => shById[String(sh.id)] = sh);
+                            const smap = {};
+                            (prRes.data||[]).forEach(p => {
+                                const sh = p.shift_id ? shById[String(p.shift_id)] : null;
+                                if(sh){ const night = !!sh.is_night || (sh.end_time && sh.start_time && String(sh.end_time) < String(sh.start_time)); smap[String(p.employee_code).toUpperCase()] = { night: !!night, start: sh.start_time||'', end: sh.end_time||'' }; }
+                            });
+                            window.NX_SHIFTMAP = smap; localStorage.setItem('cached_shiftmap', JSON.stringify(smap));
+                        } catch(e){ console.warn('shift map warn', e); }
                         localStorage.setItem('cfg_ts', String(Date.now()));
                     }catch(e){ console.warn('cfg fetch warn', e); }
                 }
@@ -918,6 +932,8 @@ function nxConfirm(msg, title){
                 window.NX_SETTINGS = window.NX_SETTINGS || {};
                 if(!window.productionLines || !window.productionLines.length){ const cl = localStorage.getItem('cached_lines'); if(cl){ try{ window.productionLines = JSON.parse(cl); }catch(e){} } }
                 window.productionLines = window.productionLines || [];
+                if(!window.NX_SHIFTMAP){ const csm = localStorage.getItem('cached_shiftmap'); if(csm){ try{ window.NX_SHIFTMAP = JSON.parse(csm); }catch(e){} } }
+                window.NX_SHIFTMAP = window.NX_SHIFTMAP || {};
 
                 labeledFaceDescriptors = [];
                 employeeDataMap.clear();
@@ -1786,12 +1802,25 @@ function nxConfirm(msg, title){
                 try {
                     const fileName = `corp_photos/${empCode}_${Date.now()}.jpg`;
                     const blob = dataURItoBlob(imageBase64);
-                    // race the upload against a 4s timeout so a slow network never blocks the punch
+                    const publicUrl = supabaseUrl + '/storage/v1/object/public/attendance-photos/' + fileName;
+                    // give the upload 12s (4s was too short on slow networks -> blank photos)
                     const uploadP = supabaseClient.storage.from('attendance-photos').upload(fileName, blob, { contentType: 'image/jpeg', cacheControl: '86400' });
-                    const timeoutP = new Promise(res => setTimeout(() => res({ _timeout: true }), 4000));
+                    const timeoutP = new Promise(res => setTimeout(() => res({ _timeout: true }), 12000));
                     const result = await Promise.race([uploadP, timeoutP]);
-                    if (result && !result._timeout && !result.error) photoUrl = supabaseUrl + '/storage/v1/object/public/attendance-photos/' + fileName;
-                    // if it timed out, we punch without a photo rather than making the person wait
+                    if (result && !result._timeout && !result.error) {
+                        photoUrl = publicUrl;
+                    } else if (result && result._timeout) {
+                        // slow network: don't make the person wait, but let the upload finish in the
+                        // background and attach the photo to this punch when it completes.
+                        window._pendingPhoto = { empCode, todayStr, publicUrl, uploadP };
+                        uploadP.then(r => {
+                            if (r && !r.error) {
+                                supabaseClient.from('attendance').update({ in_photo_url: publicUrl })
+                                    .eq('employee_code', empCode).eq('date', todayStr).is('in_photo_url', null)
+                                    .then(()=>{}).catch(()=>{});
+                            }
+                        }).catch(()=>{});
+                    }
                 } catch(e) {
                     console.warn("Photo upload warning:", e);
                 }
@@ -1860,8 +1889,11 @@ function nxConfirm(msg, title){
                     }
                 } else {
                     let _nightOut = false;
-                    // ---- NIGHT SHIFT: open punch from YESTERDAY (in, no out) within 16h -> this punch is the OUT ----
-                    if (!offlineProcessData) {
+                    // ---- NIGHT SHIFT: only for employees whose assigned shift is a night shift ----
+                    const _myShift = (window.NX_SHIFTMAP || {})[String(empCode).toUpperCase()];
+                    const _isNightEmp = _myShift && _myShift.night;
+                    // open punch from YESTERDAY (in, no out) within 16h -> this punch is the OUT
+                    if (!offlineProcessData && _isNightEmp) {
                         try {
                             const _y = new Date(localDate.getTime() - 24*3600*1000);
                             const _yStr = `${_y.getFullYear()}-${String(_y.getMonth()+1).padStart(2,'0')}-${String(_y.getDate()).padStart(2,'0')}`;
