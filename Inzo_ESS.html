@@ -1304,7 +1304,7 @@ function renderAttPage(){
   ATT_PAGE = Math.min(Math.max(0, ATT_PAGE), pages - 1);
   const slice = att.slice(ATT_PAGE * ATT_PER, ATT_PAGE * ATT_PER + ATT_PER);
   $('attBox').innerHTML = slice.length ? slice.map(a => {
-    const late = a.is_late === true || (a.in_time||'').includes('LATE');
+    const late = essLate(a);
     return `<div class="row"><span class="k">${fmtDate(a.date)}</span>
       <span><span class="chip ${late ? 'chip-warn' : 'chip-ok'}">IN ${esc((a.in_time||'').substring(0,5))}</span>
       ${a.out_time ? `<span class="chip chip-gray">OUT ${esc(a.out_time.substring(0,5))}</span>` : ''}
@@ -1460,6 +1460,17 @@ async function monthRows(ym){
   CAL_CACHE[ym] = data.rows || [];
   return CAL_CACHE[ym];
 }
+function essLate(r){
+  if(!r) return false;
+  if(r.is_late === true) return true;
+  if(String(r.in_time||'').toUpperCase().includes('LATE')) return true;
+  const m = String(r.in_time||'').match(/([0-2]?\d:[0-5]\d)/);
+  if(!m) return false;
+  const hhmm = m[1].length===4 ? '0'+m[1] : m[1];
+  const dept = String((D && D.employee && (D.employee.DEPARTMENT||D.employee.department))||'').toUpperCase();
+  const early = ['PRODUCTION','STORE'].some(x => dept.includes(x));
+  return hhmm > (early ? '09:10' : '10:00');
+}
 async function renderCalendar(){
   const ym = CAL_YM;
   const [y,m] = ym.split('-').map(Number);
@@ -1495,7 +1506,7 @@ async function renderCalendar(){
     const dow = new Date(y, m-1, d).getDay();
     const r = attMap[iso];
     let cls = 'd-none', tip = iso;
-    if(r){ const late = (r.in_time||'').includes('LATE'); cls = late ? 'd-L' : 'd-P'; tip += ` | IN ${(r.in_time||'').substring(0,5)}${r.out_time ? ' OUT ' + r.out_time.substring(0,5) : ''}`; }
+    if(r){ const late = essLate(r); cls = late ? 'd-L' : 'd-P'; tip += ` | IN ${(r.in_time||'').substring(0,5)}${r.out_time ? ' OUT ' + r.out_time.substring(0,5) : ''}`; }
     else if(window._myWfhSet && window._myWfhSet.has(iso)){ cls = 'd-WFH'; tip += ' | Work From Home (paid)'; }
     else if(lvSet.has(iso)) cls = 'd-LV';
     else if(holSet.has(iso)) cls = 'd-H';
