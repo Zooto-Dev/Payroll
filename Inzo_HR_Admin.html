@@ -6052,7 +6052,7 @@ async function nextDocNo(kind, code, name, title){
 function letterShell(title, refNo, body){
   const S = getSettings();
   const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' });
-  return `<div class="paper" contenteditable="true" spellcheck="false">
+  return `<style>@page{size:A4 portrait;margin:0}</style><div class="paper" contenteditable="true" spellcheck="false">
     <div class="doc-head">
       <div>
         <h1 style="margin:0;font-size:20px">${esc(S.name)}</h1>
@@ -6081,7 +6081,7 @@ function letterShell(title, refNo, body){
 
 function certShell(title, name, line1, line2, meta){
   const S = getSettings();
-  return `<div class="paper" contenteditable="true" spellcheck="false" style="display:flex;flex-direction:column;justify-content:center;text-align:center;border:6px double #2a2824;padding:22mm 18mm;position:relative">
+  return `<style>@page{size:A4 landscape;margin:0}</style><div class="paper" contenteditable="true" spellcheck="false" style="width:297mm;min-height:210mm;display:flex;flex-direction:column;justify-content:center;text-align:center;border:6px double #2a2824;padding:14mm 24mm;position:relative">
     <div style="position:absolute;inset:8mm;border:1px solid #cbd5e1;pointer-events:none"></div>
     <p style="font-size:11px;letter-spacing:.3em;color:#64748b;margin:0">${esc(S.name).toUpperCase()}</p>
     <p style="font-size:9px;color:#94a3b8;margin:2px 0 26px">${esc(S.addr)}</p>
