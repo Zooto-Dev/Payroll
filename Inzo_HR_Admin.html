@@ -3931,9 +3931,12 @@ function candStageActions(c){
       ? `<div class="flex items-center justify-between text-xs py-1" style="border-bottom:1px dashed var(--line)"><span><i class="fa-solid fa-circle-check" style="color:var(--ok)"></i> ${d[1]}</span><button type="button" class="btn btn-ghost btn-sm" onclick="viewCandFile('${esc(docs[d[0]])}')">View</button></div>`
       : `<div class="text-xs py-1" style="color:var(--muted);border-bottom:1px dashed var(--line)"><i class="fa-regular fa-circle"></i> ${d[1]} — pending</div>`).join('')}</div>
     <div class="flex gap-2 flex-wrap">
-      <button class="btn btn-primary btn-sm" onclick="moveCandidate('${id}','OFFERED')">Move to Offer Stage</button>
+      ${submitted < docsList.length
+        ? `<button class="btn btn-primary btn-sm" disabled style="opacity:.45;cursor:not-allowed" title="Pehle saare documents aane do">Move to Offer Stage — ${docsList.length - submitted} doc pending</button>`
+        : `<button class="btn btn-primary btn-sm" onclick="moveCandidate('${id}','OFFERED')"><i class="fa-solid fa-circle-check"></i> Move to Offer Stage</button>`}
       <button class="btn btn-danger btn-sm" onclick="moveCandidate('${id}','REJECTED')">Reject (sends email)</button>
-    </div>`;
+    </div>
+    ${submitted < docsList.length ? `<p class="text-[11px] mt-2" style="color:var(--warn)"><i class="fa-solid fa-lock"></i> Offer tab tak nahi de sakte jab tak saare ${docsList.length} documents na aa jaayein.</p>` : ''}`;
   }
 
   if(c.stage === 'OFFERED'){
@@ -5742,6 +5745,10 @@ document.body.addEventListener('click', async e => {
       notify('Correction approved — attendance record created for ' + fmtDate(r.date), 'success');
     } else {
       await sb.from('ess_att_requests').update({ status: act === 'ea-appr' ? 'APPROVED' : 'REJECTED', approved_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
+      // approved Short-Leave / Half-Day = us din late maaf -> is_late false kar do (dashboard/ESS sab sahi dikhein)
+      if(act === 'ea-appr' && (r.req_type === 'GATE_SL' || r.req_type === 'GATE_HD') && r.date){
+        try{ await sb.from('attendance').update({ is_late: false }).ilike('employee_code', r.employee_code).eq('date', r.date); }catch(e){}
+      }
       notify(act === 'ea-appr' ? 'Approved' : 'Request rejected', 'success');
     }
     loadApprovals();
