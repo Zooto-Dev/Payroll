@@ -2091,7 +2091,14 @@ function nxConfirm(msg, title){
                                     if(ms > 0) totalStr = String(Math.floor(ms/3600000)).padStart(2,'0')+':'+String(Math.floor((ms%3600000)/60000)).padStart(2,'0')+':00';
                                 }catch(e){}
                                 const u = await supabaseClient.from('attendance').update({ out_time: p.timeStr, total_hours: totalStr }).eq('id', open.id);
-                                if(u.error) throw u.error;
+                                if(u.error){ try{ localStorage.setItem('_lastOutError', 'UPDATE error: ' + (u.error.message||u.error)); }catch(e){} throw u.error; }
+                                // verify it actually landed (0 rows = silent permission problem)
+                                try{
+                                    const chk = await supabaseClient.from('attendance').select('out_time').eq('id', open.id).limit(1);
+                                    const got = chk.data && chk.data[0] && chk.data[0].out_time;
+                                    if(!got){ localStorage.setItem('_lastOutError', 'OUT update ran but out_time still empty — anon UPDATE permission issue (id ' + open.id + ')'); throw new Error('out_time not saved (permission?)'); }
+                                    else { localStorage.setItem('_lastOutError', 'OK: last OUT saved for id ' + open.id + ' at ' + p.timeStr); }
+                                }catch(ve){ throw ve; }
                             } else {
                                 await recordAttendance(p.empCode, p);   // no IN row found -> let the normal path handle it
                             }
@@ -2176,6 +2183,7 @@ function nxConfirm(msg, title){
                 <div style="overflow-x:auto;background:#111a2e;border-radius:12px;padding:6px 10px"><table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr style="color:#93c5fd;border-bottom:1px solid #1e293b"><th style="padding:6px 4px">#</th><th style="padding:6px 4px;text-align:left">Name</th><th style="padding:6px 4px">Type</th><th style="padding:6px 4px">Time</th><th style="padding:6px 4px">Date</th></tr></thead><tbody>${rows}</tbody></table></div>
               ` : `<div style="background:#1e293b;padding:18px;border-radius:14px;font-size:14px;line-height:1.6">Queue khaali hai. Matlab ya to sab <b>already sync</b> ho gaya, ya is device par offline data nahi tha. <br><br>Admin &#8594; Work Hours mein <b>aaj ka data</b> check karo — shayad wo sync ho chuka hai.</div>`}
               <div id="_recStatus" style="margin-top:14px;color:#93c5fd;font-size:14px;min-height:20px"></div>
+              <div style="margin-top:12px;padding:10px;background:#1e293b;border-radius:10px;font-size:12px;color:#cbd5e1;word-break:break-word">Last OUT status: <b>${(()=>{try{return localStorage.getItem('_lastOutError')||'(abhi tak koi OUT nahi)';}catch(e){return '?';}})()}</b></div>
               <div style="margin-top:18px;border-top:1px solid #1e293b;padding-top:16px">
                 <div style="color:#93c5fd;font-size:13px;margin-bottom:10px">Is device par local punch records (last 3 din, IN + OUT). Agar aaj ke OUT DB mein miss hain, ye button unhe DB mein daal dega:</div>
                 <button id="_recLocal" style="width:100%;padding:15px;background:#3b82f6;color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:800">&#8635; Local se DB fix karo (IN/OUT)</button>
