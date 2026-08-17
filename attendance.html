@@ -915,13 +915,13 @@ function nxConfirm(msg, title){
                         try {
                             const [shRes, prRes] = await Promise.all([
                                 supabaseClient.from('shifts').select('*'),
-                                supabaseClient.from('hr_profiles').select('employee_code, shift_id')
+                                supabaseClient.from('hr_profiles').select('employee_code, shift_id, category')
                             ]);
                             const shById = {}; (shRes.data||[]).forEach(sh => shById[String(sh.id)] = sh);
                             const smap = {};
                             (prRes.data||[]).forEach(p => {
                                 const sh = p.shift_id ? shById[String(p.shift_id)] : null;
-                                if(sh){ const night = !!sh.is_night || (sh.end_time && sh.start_time && String(sh.end_time) < String(sh.start_time)); smap[String(p.employee_code).toUpperCase()] = { night: !!night, start: sh.start_time||'', end: sh.end_time||'' }; }
+                                const night = sh ? (!!sh.is_night || (sh.end_time && sh.start_time && String(sh.end_time) < String(sh.start_time))) : false; smap[String(p.employee_code).toUpperCase()] = { night: !!night, start: (sh&&sh.start_time)||'', end: (sh&&sh.end_time)||'', category: String(p.category||'').toUpperCase() };
                             });
                             window.NX_SHIFTMAP = smap; localStorage.setItem('cached_shiftmap', JSON.stringify(smap));
                         } catch(e){ console.warn('shift map warn', e); }
@@ -1568,15 +1568,47 @@ function nxConfirm(msg, title){
                 localStorage.setItem('today_punches', JSON.stringify(trimmed));
             }catch(e){}
         }
+        // ============ DURABLE OFFLINE STORE: localStorage + IndexedDB mirror ============
+        // localStorage stays the fast sync source, but every write is mirrored to IndexedDB.
+        // IndexedDB survives page refresh / storage pressure far better, so if localStorage is
+        // ever cleared, we restore the punches from IndexedDB on the next load. No data loss.
+        function _idbOpen(){
+            return new Promise((res, rej) => {
+                try{ const r = indexedDB.open('nx_kiosk_db', 1);
+                    r.onupgradeneeded = () => { try{ r.result.createObjectStore('kv'); }catch(e){} };
+                    r.onsuccess = () => res(r.result);
+                    r.onerror = () => rej(r.error);
+                }catch(e){ rej(e); }
+            });
+        }
+        async function _idbSet(str){ try{ const db = await _idbOpen(); const tx = db.transaction('kv','readwrite'); tx.objectStore('kv').put(str, 'pending_punches'); }catch(e){} }
+        async function _idbGet(){ try{ const db = await _idbOpen(); return await new Promise(r => { const g = db.transaction('kv','readonly').objectStore('kv').get('pending_punches'); g.onsuccess = () => r(g.result || '[]'); g.onerror = () => r('[]'); }); }catch(e){ return '[]'; } }
+        function _savePending(str){ try{ _savePending(str); }catch(e){} _idbSet(str); }
+        async function _rehydratePending(){
+            try{
+                const ls = JSON.parse(localStorage.getItem('pending_punches') || '[]');
+                const idb = JSON.parse((await _idbGet()) || '[]');
+                if(idb.length > ls.length){
+                    const map = new Map();
+                    [...idb, ...ls].forEach(p => { try{ map.set(JSON.stringify(p), p); }catch(e){} });
+                    const merged = [...map.values()];
+                    try{ _savePending(JSON.stringify(merged)); }catch(e){}
+                    updatePendingBadge();
+                    if(navigator.onLine) flushPendingPunches(false);
+                } else if(ls.length && idb.length === 0){
+                    _idbSet(JSON.stringify(ls));   // seed IndexedDB from an existing localStorage queue
+                }
+            }catch(e){}
+        }
         function queuePunch(item){
             let pending = JSON.parse(localStorage.getItem('pending_punches') || '[]');
             pending.push(item);
             try{
-                localStorage.setItem('pending_punches', JSON.stringify(pending));
+                _savePending(JSON.stringify(pending));
             }catch(e){
                 // storage full (many queued photos): drop the PHOTOS but never the punches
                 pending = pending.map(p => { const q = Object.assign({}, p); delete q.imageBase64; return q; });
-                try{ localStorage.setItem('pending_punches', JSON.stringify(pending)); }catch(e2){}
+                try{ _savePending(JSON.stringify(pending)); }catch(e2){}
             }
             updatePendingBadge();
         }
@@ -1678,12 +1710,14 @@ function nxConfirm(msg, title){
             const timeStr = offlineProcessData ? (offlineProcessData.timeStr || offlineProcessData.in_time || offlineProcessData.out_time || _nowTime) : _nowTime;
             
             // LATE MARK LOGIC
-            //   Production / Planning / Store : late after 09:10
-            //   Everyone else                 : late after 10:00
+            //   STAFF category (except no-flex depts) : late after 10:00 (flexible)
+            //   Everyone else (incl Production/Store) : late after 09:10
             const _dept = String((empData && empData.DEPARTMENT) || '').toUpperCase();
-            const _earlyList = String((window.NX_SETTINGS && window.NX_SETTINGS.earlyDepts) || 'PRODUCTION,STORE').toUpperCase().split(',').map(s=>s.trim()).filter(Boolean);
-            const _early = _earlyList.some(x => _dept.includes(x));
-            const lateCutoff = _early ? "09:10:00" : "10:00:00";
+            const _cat = String(((window.NX_SHIFTMAP||{})[String(empCode).toUpperCase()]||{}).category || (empData && empData.category) || '').toUpperCase();
+            const _noFlexList = String((window.NX_SETTINGS && window.NX_SETTINGS.earlyDepts) || 'PRODUCTION,STORE').toUpperCase().split(',').map(s=>s.trim()).filter(Boolean);
+            const _noFlex = _noFlexList.some(x => _dept.includes(x));
+            const _staff = _cat === 'STAFF' && !_noFlex;
+            const lateCutoff = _staff ? "10:00:00" : "09:10:00";
             const isLate = timeStr > lateCutoff;
 
             let imageBase64 = offlineProcessData ? offlineProcessData.imageBase64 : null;
@@ -2029,12 +2063,12 @@ function nxConfirm(msg, title){
                         // success -> remove THIS item immediately and persist (a mid-way close never re-runs or loses others)
                         const cur = JSON.parse(localStorage.getItem('pending_punches') || '[]');
                         const idx = cur.findIndex(x => JSON.stringify(x) === JSON.stringify(p));
-                        if(idx > -1){ cur.splice(idx, 1); localStorage.setItem('pending_punches', JSON.stringify(cur)); }
+                        if(idx > -1){ cur.splice(idx, 1); _savePending(JSON.stringify(cur)); }
                     } catch(e) {
                         // keep it; count the attempt so a permanently-bad item is visible, never silently dropped
                         const cur = JSON.parse(localStorage.getItem('pending_punches') || '[]');
                         const idx = cur.findIndex(x => JSON.stringify(x) === JSON.stringify(p));
-                        if(idx > -1){ cur[idx]._tries = (cur[idx]._tries || 0) + 1; localStorage.setItem('pending_punches', JSON.stringify(cur)); }
+                        if(idx > -1){ cur[idx]._tries = (cur[idx]._tries || 0) + 1; _savePending(JSON.stringify(cur)); }
                     }
                     updatePendingBadge();
                 }
@@ -2047,6 +2081,7 @@ function nxConfirm(msg, title){
         // ask the browser to protect our stored punches from being auto-cleared
         try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
         updatePendingBadge();
+        _rehydratePending();   // localStorage khaali? IndexedDB se offline punches wapas laao
         window.addEventListener('online', () => {
             document.getElementById('offlineBanner').classList.add('hidden');
             flushPendingPunches(false);
@@ -2054,6 +2089,46 @@ function nxConfirm(msg, title){
         // also flush every 45s in case the network was just slow (no offline/online event fired)
         setInterval(() => { if(navigator.onLine) flushPendingPunches(true); }, 15000);
         setInterval(refreshTodayCache, 600000);   // light safety net (10 min) — real-time checks are event-driven below
+
+        // ---- MOBILE OFFLINE-RECOVERY SCREEN — open  attendance.html?recover=1  (no console needed) ----
+        (function(){
+          if(!/[?&#]recover/i.test(location.href)) return;
+          function draw(){
+            let pending = [];
+            try{ pending = JSON.parse(localStorage.getItem('pending_punches') || '[]'); }catch(e){}
+            const old = document.getElementById('_recoverPanel'); if(old) old.remove();
+            const rows = pending.map((p,i) => `<tr><td style="padding:6px 4px">${i+1}</td><td style="padding:6px 4px;text-align:left">${(p.empName||p.empCode||'')}</td><td style="padding:6px 4px">${(p.type||'IN')}</td><td style="padding:6px 4px">${(p.timeStr||'')}</td><td style="padding:6px 4px">${(p.todayStr||'')}</td></tr>`).join('');
+            const el = document.createElement('div');
+            el.id = '_recoverPanel';
+            el.style.cssText = 'position:fixed;inset:0;z-index:999999;background:#0b1220;color:#fff;overflow-y:auto;padding:22px 18px;font-family:system-ui,-apple-system,sans-serif';
+            el.innerHTML = `
+              <h2 style="margin:0 0 6px;font-size:20px">Offline Attendance Recovery</h2>
+              <p style="color:#93c5fd;margin:0 0 18px;font-size:14px">Is device par abhi <b style="color:#fbbf24;font-size:18px">${pending.length}</b> offline punch pending hain.</p>
+              ${pending.length ? `
+                <button id="_recSync" style="width:100%;padding:15px;background:#22c55e;color:#052e16;border:none;border-radius:14px;font-size:16px;font-weight:800;margin-bottom:16px">&#8593; SYNC NOW (${pending.length})</button>
+                <div style="overflow-x:auto;background:#111a2e;border-radius:12px;padding:6px 10px"><table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr style="color:#93c5fd;border-bottom:1px solid #1e293b"><th style="padding:6px 4px">#</th><th style="padding:6px 4px;text-align:left">Name</th><th style="padding:6px 4px">Type</th><th style="padding:6px 4px">Time</th><th style="padding:6px 4px">Date</th></tr></thead><tbody>${rows}</tbody></table></div>
+              ` : `<div style="background:#1e293b;padding:18px;border-radius:14px;font-size:14px;line-height:1.6">Queue khaali hai. Matlab ya to sab <b>already sync</b> ho gaya, ya is device par offline data nahi tha. <br><br>Admin &#8594; Work Hours mein <b>aaj ka data</b> check karo — shayad wo sync ho chuka hai.</div>`}
+              <div id="_recStatus" style="margin-top:14px;color:#93c5fd;font-size:14px;min-height:20px"></div>
+              <button onclick="location.href=location.pathname" style="width:100%;padding:13px;background:#334155;color:#fff;border:none;border-radius:14px;margin-top:16px;font-size:15px">&#8592; Kiosk pe wapas jao</button>`;
+            document.body.appendChild(el);
+            const btn = document.getElementById('_recSync');
+            if(btn) btn.addEventListener('click', async () => {
+              const st = document.getElementById('_recStatus');
+              if(!navigator.onLine){ st.innerHTML = '<span style="color:#f87171">Internet nahi hai &#8212; connect karke dobara dabao.</span>'; return; }
+              if(typeof supabaseClient === 'undefined' || !supabaseClient){ st.innerHTML = '<span style="color:#fbbf24">Config abhi load ho raha hai &#8212; 5 second ruk ke dobara dabao.</span>'; return; }
+              btn.disabled = true; btn.innerText = 'Syncing...'; st.innerText = 'Records server par bheje ja rahe hain...';
+              try{
+                await flushPendingPunches(false);
+                const left = (JSON.parse(localStorage.getItem('pending_punches')||'[]')).length;
+                st.innerHTML = left === 0 ? '<span style="color:#22c55e;font-weight:700">&#10003; Sab sync ho gaya! Admin mein verify karo.</span>' : `<span style="color:#fbbf24">${left} abhi bhi baaki &#8212; button dobara dabao.</span>`;
+                setTimeout(draw, 1200);
+              }catch(e){ st.innerHTML = '<span style="color:#f87171">Sync fail: ' + e + '</span>'; btn.disabled=false; btn.innerHTML='&#8593; SYNC NOW'; }
+            });
+          }
+          async function boot(){ try{ await _rehydratePending(); }catch(e){} draw(); }
+          if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 900));
+          else setTimeout(boot, 900);
+        })();
         setTimeout(refreshTodayCache, 4000);
 
         // --- STREAMING_CHUNK: Presentation ---
