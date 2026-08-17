@@ -3,7 +3,7 @@
    Caches the app shell + all CDN libraries + face models the
    first time online, so a reload works even with NO internet.
    ============================================================ */
-const CACHE = 'nexus-attend-v4';
+const CACHE = 'nexus-attend-v5';
 
 // core files the app needs to boot (cached on install)
 const CORE = [
