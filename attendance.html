@@ -2076,6 +2076,25 @@ function nxConfirm(msg, title){
                     try {
                         if(p.type === 'LOG'){
                             await supabaseClient.from('deployment_logs').insert([{ employee_code: p.empCode, name: p.empName, line: p.line, date: p.todayStr, time: p.timeStr, status: 'MANPOWER_FULL' }]);
+                        } else if(p.type === 'OUT'){
+                            // ROBUST punch-out: directly set out_time on this person's row for the day.
+                            // (id-based update — does NOT depend on the fetch/routing that was silently dropping OUTs)
+                            const { data: rows, error: fe } = await supabaseClient.from('attendance')
+                                .select('id, in_time, out_time').eq('employee_code', p.empCode).eq('date', p.todayStr)
+                                .order('created_at', { ascending: true }).limit(5);
+                            if(fe) throw fe;
+                            const open = (rows||[]).find(r => !r.out_time || String(r.out_time).trim()==='') || (rows||[])[0];
+                            if(open && open.id != null){
+                                let totalStr = null;
+                                try{
+                                    const ms = new Date(p.todayStr+'T'+p.timeStr).getTime() - new Date(p.todayStr+'T'+String(open.in_time||'09:00:00').substring(0,8)).getTime();
+                                    if(ms > 0) totalStr = String(Math.floor(ms/3600000)).padStart(2,'0')+':'+String(Math.floor((ms%3600000)/60000)).padStart(2,'0')+':00';
+                                }catch(e){}
+                                const u = await supabaseClient.from('attendance').update({ out_time: p.timeStr, total_hours: totalStr }).eq('id', open.id);
+                                if(u.error) throw u.error;
+                            } else {
+                                await recordAttendance(p.empCode, p);   // no IN row found -> let the normal path handle it
+                            }
                         } else {
                             await recordAttendance(p.empCode, p);
                         }
