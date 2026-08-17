@@ -2128,6 +2128,35 @@ function nxConfirm(msg, title){
         setInterval(() => { if(navigator.onLine) flushPendingPunches(true); }, 15000);
         setInterval(refreshTodayCache, 600000);   // light safety net (10 min) — real-time checks are event-driven below
 
+        // ---- Recover locally-stored punches (today_punches) into the DB where the OUT (or IN) is missing ----
+        async function recoverLocalPunches(onProgress){
+            let m = {}; try{ m = JSON.parse(localStorage.getItem('today_punches') || '{}'); }catch(e){}
+            let checked = 0, fixedOut = 0, fixedIn = 0, total = 0;
+            Object.keys(m).forEach(d => total += Object.keys(m[d]||{}).length);
+            for(const day of Object.keys(m)){
+                for(const code of Object.keys(m[day])){
+                    const rec = m[day][code] || {}; checked++;
+                    if(onProgress) onProgress(checked, total);
+                    try{
+                        const { data: rows } = await supabaseClient.from('attendance')
+                            .select('id, in_time, out_time').eq('employee_code', code).eq('date', day)
+                            .order('created_at', { ascending: true }).limit(5);
+                        let row = (rows||[])[0];
+                        if(!row && rec.in){
+                            const ins = await supabaseClient.from('attendance').insert([{ employee_code: code, date: day, in_time: rec.in }]).select('id, in_time');
+                            row = ins.data && ins.data[0]; if(row) fixedIn++;
+                        }
+                        if(row && row.id != null && rec.out && (!row.out_time || String(row.out_time).trim()==='')){
+                            let totalStr = null;
+                            try{ const ms = new Date(day+'T'+rec.out).getTime() - new Date(day+'T'+String(row.in_time||rec.in||'09:00:00').substring(0,8)).getTime(); if(ms>0) totalStr = String(Math.floor(ms/3600000)).padStart(2,'0')+':'+String(Math.floor((ms%3600000)/60000)).padStart(2,'0')+':00'; }catch(e){}
+                            const u = await supabaseClient.from('attendance').update({ out_time: rec.out, total_hours: totalStr }).eq('id', row.id);
+                            if(!u.error) fixedOut++;
+                        }
+                    }catch(e){}
+                }
+            }
+            return { checked, fixedIn, fixedOut, total };
+        }
         // ---- MOBILE OFFLINE-RECOVERY SCREEN — open  attendance.html?recover=1  (no console needed) ----
         (function(){
           if(!/[?&#]recover/i.test(location.href)) return;
@@ -2147,6 +2176,10 @@ function nxConfirm(msg, title){
                 <div style="overflow-x:auto;background:#111a2e;border-radius:12px;padding:6px 10px"><table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr style="color:#93c5fd;border-bottom:1px solid #1e293b"><th style="padding:6px 4px">#</th><th style="padding:6px 4px;text-align:left">Name</th><th style="padding:6px 4px">Type</th><th style="padding:6px 4px">Time</th><th style="padding:6px 4px">Date</th></tr></thead><tbody>${rows}</tbody></table></div>
               ` : `<div style="background:#1e293b;padding:18px;border-radius:14px;font-size:14px;line-height:1.6">Queue khaali hai. Matlab ya to sab <b>already sync</b> ho gaya, ya is device par offline data nahi tha. <br><br>Admin &#8594; Work Hours mein <b>aaj ka data</b> check karo — shayad wo sync ho chuka hai.</div>`}
               <div id="_recStatus" style="margin-top:14px;color:#93c5fd;font-size:14px;min-height:20px"></div>
+              <div style="margin-top:18px;border-top:1px solid #1e293b;padding-top:16px">
+                <div style="color:#93c5fd;font-size:13px;margin-bottom:10px">Is device par local punch records (last 3 din, IN + OUT). Agar aaj ke OUT DB mein miss hain, ye button unhe DB mein daal dega:</div>
+                <button id="_recLocal" style="width:100%;padding:15px;background:#3b82f6;color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:800">&#8635; Local se DB fix karo (IN/OUT)</button>
+              </div>
               <button onclick="location.href=location.pathname" style="width:100%;padding:13px;background:#334155;color:#fff;border:none;border-radius:14px;margin-top:16px;font-size:15px">&#8592; Kiosk pe wapas jao</button>`;
             document.body.appendChild(el);
             const btn = document.getElementById('_recSync');
@@ -2161,6 +2194,18 @@ function nxConfirm(msg, title){
                 st.innerHTML = left === 0 ? '<span style="color:#22c55e;font-weight:700">&#10003; Sab sync ho gaya! Admin mein verify karo.</span>' : `<span style="color:#fbbf24">${left} abhi bhi baaki &#8212; button dobara dabao.</span>`;
                 setTimeout(draw, 1200);
               }catch(e){ st.innerHTML = '<span style="color:#f87171">Sync fail: ' + e + '</span>'; btn.disabled=false; btn.innerHTML='&#8593; SYNC NOW'; }
+            });
+            const lb = document.getElementById('_recLocal');
+            if(lb) lb.addEventListener('click', async () => {
+              const st = document.getElementById('_recStatus');
+              if(!navigator.onLine){ st.innerHTML = '<span style="color:#f87171">Internet nahi hai.</span>'; return; }
+              if(typeof supabaseClient === 'undefined' || !supabaseClient){ st.innerHTML = '<span style="color:#fbbf24">Config load ho raha hai &#8212; 5 sec baad dobara.</span>'; return; }
+              lb.disabled = true; lb.innerText = 'Fixing...';
+              try{
+                const r = await recoverLocalPunches((c,t) => { st.innerText = 'Checking ' + c + '/' + t + '...'; });
+                st.innerHTML = '<span style="color:#22c55e;font-weight:700">&#10003; Done &#8212; ' + r.fixedOut + ' OUT + ' + r.fixedIn + ' IN DB mein daale (' + r.checked + ' checked). Admin Work Hours mein verify karo.</span>';
+              }catch(e){ st.innerHTML = '<span style="color:#f87171">Fix fail: ' + e + '</span>'; }
+              lb.disabled = false; lb.innerHTML = '&#8635; Local se DB fix karo (IN/OUT)';
             });
           }
           async function boot(){ try{ await _rehydratePending(); }catch(e){} draw(); }
