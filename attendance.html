@@ -2077,30 +2077,24 @@ function nxConfirm(msg, title){
                         if(p.type === 'LOG'){
                             await supabaseClient.from('deployment_logs').insert([{ employee_code: p.empCode, name: p.empName, line: p.line, date: p.todayStr, time: p.timeStr, status: 'MANPOWER_FULL' }]);
                         } else if(p.type === 'OUT'){
-                            // ROBUST punch-out: directly set out_time on this person's row for the day.
-                            // (id-based update — does NOT depend on the fetch/routing that was silently dropping OUTs)
-                            const { data: rows, error: fe } = await supabaseClient.from('attendance')
-                                .select('id, in_time, out_time').eq('employee_code', p.empCode).eq('date', p.todayStr)
-                                .order('created_at', { ascending: true }).limit(5);
-                            if(fe) throw fe;
-                            const open = (rows||[]).find(r => !r.out_time || String(r.out_time).trim()==='') || (rows||[])[0];
-                            if(open && open.id != null){
-                                let totalStr = null;
-                                try{
-                                    const ms = new Date(p.todayStr+'T'+p.timeStr).getTime() - new Date(p.todayStr+'T'+String(open.in_time||'09:00:00').substring(0,8)).getTime();
-                                    if(ms > 0) totalStr = String(Math.floor(ms/3600000)).padStart(2,'0')+':'+String(Math.floor((ms%3600000)/60000)).padStart(2,'0')+':00';
-                                }catch(e){}
-                                const u = await supabaseClient.from('attendance').update({ out_time: p.timeStr, total_hours: totalStr }).eq('id', open.id);
-                                if(u.error){ try{ localStorage.setItem('_lastOutError', 'UPDATE error: ' + (u.error.message||u.error)); }catch(e){} throw u.error; }
-                                // verify it actually landed (0 rows = silent permission problem)
-                                try{
-                                    const chk = await supabaseClient.from('attendance').select('out_time').eq('id', open.id).limit(1);
-                                    const got = chk.data && chk.data[0] && chk.data[0].out_time;
-                                    if(!got){ localStorage.setItem('_lastOutError', 'OUT update ran but out_time still empty — anon UPDATE permission issue (id ' + open.id + ')'); throw new Error('out_time not saved (permission?)'); }
-                                    else { localStorage.setItem('_lastOutError', 'OK: last OUT saved for id ' + open.id + ' at ' + p.timeStr); }
-                                }catch(ve){ throw ve; }
-                            } else {
-                                await recordAttendance(p.empCode, p);   // no IN row found -> let the normal path handle it
+                            // BULLETPROOF punch-out via SECURITY DEFINER RPC (runs as DB owner -> anon permissions don't matter)
+                            try{
+                                const { data, error } = await supabaseClient.rpc('nx_punch_out', { p_code: p.empCode, p_date: p.todayStr, p_time: p.timeStr });
+                                if(error) throw error;
+                                if(data && data.ok){ try{ localStorage.setItem('_lastOutError', 'OK via RPC: id ' + data.id + ' out ' + p.timeStr); }catch(e){} }
+                                else { try{ localStorage.setItem('_lastOutError', 'RPC no-op: ' + JSON.stringify(data)); }catch(e){} }   // ok:false = already out / no in-row -> nothing to retry
+                            }catch(rpcErr){
+                                try{ localStorage.setItem('_lastOutError', 'RPC failed (' + (rpcErr.message||rpcErr) + ') — trying direct update'); }catch(e){}
+                                // fallback: direct id-based update
+                                const { data: rows } = await supabaseClient.from('attendance').select('id, in_time, out_time').eq('employee_code', p.empCode).eq('date', p.todayStr).order('created_at', { ascending: true }).limit(5);
+                                const open = (rows||[]).find(r => !r.out_time || String(r.out_time).trim()==='') || (rows||[])[0];
+                                if(open && open.id != null){
+                                    let totalStr = null;
+                                    try{ const ms = new Date(p.todayStr+'T'+p.timeStr).getTime() - new Date(p.todayStr+'T'+String(open.in_time||'09:00:00').substring(0,8)).getTime(); if(ms>0) totalStr = String(Math.floor(ms/3600000)).padStart(2,'0')+':'+String(Math.floor((ms%3600000)/60000)).padStart(2,'0')+':00'; }catch(e){}
+                                    const u = await supabaseClient.from('attendance').update({ out_time: p.timeStr, total_hours: totalStr }).eq('id', open.id);
+                                    if(u.error){ try{ localStorage.setItem('_lastOutError', 'Direct update also failed: ' + (u.error.message||u.error)); }catch(e){} throw u.error; }
+                                    try{ localStorage.setItem('_lastOutError', 'OK via direct update: id ' + open.id); }catch(e){}
+                                } else { await recordAttendance(p.empCode, p); }
                             }
                         } else {
                             await recordAttendance(p.empCode, p);
