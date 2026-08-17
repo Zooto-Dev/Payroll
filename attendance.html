@@ -1192,8 +1192,8 @@ function nxConfirm(msg, title){
                     trackUnknown(true, match.label !== 'unknown' && match.distance < 0.50);
                     if(NX_DEBUG) hud('detect:' + (_t1-_t0).toFixed(0) + ' desc:' + (_t2-_t1).toFixed(0) + 'ms  best:' + match.label + ' dist:' + match.distance.toFixed(3) + ' conf:' + matchConfidence);
 
-                    const CONFIDENT = 0.42;   // clearly this person -> one scan is enough (fast)
-                    const STRICT    = 0.48;   // outer limit
+                    const CONFIDENT = 0.40;   // clearly this person -> one scan is enough (a touch stricter)
+                    const STRICT    = 0.46;   // outer limit (stricter -> fewer wrong matches)
                     // Compute best & second-best distance so we can guarantee it's not someone else.
                     let ambiguous = false, greyZone = false, matchOk = false;
                     if (match.label !== 'unknown' && match.distance < STRICT) {
@@ -1209,7 +1209,7 @@ function nxConfirm(msg, title){
                         }
                         greyZone = best >= CONFIDENT;                 // borderline match
                         // Require a clear gap to the NEXT DIFFERENT person. Wider gap in the grey zone.
-                        const needGap = greyZone ? 0.20 : 0.14;
+                        const needGap = greyZone ? 0.25 : 0.18;   // require a bigger gap from the 2nd-best person -> avoids picking the wrong face
                         ambiguous = (secondLabel && secondLabel !== bestLabel) ? ((second - best) < needGap) : false;
                         matchOk = !ambiguous;
                     }
@@ -1395,6 +1395,25 @@ function nxConfirm(msg, title){
         setInterval(() => {
             if (!_punchInProgress && Date.now() - _lastPunchActivity > 3 * 60 * 1000) location.reload();
         }, 6 * 60 * 60 * 1000);
+        // ---- CAMERA FREEZE WATCHDOG: if the video stops advancing while scanning, restart the camera ----
+        let _lastVideoTime = -1, _videoStallCount = 0, _cameraRestarting = false;
+        setInterval(async () => {
+            try{
+                if(_punchInProgress || !isDetecting){ _videoStallCount = 0; return; }
+                if(!video || video.readyState < 2){ return; }
+                if(video.currentTime === _lastVideoTime){
+                    _videoStallCount++;
+                    if(_videoStallCount >= 3 && !_cameraRestarting){   // ~6s frozen -> camera stuck on last frame
+                        _videoStallCount = 0; _cameraRestarting = true;
+                        console.warn('Camera frozen — restarting to clear the stuck last face.');
+                        try{ if(mediaStream){ mediaStream.getTracks().forEach(t => { try{ t.stop(); }catch(e){} }); } }catch(e){}
+                        try{ await startCamera(); }catch(e){}
+                        _cameraRestarting = false;
+                    }
+                } else { _videoStallCount = 0; }
+                _lastVideoTime = video.currentTime;
+            }catch(e){ _cameraRestarting = false; }
+        }, 2000);
         /* ============ AI ANTI-SPOOFING (MiniFASNet, silent) ============
            A neural network trained on tens of thousands of real faces vs
            printed photos / phone screens / video replays. It reads the actual
