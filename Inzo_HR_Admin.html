@@ -1246,7 +1246,7 @@ body.no-confidential .confidential-col{display:none!important}
           <select id="setWeekOff" class="inp"><option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option></select>
         </div>
         <div><label class="lbl">Lates = Half Day LOP</label><input id="setLates" type="number" class="inp" value="3" title="Half-day LOP after this many lates"></div>
-        <div class="lg:col-span-2"><label class="lbl">Early Late-Cutoff Departments <span class="text-[10px]" style="color:var(--muted)">(late after 09:10; others after 10:00)</span></label><input id="setEarlyDepts" class="inp" value="PRODUCTION,STORE" title="Comma separated department names. Employees in these departments are marked late after 09:10 instead of 10:00."></div>
+        <div class="lg:col-span-2"><label class="lbl">No-Flexible Departments <span class="text-[10px]" style="color:var(--muted)">(STAFF = late after 10:00; these depts &amp; all workers = late after 09:10)</span></label><input id="setEarlyDepts" class="inp" value="PRODUCTION,STORE" title="Comma separated. STAFF-category employees get flexible 10:00 cutoff, EXCEPT these departments (and all WORKER-category staff) who are late after 09:10."></div>
         <div><label class="lbl">Min days/week to earn Weekly Off</label><input id="setMinWO" type="number" class="inp" value="4" min="1" max="6" title="Weekly off is paid only if this many days were attended in the week before it"></div>
         <div><label class="lbl">PF % (of Basic)</label><input id="setPF" type="number" step="0.01" class="inp" value="12"></div>
         <div><label class="lbl">PF Basic Cap (₹, 0 = no cap)</label><input id="setPFCap" type="number" class="inp" value="15000"></div>
@@ -1951,16 +1951,19 @@ function isLateFor(inTime, s){
   const [th,tm] = t.split(':').map(Number);
   return (th*60+tm) > cut;
 }
-// Late rule: "early" departments (from Settings) late after 09:10, everyone else after 10:00.
-function isLateByDept(inTime, dept){
+// Late rule: STAFF (10:00 flexible) EXCEPT the no-flex depts (Production/Store); everyone else 09:10.
+function catOf(code){ return String((((typeof PROFILES!=='undefined'?PROFILES:{})||{})[code]||{}).category||'').toUpperCase(); }
+function isLateNow(inTime, dept, category){
   if(!inTime) return false;
   const d = String(dept||'').toUpperCase();
-  const earlyList = String((SETTINGS && SETTINGS.earlyDepts) || 'PRODUCTION,STORE').toUpperCase().split(',').map(s=>s.trim()).filter(Boolean);
-  const early = earlyList.some(x => d.includes(x));
-  const cut = early ? (9*60+10) : (10*60);
-  const [th,tm] = inTime.substring(0,5).split(':').map(Number);
+  const noFlexList = String((SETTINGS && SETTINGS.earlyDepts) || 'PRODUCTION,STORE').toUpperCase().split(',').map(s=>s.trim()).filter(Boolean);
+  const noFlex = noFlexList.some(x => d.includes(x));
+  const staff = String(category||'').toUpperCase() === 'STAFF' && !noFlex;
+  const cut = staff ? (10*60) : (9*60+10);
+  const [th,tm] = String(inTime).substring(0,5).split(':').map(Number);
   return (th*60+tm) > cut;
 }
+function isLateByDept(inTime, dept){ return isLateNow(inTime, dept, ''); }
 function hoursOf(hhmm){
   if(!hhmm) return 0;
   const [h,m] = hhmm.split(':').map(Number);
@@ -2516,6 +2519,9 @@ setTimeout(nxHideSplash, 7000); // failsafe
 nxLoadConfig().then(c => {
   SUPABASE_URL = c.url; SUPABASE_ANON_KEY = c.key;
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // valid last day of a month (September/April/June/Nov have 30, Feb 28/29 — never use '-31')
+  window._lastDay = function(ym){ const p = String(ym).split('-'); const y = +p[0], m = +p[1]; return `${ym}-${String(new Date(y, m, 0).getDate()).padStart(2,'0')}`; };
+
   return sb.auth.getSession();
 }).then(({ data:{ session } }) => {
   if(session) enterApp();
@@ -3041,7 +3047,7 @@ async function loadDashboard(){
     const [attRes, slipRes, monthRes, lvRes, wfhRes] = await Promise.all([
       sb.from('attendance').select('*').eq('date', today).order('created_at', { ascending:false }),
       sb.from('payslips').select('net_pay, month').order('created_at', { ascending:false }).limit(200),
-      sb.from('attendance').select('employee_code, Name, in_time, is_late').gte('date', ym + '-01').lte('date', ym + '-31'),
+      sb.from('attendance').select('employee_code, Name, in_time, is_late').gte('date', ym + '-01').lte('date', _lastDay(ym)),
       sb.from('leaves').select('employee_code').eq('status','APPROVED').lte('from_date', today).gte('to_date', today),
       sb.from('ess_att_requests').select('employee_code, req_type').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).eq('date', today)
     ]);
@@ -3623,7 +3629,7 @@ $('epSaveBtn').addEventListener('click', async () => {
 /* ---------------- Attendance data (shared) ---------------- */
 async function fetchMonthAttendance(ym){
   const { data, error } = await sb.from('attendance').select('employee_code, Name, date, in_time, out_time, total_hours, is_late')
-    .gte('date', ym + '-01').lte('date', ym + '-31');
+    .gte('date', ym + '-01').lte('date', _lastDay(ym));
   if(error) throw error;
   return data || [];
 }
@@ -4498,9 +4504,14 @@ $('bulkTemplBtn').addEventListener('click', async () => {
   try{
     const active = EMP.filter(e => String(e.Status||'ACTIVE').toUpperCase() === 'ACTIVE');
     const unitNm = c => { const e = EMP.find(x => x['Employee code'] === c) || {}; const u = e.UNIT || String(c||'').slice(0,4); const un = ((SETTINGS&&SETTINGS.units)||[]).find(x => x.code === u); return un ? un.name : (u||''); };
-    // existing punches for the range
-    const { data: att } = await sb.from('attendance').select('employee_code, date, in_time, out_time').gte('date', dates[0]).lte('date', dates[dates.length-1]).limit(100000);
-    const exMap = {}; (att||[]).forEach(r => { exMap[String(r.employee_code).toUpperCase() + '|' + r.date] = r; });
+    // existing punches for the range — PAGINATED (Supabase caps a single query at ~1000 rows)
+    let att = [];
+    for(let pf = 0; pf < 500000; pf += 1000){
+      const { data: pg } = await sb.from('attendance').select('employee_code, date, in_time, out_time').gte('date', dates[0]).lte('date', dates[dates.length-1]).order('date').range(pf, pf + 999);
+      att = att.concat(pg || []);
+      if(!pg || pg.length < 1000) break;
+    }
+    const exMap = {}; att.forEach(r => { exMap[String(r.employee_code).toUpperCase() + '|' + r.date] = r; });
     const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
     const head = ['Employee Code','Employee Name','Department','Designation','Unit','Date','IN (HH:MM)','OUT (HH:MM)'];
     const lines = [head.join(',')];
@@ -4568,22 +4579,20 @@ $('bulkUploadBtn').addEventListener('click', async () => {
     const toInsert = [], toUpdate = [];
     recs.forEach(x => {
       const key = x.code + '|' + x.date;
-      const late = deptOf(x.code).includes('PLANNING') ? (x.inT > '10:00:00') : (x.inT > '09:10:00');
+      const late = isLateNow(x.inT, deptOf(x.code), catOf(x.code));
       const row = { employee_code: x.code, Name: nameOf(x.code), date: x.date, in_time: x.inT, out_time: x.outT, is_late: late };
       if(exSet.has(key)){ if(overwrite) toUpdate.push(row); }
       else toInsert.push(row);
     });
 
     let ins = 0, upd = 0;
-    for(let i = 0; i < toInsert.length; i += 500){
-      const chunk = toInsert.slice(i, i + 500);
-      const { error } = await sb.from('attendance').insert(chunk);
-      if(error) throw error; ins += chunk.length;
-      res.innerHTML = `<span style="color:var(--muted)">Inserting… ${ins}/${toInsert.length}</span>`;
-    }
-    for(const row of toUpdate){
-      const { error } = await sb.from('attendance').update({ in_time: row.in_time, out_time: row.out_time, is_late: row.is_late }).eq('employee_code', row.employee_code).eq('date', row.date);
-      if(!error) upd++;
+    const allRows = toInsert.concat(toUpdate);
+    for(let i = 0; i < allRows.length; i += 300){
+      const chunk = allRows.slice(i, i + 300);
+      const { data: bres, error } = await sb.rpc('nx_bulk_att', { p_rows: chunk });
+      if(error) throw error;
+      ins += (bres && bres.inserted) || 0; upd += (bres && bres.updated) || 0;
+      res.innerHTML = `<span style="color:var(--muted)">Applying… ${Math.min(i + 300, allRows.length)}/${allRows.length} (added ${ins}, updated ${upd})</span>`;
     }
     res.innerHTML = `<div class="p-2 rounded-lg" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534">
       <b>Done ✓</b> — ${ins} new attendance added${overwrite ? `, ${upd} updated` : ''}.
@@ -4651,7 +4660,7 @@ async function loadDeployment(){
   if(!LINES.length){ $('deployCard').classList.add('hidden'); return; }
   $('deployCard').classList.remove('hidden');
   const today = todayISO();
-  const wfhRegRes = await sb.from('ess_att_requests').select('employee_code, date, req_type').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).gte('date', ym + '-01').lte('date', ym + '-31').then(r => r).catch(() => ({ data: [] }));
+  const wfhRegRes = await sb.from('ess_att_requests').select('employee_code, date, req_type').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).gte('date', ym + '-01').lte('date', _lastDay(ym)).then(r => r).catch(() => ({ data: [] }));
   const wfhRegMap = {}, gateSLRegMap = {}, gateHDRegMap = {};
   (wfhRegRes.data || []).forEach(w => {
     if(w.req_type === 'WFH') (wfhRegMap[w.employee_code] = wfhRegMap[w.employee_code] || new Set()).add(w.date);
@@ -4709,10 +4718,10 @@ async function runPayroll(){
 
     // year leaves (for accrual balance) + approved OT for the month
     const [yearLvRes, otRes, ldRes, wfhRes] = await Promise.all([
-      sb.from('leaves').select('employee_code, leave_type, from_date, to_date, days, status').eq('status','APPROVED').gte('from_date', ym.slice(0,4) + '-01-01').lte('from_date', ym + '-31'),
-      sb.from('ot_requests').select('employee_code, ot_date, hours').eq('status','APPROVED').gte('ot_date', ym + '-01').lte('ot_date', ym + '-31'),
+      sb.from('leaves').select('employee_code, leave_type, from_date, to_date, days, status').eq('status','APPROVED').gte('from_date', ym.slice(0,4) + '-01-01').lte('from_date', _lastDay(ym)),
+      sb.from('ot_requests').select('employee_code, ot_date, hours').eq('status','APPROVED').gte('ot_date', ym + '-01').lte('ot_date', _lastDay(ym)),
       sb.from('leave_decisions').select('*'),
-      sb.from('ess_att_requests').select('employee_code, date, req_type').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).gte('date', ym + '-01').lte('date', ym + '-31')
+      sb.from('ess_att_requests').select('employee_code, date, req_type').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).gte('date', ym + '-01').lte('date', _lastDay(ym))
     ]);
     // approved WFH days: paid like present, but shown as WFH (no punch needed)
     const wfhMap = {};      // code -> Set of WFH dates
@@ -5403,9 +5412,9 @@ async function loadMis(){
 
   // month attendance + expenses (both months) parallel
   const [attRes, exRes, exPrevRes] = await Promise.all([
-    sb.from('attendance').select('employee_code, date, is_late').gte('date', ym + '-01').lte('date', ym + '-31').limit(50000),
-    sb.from('expenses').select('*').gte('expense_date', ym + '-01').lte('expense_date', ym + '-31').limit(5000),
-    sb.from('expenses').select('amount, status').gte('expense_date', prevYm + '-01').lte('expense_date', prevYm + '-31').limit(5000)
+    sb.from('attendance').select('employee_code, date, is_late').gte('date', ym + '-01').lte('date', _lastDay(ym)).limit(50000),
+    sb.from('expenses').select('*').gte('expense_date', ym + '-01').lte('expense_date', _lastDay(ym)).limit(5000),
+    sb.from('expenses').select('amount, status').gte('expense_date', prevYm + '-01').lte('expense_date', _lastDay(prevYm)).limit(5000)
   ]);
   const att = (attRes.data || []).filter(r => codeSet.has(r.employee_code));
   const ex = exRes.data || [];
@@ -5458,7 +5467,7 @@ async function loadMis(){
   $('misExCat').innerHTML = misBar(Object.entries(byK(exValid, x => x.category)).map(([k, v]) => ({ label: k, value: v })).sort((a,b) => b.value - a.value), r => fmtINR(r.value), null, 'excat');
   // 6-month trend
   const months = []; for(let i = 5; i >= 0; i--){ const d = new Date(y, m - 1 - i, 1); months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`); }
-  const trendRes = await sb.from('expenses').select('amount, expense_date, status').gte('expense_date', months[0] + '-01').lte('expense_date', months[5] + '-31').limit(20000);
+  const trendRes = await sb.from('expenses').select('amount, expense_date, status').gte('expense_date', months[0] + '-01').lte('expense_date', _lastDay(months[5])).limit(20000);
   const tG = {}; (trendRes.data||[]).filter(x => x.status !== 'REJECTED').forEach(x => { const k = String(x.expense_date).slice(0,7); tG[k] = (tG[k]||0) + (Number(x.amount)||0); });
   const mn = ym2 => ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(ym2.slice(5))] + ' ' + ym2.slice(2,4);
   $('misExTrend').innerHTML = misBar(months.map(k => ({ label: mn(k), value: tG[k] || 0, key: k })), r => fmtINR(r.value), (r, i) => months[i] === ym ? '#1f4b9b' : '#94a3b8', 'extrend');
@@ -5538,7 +5547,7 @@ async function openMisDetail(kind, key){
       const { data } = await sb.from('expenses').select('*').eq('status','PENDING').order('expense_date', { ascending: false }).limit(2000);
       list = data || [];
     } else if(kind === 'extrend'){
-      const { data } = await sb.from('expenses').select('*').gte('expense_date', key + '-01').lte('expense_date', key + '-31').neq('status','REJECTED').limit(5000);
+      const { data } = await sb.from('expenses').select('*').gte('expense_date', key + '-01').lte('expense_date', _lastDay(key)).neq('status','REJECTED').limit(5000);
       list = data || [];
     } else {
       list = S.exValid.filter(x =>
@@ -5835,8 +5844,9 @@ document.body.addEventListener('click', async e => {
                 const emp = EMP.find(e => String(e['Employee code']).toUpperCase() === String(r.employee_code).toUpperCase());
                 const dept = String((emp && emp.DEPARTMENT)||'').toUpperCase();
                 const S = getSettings();
-                const early = String((S && S.earlyDepts)||'PRODUCTION,STORE').toUpperCase().split(',').some(x => x.trim() && dept.includes(x.trim()));
-                const cut = (early ? 9*60+10 : 10*60) + 3*60;   // + 3-hour short-leave grace
+                const noFlex = String((S && S.earlyDepts)||'PRODUCTION,STORE').toUpperCase().split(',').some(x => x.trim() && dept.includes(x.trim()));
+                const staff = String((PROFILES[String(r.employee_code).toUpperCase()]||{}).category||'').toUpperCase()==='STAFF' && !noFlex;
+                const cut = (staff ? 10*60 : 9*60+10) + 3*60;   // base cutoff + 3-hour short-leave grace
                 late = (Number(m[1])*60 + Number(m[2])) > cut;
               }
             }
@@ -7034,8 +7044,8 @@ async function checkLeaveConflicts(){
   try{
     const ym = new Date().toISOString().slice(0,7);
     const [lvRes, attRes] = await Promise.all([
-      sb.from('leaves').select('*').eq('status','APPROVED').lte('from_date', ym + '-31').gte('to_date', ym + '-01'),
-      sb.from('attendance').select('employee_code, date').gte('date', ym + '-01').lte('date', ym + '-31').limit(50000)
+      sb.from('leaves').select('*').eq('status','APPROVED').lte('from_date', _lastDay(ym)).gte('to_date', ym + '-01'),
+      sb.from('attendance').select('employee_code, date').gte('date', ym + '-01').lte('date', _lastDay(ym)).limit(50000)
     ]);
     const attSet = new Set((attRes.data||[]).map(r => r.employee_code + '|' + r.date));
     const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
@@ -7994,7 +8004,7 @@ async function loadReports(){
     const ym = todayISO().slice(0,7);
     const [slipRes, attRes, exitRes] = await Promise.all([
       sb.from('payslips').select('month, net_pay, data').order('month', { ascending:true }),
-      sb.from('attendance').select('date, employee_code').gte('date', ym + '-01').lte('date', ym + '-31'),
+      sb.from('attendance').select('date, employee_code').gte('date', ym + '-01').lte('date', _lastDay(ym)),
       sb.from('exits').select('lwd, status')
     ]);
     const emps = activeEmps();
@@ -8183,9 +8193,9 @@ async function renderLeaveDecisions(){
   if(dim - now.getDate() > 2){ if(card) card.remove(); return; } // only in the last 2 days
   const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const [lvRes, ldRes, attRes] = await Promise.all([
-    sb.from('leaves').select('employee_code, leave_type, days').eq('status','APPROVED').gte('from_date', ym + '-01').lte('from_date', ym + '-31'),
+    sb.from('leaves').select('employee_code, leave_type, days').eq('status','APPROVED').gte('from_date', ym + '-01').lte('from_date', _lastDay(ym)),
     sb.from('leave_decisions').select('employee_code').eq('month', ym),
-    sb.from('attendance').select('employee_code, in_time').gte('date', ym + '-01').lte('date', ym + '-31')
+    sb.from('attendance').select('employee_code, in_time').gte('date', ym + '-01').lte('date', _lastDay(ym))
   ]);
   if(ldRes.error) return; // V13 not run yet
   const used = {};
