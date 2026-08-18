@@ -1619,6 +1619,16 @@ function nxConfirm(msg, title){
                 }
             }catch(e){}
         }
+        async function uploadPunchPhotoBg(empCode, imageBase64, punchType, rowId){
+            try{
+                const fileName = `corp_photos/${empCode}_${Date.now()}.jpg`;
+                const blob = dataURItoBlob(imageBase64);
+                const up = await supabaseClient.storage.from('attendance-photos').upload(fileName, blob, { contentType: 'image/jpeg', cacheControl: '86400' });
+                if(up && up.error) return;
+                const url = supabaseUrl + '/storage/v1/object/public/attendance-photos/' + fileName;
+                await supabaseClient.rpc('nx_attach_photo', { p_id: rowId, p_kind: punchType === 'IN' ? 'in' : 'out', p_url: url });
+            }catch(e){}
+        }
         function queuePunch(item){
             let pending = JSON.parse(localStorage.getItem('pending_punches') || '[]');
             pending.push(item);
@@ -1830,17 +1840,44 @@ function nxConfirm(msg, title){
                         }
                     }
                 }
-                queuePunch({ empCode, todayStr, timeStr, imageBase64, type: punchType, is_late: isLate, empName });
-                // remember locally so the next scan gives the correct next action
-                setLocalPunch(empCode, todayStr, punchType === 'IN' ? 'in' : 'out', timeStr);
+                // ======== DIRECT-TO-DB FIRST ========
+                // Punch goes STRAIGHT to the database (SECURITY DEFINER RPC). Success shows only
+                // after the DB confirms. The local queue is now ONLY an emergency net-down backup,
+                // and in that case the screen clearly says OFFLINE — no more silent local-only punches.
+                let dbSaved = false, dbRowId = null, dbWhy = '';
+                if (navigator.onLine && typeof supabaseClient !== 'undefined' && supabaseClient) {
+                    try {
+                        const rpcP = (punchType === 'IN')
+                            ? supabaseClient.rpc('nx_punch_in',  { p_code: empCode, p_name: empName || '', p_date: todayStr, p_time: timeStr, p_late: !!isLate })
+                            : supabaseClient.rpc('nx_punch_out', { p_code: empCode, p_date: todayStr, p_time: timeStr });
+                        const tP = new Promise(res => setTimeout(() => res({ _timeout: true }), 8000));
+                        const r = await Promise.race([rpcP, tP]);
+                        if (r && r._timeout) { dbWhy = 'network slow (8s timeout)'; }
+                        else if (r.error) { dbWhy = (r.error.message || String(r.error)); }
+                        else if (r.data && r.data.ok) { dbSaved = true; dbRowId = r.data.id || null; }
+                        else { dbSaved = true; dbWhy = (r.data && r.data.reason) || ''; }   // already_in / no_open_in_row -> done, nothing to queue
+                    } catch(e) { dbWhy = (e && e.message) || String(e); }
+                }
 
+                setLocalPunch(empCode, todayStr, punchType === 'IN' ? 'in' : 'out', timeStr);
                 lastPunchTime.set(empCode, now);
-                let msg = speakName(empName) + (punchType === 'IN' ? ", aapka punch in safal raha." : ", aapka punch out safal raha.");
-                if(punchType === 'IN' && isLate) msg += " Dhyan rahe, aap late hain.";
-                speakText(msg);
-                showSuccessUI(empData, empName, imageBase64, timeStr, navigator.onLine ? punchType : punchType + " (OFFLINE)");
-                // push to the server within seconds (background — the person has already left)
-                if (navigator.onLine) setTimeout(() => flushPendingPunches(true), 1200);
+
+                if (dbSaved) {
+                    let msg = speakName(empName) + (punchType === 'IN' ? ", aapka punch in safal raha." : ", aapka punch out safal raha.");
+                    if(punchType === 'IN' && isLate) msg += " Dhyan rahe, aap late hain.";
+                    speakText(msg);
+                    showSuccessUI(empData, empName, imageBase64, timeStr, punchType);
+                    nxSyncBanner('ok', 'Server saved \u2713 ' + (empName || empCode));
+                    if (dbRowId && imageBase64) uploadPunchPhotoBg(empCode, imageBase64, punchType, dbRowId);   // photo attaches in background
+                } else {
+                    // network genuinely down / DB unreachable -> emergency local queue, said OUT LOUD and shown clearly
+                    queuePunch({ empCode, todayStr, timeStr, imageBase64, type: punchType, is_late: isLate, empName });
+                    let msg = speakName(empName) + (punchType === 'IN' ? ", punch in ho gaya." : ", punch out ho gaya.") + " Network nahi hai, record baad mein sync hoga.";
+                    speakText(msg);
+                    showSuccessUI(empData, empName, imageBase64, timeStr, punchType + " (OFFLINE \u2014 sync baaki)");
+                    nxSyncBanner('err', 'OFFLINE \u2014 DB tak nahi gaya (' + (dbWhy || 'no network') + '). Queue mein hai, net aate hi sync hoga.');
+                    if (navigator.onLine) setTimeout(() => flushPendingPunches(true), 1500);
+                }
             };
 
             // INSTANT MODE: every live scan confirms locally in <1s. The network-touching
