@@ -2055,6 +2055,26 @@ function nxConfirm(msg, title){
             notify("Internet disconnected. Ready for offline punches.", "error");
         });
 
+        // On-screen sync status: red = punches are NOT reaching the database (shows the real reason)
+        function nxSyncBanner(kind, msg){
+            let b = document.getElementById('nxSyncBanner');
+            if(kind === 'hide'){ if(b) b.remove(); return; }
+            if(!b){
+                b = document.createElement('div');
+                b.id = 'nxSyncBanner';
+                b.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:99998;padding:10px 14px;border-radius:12px;font-size:13px;font-weight:700;font-family:system-ui,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.35);word-break:break-word';
+                document.body.appendChild(b);
+            }
+            if(kind === 'ok'){
+                b.style.background = '#14532d'; b.style.color = '#bbf7d0';
+                b.textContent = msg;
+                clearTimeout(b._t); b._t = setTimeout(() => { try{ b.remove(); }catch(e){} }, 4000);
+            } else {
+                b.style.background = '#7f1d1d'; b.style.color = '#fecaca';
+                b.textContent = msg;
+                clearTimeout(b._t);   // error stays until it's fixed
+            }
+        }
         function updatePendingBadge(){
             try{
                 const n = (JSON.parse(localStorage.getItem('pending_punches') || '[]')).length;
@@ -2104,6 +2124,7 @@ function nxConfirm(msg, title){
                                 if(eIn) throw eIn;
                                 _inDone = true;
                                 try{ localStorage.setItem('_lastInError', (rIn && rIn.ok) ? ('OK via RPC: ' + p.empCode + ' ' + p.timeStr) : ('RPC no-op: ' + JSON.stringify(rIn))); }catch(e){}
+                                nxSyncBanner('ok', 'Server saved \u2713 ' + (p.empName || p.empCode));
                             }catch(inErr){
                                 try{ localStorage.setItem('_lastInError', 'RPC failed (' + (inErr.message||inErr) + ') — using old path'); }catch(e){}
                                 await recordAttendance(p.empCode, p);   // old path (needs anon INSERT permission)
@@ -2122,6 +2143,10 @@ function nxConfirm(msg, title){
                     updatePendingBadge();
                 }
                 const left = (JSON.parse(localStorage.getItem('pending_punches') || '[]')).length;
+                if(left > 0){
+                    const why = localStorage.getItem('_lastInError') || localStorage.getItem('_lastOutError') || 'unknown';
+                    nxSyncBanner('err', 'DB SYNC FAIL (' + left + ' pending): ' + why);
+                } else { nxSyncBanner('hide'); }
                 if(left === 0) refreshTodayCache();   // queue empty -> immediately align local with the server
                 if(!silent && left === 0) notify("All offline data synced!", "success");
                 if(!silent && left > 0) notify(left + " punch(es) could not sync yet — will keep retrying.", "error");
