@@ -1192,8 +1192,8 @@ function nxConfirm(msg, title){
                     trackUnknown(true, match.label !== 'unknown' && match.distance < 0.50);
                     if(NX_DEBUG) hud('detect:' + (_t1-_t0).toFixed(0) + ' desc:' + (_t2-_t1).toFixed(0) + 'ms  best:' + match.label + ' dist:' + match.distance.toFixed(3) + ' conf:' + matchConfidence);
 
-                    const CONFIDENT = 0.40;   // clearly this person -> one scan is enough (a touch stricter)
-                    const STRICT    = 0.46;   // outer limit (stricter -> fewer wrong matches)
+                    const CONFIDENT = 0.42;   // clearly this person -> one scan is enough (fast)
+                    const STRICT    = 0.48;   // outer limit
                     // Compute best & second-best distance so we can guarantee it's not someone else.
                     let ambiguous = false, greyZone = false, matchOk = false;
                     if (match.label !== 'unknown' && match.distance < STRICT) {
@@ -1209,7 +1209,7 @@ function nxConfirm(msg, title){
                         }
                         greyZone = best >= CONFIDENT;                 // borderline match
                         // Require a clear gap to the NEXT DIFFERENT person. Wider gap in the grey zone.
-                        const needGap = greyZone ? 0.25 : 0.18;   // require a bigger gap from the 2nd-best person -> avoids picking the wrong face
+                        const needGap = greyZone ? 0.20 : 0.14;
                         ambiguous = (secondLabel && secondLabel !== bestLabel) ? ((second - best) < needGap) : false;
                         matchOk = !ambiguous;
                     }
@@ -1403,7 +1403,7 @@ function nxConfirm(msg, title){
                 if(!video || video.readyState < 2){ return; }
                 if(video.currentTime === _lastVideoTime){
                     _videoStallCount++;
-                    if(_videoStallCount >= 3 && !_cameraRestarting){   // ~6s frozen -> camera stuck on last frame
+                    if(_videoStallCount >= 8 && !_cameraRestarting){   // ~16s truly frozen -> camera stuck
                         _videoStallCount = 0; _cameraRestarting = true;
                         console.warn('Camera frozen — restarting to clear the stuck last face.');
                         try{ if(mediaStream){ mediaStream.getTracks().forEach(t => { try{ t.stop(); }catch(e){} }); } }catch(e){}
@@ -2097,7 +2097,17 @@ function nxConfirm(msg, title){
                                 } else { await recordAttendance(p.empCode, p); }
                             }
                         } else {
-                            await recordAttendance(p.empCode, p);
+                            // IN — BULLETPROOF via SECURITY DEFINER RPC (anon permissions don't matter)
+                            let _inDone = false;
+                            try{
+                                const { data: rIn, error: eIn } = await supabaseClient.rpc('nx_punch_in', { p_code: p.empCode, p_name: p.empName || '', p_date: p.todayStr, p_time: p.timeStr, p_late: !!p.is_late });
+                                if(eIn) throw eIn;
+                                _inDone = true;
+                                try{ localStorage.setItem('_lastInError', (rIn && rIn.ok) ? ('OK via RPC: ' + p.empCode + ' ' + p.timeStr) : ('RPC no-op: ' + JSON.stringify(rIn))); }catch(e){}
+                            }catch(inErr){
+                                try{ localStorage.setItem('_lastInError', 'RPC failed (' + (inErr.message||inErr) + ') — using old path'); }catch(e){}
+                                await recordAttendance(p.empCode, p);   // old path (needs anon INSERT permission)
+                            }
                         }
                         // success -> remove THIS item immediately and persist (a mid-way close never re-runs or loses others)
                         const cur = JSON.parse(localStorage.getItem('pending_punches') || '[]');
@@ -2176,6 +2186,10 @@ function nxConfirm(msg, title){
                 <button id="_recSync" style="width:100%;padding:15px;background:#22c55e;color:#052e16;border:none;border-radius:14px;font-size:16px;font-weight:800;margin-bottom:16px">&#8593; SYNC NOW (${pending.length})</button>
                 <div style="overflow-x:auto;background:#111a2e;border-radius:12px;padding:6px 10px"><table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr style="color:#93c5fd;border-bottom:1px solid #1e293b"><th style="padding:6px 4px">#</th><th style="padding:6px 4px;text-align:left">Name</th><th style="padding:6px 4px">Type</th><th style="padding:6px 4px">Time</th><th style="padding:6px 4px">Date</th></tr></thead><tbody>${rows}</tbody></table></div>
               ` : `<div style="background:#1e293b;padding:18px;border-radius:14px;font-size:14px;line-height:1.6">Queue khaali hai. Matlab ya to sab <b>already sync</b> ho gaya, ya is device par offline data nahi tha. <br><br>Admin &#8594; Work Hours mein <b>aaj ka data</b> check karo — shayad wo sync ho chuka hai.</div>`}
+              <div style="margin-top:14px;background:#111a2e;border-radius:10px;padding:10px 12px;font-size:12px;color:#cbd5e1">
+                <div><b style="color:#93c5fd">Last IN status:</b> <span>${(localStorage.getItem('_lastInError')||'—')}</span></div>
+                <div style="margin-top:4px"><b style="color:#93c5fd">Last OUT status:</b> <span>${(localStorage.getItem('_lastOutError')||'—')}</span></div>
+              </div>
               <div id="_recStatus" style="margin-top:14px;color:#93c5fd;font-size:14px;min-height:20px"></div>
               <div style="margin-top:12px;padding:10px;background:#1e293b;border-radius:10px;font-size:12px;color:#cbd5e1;word-break:break-word">Last OUT status: <b>${(()=>{try{return localStorage.getItem('_lastOutError')||'(abhi tak koi OUT nahi)';}catch(e){return '?';}})()}</b></div>
               <div style="margin-top:18px;border-top:1px solid #1e293b;padding-top:16px">
