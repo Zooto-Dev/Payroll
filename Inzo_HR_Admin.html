@@ -2027,6 +2027,11 @@ function allowedPages(){
   if(!(SETTINGS.adminPerms || {})[ME_EMAIL]) return ALL_PAGES.filter(x => x !== 'settings');
   return myPerm().pages;
 }
+function loanCanCEO(){
+  if(isSuper()) return true;
+  const r = adminRoleOf(ME_EMAIL);
+  return /CEO|DIRECTOR|MANAGING/.test(String(r.desig||''));
+}
 function canApprove(kind){ return isSuper() || !(SETTINGS.adminPerms || {})[ME_EMAIL] || myPerm().approve[kind] !== false; }
 // role of the logged-in admin = the employee whose profile email matches the login email
 function adminRoleOf(email){
@@ -5071,7 +5076,7 @@ function unitAddrFor(code){
   const u = units.find(x => String(code).toUpperCase().startsWith(x.code));
   return (u && u.addr) ? u.addr : null;
 }
-function printLoanAgreement(code, name, amount, months){
+function printLoanAgreement(code, name, amount, months, signed){
   const S = getSettings();
   const emi = Math.ceil(amount / months);
   const e = EMP.find(x => String(x['Employee code']).toUpperCase() === String(code).toUpperCase()) || {};
@@ -5091,7 +5096,17 @@ function printLoanAgreement(code, name, amount, months){
        <tr><th style="width:30%">Employee</th><td>${esc(nm)} (${esc(code)})</td></tr>
        <tr><th>Loan Amount</th><td>₹${Number(amount).toLocaleString('en-IN')}</td></tr>
        <tr><th>Tenure / EMI</th><td>${months} months · ₹${emi.toLocaleString('en-IN')}/month</td></tr>
-     </tbody></table>`);
+     </tbody></table>
+     ${signed ? `<div style="margin-top:14px;border:1.5px solid #16a34a;border-radius:10px;padding:11px 14px;background:#f0fdf4">
+       <b style="color:#166534;font-size:12px;text-transform:uppercase;letter-spacing:.05em">✓ Digitally Signed &amp; Accepted</b>
+       <table class="ann" style="margin-top:8px;font-size:11px"><tbody>
+         <tr><th style="width:30%">Signed by</th><td>${esc(signed.name||nm)} (${esc(code)})</td></tr>
+         <tr><th>Timestamp</th><td>${esc(String(signed.at).replace('T',' ').slice(0,19))} (IST)</td></tr>
+         <tr><th>IP Address</th><td>${esc(signed.ip||'—')}</td></tr>
+         <tr><th>Document Hash (SHA-256)</th><td style="font-family:monospace;font-size:9.5px;word-break:break-all">${esc(signed.hash||'—')}</td></tr>
+       </tbody></table>
+       <p style="font-size:10px;color:#64748b;margin:6px 0 0">Signed via Nexus ESS after identity verification (employee code + registered mobile). The hash above is the fingerprint of the exact agreed terms.</p>
+     </div>` : ''}`);
   printHTML(html);
 }
 function slipHTML(r){
@@ -5810,6 +5825,7 @@ document.body.addEventListener('click', async e => {
     if(!canApprove('advance')) return notify('You are not allowed to approve advances', 'error');
     const code = el.dataset.code;
     const isLoan = el.dataset.type === 'LOAN';
+    if(isLoan && !loanCanCEO()) return notify('Loan approval sirf CEO / Super Admin kar sakte hain', 'error');
     const amount = Number(el.dataset.amount);
     const months = Number(el.dataset.months) || null;
     if(isLoan && !months) return notify('Loan needs a tenure', 'error');
@@ -5842,7 +5858,8 @@ document.body.addEventListener('click', async e => {
     return;
   }
   if(act === 'ml-agr'){
-    printLoanAgreement(el.dataset.code, el.dataset.name, Number(el.dataset.amount), Number(el.dataset.months)||1);
+    printLoanAgreement(el.dataset.code, el.dataset.name, Number(el.dataset.amount), Number(el.dataset.months)||1,
+      el.dataset.sat ? { name: el.dataset.sname, at: el.dataset.sat, ip: el.dataset.ship, hash: el.dataset.shash } : null);
     return;
   }
   if(act === 'ex-pay'){ openExPay(el.dataset.code); return; }
@@ -8508,8 +8525,9 @@ async function loadApprovals(){
           <span class="chip chip-warn" style="font-size:10px">Employee accept pending</span>
           <button class="btn btn-ghost btn-sm" data-act="ml-agr" data-code="${esc(r.employee_code)}" data-name="${esc(r.name||'')}" data-amount="${r.amount}" data-months="${r.months||''}" title="Print Agreement"><i class="fa-solid fa-file-contract"></i></button>`
         : `
+          ${r.signed_at ? `<span class="chip chip-ok" style="font-size:10px" title="Hash: ${esc(r.agreement_hash||'')}">✓ Signed: ${esc(r.signed_name||'')} · ${String(r.signed_at).slice(0,16).replace('T',' ')}</span>` : ''}
           <button class="btn btn-primary btn-sm" data-act="ml-disb" data-id="${r.id}" data-code="${esc(r.employee_code)}" data-amount="${r.amount}" data-months="${r.months||''}" data-reason="${esc(r.reason||'')}"><i class="fa-solid fa-money-bill-transfer"></i> Disburse</button>
-          <button class="btn btn-ghost btn-sm" data-act="ml-agr" data-code="${esc(r.employee_code)}" data-name="${esc(r.name||'')}" data-amount="${r.amount}" data-months="${r.months||''}" title="Print Agreement"><i class="fa-solid fa-file-contract"></i></button>`}</td></tr>`).join('')}
+          <button class="btn btn-ghost btn-sm" data-act="ml-agr" data-code="${esc(r.employee_code)}" data-name="${esc(r.name||'')}" data-amount="${r.amount}" data-months="${r.months||''}" data-sname="${esc(r.signed_name||'')}" data-sat="${esc(r.signed_at||'')}" data-ship="${esc(r.signed_ip||'')}" data-shash="${esc(r.agreement_hash||'')}" title="Signed Agreement (PDF)"><i class="fa-solid fa-file-contract"></i></button>`}</td></tr>`).join('')}
     </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
   if($('apCntMl')) $('apCntMl').innerText = (ml.data||[]).length;
   // tab count badges
