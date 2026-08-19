@@ -5071,6 +5071,29 @@ function unitAddrFor(code){
   const u = units.find(x => String(code).toUpperCase().startsWith(x.code));
   return (u && u.addr) ? u.addr : null;
 }
+function printLoanAgreement(code, name, amount, months){
+  const S = getSettings();
+  const emi = Math.ceil(amount / months);
+  const e = EMP.find(x => String(x['Employee code']).toUpperCase() === String(code).toUpperCase()) || {};
+  const nm = name || e.Name || code;
+  const html = letterShell('LOAN AGREEMENT', `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/LOAN/${new Date().getFullYear()}/${Math.floor(100+Math.random()*900)}`,
+    `<p>This Loan Agreement is made between <b>${esc(S.name)}</b> ("the Company") and <b>${esc(nm)}</b>, Employee Code <b>${esc(code)}</b>${e.DEPARTMENT ? ', ' + esc(e.DEPARTMENT) : ''} ("the Employee").</p>
+     <ol style="padding-left:18px">
+       <li><b>Loan Amount:</b> ₹${Number(amount).toLocaleString('en-IN')}/- (Rupees ${esc(numToWords(amount))} Only), interest-free.</li>
+       <li><b>Repayment:</b> <b>${months} equal monthly instalments (EMI) of ₹${emi.toLocaleString('en-IN')}/-</b> each, deducted automatically from the Employee's monthly salary starting from the next payroll after disbursement, until the full amount is recovered.</li>
+       <li><b>Disbursement:</b> The amount will be disbursed by the Accounts department after the Employee accepts this agreement.</li>
+       <li><b>Early Settlement:</b> The Employee may repay the outstanding balance early at any time without penalty.</li>
+       <li><b>Separation:</b> If the Employee leaves the Company for any reason before full recovery, the entire outstanding balance becomes immediately payable and may be adjusted against the full &amp; final settlement.</li>
+       <li>This loan is a facility of the Company; the Company's decision in matters of recovery shall be final.</li>
+     </ol>
+     <p>Accepted by the Employee digitally via the Nexus ESS portal. This document is the formal record of the terms above.</p>
+     <table class="ann" style="margin-top:14px"><tbody>
+       <tr><th style="width:30%">Employee</th><td>${esc(nm)} (${esc(code)})</td></tr>
+       <tr><th>Loan Amount</th><td>₹${Number(amount).toLocaleString('en-IN')}</td></tr>
+       <tr><th>Tenure / EMI</th><td>${months} months · ₹${emi.toLocaleString('en-IN')}/month</td></tr>
+     </tbody></table>`);
+  printHTML(html);
+}
 function slipHTML(r){
   const S = getSettings();
   const p = PROFILES[r.code] || {};
@@ -5789,25 +5812,37 @@ document.body.addEventListener('click', async e => {
     const isLoan = el.dataset.type === 'LOAN';
     const amount = Number(el.dataset.amount);
     const months = Number(el.dataset.months) || null;
-    // SAME RULES as the Advances page:
-    // Rule 1 — max 50% of monthly gross
-    const gross = grossOf(code);
-    if(!gross) return notify('Set the salary structure first — the limit is 50% of monthly gross', 'error');
-    if(amount > gross * 0.5) return notify(`Cannot approve — exceeds 50% of monthly gross (max ₹${Math.floor(gross * 0.5).toLocaleString('en-IN')})`, 'error');
-    // Rule 2 — at least 20 present days in the last 30 days
-    const d30 = new Date(); d30.setDate(d30.getDate() - 30);
-    const from = `${d30.getFullYear()}-${String(d30.getMonth()+1).padStart(2,'0')}-${String(d30.getDate()).padStart(2,'0')}`;
-    const { data: attRows } = await sb.from('attendance').select('date').eq('employee_code', code).gte('date', from);
-    if((attRows || []).length < 20) return notify(`Not eligible — only ${(attRows||[]).length} present day(s) in the last 30 days (minimum 20 required)`, 'error');
     if(isLoan && !months) return notify('Loan needs a tenure', 'error');
     const emi = isLoan ? Math.ceil(amount / months) : amount;
-    if(!(await nxConfirm(`Approve ${isLoan ? 'LOAN' : 'ADVANCE'} of ${fmtINR(amount)} for ${code}?${isLoan ? `\nEMI ₹${emi.toLocaleString('en-IN')} × ${months} months (from next payroll)` : '\nFull amount deducted from next payroll'}`, 'Approve Request'))) return;
-    // record in the SAME advances system -> payroll deducts automatically (same rule as Advances page)
-    const { error: aErr } = await sb.from('advances').insert([{ employee_code: code, amount, emi, balance: amount, reason: (el.dataset.reason || '') + ' (ESS request)', status: 'OPEN', type: isLoan ? 'LOAN' : 'ADVANCE', tenure: isLoan ? months : 1 }]);
-    if(aErr) return notify(aErr.message, 'error');
-    await sb.from('money_requests').update({ status: 'APPROVED', decided_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
-    notify(isLoan ? 'Loan approved & recorded — EMI auto-deducts from next payroll' : 'Advance approved & recorded — full amount auto-deducts from next payroll', 'success');
+    if(isLoan){
+      // CEO APPROVAL -> agreement generate hota hai; paisa employee ke ACCEPT + Accounts DISBURSE ke baad
+      if(!(await nxConfirm(`CEO approve LOAN of ${fmtINR(amount)} for ${code}?\nEMI ₹${emi.toLocaleString('en-IN')} × ${months} months\n\nAgle step: Agreement employee ke ESS par jayega — Accept karne ke baad Accounts se disburse hoga.`, 'CEO Approval'))) return;
+      await sb.from('money_requests').update({ status: 'AGREEMENT', decided_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
+      notify('CEO approved — Loan Agreement employee ke ESS par bhej diya (Accept/Decline)', 'success');
+    } else {
+      if(!(await nxConfirm(`Approve ADVANCE of ${fmtINR(amount)} for ${code}?\nFull amount deducted from next payroll`, 'Approve Request'))) return;
+      const { error: aErr } = await sb.from('advances').insert([{ employee_code: code, amount, emi, balance: amount, reason: (el.dataset.reason || '') + ' (ESS request)', status: 'OPEN', type: 'ADVANCE', tenure: 1 }]);
+      if(aErr) return notify(aErr.message, 'error');
+      await sb.from('money_requests').update({ status: 'APPROVED', decided_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
+      notify('Advance approved & recorded — full amount auto-deducts from next payroll', 'success');
+    }
     loadApprovals();
+    return;
+  }
+  if(act === 'ml-disb'){
+    if(!canApprove('advance')) return notify('You are not allowed to disburse', 'error');
+    const code = el.dataset.code, amount = Number(el.dataset.amount), months = Number(el.dataset.months)||1;
+    const emi = Math.ceil(amount / months);
+    if(!(await nxConfirm(`Accounts: DISBURSE loan ${fmtINR(amount)} to ${code}?\nEMI ₹${emi.toLocaleString('en-IN')} × ${months} months — agle payroll se auto-deduct.`, 'Loan Disbursement'))) return;
+    const { error: aErr } = await sb.from('advances').insert([{ employee_code: code, amount, emi, balance: amount, reason: (el.dataset.reason || '') + ' (Loan — agreement accepted)', status: 'OPEN', type: 'LOAN', tenure: months }]);
+    if(aErr) return notify(aErr.message, 'error');
+    await sb.from('money_requests').update({ status: 'DISBURSED', decided_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
+    notify('Loan disbursed — EMI agle payroll se auto-deduct hogi. (Advances page par dikhega; balance 0 = Loan Completed)', 'success');
+    loadApprovals();
+    return;
+  }
+  if(act === 'ml-agr'){
+    printLoanAgreement(el.dataset.code, el.dataset.name, Number(el.dataset.amount), Number(el.dataset.months)||1);
     return;
   }
   if(act === 'ex-pay'){ openExPay(el.dataset.code); return; }
@@ -8456,7 +8491,7 @@ async function loadApprovals(){
     }).join('')}</tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
   // Advance / Loan pending
   let ml = { data: [] };
-  try{ ml = await sb.from('money_requests').select('*').eq('status','PENDING').order('created_at'); }catch(e){}
+  try{ ml = await sb.from('money_requests').select('*').in('status',['PENDING','AGREEMENT','ACCEPTED']).order('created_at'); }catch(e){}
   const nameOfMl = c => { const e2 = EMP.find(x => x['Employee code'] === c); return e2 ? e2.Name : c; };
   $('apMloan').innerHTML = (ml.data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
     <thead><tr><th>Employee</th><th>Type</th><th>Amount</th><th>Repay</th><th>Reason</th><th>Requested</th><th style="text-align:right"></th></tr></thead><tbody>
@@ -8466,8 +8501,15 @@ async function loadApprovals(){
       <td class="text-xs" style="max-width:200px">${esc(r.reason||'—')}</td>
       <td class="text-xs">${fmtDate(String(r.created_at).slice(0,10))}</td>
       <td style="text-align:right;white-space:nowrap">
-        <button class="btn btn-ghost btn-sm" data-act="ml-appr" data-id="${r.id}" data-code="${esc(r.employee_code)}" data-type="${esc(r.req_type)}" data-amount="${r.amount}" data-months="${r.months||''}" data-reason="${esc(r.reason||'')}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
-        <button class="btn btn-danger btn-sm" data-act="ml-rej" data-id="${r.id}"><i class="fa-solid fa-xmark"></i></button></td></tr>`).join('')}
+        ${r.status === 'PENDING' ? `
+          <button class="btn btn-ghost btn-sm" data-act="ml-appr" data-id="${r.id}" data-code="${esc(r.employee_code)}" data-type="${esc(r.req_type)}" data-amount="${r.amount}" data-months="${r.months||''}" data-reason="${esc(r.reason||'')}" title="${r.req_type==='LOAN'?'CEO Approve':'Approve'}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
+          <button class="btn btn-danger btn-sm" data-act="ml-rej" data-id="${r.id}"><i class="fa-solid fa-xmark"></i></button>`
+        : r.status === 'AGREEMENT' ? `
+          <span class="chip chip-warn" style="font-size:10px">Employee accept pending</span>
+          <button class="btn btn-ghost btn-sm" data-act="ml-agr" data-code="${esc(r.employee_code)}" data-name="${esc(r.name||'')}" data-amount="${r.amount}" data-months="${r.months||''}" title="Print Agreement"><i class="fa-solid fa-file-contract"></i></button>`
+        : `
+          <button class="btn btn-primary btn-sm" data-act="ml-disb" data-id="${r.id}" data-code="${esc(r.employee_code)}" data-amount="${r.amount}" data-months="${r.months||''}" data-reason="${esc(r.reason||'')}"><i class="fa-solid fa-money-bill-transfer"></i> Disburse</button>
+          <button class="btn btn-ghost btn-sm" data-act="ml-agr" data-code="${esc(r.employee_code)}" data-name="${esc(r.name||'')}" data-amount="${r.amount}" data-months="${r.months||''}" title="Print Agreement"><i class="fa-solid fa-file-contract"></i></button>`}</td></tr>`).join('')}
     </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
   if($('apCntMl')) $('apCntMl').innerText = (ml.data||[]).length;
   // tab count badges
