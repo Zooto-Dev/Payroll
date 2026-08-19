@@ -995,10 +995,15 @@ async function loanSignStep(id){
   try{
     let ip = '';
     try{ const r = await fetch('https://api.ipify.org?format=json'); ip = (await r.json()).ip || ''; }catch(e){}
+    let geo = '';
+    try{
+      const pos = await new Promise((res, rej) => { navigator.geolocation ? navigator.geolocation.getCurrentPosition(res, rej, { timeout: 4000, maximumAge: 300000 }) : rej(); });
+      geo = pos.coords.latitude.toFixed(4) + '° N, ' + pos.coords.longitude.toFixed(4) + '° E';
+    }catch(e){}
     const enc = new TextEncoder().encode(window._agrTerms + '|SIGNED_BY:' + nameSig + '|PHONE_VERIFIED:' + phone);
     const buf = await crypto.subtle.digest('SHA-256', enc);
     const hash = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
-    const { data, error } = await sb.rpc('ess_loan_sign', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: id, p_name: nameSig, p_ip: ip, p_hash: hash });
+    const { data, error } = await sb.rpc('ess_loan_sign', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: id, p_name: nameSig, p_ip: ip, p_hash: hash, p_geo: geo });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
     const ov = document.getElementById('_agrOv'); if(ov) ov.remove();
