@@ -139,6 +139,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 @keyframes rsIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .d-H{background:#bfdbfe;color:#1e40af}
 .d-LV{background:#e9d5ff;color:#6b21a8}
+.day{position:relative}
+.gflag{position:absolute;top:-3px;right:-3px;font-size:8px;font-weight:800;background:#7c3aed;color:#fff;border-radius:50%;width:12px;height:12px;line-height:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.25)}
 .d-none{color:#cbd5e1}
 .legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .legend .chip{font-size:10px}
@@ -560,6 +562,9 @@ let sb = null;
 nxLoadConfig().then(c => {
   SUPABASE_URL = c.url; SUPABASE_ANON_KEY = c.key;
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // valid last day of a month (September/April/June/Nov have 30, Feb 28/29 — never use '-31')
+  window._lastDay = function(ym){ const p = String(ym).split('-'); const y = +p[0], m = +p[1]; return `${ym}-${String(new Date(y, m, 0).getDate()).padStart(2,'0')}`; };
+
 }).catch(err => setTimeout(() => nxInfo('Nexus configuration error: ' + err.message, 'Configuration error'), 900));
 const $ = id => document.getElementById(id);
 let D = null, CODE = '', PHONE = '';
@@ -975,7 +980,7 @@ document.addEventListener('click', async e => {
   const kind = $('gpKind').value;
   const ym = String(d).slice(0,7);
   try{
-    const { data: used } = await sb.from('ess_att_requests').select('req_type,status').ilike('employee_code', codeU).in('req_type',['GATE_SL','GATE_HD']).neq('status','REJECTED').gte('date', ym+'-01').lte('date', ym+'-31');
+    const { data: used } = await sb.from('ess_att_requests').select('req_type,status').ilike('employee_code', codeU).in('req_type',['GATE_SL','GATE_HD']).neq('status','REJECTED').gte('date', ym+'-01').lte('date', _lastDay(ym));
     const slUsed = (used||[]).filter(g => g.req_type === 'GATE_SL').length;
     const hdUsed = (used||[]).filter(g => g.req_type === 'GATE_HD').length;
     if(kind === 'SL' && slUsed >= 2) return notify('Is month ki 2 Short Leave limit ho chuki hai');
@@ -1457,7 +1462,7 @@ async function monthRows(ym){
   if(CAL_CACHE[ym]) return CAL_CACHE[ym];
   // read attendance directly so we get the real is_late column (RPC didn't return it)
   const codeU = String(CODE||'').trim().toUpperCase();
-  const { data, error } = await sb.from('attendance').select('*').ilike('employee_code', codeU).gte('date', ym + '-01').lte('date', ym + '-31').limit(2000);
+  const { data, error } = await sb.from('attendance').select('*').ilike('employee_code', codeU).gte('date', ym + '-01').lte('date', _lastDay(ym)).limit(2000);
   if(error) {
     const r = await sb.rpc('ess_get_attendance', { p_code: CODE, p_phone: PHONE, p_month: ym });
     CAL_CACHE[ym] = (r.data && r.data.rows) || [];
@@ -1484,9 +1489,14 @@ async function renderCalendar(){
   $('calGrid').innerHTML = '<div style="grid-column:1/8;padding:16px;color:var(--muted)">Loading…</div>';
   try{
     const codeU = String(CODE||'').trim().toUpperCase();
-    const { data: wf } = await sb.from('ess_att_requests').select('date').ilike('employee_code', codeU).eq('req_type','WFH').eq('status','APPROVED').gte('date', ym + '-01').lte('date', ym + '-31');
+    const { data: wf } = await sb.from('ess_att_requests').select('date').ilike('employee_code', codeU).eq('req_type','WFH').eq('status','APPROVED').gte('date', ym + '-01').lte('date', _lastDay(ym));
     window._myWfhSet = new Set((wf||[]).map(r => r.date));
   }catch(e){ window._myWfhSet = new Set(); }
+  try{
+    const codeU2 = String(CODE||'').trim().toUpperCase();
+    const { data: gp } = await sb.from('ess_att_requests').select('date, req_type, gp_slot').ilike('employee_code', codeU2).eq('status','APPROVED').in('req_type',['GATE_SL','GATE_HD']).gte('date', ym + '-01').lte('date', _lastDay(ym));
+    window._myGateSet = new Set((gp||[]).filter(r => r.req_type === 'GATE_SL' && r.gp_slot === 'MORNING').map(r => r.date));
+  }catch(e){ window._myGateSet = new Set(); }
   const rows = await monthRows(ym);
   const attMap = {}; rows.forEach(r => attMap[r.date] = r);
   const holSet = new Set((D.holidays||[]).filter(h => String(h.date).startsWith(ym)).map(h => String(h.date)));
@@ -1512,13 +1522,14 @@ async function renderCalendar(){
     const dow = new Date(y, m-1, d).getDay();
     const r = attMap[iso];
     let cls = 'd-none', tip = iso;
-    if(r){ const late = essLate(r); cls = late ? 'd-L' : 'd-P'; tip += ` | IN ${(r.in_time||'').substring(0,5)}${r.out_time ? ' OUT ' + r.out_time.substring(0,5) : ''}`; }
+    const hasG = window._myGateSet && window._myGateSet.has(iso);
+    if(r){ const late = essLate(r); cls = late ? 'd-L' : 'd-P'; tip += ` | IN ${(r.in_time||'').substring(0,5)}${r.out_time ? ' OUT ' + r.out_time.substring(0,5) : ''}`; if(hasG) tip += ' | Morning Short Leave (G) — late maaf'; }
     else if(window._myWfhSet && window._myWfhSet.has(iso)){ cls = 'd-WFH'; tip += ' | Work From Home (paid)'; }
     else if(lvSet.has(iso)) cls = 'd-LV';
     else if(holSet.has(iso)) cls = 'd-H';
     else if(dow === weekOff) cls = 'd-WO';
     else if(iso <= today) cls = 'd-A';
-    html += `<div class="day ${cls}" title="${tip}">${d}</div>`;
+    html += `<div class="day ${cls}" title="${tip}">${d}${hasG ? '<span class="gflag">G</span>' : ''}</div>`;
   }
   $('calGrid').innerHTML = html;
 }
@@ -1778,7 +1789,7 @@ async function loadFeedback(){
     const rows = data.rows || [];
     $('fbBox').innerHTML = rows.length ? rows.map(f => {
       const chip = { OPEN:'chip-warn', IN_REVIEW:'chip-blue', RESOLVED:'chip-ok', APPROVED:'chip-ok', REJECTED:'chip-bad' }[f.status] || 'chip-gray';
-      return `<div class="row"><span><b>${esc(f.type)}</b> — ${esc(f.subject)}${f.admin_note ? '<br><small style="color:var(--muted)">HR: ' + esc(f.admin_note) + '</small>' : ''}</span>
+      return `<div class="row"><span><b>${esc(f.type)}</b> — ${esc(f.subject)}${f.admin_note ? '<div style="margin-top:6px;background:var(--surface-2,#f1f5f9);border-left:3px solid #2563eb;border-radius:6px;padding:7px 10px;font-size:12px"><b style="color:#2563eb;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em">Closing Remark (HR)</b><br>' + esc(f.admin_note) + '</div>' : ''}</span>
         <span class="chip ${chip}">${esc(f.status.replace('_',' '))}${f.type === 'KAIZEN' && f.reward > 0 ? ' ' + fmtINR(f.reward) : ''}</span></div>`;
     }).join('') : '';
   }catch(e){}
