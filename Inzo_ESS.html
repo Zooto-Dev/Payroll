@@ -276,7 +276,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div class="req-sec hidden" id="rs-adv">
       <div class="card" style="background:linear-gradient(135deg,#fefce8,#ffffff);border:1.5px solid #fde68a">
         <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-sack-dollar" style="color:#ca8a04"></i> Advance / Loan <i class="fa-regular fa-circle-question" onclick="$('mrInfo').classList.toggle('hidden')" style="cursor:pointer;color:#94a3b8;font-size:12px;margin-left:4px"></i></h3>
-        <div class="text-[11px] mt-0 mb-2 hidden p-2 rounded" id="mrInfo" style="background:#fefce8;color:#854d0e;line-height:1.5"><b>Advance</b> — deducted in full from your next salary. <b>Loan</b> — repaid via monthly EMI over the selected months.<br>Eligibility: amount up to <b>50% of monthly gross</b> and minimum <b>20 present days</b> in the last 30 days. Subject to HR approval.</div>
+        <div class="text-[11px] mt-0 mb-2 hidden p-2 rounded" id="mrInfo" style="background:#fefce8;color:#854d0e;line-height:1.5"><b>Advance</b> — deducted in full from your next salary. <b>Loan</b> — CEO approval → Loan Agreement (yahan Accept karna hoga) → Accounts se disbursement → monthly EMI deduction.</div>
         <div class="grid grid-cols-2 gap-2 mb-2">
           <div><label class="lbl">Type</label><select id="mrType" class="inp" onchange="$('mrMonthsWrap').classList.toggle('hidden', this.value!=='LOAN')">
             <option value="ADVANCE">Salary Advance</option>
@@ -924,14 +924,37 @@ document.addEventListener('click', async e => {
   }catch(err){ notify(err.message || 'Request failed'); }
   finally{ b.disabled = false; }
 });
+async function loanDecision(id, accept){
+  if(!window.confirm(accept ? 'Loan Agreement ACCEPT karein? Terms ke hisab se EMI salary se katega.' : 'Agreement DECLINE karein? Loan cancel ho jayega.')) return;
+  try{
+    const { data, error } = await sb.rpc('ess_loan_decision', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: id, p_accept: !!accept });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    notify(accept ? 'Agreement accepted ✓ — ab Accounts se disbursement hoga' : 'Agreement declined');
+    loadMoneyReqs();
+  }catch(err){ notify('Failed: ' + (err.message||err)); }
+}
 async function loadMoneyReqs(){
   const host = $('mrList'); if(!host) return;
   const codeU = String(CODE||'').trim().toUpperCase();
   try{
     const { data } = await sb.from('money_requests').select('*').ilike('employee_code', codeU).order('created_at', { ascending:false }).limit(8);
     host.innerHTML = (data||[]).length ? data.map(r => {
-      const chip = { PENDING:'chip-warn', APPROVED:'chip-ok', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
-      return `<div class="row"><span><b>${r.req_type === 'LOAN' ? 'Loan' : 'Advance'}</b> ${fmtINR(r.amount)}${r.months?' · '+r.months+' mo':''}${r.reason?' · '+esc(r.reason):''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status==='PENDING'?_cancelChip('MR', r.id):''}</span></div>`;
+      const stLabel = { PENDING:'CEO approval pending', AGREEMENT:'AGREEMENT — aapka accept chahiye', ACCEPTED:'Accounts — disbursement pending', DISBURSED:'ACTIVE — EMI chal rahi', APPROVED:'APPROVED', REJECTED:'REJECTED', DECLINED:'DECLINED (by you)' }[r.status] || r.status;
+      const chip = { PENDING:'chip-warn', AGREEMENT:'chip-warn', ACCEPTED:'chip-blue', DISBURSED:'chip-ok', APPROVED:'chip-ok', REJECTED:'chip-bad', DECLINED:'chip-bad' }[r.status] || 'chip-gray';
+      let extra = '';
+      if(r.req_type === 'LOAN' && r.status === 'AGREEMENT'){
+        const emi = Math.ceil(Number(r.amount)/(Number(r.months)||1));
+        extra = `<div style="margin-top:7px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:9px 11px;font-size:12px;line-height:1.55">
+          <b style="color:#1e40af">📄 LOAN AGREEMENT</b><br>
+          Amount: <b>${fmtINR(r.amount)}</b> · Tenure: <b>${r.months} months</b> · EMI: <b>₹${emi.toLocaleString('en-IN')}/month</b> (salary se auto-deduct, disbursement ke agle payroll se)<br>
+          Company chhodne par bacha balance full &amp; final se adjust hoga. Early repayment allowed, no penalty.
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button onclick="loanDecision(${r.id}, true)" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:9px;font-weight:700;font-size:12.5px">✓ ACCEPT</button>
+            <button onclick="loanDecision(${r.id}, false)" style="flex:1;background:#fee2e2;color:#b91c1c;border:none;border-radius:8px;padding:9px;font-weight:700;font-size:12.5px">✗ DECLINE</button>
+          </div></div>`;
+      }
+      return `<div class="row" style="display:block"><div style="display:flex;justify-content:space-between;align-items:center"><span><b>${r.req_type === 'LOAN' ? 'Loan' : 'Advance'}</b> ${fmtINR(r.amount)}${r.months?' · '+r.months+' mo':''}${r.reason?' · '+esc(r.reason):''}</span><span><span class="chip ${chip}">${esc(stLabel)}</span>${r.status==='PENDING'?_cancelChip('MR', r.id):''}</span></div>${extra}</div>`;
     }).join('') : '';
   }catch(e){}
 }
