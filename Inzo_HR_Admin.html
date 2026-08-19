@@ -2165,7 +2165,7 @@ document.addEventListener('click', async (e) => {
   const { id, code } = _kzScoreTarget;
   const btn = $('kzScoreSave'); btn.innerHTML = '<div class="loader-ring"></div> Saving…'; btn.disabled = true;
   try{
-    await sb.from('feedback').update({ kz_stage:'COMPLETED', kz_completed_at: new Date().toISOString(), reward: amt, impact: impact, kz_score: total, admin_note: gradeNote }).eq('id', id);
+    await sb.from('feedback').update({ kz_stage:'COMPLETED', kz_completed_at: new Date().toISOString(), reward: amt, impact: impact, kz_score: total, admin_note: gradeNote, reward_credited: amt > 0 }).eq('id', id);
     if(amt > 0){
       const p = PROFILES[code] || {};
       const sal = Object.assign({}, p.salary || {}, { pendingReward: (Number((p.salary||{}).pendingReward)||0) + amt });
