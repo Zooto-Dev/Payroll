@@ -25,6 +25,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <style>
 /* ===== NEXUS CINEMATIC SPLASH ===== */
 #nxSplash{position:fixed;inset:0;z-index:99999;background:#f5f3ee;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .8s ease, visibility .8s}
@@ -3694,6 +3695,20 @@ async function loadHiring(){
   if($('candDept')) $('candDept').innerHTML = '<option value="">—</option>' + (window.nxDeptOpts ? window.nxDeptOpts('') : '');
   if($('candPos')) $('candPos').innerHTML = '<option value="">—</option>' + (window.nxDesigOpts ? window.nxDesigOpts('') : '');
   renderHiring();
+  autoScreenNewResumes();   // naye candidates ka CV score apne aap ban jata hai
+}
+// AUTO-SCREENING: jaise hi naya candidate (PDF resume + koi score nahi) dikhta hai,
+// background mein screen ho jata hai — button dabane ki zaroorat nahi.
+let _autoScreenBusy = false;
+async function autoScreenNewResumes(){
+  if(_autoScreenBusy) return; _autoScreenBusy = true;
+  try{
+    const todo = CANDIDATES.filter(c => c.resume_url && /\.pdf$/i.test(c.resume_url) && (c.ai_score === null || c.ai_score === undefined)).slice(0, 12);
+    for(const c of todo){
+      try{ await screenResume(c.id, true); }catch(e){}
+      await new Promise(r => setTimeout(r, 400));
+    }
+  } finally { _autoScreenBusy = false; }
 }
 function renderHiring(){
   const host = $('hrBoard'); if(!host) return;
@@ -3707,7 +3722,7 @@ function renderHiring(){
     <thead><tr><th>Name</th><th>Position</th><th>Department</th><th>Stage</th><th>Interview</th><th>Score</th><th>Phone</th><th></th></tr></thead>
     <tbody>
     ${list.map(c => `<tr style="cursor:pointer" onclick="openCand('${c.id}')">
-      <td class="font-semibold">${esc(c.name)}${c.employee_code?` <span class="chip chip-ok" style="font-size:9px">${esc(c.employee_code)}</span>`:''}</td>
+      <td class="font-semibold">${esc(c.name)}${c.employee_code?` <span class="chip chip-ok" style="font-size:9px">${esc(c.employee_code)}</span>`:''}${(c.ai_score||c.ai_score===0)?` <span class="chip" style="font-size:9px;background:${c.ai_score>=70?'#dcfce7;color:#166534':c.ai_score>=45?'#fef9c3;color:#854d0e':'#fee2e2;color:#b91c1c'}" title="Resume screening score">CV ${c.ai_score}</span>`:''}</td>
       <td>${esc(c.position||'—')}</td>
       <td>${esc(c.department||'—')}</td>
       <td>${hrStageChip(c.stage)}</td>
@@ -3876,7 +3891,12 @@ function candStageActions(c){
   let html = `<div class="text-[11px] font-bold uppercase tracking-wide mb-2 mt-3" style="color:var(--brand)">Current Stage — ${esc(c.stage)}</div>`;
 
   if(c.resume_url){
-    html += `<div class="mb-2"><button type="button" class="btn btn-ghost btn-sm" onclick="viewCandFile('${esc(c.resume_url)}')"><i class="fa-solid fa-file-lines"></i> View Resume</button></div>`;
+    html += `<div class="mb-2 flex gap-2 flex-wrap items-center">
+      <button type="button" class="btn btn-ghost btn-sm" onclick="viewCandFile('${esc(c.resume_url)}')"><i class="fa-solid fa-file-lines"></i> View Resume</button>
+      <button type="button" class="btn btn-primary btn-sm" onclick="screenResume('${c.id}')"><i class="fa-solid fa-wand-magic-sparkles"></i> Screen Resume (Score)</button>
+      ${(c.ai_score||c.ai_score===0)?`<span class="chip" style="background:${c.ai_score>=70?'#dcfce7;color:#166534':c.ai_score>=45?'#fef9c3;color:#854d0e':'#fee2e2;color:#b91c1c'}">CV Score: ${c.ai_score}/100</span>`:''}
+    </div>
+    ${c.ai_notes?`<div class="text-[11px] mb-2 p-2 rounded" style="background:var(--surface-2);color:var(--muted);white-space:pre-wrap">${esc(c.ai_notes)}</div>`:''}`;
   }
 
   if(c.stage === 'APPLIED'){
@@ -3986,6 +4006,61 @@ function candBreakupText(g){
 function candOfferPreview(){
   const g = Number($('candAgreed').value)||0;
   $('candOfferBreak').innerHTML = g ? candBreakupText(g) : 'Enter the agreed salary to see the breakup.';
+}
+async function screenResume(id, silent){
+  const c = CANDIDATES.find(x => String(x.id) === String(id));
+  if(!c || !c.resume_url) return silent ? null : notify('Resume nahi mila', 'error');
+  if(!silent) notify('Resume padha ja raha hai…', 'info');
+  try{
+    // 1) download the file
+    const { data: blob, error } = await sb.storage.from('hr-docs').download(c.resume_url);
+    if(error) throw error;
+    // 2) extract text (PDF only)
+    if(!/\.pdf$/i.test(c.resume_url)) return silent ? null : notify('Abhi sirf PDF resume screen ho sakta hai (ye ' + c.resume_url.split('.').pop().toUpperCase() + ' hai) — View Resume se khud dekh lo', 'error');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    const pdf = await pdfjsLib.getDocument({ data: await blob.arrayBuffer() }).promise;
+    let text = '';
+    for(let p = 1; p <= Math.min(pdf.numPages, 6); p++){
+      const pg = await pdf.getPage(p);
+      const tc = await pg.getTextContent();
+      text += ' ' + tc.items.map(i => i.str).join(' ');
+    }
+    const R = text.toLowerCase();
+    if(R.trim().length < 60){
+      if(!silent){ notify('PDF se text nahi nikla (scan/photo waali PDF lagti hai) — manually dekhna padega', 'error'); }
+      else { await sb.from('candidates').update({ ai_score: 0, ai_notes: 'AUTO-SCREEN: PDF se text nahi nikla (scan/photo PDF) — manually review karo' }).eq('id', c.id); c.ai_score = 0; c.ai_notes = 'AUTO-SCREEN: PDF se text nahi nikla (scan/photo PDF) — manually review karo'; renderHiring(); }
+      return;
+    }
+
+    // 3) the job description to score against
+    const job = JOBS.find(j => String(j.id) === String(c.job_id));
+    const jdText = ((job ? (job.title + ' ' + (job.description||'')) : '') + ' ' + (c.position||'')).toLowerCase();
+    const STOP = new Set('the and for with from this that will have has are you our your job work role can any all not per etc who what when where their they them should would could may must into onto able etc other more than must-have'.split(' '));
+    const jdWords = [...new Set(jdText.replace(/[^a-z0-9+#. ]/g,' ').split(/\s+/).filter(w => w.length > 3 && !STOP.has(w)))];
+    const matched = jdWords.filter(w => R.includes(w));
+    const kwScore = jdWords.length ? Math.round((matched.length / jdWords.length) * 55) : 25;
+
+    // 4) other signals
+    let expScore = 0; const em = R.match(/(\d+)[+ ]*(?:years?|yrs?|saal)/);
+    if(em){ const y = Number(em[1]); expScore = y >= 5 ? 15 : y >= 2 ? 11 : y >= 1 ? 7 : 3; }
+    const hasEmail = /[a-z0-9._%+-]+@[a-z0-9.-]+/.test(R), hasPhone = /(\+?91[- ]?)?[6-9]\d{9}/.test(R.replace(/\s/g,''));
+    const contactScore = (hasEmail ? 5 : 0) + (hasPhone ? 5 : 0);
+    const eduWords = ['b.tech','btech','mba','bba','b.com','bcom','m.com','diploma','graduate','graduation','12th','10th','iti','bsc','msc','be ','b.e'];
+    const eduScore = eduWords.some(w => R.includes(w)) ? 10 : 0;
+    const structScore = (R.includes('experience') ? 4 : 0) + (R.includes('skill') ? 3 : 0) + (text.length > 900 ? 3 : 1);
+
+    const total = Math.max(5, Math.min(100, kwScore + expScore + contactScore + eduScore + structScore));
+    const notes = 'CV SCREENING (' + new Date().toLocaleDateString('en-IN') + ')\n'
+      + 'JD keyword match: ' + matched.length + '/' + jdWords.length + ' (' + kwScore + '/55)\n'
+      + 'Experience: ' + (em ? em[1] + ' yrs' : 'not found') + ' (' + expScore + '/15) | Contact: ' + contactScore + '/10 | Education: ' + eduScore + '/10 | Structure: ' + structScore + '/10\n'
+      + 'Matched: ' + matched.slice(0, 18).join(', ') + (matched.length > 18 ? '…' : '');
+
+    // 5) save + refresh
+    await sb.from('candidates').update({ ai_score: total, ai_notes: notes }).eq('id', c.id);
+    c.ai_score = total; c.ai_notes = notes;
+    if(!silent){ notify('CV Score: ' + total + '/100', 'success'); openCand(c.id); }
+    renderHiring();
+  }catch(err){ if(!silent) notify('Screening failed: ' + (err.message || err), 'error'); }
 }
 function viewCandFile(path){
   sb.storage.from('hr-docs').createSignedUrl(path, 120).then(({ data, error }) => {
