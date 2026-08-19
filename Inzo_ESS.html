@@ -924,12 +924,95 @@ document.addEventListener('click', async e => {
   }catch(err){ notify(err.message || 'Request failed'); }
   finally{ b.disabled = false; }
 });
+async function openLoanAgreement(id){
+  const r = (await sb.from('money_requests').select('*').eq('id', id)).data;
+  const q = r && r[0]; if(!q) return notify('Request nahi mili');
+  const emi = Math.ceil(Number(q.amount)/(Number(q.months)||1));
+  const nm = (D.employee && D.employee.Name) || q.name || CODE;
+  const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' });
+  const CO = 'Zooto Fashion Pvt Ltd';
+  window._agrTerms = `LOAN AGREEMENT|${CO}|${nm}|${String(CODE).toUpperCase()}|AMOUNT:${q.amount}|MONTHS:${q.months}|EMI:${emi}|REQ:${q.id}`;
+  const ov = document.createElement('div');
+  ov.id = '_agrOv';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.65);overflow-y:auto;padding:14px';
+  ov.innerHTML = `
+   <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden">
+    <div style="background:#1f4b9b;color:#fff;padding:13px 18px;display:flex;justify-content:space-between;align-items:center">
+      <b style="font-size:14px">LOAN AGREEMENT</b>
+      <button onclick="document.getElementById('_agrOv').remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:50%;width:28px;height:28px;font-size:14px">✕</button>
+    </div>
+    <div style="padding:20px 22px;font-size:13px;line-height:1.7;color:#1e293b">
+      <div style="text-align:center;margin-bottom:14px">
+        <div style="font-weight:800;font-size:15px;letter-spacing:.04em">${CO}</div>
+        <div style="font-size:10.5px;color:#64748b">Plot 300, Sector 6, IMT Manesar, Gurugram, Haryana</div>
+        <div style="font-weight:800;font-size:13px;margin-top:10px;text-decoration:underline">LOAN AGREEMENT</div>
+        <div style="font-size:10.5px;color:#64748b">Date: ${today}</div>
+      </div>
+      <p>This Loan Agreement is made between <b>${CO}</b> ("the Company") and <b>${nm}</b>, Employee Code <b>${String(CODE).toUpperCase()}</b> ("the Employee").</p>
+      <ol style="padding-left:18px;margin:10px 0">
+        <li style="margin-bottom:7px"><b>Loan Amount:</b> ₹${Number(q.amount).toLocaleString('en-IN')}/- , interest-free.</li>
+        <li style="margin-bottom:7px"><b>Repayment:</b> <b>${q.months} equal monthly instalments (EMI) of ₹${emi.toLocaleString('en-IN')}/-</b> each, deducted automatically from the Employee's monthly salary starting from the next payroll after disbursement, until the full amount is recovered.</li>
+        <li style="margin-bottom:7px"><b>Disbursement:</b> The amount will be disbursed by the Accounts department after the Employee digitally signs this agreement.</li>
+        <li style="margin-bottom:7px"><b>Early Settlement:</b> The Employee may repay the outstanding balance early at any time without penalty.</li>
+        <li style="margin-bottom:7px"><b>Separation:</b> If the Employee leaves the Company for any reason before full recovery, the entire outstanding balance becomes immediately payable and may be adjusted against the full &amp; final settlement.</li>
+        <li><b>Record:</b> This agreement is executed digitally via the Nexus ESS portal; the digital signature record (name, timestamp, IP and document hash) is the formal record of acceptance.</li>
+      </ol>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin:12px 0">
+        <tr><td style="border:1px solid #e2e8f0;padding:6px 9px;background:#f8fafc;width:40%"><b>Employee</b></td><td style="border:1px solid #e2e8f0;padding:6px 9px">${nm} (${String(CODE).toUpperCase()})</td></tr>
+        <tr><td style="border:1px solid #e2e8f0;padding:6px 9px;background:#f8fafc"><b>Loan Amount</b></td><td style="border:1px solid #e2e8f0;padding:6px 9px">₹${Number(q.amount).toLocaleString('en-IN')}</td></tr>
+        <tr><td style="border:1px solid #e2e8f0;padding:6px 9px;background:#f8fafc"><b>Tenure / EMI</b></td><td style="border:1px solid #e2e8f0;padding:6px 9px">${q.months} months · ₹${emi.toLocaleString('en-IN')}/month</td></tr>
+      </table>
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:11px 13px;margin-bottom:12px">
+        <label style="display:flex;gap:9px;align-items:flex-start;font-size:12.5px"><input type="checkbox" id="_agrRead" style="margin-top:3px;transform:scale(1.25)"> <span>Maine upar ka poora agreement padh liya hai aur saari terms samajh li hain. / I have read and understood all the terms above.</span></label>
+      </div>
+      <div id="_agrSignBox" class="hidden" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px 13px;margin-bottom:12px">
+        <div style="font-weight:700;font-size:12px;margin-bottom:8px;color:#075985">IDENTITY VERIFICATION &amp; SIGNATURE</div>
+        <label style="font-size:11px;color:#64748b">Apna registered mobile number dobara enter karo (verification):</label>
+        <input id="_agrPhone" type="tel" maxlength="10" placeholder="10-digit mobile" style="width:100%;padding:10px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;margin:4px 0 10px">
+        <label style="font-size:11px;color:#64748b">Apna poora naam type karo — yahi aapka digital signature hai:</label>
+        <input id="_agrName" type="text" placeholder="${nm}" style="width:100%;padding:10px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;font-style:italic;margin:4px 0">
+      </div>
+      <div style="display:flex;gap:9px">
+        <button id="_agrSignBtn" disabled onclick="loanSignStep(${q.id})" style="flex:2;background:#94a3b8;color:#fff;border:none;border-radius:10px;padding:13px;font-weight:800;font-size:13.5px">✍️ I AGREE &amp; SIGN</button>
+        <button onclick="loanDecision(${q.id}, false)" style="flex:1;background:#fee2e2;color:#b91c1c;border:none;border-radius:10px;padding:13px;font-weight:700;font-size:13px">✗ DECLINE</button>
+      </div>
+    </div></div>`;
+  document.body.appendChild(ov);
+  document.getElementById('_agrRead').addEventListener('change', function(){
+    const b = document.getElementById('_agrSignBtn'), box = document.getElementById('_agrSignBox');
+    box.classList.toggle('hidden', !this.checked);
+    b.disabled = !this.checked;
+    b.style.background = this.checked ? '#16a34a' : '#94a3b8';
+  });
+}
+async function loanSignStep(id){
+  const phone = String((document.getElementById('_agrPhone')||{}).value || '').replace(/\D/g,'');
+  const nameSig = String((document.getElementById('_agrName')||{}).value || '').trim();
+  const regPhone = String(PHONE||'').replace(/\D/g,'').slice(-10);
+  if(phone.length !== 10 || phone !== regPhone) return notify('Mobile number registered number se match nahi hua');
+  if(nameSig.length < 3) return notify('Signature ke liye apna poora naam type karo');
+  const btn = document.getElementById('_agrSignBtn'); btn.disabled = true; btn.innerText = 'Signing…';
+  try{
+    let ip = '';
+    try{ const r = await fetch('https://api.ipify.org?format=json'); ip = (await r.json()).ip || ''; }catch(e){}
+    const enc = new TextEncoder().encode(window._agrTerms + '|SIGNED_BY:' + nameSig + '|PHONE_VERIFIED:' + phone);
+    const buf = await crypto.subtle.digest('SHA-256', enc);
+    const hash = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
+    const { data, error } = await sb.rpc('ess_loan_sign', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: id, p_name: nameSig, p_ip: ip, p_hash: hash });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    const ov = document.getElementById('_agrOv'); if(ov) ov.remove();
+    notify('✓ Agreement signed! Ab Accounts se disbursement hoga.');
+    loadMoneyReqs();
+  }catch(err){ notify('Sign failed: ' + (err.message||err)); btn.disabled = false; btn.innerText = '✍️ I AGREE & SIGN'; }
+}
 async function loanDecision(id, accept){
   if(!window.confirm(accept ? 'Loan Agreement ACCEPT karein? Terms ke hisab se EMI salary se katega.' : 'Agreement DECLINE karein? Loan cancel ho jayega.')) return;
   try{
     const { data, error } = await sb.rpc('ess_loan_decision', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: id, p_accept: !!accept });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
+    const _ov = document.getElementById('_agrOv'); if(_ov) _ov.remove();
     notify(accept ? 'Agreement accepted ✓ — ab Accounts se disbursement hoga' : 'Agreement declined');
     loadMoneyReqs();
   }catch(err){ notify('Failed: ' + (err.message||err)); }
@@ -944,15 +1027,9 @@ async function loadMoneyReqs(){
       const chip = { PENDING:'chip-warn', AGREEMENT:'chip-warn', ACCEPTED:'chip-blue', DISBURSED:'chip-ok', APPROVED:'chip-ok', REJECTED:'chip-bad', DECLINED:'chip-bad' }[r.status] || 'chip-gray';
       let extra = '';
       if(r.req_type === 'LOAN' && r.status === 'AGREEMENT'){
-        const emi = Math.ceil(Number(r.amount)/(Number(r.months)||1));
         extra = `<div style="margin-top:7px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:9px 11px;font-size:12px;line-height:1.55">
-          <b style="color:#1e40af">📄 LOAN AGREEMENT</b><br>
-          Amount: <b>${fmtINR(r.amount)}</b> · Tenure: <b>${r.months} months</b> · EMI: <b>₹${emi.toLocaleString('en-IN')}/month</b> (salary se auto-deduct, disbursement ke agle payroll se)<br>
-          Company chhodne par bacha balance full &amp; final se adjust hoga. Early repayment allowed, no penalty.
-          <div style="display:flex;gap:8px;margin-top:8px">
-            <button onclick="loanDecision(${r.id}, true)" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:9px;font-weight:700;font-size:12.5px">✓ ACCEPT</button>
-            <button onclick="loanDecision(${r.id}, false)" style="flex:1;background:#fee2e2;color:#b91c1c;border:none;border-radius:8px;padding:9px;font-weight:700;font-size:12.5px">✗ DECLINE</button>
-          </div></div>`;
+          <b style="color:#1e40af">📄 LOAN AGREEMENT taiyar hai</b> — poora agreement padh ke digitally sign karo.
+          <button onclick="openLoanAgreement(${r.id})" style="display:block;width:100%;margin-top:8px;background:#1f4b9b;color:#fff;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:13px">📄 VIEW AGREEMENT &amp; SIGN</button></div>`;
       }
       return `<div class="row" style="display:block"><div style="display:flex;justify-content:space-between;align-items:center"><span><b>${r.req_type === 'LOAN' ? 'Loan' : 'Advance'}</b> ${fmtINR(r.amount)}${r.months?' · '+r.months+' mo':''}${r.reason?' · '+esc(r.reason):''}</span><span><span class="chip ${chip}">${esc(stLabel)}</span>${r.status==='PENDING'?_cancelChip('MR', r.id):''}</span></div>${extra}</div>`;
     }).join('') : '';
