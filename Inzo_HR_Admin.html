@@ -5076,12 +5076,12 @@ function unitAddrFor(code){
   const u = units.find(x => String(code).toUpperCase().startsWith(x.code));
   return (u && u.addr) ? u.addr : null;
 }
-function printLoanAgreement(code, name, amount, months, signed){
+function buildLoanAgreementHTML(code, name, amount, months, signed){
   const S = getSettings();
   const emi = Math.ceil(amount / months);
   const e = EMP.find(x => String(x['Employee code']).toUpperCase() === String(code).toUpperCase()) || {};
   const nm = name || e.Name || code;
-  const html = letterShell('LOAN AGREEMENT', `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/LOAN/${new Date().getFullYear()}/${Math.floor(100+Math.random()*900)}`,
+  return letterShell('LOAN AGREEMENT', `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/LOAN/${new Date().getFullYear()}/${Math.floor(100+Math.random()*900)}`,
     `<p>This Loan Agreement is made between <b>${esc(S.name)}</b> ("the Company") and <b>${esc(nm)}</b>, Employee Code <b>${esc(code)}</b>${e.DEPARTMENT ? ', ' + esc(e.DEPARTMENT) : ''} ("the Employee").</p>
      <ol style="padding-left:18px">
        <li><b>Loan Amount:</b> ₹${Number(amount).toLocaleString('en-IN')}/- (Rupees ${esc(numToWords(amount))} Only), interest-free.</li>
@@ -5097,17 +5097,45 @@ function printLoanAgreement(code, name, amount, months, signed){
        <tr><th>Loan Amount</th><td>₹${Number(amount).toLocaleString('en-IN')}</td></tr>
        <tr><th>Tenure / EMI</th><td>${months} months · ₹${emi.toLocaleString('en-IN')}/month</td></tr>
      </tbody></table>
-     ${signed ? `<div style="margin-top:14px;border:1.5px solid #16a34a;border-radius:10px;padding:11px 14px;background:#f0fdf4">
-       <b style="color:#166534;font-size:12px;text-transform:uppercase;letter-spacing:.05em">✓ Digitally Signed &amp; Accepted</b>
-       <table class="ann" style="margin-top:8px;font-size:11px"><tbody>
-         <tr><th style="width:30%">Signed by</th><td>${esc(signed.name||nm)} (${esc(code)})</td></tr>
-         <tr><th>Timestamp</th><td>${esc(String(signed.at).replace('T',' ').slice(0,19))} (IST)</td></tr>
-         <tr><th>IP Address</th><td>${esc(signed.ip||'—')}</td></tr>
-         <tr><th>Document Hash (SHA-256)</th><td style="font-family:monospace;font-size:9.5px;word-break:break-all">${esc(signed.hash||'—')}</td></tr>
-       </tbody></table>
-       <p style="font-size:10px;color:#64748b;margin:6px 0 0">Signed via Nexus ESS after identity verification (employee code + registered mobile). The hash above is the fingerprint of the exact agreed terms.</p>
-     </div>` : ''}`);
-  printHTML(html);
+     <div style="margin-top:22px">
+       <p style="margin:0 0 6px;font-weight:700;font-size:12px">Accepted &amp; Agreed</p>
+       ${signed ? `
+       <div style="background:#fff;border:1px solid #94a3b8;border-radius:6px;padding:9px 11px;margin:6px 0;max-width:430px">
+         <div style="display:flex;gap:11px;align-items:center">
+           <div style="flex-shrink:0;text-align:center">
+             <div style="width:42px;height:42px;border-radius:50%;border:2px solid #059669;background:#ecfdf5;display:flex;align-items:center;justify-content:center;color:#059669;font-size:20px;font-weight:900">✓</div>
+             <span style="font-size:8px;font-weight:800;color:#065f46;display:block;margin-top:3px;letter-spacing:-.01em">VALID SIGN</span>
+           </div>
+           <div style="flex:1;font-size:10.5px;line-height:1.45;border-left:1px solid #e2e8f0;padding-left:11px">
+             <div style="font-weight:700;color:#0f172a">Digitally signed by <span style="color:#1e3a8a;text-decoration:underline;text-decoration-color:#93c5fd">${esc(signed.name||nm)}</span></div>
+             <div style="font-size:9.5px;color:#475569;margin-top:3px">
+               <div><b>Signer ID:</b> <span style="font-family:monospace">${esc(code)}</span></div>
+               <div><b>Date:</b> ${esc(String(signed.at).replace('T',' ').slice(0,19))} (IST)</div>
+               <div><b>IP:</b> <span style="font-family:monospace">${esc(signed.ip||'—')}</span></div>
+               <div style="font-size:8.5px;font-family:monospace;color:#64748b;padding-top:1px;word-break:break-all"><b>Hash:</b> ${esc(signed.hash||'—')}</div>
+             </div>
+           </div>
+         </div>
+       </div>` : `<div style="height:44px"></div>`}
+       <p style="margin:2px 0 0;font-weight:700;font-size:12.5px">${esc(signed && signed.name ? signed.name : nm)}</p>
+       <p style="margin:1px 0 0;font-size:10.5px;color:#64748b;border-top:1px solid #94a3b8;display:inline-block;padding-top:3px">Signature of Employee</p>
+     </div>`);
+}
+function viewLoanAgreement(code, name, amount, months, signed){
+  const html = buildLoanAgreementHTML(code, name, amount, months, signed);
+  const ov = document.createElement('div');
+  ov.id = '_agrViewOv';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(15,23,42,.62);overflow-y:auto;padding:18px 12px';
+  ov.innerHTML = `<div style="max-width:820px;margin:0 auto">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px">
+      <button class="btn btn-primary btn-sm" id="_agrPrintBtn"><i class="fa-solid fa-print"></i> Print / PDF</button>
+      <button class="btn btn-ghost btn-sm" style="background:#fff" onclick="document.getElementById('_agrViewOv').remove()"><i class="fa-solid fa-xmark"></i> Close</button>
+    </div>
+    <div style="transform-origin:top center">${html}</div>
+  </div>`;
+  ov.addEventListener('click', e => { if(e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+  document.getElementById('_agrPrintBtn').addEventListener('click', () => { ov.remove(); printHTML(html); });
 }
 function slipHTML(r){
   const S = getSettings();
@@ -5858,7 +5886,7 @@ document.body.addEventListener('click', async e => {
     return;
   }
   if(act === 'ml-agr'){
-    printLoanAgreement(el.dataset.code, el.dataset.name, Number(el.dataset.amount), Number(el.dataset.months)||1,
+    viewLoanAgreement(el.dataset.code, el.dataset.name, Number(el.dataset.amount), Number(el.dataset.months)||1,
       el.dataset.sat ? { name: el.dataset.sname, at: el.dataset.sat, ip: el.dataset.ship, hash: el.dataset.shash } : null);
     return;
   }
