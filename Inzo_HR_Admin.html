@@ -5081,7 +5081,7 @@ function buildLoanAgreementHTML(code, name, amount, months, signed){
   const emi = Math.ceil(amount / months);
   const e = EMP.find(x => String(x['Employee code']).toUpperCase() === String(code).toUpperCase()) || {};
   const nm = name || e.Name || code;
-  return letterShell('LOAN AGREEMENT', `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/LOAN/${new Date().getFullYear()}/${Math.floor(100+Math.random()*900)}`,
+  const html = letterShell('LOAN AGREEMENT', `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/LOAN/${new Date().getFullYear()}/${Math.floor(100+Math.random()*900)}`,
     `<p>This Loan Agreement is made between <b>${esc(S.name)}</b> ("the Company") and <b>${esc(nm)}</b>, Employee Code <b>${esc(code)}</b>${e.DEPARTMENT ? ', ' + esc(e.DEPARTMENT) : ''} ("the Employee").</p>
      <ol style="padding-left:18px">
        <li><b>Loan Amount:</b> ₹${Number(amount).toLocaleString('en-IN')}/- (Rupees ${esc(numToWords(amount))} Only), interest-free.</li>
@@ -5097,29 +5097,34 @@ function buildLoanAgreementHTML(code, name, amount, months, signed){
        <tr><th>Loan Amount</th><td>₹${Number(amount).toLocaleString('en-IN')}</td></tr>
        <tr><th>Tenure / EMI</th><td>${months} months · ₹${emi.toLocaleString('en-IN')}/month</td></tr>
      </tbody></table>
-     <div style="margin-top:22px">
-       <p style="margin:0 0 6px;font-weight:700;font-size:12px">Accepted &amp; Agreed</p>
-       ${signed ? `
-       <div style="background:#fff;border:1px solid #94a3b8;border-radius:6px;padding:9px 11px;margin:6px 0;max-width:430px">
-         <div style="display:flex;gap:11px;align-items:center">
-           <div style="flex-shrink:0;text-align:center">
-             <div style="width:42px;height:42px;border-radius:50%;border:2px solid #059669;background:#ecfdf5;display:flex;align-items:center;justify-content:center;color:#059669;font-size:20px;font-weight:900">✓</div>
-             <span style="font-size:8px;font-weight:800;color:#065f46;display:block;margin-top:3px;letter-spacing:-.01em">VALID SIGN</span>
-           </div>
-           <div style="flex:1;font-size:10.5px;line-height:1.45;border-left:1px solid #e2e8f0;padding-left:11px">
-             <div style="font-weight:700;color:#0f172a">Digitally signed by <span style="color:#1e3a8a;text-decoration:underline;text-decoration-color:#93c5fd">${esc(signed.name||nm)}</span></div>
-             <div style="font-size:9.5px;color:#475569;margin-top:3px">
-               <div><b>Signer ID:</b> <span style="font-family:monospace">${esc(code)}</span></div>
-               <div><b>Date:</b> ${esc(String(signed.at).replace('T',' ').slice(0,19))} (IST)</div>
-               <div><b>IP:</b> <span style="font-family:monospace">${esc(signed.ip||'—')}</span></div>
-               <div style="font-size:8.5px;font-family:monospace;color:#64748b;padding-top:1px;word-break:break-all"><b>Hash:</b> ${esc(signed.hash||'—')}</div>
-             </div>
-           </div>
-         </div>
-       </div>` : `<div style="height:44px"></div>`}
-       <p style="margin:2px 0 0;font-weight:700;font-size:12.5px">${esc(signed && signed.name ? signed.name : nm)}</p>
-       <p style="margin:1px 0 0;font-size:10.5px;color:#64748b;border-top:1px solid #94a3b8;display:inline-block;padding-top:3px">Signature of Employee</p>
-     </div>`);
+     `);
+  // agreement mein letterShell ke "Accepted & Agreed" block (right side) ke andar hi
+  // digital-sign card + naam daalo, aur label sirf "Signature of Employee" karo
+  const _accOld = `<p style="margin:0 0 34px">Accepted &amp; Agreed</p>
+        <p style="margin:0;border-top:1px solid #94a3b8;padding-top:5px;display:inline-block;font-size:11px;color:#64748b">Signature of Candidate / Employee</p>`;
+  const _card = signed ? `
+        <div style="background:#fff;border:1px solid #94a3b8;border-radius:6px;padding:8px 10px;margin:6px 0 6px auto;max-width:340px;text-align:left">
+          <div style="display:flex;gap:10px;align-items:center">
+            <div style="flex-shrink:0;text-align:center">
+              <div style="width:38px;height:38px;border-radius:50%;border:2px solid #059669;background:#ecfdf5;display:flex;align-items:center;justify-content:center;color:#059669;font-size:18px;font-weight:900">✓</div>
+              <span style="font-size:7.5px;font-weight:800;color:#065f46;display:block;margin-top:2px">VALID SIGN</span>
+            </div>
+            <div style="flex:1;font-size:9.5px;line-height:1.45;border-left:1px solid #e2e8f0;padding-left:10px">
+              <div style="font-weight:700;color:#0f172a;font-size:10px">Digitally signed by <span style="color:#1e3a8a;text-decoration:underline;text-decoration-color:#93c5fd">${esc(signed.name||nm)}</span></div>
+              <div style="font-size:8.5px;color:#475569;margin-top:2px">
+                <div><b>Signer ID:</b> <span style="font-family:monospace">${esc(code)}</span></div>
+                <div><b>Date:</b> ${esc(String(signed.at).replace('T',' ').slice(0,19))} (IST)</div>
+                ${signed.geo ? `<div><b>Location:</b> <span style="font-family:monospace">${esc(signed.geo)}</span></div>` : ''}
+                <div><b>IP:</b> <span style="font-family:monospace">${esc(signed.ip||'—')}</span></div>
+                <div style="font-size:7.5px;font-family:monospace;color:#64748b;word-break:break-all"><b>Hash:</b> ${esc(signed.hash||'—')}</div>
+              </div>
+            </div>
+          </div>
+        </div>` : `<div style="height:40px"></div>`;
+  const _accNew = `<p style="margin:0 0 4px">Accepted &amp; Agreed</p>
+        ${_card}
+        <p style="margin:0;border-top:1px solid #94a3b8;padding-top:5px;display:inline-block;font-size:11px"><b>${signed ? esc(signed.name||nm) : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'}</b><br><span style="font-size:10.5px;color:#64748b">Signature of Employee</span></p>`;
+  return html.replace(_accOld, _accNew);
 }
 function viewLoanAgreement(code, name, amount, months, signed){
   const html = buildLoanAgreementHTML(code, name, amount, months, signed);
@@ -5887,7 +5892,7 @@ document.body.addEventListener('click', async e => {
   }
   if(act === 'ml-agr'){
     viewLoanAgreement(el.dataset.code, el.dataset.name, Number(el.dataset.amount), Number(el.dataset.months)||1,
-      el.dataset.sat ? { name: el.dataset.sname, at: el.dataset.sat, ip: el.dataset.ship, hash: el.dataset.shash } : null);
+      el.dataset.sat ? { name: el.dataset.sname, at: el.dataset.sat, ip: el.dataset.ship, geo: el.dataset.sgeo, hash: el.dataset.shash } : null);
     return;
   }
   if(act === 'ex-pay'){ openExPay(el.dataset.code); return; }
@@ -8555,7 +8560,7 @@ async function loadApprovals(){
         : `
           ${r.signed_at ? `<span class="chip chip-ok" style="font-size:10px" title="Hash: ${esc(r.agreement_hash||'')}">✓ Signed: ${esc(r.signed_name||'')} · ${String(r.signed_at).slice(0,16).replace('T',' ')}</span>` : ''}
           <button class="btn btn-primary btn-sm" data-act="ml-disb" data-id="${r.id}" data-code="${esc(r.employee_code)}" data-amount="${r.amount}" data-months="${r.months||''}" data-reason="${esc(r.reason||'')}"><i class="fa-solid fa-money-bill-transfer"></i> Disburse</button>
-          <button class="btn btn-ghost btn-sm" data-act="ml-agr" data-code="${esc(r.employee_code)}" data-name="${esc(r.name||'')}" data-amount="${r.amount}" data-months="${r.months||''}" data-sname="${esc(r.signed_name||'')}" data-sat="${esc(r.signed_at||'')}" data-ship="${esc(r.signed_ip||'')}" data-shash="${esc(r.agreement_hash||'')}" title="Signed Agreement (PDF)"><i class="fa-solid fa-file-contract"></i></button>`}</td></tr>`).join('')}
+          <button class="btn btn-ghost btn-sm" data-act="ml-agr" data-code="${esc(r.employee_code)}" data-name="${esc(r.name||'')}" data-amount="${r.amount}" data-months="${r.months||''}" data-sname="${esc(r.signed_name||'')}" data-sat="${esc(r.signed_at||'')}" data-ship="${esc(r.signed_ip||'')}" data-sgeo="${esc(r.signed_geo||'')}" data-shash="${esc(r.agreement_hash||'')}" title="Signed Agreement (PDF)"><i class="fa-solid fa-file-contract"></i></button>`}</td></tr>`).join('')}
     </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
   if($('apCntMl')) $('apCntMl').innerText = (ml.data||[]).length;
   // tab count badges
