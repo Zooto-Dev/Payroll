@@ -4571,10 +4571,15 @@ $('bulkUploadBtn').addEventListener('click', async () => {
     }
     if(!recs.length) throw new Error('Koi valid row nahi (IN time waali) — kam se kam IN bharo');
 
-    // existing rows for these dates -> skip/overwrite logic
+    // existing rows for these dates -> skip/overwrite logic (paginated — no 1000-row cap)
     const dts = [...new Set(recs.map(r => r.date))].sort();
-    const { data: existing } = await sb.from('attendance').select('employee_code, date, in_time').gte('date', dts[0]).lte('date', dts[dts.length-1]).limit(100000);
-    const exSet = new Set((existing||[]).map(r => String(r.employee_code).toUpperCase() + '|' + r.date));
+    let existing = [];
+    for(let pf = 0; pf < 500000; pf += 1000){
+      const { data: pg } = await sb.from('attendance').select('employee_code, date, in_time').gte('date', dts[0]).lte('date', dts[dts.length-1]).order('date').range(pf, pf + 999);
+      existing = existing.concat(pg || []);
+      if(!pg || pg.length < 1000) break;
+    }
+    const exSet = new Set(existing.map(r => String(r.employee_code).toUpperCase() + '|' + r.date));
 
     const toInsert = [], toUpdate = [];
     recs.forEach(x => {
@@ -5709,12 +5714,12 @@ document.body.addEventListener('click', async e => {
   }
   if(act === 'vb-review'){ await sb.from('feedback').update({ status:'IN_REVIEW' }).eq('id', el.dataset.id); loadVoice(); }
   if(act === 'vb-resolve'){
-    const note = (await nxPrompt('Resolution note (optional):', 'Resolve')) || '';
+    const note = (await nxPrompt('Closing remark — ye employee ko ESS mein dikhega:', 'Close / Resolve')) || '';
     await sb.from('feedback').update({ status:'RESOLVED', admin_note: note }).eq('id', el.dataset.id);
     notify('Marked resolved', 'success'); loadVoice();
   }
   if(act === 'vb-reject'){
-    const note = (await nxPrompt('Rejection note (optional):', 'Reject')) || '';
+    const note = (await nxPrompt('Closing remark (reject reason) — ye employee ko ESS mein dikhega:', 'Reject')) || '';
     await sb.from('feedback').update({ status:'REJECTED', admin_note: note }).eq('id', el.dataset.id);
     loadVoice();
   }
