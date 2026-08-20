@@ -988,8 +988,7 @@ async function openLoanAgreement(id){
 async function loanSignStep(id){
   const phone = String((document.getElementById('_agrPhone')||{}).value || '').replace(/\D/g,'');
   const nameSig = String((document.getElementById('_agrName')||{}).value || '').trim();
-  const regPhone = String(PHONE||'').replace(/\D/g,'').slice(-10);
-  if(phone.length !== 10 || phone !== regPhone) return notify('Mobile number registered number se match nahi hua');
+  if(phone.length !== 10) return notify('10-digit mobile number daalo');
   if(nameSig.length < 3) return notify('Signature ke liye apna poora naam type karo');
   const btn = document.getElementById('_agrSignBtn'); btn.disabled = true; btn.innerText = 'Signing…';
   try{
@@ -1003,7 +1002,7 @@ async function loanSignStep(id){
     const enc = new TextEncoder().encode(window._agrTerms + '|SIGNED_BY:' + nameSig + '|PHONE_VERIFIED:' + phone);
     const buf = await crypto.subtle.digest('SHA-256', enc);
     const hash = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
-    const { data, error } = await sb.rpc('ess_loan_sign', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: id, p_name: nameSig, p_ip: ip, p_hash: hash, p_geo: geo });
+    const { data, error } = await sb.rpc('ess_loan_sign', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: id, p_name: nameSig, p_ip: ip, p_hash: hash, p_geo: geo, p_verify: phone });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
     const ov = document.getElementById('_agrOv'); if(ov) ov.remove();
