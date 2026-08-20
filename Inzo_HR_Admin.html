@@ -780,6 +780,21 @@ body.no-confidential .confidential-col{display:none!important}
     <div class="mis-card"><h4><i class="fa-solid fa-business-time" style="color:#7c3aed"></i> Shift-wise Attendance — Today</h4><div id="misShiftToday" style="overflow-x:auto"></div></div>
   </div>
 
+  <div class="mis-sec"><i class="fa-solid fa-file-arrow-down"></i> DAILY DETAILED ATTENDANCE REPORT <span style="font-weight:400;font-size:11px;text-transform:none;letter-spacing:0;color:var(--muted)">(kisi bhi din ki — group karke dekho &amp; CSV download karo)</span></div>
+  <div class="mis-card">
+    <div class="flex gap-2 flex-wrap items-end mb-3">
+      <div><label class="lbl">Date</label><input type="date" id="mdrDate" class="inp" style="width:150px"></div>
+      <div><label class="lbl">Group By</label><select id="mdrGroup" class="inp" style="width:160px">
+        <option value="dept">Department</option><option value="unit">Unit</option>
+        <option value="shift">Shift</option><option value="desig">Designation</option>
+        <option value="none">— No grouping —</option></select></div>
+      <label class="flex items-center gap-2 text-xs" style="padding-bottom:9px"><input type="checkbox" id="mdrNight"> Sirf <b>Night Shift</b> employees</label>
+      <button class="btn btn-primary btn-sm" onclick="loadMisDaily()"><i class="fa-solid fa-rotate"></i> Show</button>
+      <button class="btn btn-ghost btn-sm" onclick="downloadMisDailyCSV()"><i class="fa-solid fa-file-csv"></i> Download CSV</button>
+    </div>
+    <div id="mdrBody" style="overflow-x:auto"><p class="m-0 text-xs" style="color:var(--muted)">Date chuno aur Show dabao.</p></div>
+  </div>
+
   <div class="mis-sec"><i class="fa-solid fa-receipt"></i> EXPENSE / REIMBURSEMENT</div>
   <div class="grid lg:grid-cols-3 gap-4">
     <div class="mis-card"><h4><i class="fa-solid fa-scale-balanced" style="color:var(--brand)"></i> vs Previous Month</h4><div id="misExCmp"></div></div>
@@ -5445,6 +5460,94 @@ function openLiveDrill(kind, idx){
   ov.addEventListener('click', e => { if(e.target === ov) ov.remove(); });
   document.body.appendChild(ov);
 }
+let _MDR_ROWS = [];
+async function buildMisDaily(){
+  const d = ($('mdrDate') && $('mdrDate').value) || todayISO();
+  const [attR, lvR, gpR] = await Promise.all([
+    sb.from('attendance').select('*').eq('date', d).limit(100000),
+    sb.from('leaves').select('employee_code').eq('status','APPROVED').lte('from_date', d).gte('to_date', d),
+    sb.from('ess_att_requests').select('employee_code, req_type').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).eq('date', d)
+  ]);
+  const attMap = {}; (attR.data||[]).forEach(r => { attMap[String(r.employee_code).toUpperCase()] = r; });
+  const lvSet = new Set((lvR.data||[]).map(r => String(r.employee_code).toUpperCase()));
+  const wfhSet = new Set(), gateSet = new Set();
+  (gpR.data||[]).forEach(r => { const c = String(r.employee_code).toUpperCase(); (r.req_type === 'WFH' ? wfhSet : gateSet).add(c); });
+  const shById = {}; (SHIFTS||[]).forEach(x => shById[String(x.id)] = x);
+  const S = getSettings();
+  const unitNm = u => { const un = ((S && S.units)||[]).find(x => String(x.code) === String(u)); return un ? un.name : (u || '—'); };
+  _MDR_ROWS = activeEmps().map(e => {
+    const c = String(e['Employee code']).toUpperCase();
+    const p = (PROFILES||{})[e['Employee code']] || (PROFILES||{})[c] || {};
+    const sh = p.shift_id ? shById[String(p.shift_id)] : null;
+    const night = sh ? (!!sh.is_night || (sh.end_time && sh.start_time && String(sh.end_time) < String(sh.start_time))) : false;
+    const a = attMap[c];
+    let status = 'ABSENT';
+    if(a) status = 'PRESENT';
+    else if(gateSet.has(c)) status = 'GATE PASS';
+    else if(wfhSet.has(c)) status = 'WFH';
+    else if(lvSet.has(c)) status = 'LEAVE';
+    else if(night) status = 'NIGHT (shift due)';
+    return { code: c, name: e.Name || '', dept: e.DEPARTMENT || '—', desig: e.DESIGNATION || '—',
+      unit: unitNm(e.UNIT || String(e['Employee code']||'').slice(0,4)),
+      shift: sh ? sh.name : 'Unassigned', night, category: String(p.category||'').toUpperCase() || '—',
+      status, inT: a ? String(a.in_time||'').slice(0,5) : '', outT: a ? String(a.out_time||'').slice(0,5) : '',
+      late: a ? (a.is_late ? 'YES' : 'no') : '', hours: a ? String(a.total_hours||'').slice(0,5) : '' };
+  });
+  if($('mdrNight') && $('mdrNight').checked) _MDR_ROWS = _MDR_ROWS.filter(r => r.night);
+  return d;
+}
+async function loadMisDaily(){
+  const host = $('mdrBody'); if(!host) return;
+  host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Loading…</p>';
+  try{
+    const d = await buildMisDaily();
+    const gsel = ($('mdrGroup') && $('mdrGroup').value) || 'dept';
+    const keyFn = { dept: r => r.dept, unit: r => r.unit, shift: r => r.shift, desig: r => r.desig, none: r => 'ALL EMPLOYEES' }[gsel];
+    const groups = {};
+    _MDR_ROWS.forEach(r => { (groups[keyFn(r)] = groups[keyFn(r)] || []).push(r); });
+    const keys = Object.keys(groups).sort();
+    if(!_MDR_ROWS.length){ host.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Koi employee nahi mila (filter check karo).</p>'; return; }
+    let out = `<p class="text-xs mb-2" style="color:var(--muted)">Report: <b>${d}</b> · ${_MDR_ROWS.length} employees · Group: <b>${gsel.toUpperCase()}</b></p>`;
+    const g_tot = { P:0, A:0, L:0, G:0 };
+    keys.forEach(k => {
+      const rows = groups[k];
+      const P = rows.filter(r => r.status === 'PRESENT').length;
+      const A = rows.filter(r => r.status === 'ABSENT').length;
+      const L = rows.filter(r => r.status === 'LEAVE' || r.status === 'WFH').length;
+      const G = rows.filter(r => r.status === 'GATE PASS').length;
+      g_tot.P += P; g_tot.A += A; g_tot.L += L; g_tot.G += G;
+      out += `<div style="margin:14px 0 4px;font-weight:800;font-size:12.5px;color:var(--brand)">${esc(k)} <span style="font-weight:400;color:var(--muted);font-size:11px">— Total ${rows.length} · <span style="color:#16a34a">P ${P}</span> · <span style="color:#dc2626">A ${A}</span> · Leave/WFH ${L} · Gate ${G}</span></div>
+      <table class="reg" style="width:100%;min-width:760px;font-size:11.5px"><thead><tr>
+        <th style="text-align:left">Name</th><th>Code</th><th style="text-align:left">Dept</th><th style="text-align:left">Designation</th><th>Unit</th><th>Shift</th><th>Status</th><th>IN</th><th>OUT</th><th>Late</th><th>Hours</th></tr></thead><tbody>` +
+      rows.sort((a,b)=>a.name.localeCompare(b.name)).map(r => `<tr>
+        <td style="font-weight:600">${esc(r.name)}</td><td style="text-align:center">${esc(r.code)}</td>
+        <td>${esc(r.dept)}</td><td>${esc(r.desig)}</td><td style="text-align:center">${esc(r.unit)}</td>
+        <td style="text-align:center">${esc(r.shift)}${r.night?' 🌙':''}</td>
+        <td style="text-align:center;font-weight:600;color:${r.status==='PRESENT'?'#16a34a':r.status==='ABSENT'?'#dc2626':'#a9701e'}">${esc(r.status)}</td>
+        <td style="text-align:center">${esc(r.inT)}</td><td style="text-align:center">${esc(r.outT)}</td>
+        <td style="text-align:center;color:${r.late==='YES'?'#dc2626':'var(--muted)'}">${esc(r.late)}</td><td style="text-align:center">${esc(r.hours)}</td></tr>`).join('') + `</tbody></table>`;
+    });
+    out += `<div style="margin-top:14px;padding:10px 13px;background:var(--surface-2);border-radius:10px;font-size:12.5px;font-weight:700">GRAND TOTAL — ${_MDR_ROWS.length} · <span style="color:#16a34a">Present ${g_tot.P}</span> · <span style="color:#dc2626">Absent ${g_tot.A}</span> · Leave/WFH ${g_tot.L} · Gate ${g_tot.G}</div>`;
+    host.innerHTML = out;
+  }catch(e){ host.innerHTML = `<p class="m-0 text-xs" style="color:var(--bad)">Error: ${esc(e.message||e)}</p>`; }
+}
+async function downloadMisDailyCSV(){
+  const d = await buildMisDaily();
+  if(!_MDR_ROWS.length) return notify('Koi data nahi', 'error');
+  const gsel = ($('mdrGroup') && $('mdrGroup').value) || 'dept';
+  const keyFn = { dept: r => r.dept, unit: r => r.unit, shift: r => r.shift, desig: r => r.desig, none: r => '' }[gsel];
+  const esc2 = v => '"' + String(v==null?'':v).replace(/"/g,'""') + '"';
+  const head = ['Group','Name','Employee Code','Department','Designation','Unit','Shift','Night Shift','Category','Status','IN','OUT','Late','Total Hours'];
+  const lines = [head.join(',')].concat(
+    _MDR_ROWS.sort((a,b)=> keyFn(a).localeCompare(keyFn(b)) || a.name.localeCompare(b.name))
+      .map(r => [keyFn(r), r.name, r.code, r.dept, r.desig, r.unit, r.shift, r.night?'YES':'no', r.category, r.status, r.inT, r.outT, r.late, r.hours].map(esc2).join(',')));
+  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `attendance_detailed_${d}${($('mdrNight')&&$('mdrNight').checked)?'_NIGHT':''}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
+  notify('Report download ho gayi ✓', 'success');
+}
 async function loadMisLiveToday(){
   const today = todayISO();
   try{
@@ -5472,6 +5575,7 @@ async function loadMis(){
   if(!$('misMonth').value) $('misMonth').value = new Date().toISOString().slice(0,7);
   const ym = $('misMonth').value;
   loadMisLiveToday();
+  if($('mdrDate') && !$('mdrDate').value){ $('mdrDate').value = todayISO(); loadMisDaily(); }
   const [y, m] = ym.split('-').map(Number);
   const prevYm = m === 1 ? `${y-1}-12` : `${y}-${String(m-1).padStart(2,'0')}`;
   $('misKpis').innerHTML = '<div class="mis-kpi" style="grid-column:1/-1"><div class="s">Loading MIS data…</div></div>';
