@@ -1747,7 +1747,7 @@ function nxConfirm(msg, title){
             const _noFlex = _noFlexList.some(x => _dept.includes(x));
             const _staff = _cat === 'STAFF' && !_noFlex;
             const lateCutoff = _staff ? "10:00:00" : "09:10:00";
-            const isLate = timeStr > lateCutoff;
+            let isLate = timeStr > lateCutoff;
 
             let imageBase64 = offlineProcessData ? offlineProcessData.imageBase64 : null;
 
@@ -1854,7 +1854,7 @@ function nxConfirm(msg, title){
                         const r = await Promise.race([rpcP, tP]);
                         if (r && r._timeout) { dbWhy = 'network slow (8s timeout)'; }
                         else if (r.error) { dbWhy = (r.error.message || String(r.error)); }
-                        else if (r.data && r.data.ok) { dbSaved = true; dbRowId = r.data.id || null; }
+                        else if (r.data && r.data.ok) { dbSaved = true; dbRowId = r.data.id || null; if (typeof r.data.late === 'boolean') isLate = r.data.late; }
                         else { dbSaved = true; dbWhy = (r.data && r.data.reason) || ''; }   // already_in / no_open_in_row -> done, nothing to queue
                     } catch(e) { dbWhy = (e && e.message) || String(e); }
                 }
