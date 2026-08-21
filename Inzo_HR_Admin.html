@@ -307,15 +307,35 @@ body.no-confidential .confidential-col{display:none!important}
   .no-print{display:none !important}
   @page{ margin:0; }   /* removes the browser date/URL/page-number header & footer */
 }
-.idcard{width:54mm;height:85.6mm;background:#fff;border-radius:3.2mm;overflow:hidden;box-shadow:0 8px 20px rgba(15,23,42,.18);font-size:8.5px;line-height:1.35;position:relative;display:flex;flex-direction:column;color:#2a2824}
-.idcard .id-head{background:var(--brand);color:#fff;text-align:center;padding:2.5mm 2mm 13mm}
-.idcard .id-head .co{font-weight:700;font-size:9px;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.idcard .id-head .ad{font-size:6px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.idcard ol{list-style:decimal;padding-left:4mm;margin:0;color:#334155}
-.idcard .id-photo{width:22mm;height:22mm;border-radius:50%;object-fit:cover;border:1.2mm solid #fff;background:#e2e8f0;margin:-11mm auto 0;display:block;position:relative;z-index:2}
-.idcard .id-photo-fallback{width:22mm;height:22mm;border-radius:50%;border:1.2mm solid #fff;background:var(--brand-soft);margin:-11mm auto 0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--brand);position:relative;z-index:2}
-.idcard table{width:100%;border-collapse:collapse}
-.idcard td{padding:.6mm 0;vertical-align:top}
+.idcard{width:54mm;height:85.6mm;background:#fff;border-radius:2mm;overflow:hidden;box-shadow:0 8px 20px rgba(15,23,42,.18);border:.2mm solid #e0e0e0;font-size:8.5px;line-height:1.35;position:relative;display:flex;flex-direction:column;color:#333;box-sizing:border-box}
+.idcard .id-head{background:#c62828;color:#fff;text-align:center;padding:3mm 2.5mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.idcard .id-head .co{font-weight:700;font-size:9.5px;letter-spacing:.02em}
+.idcard .id-head .ad{font-size:5.8px;opacity:.9;line-height:1.25;margin-top:.8mm}
+.idcard .id-photo-area{display:flex;justify-content:center;margin:3.5mm 0 2.5mm}
+.idcard .id-photo{width:21mm;height:21mm;border-radius:50%;object-fit:cover;border:.9mm solid #fff;box-shadow:0 .5mm 1.5mm rgba(0,0,0,.18);background:#dcdcdc}
+.idcard .id-photo-fallback{width:21mm;height:21mm;border-radius:50%;border:.9mm solid #fff;box-shadow:0 .5mm 1.5mm rgba(0,0,0,.18);background:#dcdcdc;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#666}
+.idcard .emp-nm{margin:0;font-size:11px;font-weight:700;color:#222;text-transform:uppercase;text-align:center;padding:0 2mm}
+.idcard .emp-dg{margin:.5mm 0 2mm;font-size:8.5px;font-weight:600;color:#c62828;text-align:center}
+.idcard .details-table{width:88%;margin:0 auto;font-size:8px;border-collapse:collapse}
+.idcard .details-table td{padding:.7mm 0;color:#444;vertical-align:top}
+.idcard .details-table td:first-child{font-weight:700;width:45%}
+.idcard .id-foot{margin-top:auto;padding:2mm 3mm;display:flex;justify-content:space-between;align-items:flex-end;background:#ffebee;border-top:.3mm solid #ffcdd2;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.idcard .barcode{font-family:'Courier New',monospace;font-size:8.5px;font-weight:bold;color:#333}
+.idcard .sign{text-align:center}
+.idcard .sign img{height:5.5mm;display:block;margin:0 auto .5mm}
+.idcard .sign p{margin:0;font-size:6.5px;color:#444;font-weight:bold}
+.idcard .sign .sm{font-size:5px;font-weight:normal;color:#777}
+.idcard .cb{padding:3mm;display:flex;flex-direction:column;height:100%;box-sizing:border-box}
+.idcard .cb h4{margin:0 0 1.5mm;font-size:9px;text-align:center;color:#222;text-transform:uppercase;border-bottom:.3mm solid #ccc;padding-bottom:1mm}
+.idcard ol.terms{list-style:decimal;padding-left:4mm;margin:0 0 2mm;font-size:7.3px;color:#333}
+.idcard ol.terms li{margin-bottom:1mm}
+.idcard .back-bottom{display:flex;align-items:center;gap:2mm;margin-top:auto;background:#f5f5f5;padding:1.8mm;border-radius:1.5mm;border:.3mm dashed #ccc;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.idcard .qrw{background:#fff;padding:.8mm;border:.3mm solid #ddd;border-radius:1mm;line-height:0}
+.idcard .qrw img{width:14mm;height:14mm}
+.idcard .return-box{flex:1;font-size:6.8px}
+.idcard .return-box strong{display:block;margin-bottom:.6mm;color:#d32f2f;font-size:7.5px}
+.idcard .return-box p{margin:.3mm 0}
+.idcard .back-footer{text-align:center;font-size:6.8px;color:#888;margin-top:1.5mm}
 @media print{ .idcard{box-shadow:none;border:.3mm solid #cbd5e1;page-break-inside:avoid} .ann{page-break-inside:avoid} .ann tr{page-break-inside:avoid} }
 .loader-ring{width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
 .loader-dark{border-color:#cbd5e1;border-top-color:var(--brand)}
@@ -8519,48 +8539,59 @@ function idCardHTML(e, photo, validTill){
   const S = getSettings();
   const code = e['Employee code'];
   const p = PROFILES[code] || {};
-  const qr = 'https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=' + encodeURIComponent(code);
+  const emg = p.emergency_phone || '';
+  const qrData = 'Company: ' + (S.name||'') + '\nName: ' + (e.Name||'') + '\nCode: ' + code
+    + '\nDesig: ' + (e.DESIGNATION||'') + '\nDept: ' + (e.DEPARTMENT||'')
+    + (e.DOJ ? '\nJoining: ' + fmtDate(e.DOJ) : '')
+    + '\nValid Till: ' + fmtDate(validTill)
+    + (emg ? '\nEmergency: ' + emg : '')
+    + '\nContact: +91 87961 01580';
+  const qr = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(qrData);
   const photoEl = photo ? `<img class="id-photo" src="${photo}" alt="">` : `<div class="id-photo-fallback">${esc((e.Name||'?').charAt(0).toUpperCase())}</div>`;
   return `<div class="idcard idc-front">
     <div class="id-head">
       <div class="co">${esc(S.name).toUpperCase()}</div>
       <div class="ad">${esc(S.addr)}</div>
     </div>
-    ${photoEl}
-    <div style="text-align:center;padding:1.5mm 2mm 0">
-      <div style="font-weight:700;font-size:11px">${esc(e.Name)}</div>
-      <div style="color:var(--brand);font-weight:600;font-size:8px">${esc(e.DESIGNATION || '')}</div>
-    </div>
-    <div style="padding:1.5mm 4mm 0;flex:1;display:flex;justify-content:center">
-      <table style="width:auto;margin:0 auto">
-        <tr><td style="color:#64748b;padding-right:2.5mm;text-align:right">Emp Code</td><td style="font-weight:700">${esc(code)}</td></tr>
-        <tr><td style="color:#64748b;padding-right:2.5mm;text-align:right">Department</td><td>${esc(e.DEPARTMENT || '—')}</td></tr>
-        <tr><td style="color:#64748b;padding-right:2.5mm;text-align:right">Joining</td><td>${e.DOJ ? fmtDate(e.DOJ) : '—'}</td></tr>
-        <tr><td style="color:#64748b;padding-right:2.5mm;text-align:right">Valid Till</td><td>${fmtDate(validTill)}</td></tr>
-        ${(p.emergency_phone || S.phone) ? `<tr><td style="color:#64748b;padding-right:2.5mm;text-align:right">Emergency</td><td>${esc(p.emergency_phone || S.phone)}</td></tr>` : ''}
-        ${p.uan ? `<tr><td style="color:#64748b;padding-right:2.5mm;text-align:right">UAN</td><td>${esc(p.uan)}</td></tr>` : ''}
-      </table>
-    </div>
-    <div style="display:flex;align-items:flex-end;justify-content:space-between;padding:0 4mm 3mm">
-      <img src="${qr}" style="width:13mm;height:13mm" alt="QR">
-      <div style="text-align:right;font-size:6.5px;color:#64748b">Authorised Signatory<br><b style="font-size:8px;color:#2a2824">${esc(S.hr || '')}</b></div>
+    <div class="id-photo-area">${photoEl}</div>
+    <h3 class="emp-nm">${esc(e.Name)}</h3>
+    <p class="emp-dg">${esc(e.DESIGNATION || '')}</p>
+    <table class="details-table">
+      <tr><td>Emp Code</td><td>: ${esc(code)}</td></tr>
+      <tr><td>Department</td><td>: ${esc(e.DEPARTMENT || '—')}</td></tr>
+      <tr><td>Joining Date</td><td>: ${e.DOJ ? fmtDate(e.DOJ) : '—'}</td></tr>
+      <tr><td>Valid Till</td><td>: ${fmtDate(validTill)}</td></tr>
+      ${emg ? `<tr><td>Emergency</td><td>: ${esc(emg)}</td></tr>` : ''}
+    </table>
+    <div class="id-foot">
+      <div class="barcode">*${esc(code)}*</div>
+      <div class="sign">
+        <img src="https://zooto-dev.github.io/Payroll/signature.png" alt="">
+        <p>Kartik Poply</p>
+        <p class="sm">Authorised Signatory</p>
+      </div>
     </div>
   </div>
   <div class="idcard idc-back">
-    <div style="padding:4mm;flex:1">
-      <div style="font-weight:700;font-size:9px;border-bottom:.3mm solid #e2e8f0;padding-bottom:1.5mm;margin-bottom:2mm">TERMS OF USE</div>
-      <ol>
-        <li>This card is the property of ${esc(S.name)} and must be returned on separation.</li>
+    <div class="cb">
+      <h4>Terms of Use</h4>
+      <ol class="terms">
+        <li>This card is the property of ${esc(S.name).toUpperCase()} and must be returned on separation.</li>
         <li>The card is non-transferable and must be carried at all times within the premises.</li>
         <li>Loss of the card must be reported to HR immediately.</li>
         <li>Misuse of this card will invite disciplinary action.</li>
       </ol>
-      <div style="margin-top:3mm;font-size:7.5px">
-        <div style="color:#64748b">If found, please return to:</div>
-        <b>${esc(S.name)}</b><br>${esc(S.addr)}<br>${S.phone ? 'Ph: ' + esc(S.phone) : ''} ${S.email ? '• ' + esc(S.email) : ''}
+      <div class="back-bottom">
+        <div class="qrw"><img src="${qr}" alt="QR"></div>
+        <div class="return-box">
+          <strong>If found, please return to:</strong>
+          <p style="font-weight:bold">${esc(S.name).toUpperCase()}</p>
+          <p>${esc(S.addr)}</p>
+          <p>Ph: +91 87961 01580</p>
+        </div>
       </div>
+      <div class="back-footer">${esc(code)} • Issued: ${fmtDate(todayISO())}</div>
     </div>
-    <div style="background:#2a2824;color:#94a3b8;text-align:center;padding:2mm;font-size:6.5px">${esc(code)} • Issued ${new Date().toLocaleDateString('en-IN')}</div>
   </div>`;
 }
 $('idEmp').addEventListener('change', () => {
@@ -8610,26 +8641,45 @@ $('idGenBtn').addEventListener('click', async () => {
   }
 });
 $('idPrintBtn').addEventListener('click', () => printHTML('<div style="display:flex;flex-wrap:wrap;gap:6mm;padding:6mm">' + $('idWrap').innerHTML + '</div>'));
-// ======== EPSON L8050 — PVC CARD DIRECT PRINT ========
-// Page = exact card size (54 x 85.6mm), zero margin, 1 card per page.
-// Printer dialog mein: Epson L8050 + Paper "PVC Card" / custom 54x86mm chunna.
+// ======== EPSON L8050 — PVC CARD DIRECT PRINT (exact 54 x 85.6mm page) ========
 function printPVC(side){
   const cards = Array.from(document.querySelectorAll('#idWrap .idc-' + side));
   if(!cards.length) return notify('Pehle Generate karo', 'error');
   const css = `
     @page { size: 54mm 85.6mm; margin: 0; }
     html,body{margin:0;padding:0;background:#fff}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .pvc-page{width:54mm;height:85.6mm;overflow:hidden;page-break-after:always;position:relative}
     .pvc-page:last-child{page-break-after:auto}
-    .idcard{width:54mm;height:85.6mm;background:#fff;border-radius:0;overflow:hidden;font-size:8.5px;line-height:1.35;position:relative;display:flex;flex-direction:column;color:#2a2824;font-family:'Segoe UI',system-ui,sans-serif;box-shadow:none;border:none}
-    .idcard .id-head{background:#1f4b9b;color:#fff;text-align:center;padding:2.5mm 2mm 13mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .idcard .id-head .co{font-weight:700;font-size:9px;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .idcard .id-head .ad{font-size:6px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .idcard ol{list-style:decimal;padding-left:4mm;margin:0;color:#334155}
-    .idcard .id-photo{width:22mm;height:22mm;border-radius:50%;object-fit:cover;border:1.2mm solid #fff;background:#e2e8f0;margin:-11mm auto 0;display:block;position:relative;z-index:2}
-    .idcard .id-photo-fallback{width:22mm;height:22mm;border-radius:50%;border:1.2mm solid #fff;background:#dbeafe;margin:-11mm auto 0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#1f4b9b;position:relative;z-index:2}
-    .idcard table{border-collapse:collapse}
-    .idcard td{padding:.6mm 0;vertical-align:top}`;
+    .idcard{width:54mm;height:85.6mm;background:#fff;border-radius:0;border:none;box-shadow:none;overflow:hidden;font-size:8.5px;line-height:1.35;position:relative;display:flex;flex-direction:column;color:#333;box-sizing:border-box;font-family:'Segoe UI',system-ui,sans-serif}
+    .idcard .id-head{background:#c62828;color:#fff;text-align:center;padding:3mm 2.5mm}
+    .idcard .id-head .co{font-weight:700;font-size:9.5px;letter-spacing:.02em}
+    .idcard .id-head .ad{font-size:5.8px;opacity:.9;line-height:1.25;margin-top:.8mm}
+    .idcard .id-photo-area{display:flex;justify-content:center;margin:3.5mm 0 2.5mm}
+    .idcard .id-photo{width:21mm;height:21mm;border-radius:50%;object-fit:cover;border:.9mm solid #fff;box-shadow:0 .5mm 1.5mm rgba(0,0,0,.18);background:#dcdcdc}
+    .idcard .id-photo-fallback{width:21mm;height:21mm;border-radius:50%;border:.9mm solid #fff;background:#dcdcdc;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#666}
+    .idcard .emp-nm{margin:0;font-size:11px;font-weight:700;color:#222;text-transform:uppercase;text-align:center;padding:0 2mm}
+    .idcard .emp-dg{margin:.5mm 0 2mm;font-size:8.5px;font-weight:600;color:#c62828;text-align:center}
+    .idcard .details-table{width:88%;margin:0 auto;font-size:8px;border-collapse:collapse}
+    .idcard .details-table td{padding:.7mm 0;color:#444;vertical-align:top}
+    .idcard .details-table td:first-child{font-weight:700;width:45%}
+    .idcard .id-foot{margin-top:auto;padding:2mm 3mm;display:flex;justify-content:space-between;align-items:flex-end;background:#ffebee;border-top:.3mm solid #ffcdd2}
+    .idcard .barcode{font-family:'Courier New',monospace;font-size:8.5px;font-weight:bold;color:#333}
+    .idcard .sign{text-align:center}
+    .idcard .sign img{height:5.5mm;display:block;margin:0 auto .5mm}
+    .idcard .sign p{margin:0;font-size:6.5px;color:#444;font-weight:bold}
+    .idcard .sign .sm{font-size:5px;font-weight:normal;color:#777}
+    .idcard .cb{padding:3mm;display:flex;flex-direction:column;height:100%;box-sizing:border-box}
+    .idcard .cb h4{margin:0 0 1.5mm;font-size:9px;text-align:center;color:#222;text-transform:uppercase;border-bottom:.3mm solid #ccc;padding-bottom:1mm}
+    .idcard ol.terms{list-style:decimal;padding-left:4mm;margin:0 0 2mm;font-size:7.3px;color:#333}
+    .idcard ol.terms li{margin-bottom:1mm}
+    .idcard .back-bottom{display:flex;align-items:center;gap:2mm;margin-top:auto;background:#f5f5f5;padding:1.8mm;border-radius:1.5mm;border:.3mm dashed #ccc}
+    .idcard .qrw{background:#fff;padding:.8mm;border:.3mm solid #ddd;border-radius:1mm;line-height:0}
+    .idcard .qrw img{width:14mm;height:14mm}
+    .idcard .return-box{flex:1;font-size:6.8px}
+    .idcard .return-box strong{display:block;margin-bottom:.6mm;color:#d32f2f;font-size:7.5px}
+    .idcard .return-box p{margin:.3mm 0}
+    .idcard .back-footer{text-align:center;font-size:6.8px;color:#888;margin-top:1.5mm}`;
   const w = window.open('', '_blank', 'width=460,height=740');
   if(!w) return notify('Popup block ho gaya — is site ke liye popups allow karo', 'error');
   w.document.write('<html><head><title>PVC ' + side.toUpperCase() + '</title><style>' + css + '</style></head><body>'
@@ -8644,7 +8694,6 @@ function printPVC(side){
 $('idPvcFrontBtn').addEventListener('click', () => printPVC('front'));
 $('idPvcBackBtn').addEventListener('click', () => printPVC('back'));
 
-/* ================= UNUSED LEAVE DECISIONS (month-end prompt) ================= */
 async function renderLeaveDecisions(){
   const S = getSettings();
   let card = document.getElementById('lvDecCard');
