@@ -3387,6 +3387,24 @@ function fillFromCTC(){
   updateGrossPreview();
   notify('Filled from CTC ₹' + ctc.toLocaleString('en-IN') + ' → Gross ₹' + gross.toLocaleString('en-IN'), 'success');
 }
+// ---- CTC math: CTC = gross + employer PF (12% of basic, ceiling 15000) + employer ESI (3.25% if gross <= 21000)
+function ctcParts(g){
+  g = Number(g)||0;
+  const basic = Math.round(g * 0.5);
+  const empPF = Math.round(Math.min(basic, 15000) * 0.12);
+  const empESI = g > 0 && g <= 21000 ? Math.round(g * 0.0325) : 0;
+  return { gross: g, basic, empPF, empESI, monthlyCTC: g + empPF + empESI, annualCTC: (g + empPF + empESI) * 12 };
+}
+function grossFromAnnualCTC(ctcA){
+  let g = Math.max(0, Math.round((Number(ctcA)||0) / 12));   // start guess
+  for(let i = 0; i < 25; i++){
+    const p = ctcParts(g);
+    const diff = (Number(ctcA)/12) - p.monthlyCTC;
+    if(Math.abs(diff) < 1) break;
+    g = Math.max(0, Math.round(g + diff));
+  }
+  return g;
+}
 function splitGross(g){
   const S = getSettings();
   const alloc = {};
@@ -3968,8 +3986,9 @@ function candStageActions(c){
   if(c.stage === 'OFFERED'){
     const g = Number(c.agreed_salary)||0;
     const alloc = g ? splitGross(g) : null;
-    html += `<div class="grid grid-cols-2 gap-3 mb-2">
-      <div><label class="lbl">Agreed Monthly Gross (₹)</label><input id="candAgreed" type="number" class="inp" value="${c.agreed_salary||''}" oninput="candOfferPreview()"></div>
+    html += `<div class="grid grid-cols-3 gap-3 mb-2">
+      <div><label class="lbl">Annual CTC (₹)</label><input id="candCTC" type="number" class="inp" value="${g ? ctcParts(g).annualCTC : ''}" oninput="candCtcChanged()"></div>
+      <div><label class="lbl">Monthly Gross (₹) <span style="font-weight:400;color:var(--muted)">(auto)</span></label><input id="candAgreed" type="number" class="inp" value="${c.agreed_salary||''}" oninput="candGrossChanged()"></div>
       <div><label class="lbl">Joining Date</label><input id="candJoinDate" type="date" class="inp" value="${c.join_date||''}"></div>
     </div>
     <div id="candOfferBreak" class="text-[11px] mb-2 p-2 rounded" style="background:var(--brand-soft)">${alloc ? candBreakupText(g) : 'Enter the agreed salary to see the breakup.'}</div>
@@ -4001,6 +4020,11 @@ function candStageActions(c){
     </div>`;
   }
 
+  if(c.stage === 'JOINED'){
+    html += `<div class="flex gap-2 flex-wrap mb-3">
+      <button class="btn btn-primary btn-sm" onclick="printCandidateAppointment('${id}')"><i class="fa-solid fa-file-signature"></i> Appointment / Joining Letter (PDF)</button>
+    </div>`;
+  }
   if(c.stage === 'OFFERED' || c.stage === 'JOINED'){
     html += `<div class="mt-3 p-2 rounded" style="background:#f0fdf4;border:1px solid #bbf7d0">
       <div class="text-[11px] mb-1" style="color:#15803d"><b>Onboarding:</b> convert this candidate into an employee (Add Employee opens pre-filled).</div>
@@ -4013,7 +4037,22 @@ function candStageActions(c){
   }
   return html;
 }
+function candCtcChanged(){
+  const ctcA = Number(($('candCTC')||{}).value)||0;
+  if($('candAgreed')) $('candAgreed').value = ctcA ? grossFromAnnualCTC(ctcA) : '';
+  candOfferPreview();
+}
+function candGrossChanged(){
+  const g = Number(($('candAgreed')||{}).value)||0;
+  if($('candCTC')) $('candCTC').value = g ? ctcParts(g).annualCTC : '';
+  candOfferPreview();
+}
 function candBreakupText(g){
+  const _c = ctcParts(g);
+  const ctcLine = `<b>Annual CTC: ₹${_c.annualCTC.toLocaleString('en-IN')}</b> (Gross ₹${g.toLocaleString('en-IN')}/mo + Employer PF ₹${_c.empPF.toLocaleString('en-IN')}/mo${_c.empESI?` + Employer ESI ₹${_c.empESI.toLocaleString('en-IN')}/mo`:''}) · `;
+  return ctcLine + _origBreakup(g);
+}
+function _origBreakup(g){
   const alloc = splitGross(g);
   const basic = alloc.basic||0, hra = alloc.hra||0, rest = g - basic - hra;
   return `<b>Monthly:</b> Basic ${fmtINR(basic)} (50%) · HRA ${fmtINR(hra)} · Other Allowances ${fmtINR(rest)} · <b>Gross ${fmtINR(g)}</b><br>
@@ -4129,6 +4168,50 @@ async function sendDocRequest(id){
   await candEmail(c, 'docs', { link: candPortalLink(c), due });
   $('candStageBox').innerHTML = candStageActions(c);
 }
+function printCandidateAppointment(id){
+  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
+  const g = Number(c.agreed_salary) || 0;
+  const jd = c.join_date;
+  if(!g) return notify('Agreed salary set nahi hai (Offer stage mein bharo)', 'error');
+  if(!jd) return notify('Joining date set nahi hai', 'error');
+  const S = getSettings();
+  const yr = new Date().getFullYear();
+  const name = c.name || '', desig = c.position || 'the appointed position', dept = c.department || '';
+  const ctc = ctcParts(g);
+  const html = letterShell('APPOINTMENT LETTER', `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/APT/${yr}/${Math.floor(100+Math.random()*900)}`,
+    `<p style="margin:0 0 12px"><b>${esc(name)}</b></p>
+     <p style="margin:0 0 12px"><b>Subject: Letter of Appointment — ${esc(desig)}</b></p>
+     <p>Dear <b>${esc(name.split(' ')[0])}</b>,</p>
+     <p>With reference to our offer of employment and your acceptance thereof, we are pleased to appoint you in the services of <b>${esc(S.name)}</b> on the following terms and conditions:</p>
+
+     <p style="margin:14px 0 4px"><b>1. Appointment &amp; Effective Date</b></p>
+     <p style="margin:0 0 10px">You are appointed as <b>${esc(desig)}</b>${dept ? ' in the <b>' + esc(dept) + '</b> department' : ''}, with effect from <b>${fmtDate(jd)}</b> (your date of joining).</p>
+
+     <p style="margin:14px 0 4px"><b>2. Compensation</b></p>
+     <p style="margin:0 0 10px">Your total annual compensation (Cost to Company) is <b>₹${ctc.annualCTC.toLocaleString('en-IN')}/- per annum</b> (Rupees ${esc(numToWords(ctc.annualCTC))} Only), including a monthly gross salary of ₹${g.toLocaleString('en-IN')}/- and the employer's statutory contributions, as per <b>Annexure A</b>. Salary is payable monthly, subject to statutory deductions.</p>
+
+     <p style="margin:14px 0 4px"><b>3. Probation &amp; Confirmation</b></p>
+     <p style="margin:0 0 10px">You will be on probation for <b>${S.probation} months</b> from the date of joining, extendable at the discretion of the management. Your services will stand confirmed only upon issue of a written confirmation letter.</p>
+
+     <p style="margin:14px 0 4px"><b>4. Duties &amp; Conduct</b></p>
+     <p style="margin:0 0 10px">You shall diligently perform the duties assigned to you, comply with the company's policies, rules and code of conduct, and devote your whole time and attention to the business of the company. You shall not engage in any other employment, business or consultancy without prior written consent.</p>
+
+     <p style="margin:14px 0 4px"><b>5. Attendance, Working Hours &amp; Leave</b></p>
+     <p style="margin:0 0 10px">Working hours, shifts, weekly offs, holidays and leave shall be governed by the company's policies and applicable law, as amended from time to time. Attendance will be recorded through the company's attendance system.</p>
+
+     <p style="margin:14px 0 4px"><b>6. Notice &amp; Separation</b></p>
+     <p style="margin:0 0 10px">During probation, either party may terminate this appointment by giving <b>7 days'</b> notice or salary in lieu thereof. After confirmation, the notice period shall be <b>one month</b> from either side, or as per company policy. The company may terminate services without notice in cases of misconduct, breach of policy or misrepresentation.</p>
+
+     <p style="margin:14px 0 4px"><b>7. Confidentiality &amp; Company Property</b></p>
+     <p style="margin:0 0 10px">You shall maintain strict confidentiality of all information of the company during and after employment, and shall return all company property, documents and data upon separation. Full &amp; final settlement will be processed as per company policy after completion of exit formalities.</p>
+
+     <p style="margin:14px 0 4px"><b>8. General</b></p>
+     <p style="margin:0 0 10px">Your appointment is based on the information and documents furnished by you; any misrepresentation shall render this appointment void. This letter, along with the company's policies, constitutes the terms of your employment.</p>
+
+     <p>Please sign and return the duplicate copy of this letter as a token of your acceptance of the above terms. We welcome you to ${esc(S.name)} and wish you a long and successful association.</p>
+     ${annexureCTC_HTML(g)}`);
+  printHTML(html);
+}
 function printCandidateOffer(id){
   const html = buildOfferLetterHTML(id);
   if(html) printHTML(html);
@@ -4142,18 +4225,41 @@ function buildOfferLetterHTML(id){
   const S = getSettings();
   const yr = new Date().getFullYear();
   const name = c.name || '', desig = c.position || 'the offered position', dept = c.department || '';
+  const ctc = ctcParts(g);
   const html = letterShell('OFFER OF EMPLOYMENT', `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/OFR/${yr}/${Math.floor(100+Math.random()*900)}`,
-    `<p>Dear <b>${esc(name)}</b>,</p>
-      <p>Further to your application and the subsequent interview you had with us, we are pleased to offer you the position of <b>${esc(desig)}</b>${dept ? ' in our <b>' + esc(dept) + '</b> department' : ''} at ${esc(S.name)}, on the following terms:</p>
-      <ol style="padding-left:18px">
-        <li><b>Date of Joining:</b> On or before <b>${fmtDate(jd)}</b>. This offer stands withdrawn if you do not report by this date, unless extended in writing.</li>
-        <li><b>Compensation:</b> Your gross salary will be <b>₹${g.toLocaleString('en-IN')}/- per month</b> (Rupees ${esc(numToWords(g))} Only), as detailed in Annexure A.</li>
-        <li><b>Probation:</b> You will be on probation for a period of <b>${S.probation} months</b> from the date of joining, extendable at the discretion of the management.</li>
-        <li><b>Documents:</b> Please bring originals and photocopies of your educational certificates, identity proof (Aadhaar/PAN), bank details and passport-size photographs at the time of joining.</li>
-        <li>This offer is contingent upon satisfactory verification of your documents and background.</li>
-      </ol>
-      <p>Please sign and return a copy of this letter as a token of your acceptance. We look forward to welcoming you to the team.</p>
-      ${annexureHTML(g, null)}`);
+    `<p style="margin:0 0 2px"><b>${esc(name)}</b></p>
+     ${c.email ? `<p style="margin:0 0 2px;font-size:11px;color:#64748b">${esc(c.email)}</p>` : ''}
+     ${c.phone ? `<p style="margin:0 0 12px;font-size:11px;color:#64748b">+91 ${esc(c.phone)}</p>` : '<p style="margin:0 0 12px"></p>'}
+     <p style="margin:0 0 12px"><b>Subject: Offer of Employment — ${esc(desig)}</b></p>
+     <p>Dear <b>${esc(name.split(' ')[0])}</b>,</p>
+     <p>Thank you for exploring a career with <b>${esc(S.name)}</b>. Further to your application and the discussions we have had, we are delighted to extend to you this offer of employment on the following terms:</p>
+
+     <p style="margin:14px 0 4px"><b>1. Position &amp; Location</b></p>
+     <p style="margin:0 0 10px">You will join us as <b>${esc(desig)}</b>${dept ? ' in the <b>' + esc(dept) + '</b> department' : ''}, based at our facility at Plot 300, Sector 6, IMT Manesar, Gurugram, Haryana. Your role and reporting may be assigned or revised by the management as per business requirements.</p>
+
+     <p style="margin:14px 0 4px"><b>2. Date of Joining</b></p>
+     <p style="margin:0 0 10px">You are requested to join on or before <b>${fmtDate(jd)}</b>. This offer shall stand withdrawn if you do not report by this date, unless extended by us in writing.</p>
+
+     <p style="margin:14px 0 4px"><b>3. Compensation</b></p>
+     <p style="margin:0 0 10px">Your total annual compensation (Cost to Company) will be <b>₹${ctc.annualCTC.toLocaleString('en-IN')}/- per annum</b> (Rupees ${esc(numToWords(ctc.annualCTC))} Only), which includes a monthly gross salary of ₹${g.toLocaleString('en-IN')}/- and the employer's statutory contributions, as detailed in <b>Annexure A</b>.</p>
+
+     <p style="margin:14px 0 4px"><b>4. Probation &amp; Confirmation</b></p>
+     <p style="margin:0 0 10px">You will be on probation for <b>${S.probation} months</b> from your date of joining. On successful completion, your services will be confirmed in writing. The probation period may be extended at the discretion of the management.</p>
+
+     <p style="margin:14px 0 4px"><b>5. Working Hours &amp; Leave</b></p>
+     <p style="margin:0 0 10px">Your working hours, weekly off, holidays and leave entitlement will be governed by the company's policies and applicable law, as amended from time to time.</p>
+
+     <p style="margin:14px 0 4px"><b>6. Verification &amp; Documents</b></p>
+     <p style="margin:0 0 10px">This offer is contingent upon satisfactory verification of your documents, credentials and background. Kindly bring originals and one set of photocopies of your educational certificates, Aadhaar, PAN, bank details and passport-size photographs at the time of joining.</p>
+
+     <p style="margin:14px 0 4px"><b>7. Confidentiality</b></p>
+     <p style="margin:0 0 10px">During and after your employment, you shall maintain strict confidentiality of all business, technical and commercial information of the company and shall use it solely for the discharge of your duties.</p>
+
+     <p style="margin:14px 0 4px"><b>8. Acceptance</b></p>
+     <p style="margin:0 0 10px">Please confirm your acceptance by signing and returning a copy of this letter (or by replying to the offer email) within <b>7 days</b> of receipt, failing which this offer may be treated as lapsed.</p>
+
+     <p>A detailed appointment letter will be issued to you at the time of joining. We look forward to welcoming you to the ${esc(S.name)} family.</p>
+     ${annexureCTC_HTML(g)}`);
   return html;
 }
 async function sendOfferPdfEmail(id){
@@ -6419,6 +6525,25 @@ $('letterType').addEventListener('change', () => {
   $('promoFieldsWrap').classList.toggle('flex', t === 'promotion');
 });
 
+function annexureCTC_HTML(g){
+  const basic = Math.round(g*0.5), hra = Math.round(g*0.25), conv = Math.round(g*0.1), spl = g-basic-hra-conv;
+  const c = ctcParts(g);
+  const row = (l, m, bold) => `<tr>${bold?'<th style="text-align:left">':'<td>'}${l}${bold?'</th>':'</td>'}<t${bold?'h':'d'} style="text-align:right">${m.toLocaleString('en-IN')}</t${bold?'h':'d'}><t${bold?'h':'d'} style="text-align:right">${(m*12).toLocaleString('en-IN')}</t${bold?'h':'d'}></tr>`;
+  return `<h3 style="font-size:13px;margin:18px 0 6px">Annexure A — Cost to Company (CTC) Structure</h3>
+  <table class="ann">
+    <thead><tr><th>Component</th><th style="text-align:right">Monthly (₹)</th><th style="text-align:right">Annual (₹)</th></tr></thead>
+    <tbody>
+      <tr><td colspan="3" style="background:#f8fafc;font-weight:700;font-size:10.5px;letter-spacing:.04em">A. GROSS SALARY</td></tr>
+      ${row('Basic Salary', basic)}${row('House Rent Allowance', hra)}${row('Conveyance Allowance', conv)}${row('Special Allowance', spl)}
+      ${row('Gross Salary (A)', g, true)}
+      <tr><td colspan="3" style="background:#f8fafc;font-weight:700;font-size:10.5px;letter-spacing:.04em">B. RETIRAL &amp; STATUTORY BENEFITS (EMPLOYER CONTRIBUTION)</td></tr>
+      ${row("Employer's Provident Fund (EPF)", c.empPF)}${c.empESI ? row("Employer's ESI Contribution", c.empESI) : ''}
+      ${row('Total Benefits (B)', c.empPF + c.empESI, true)}
+      <tr style="background:#eef4ff"><th style="text-align:left;font-size:12.5px">TOTAL COST TO COMPANY (A + B)</th><th style="text-align:right;font-size:12.5px">${c.monthlyCTC.toLocaleString('en-IN')}</th><th style="text-align:right;font-size:12.5px">${c.annualCTC.toLocaleString('en-IN')}</th></tr>
+    </tbody>
+  </table>
+  <p style="font-size:10px;color:#64748b;margin-top:6px">Employee statutory deductions (PF, ESI, Professional Tax and TDS, as applicable) will be deducted from the gross salary as per law. ESI is applicable only while the gross salary is within the statutory ESI wage limit. The structure above may be revised as per company policy and statutory changes.</p>`;
+}
 function annexureHTML(gross, code){
   const p = code ? (PROFILES[code] || {}) : null;
   let basic, hra, conv, spl;
