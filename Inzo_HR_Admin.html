@@ -680,6 +680,7 @@ body.no-confidential .confidential-col{display:none!important}
     <button class="ap-tab" data-aptab="gate"><i class="fa-solid fa-door-open"></i> Gate Pass <span class="ap-cnt" id="apCntGate">0</span></button>
     <button class="ap-tab" data-aptab="attfix"><i class="fa-solid fa-clock-rotate-left"></i> Att. Fix <span class="ap-cnt" id="apCntAf">0</span></button>
     <button class="ap-tab" data-aptab="mloan"><i class="fa-solid fa-sack-dollar"></i> Advance / Loan <span class="ap-cnt" id="apCntMl">0</span></button>
+    <button class="ap-tab" data-aptab="wpass"><i class="fa-solid fa-id-card-clip"></i> Work Pass <span class="ap-cnt" id="apCntWp">0</span></button>
   </div>
   <div class="card" style="padding:0;overflow:hidden">
     <div class="ap-panel" id="apPanel-leaves">
@@ -708,6 +709,9 @@ body.no-confidential .confidential-col{display:none!important}
     <div class="ap-panel hidden" id="apPanel-attfix"><div id="apAttfix" class="text-sm" style="padding:0"></div></div>
     <div class="ap-panel hidden" id="apPanel-mloan">
       <div id="apMloan" class="text-sm" style="padding:0"></div>
+    </div>
+    <div class="ap-panel hidden" id="apPanel-wpass">
+      <div id="apWpass" class="text-sm" style="padding:0"></div>
     </div>
   </div>
 </div>
@@ -5958,6 +5962,44 @@ document.body.addEventListener('click', async e => {
     if(!gfixMissing().length) $('gfixBody').innerHTML = '<p class="text-xs m-0 p-3" style="color:var(--ok)">Sab set ✓ — poore staff ka gender complete!</p>';
     return;
   }
+  if(act === 'wp-appr'){
+    const id = el.dataset.id;
+    const code = ($('wpCode'+id).value || '').trim().toUpperCase();
+    const dept = ($('wpDept'+id).value || '').trim().toUpperCase();
+    const desig = ($('wpDesig'+id).value || '').trim().toUpperCase();
+    if(!code) return notify('Employee Code bharo', 'error');
+    if(EMP.find(e => String(e['Employee code']).toUpperCase() === code)) return notify('Ye Employee Code pehle se hai — doosra do', 'error');
+    if(!(await nxConfirm(`${el.dataset.name} ko Employee banayein?\nCode: ${code}\nTrial attendance bhi payroll attendance mein sync hogi.`, 'Work Pass → Employee'))) return;
+    try{
+      // 1) employees master
+      const unit = code.startsWith('ZM02') ? 'ZM02' : 'ZM01';
+      const { error: e1 } = await sb.from('employees').insert([{ 'Employee code': code, Name: String(el.dataset.name).toUpperCase(), DEPARTMENT: dept || null, DESIGNATION: desig || null, LINE: el.dataset.line || null, UNIT: unit, DOJ: el.dataset.from, Status: 'ACTIVE' }]);
+      if(e1) throw e1;
+      // 2) profile: WORKER + General shift
+      const gen = (SHIFTS||[]).find(x => String(x.start_time).slice(0,5) === '09:00' && String(x.end_time).slice(0,5) === '17:30');
+      await sb.from('hr_profiles').insert([{ employee_code: code, category: 'WORKER', shift_id: gen ? gen.id : null }]);
+      // 3) trial attendance -> payroll attendance (worker rule 09:10 se late)
+      const { data: att } = await sb.rpc('wp_att', { p_id: id });
+      const rows = (att||[]).filter(a => a.in_time).map(a => ({
+        employee_code: code, Name: String(el.dataset.name).toUpperCase(), date: a.date,
+        in_time: String(a.in_time).length === 5 ? a.in_time + ':00' : a.in_time,
+        out_time: a.out_time ? (String(a.out_time).length === 5 ? a.out_time + ':00' : a.out_time) : '',
+        is_late: String(a.in_time).slice(0,5) > '09:10'
+      }));
+      if(rows.length){ const { error: e3 } = await sb.rpc('nx_bulk_att', { p_rows: rows }); if(e3) notify('Attendance sync issue: ' + e3.message, 'error'); }
+      // 4) pass CONVERTED
+      await sb.rpc('wp_decide', { p_id: Number(id), p_approve: true, p_emp_code: code });
+      notify(`✓ ${el.dataset.name} ab Employee hai (${code}) — ${rows.length} din ki trial attendance sync ho gayi`, 'success');
+      await loadEmployees(); loadApprovals();
+    }catch(err){ notify('Failed: ' + (err.message||err), 'error'); }
+    return;
+  }
+  if(act === 'wp-rej'){
+    if(!(await nxConfirm('Is work-pass conversion ko REJECT karein?', 'Reject'))) return;
+    await sb.rpc('wp_decide', { p_id: Number(el.dataset.id), p_approve: false });
+    notify('Rejected', 'success'); loadApprovals();
+    return;
+  }
   if(act === 'ml-appr'){
     if(!canApprove('advance')) return notify('You are not allowed to approve advances', 'error');
     const code = el.dataset.code;
@@ -8538,7 +8580,39 @@ async function loadVoice(){
 }
 
 /* ================= APPROVALS INBOX ================= */
+async function loadWorkPassApprovals(){
+  const host = $('apWpass'); if(!host) return;
+  try{
+    const { data: wps, error } = await sb.from('work_passes').select('*').eq('status','CONVERT_REQUESTED').order('created_at');
+    if(error) throw error;
+    if($('apCntWp')) $('apCntWp').innerText = (wps||[]).length;
+    if(!(wps||[]).length){ host.innerHTML = '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi work-pass conversion pending nahi.</p>'; return; }
+    let out = '';
+    for(const w of wps){
+      const { data: att } = await sb.rpc('wp_att', { p_id: w.id });
+      const attRows = (att||[]).map(a => `<tr><td>${esc(a.date)}</td><td style="text-align:center">${esc(String(a.in_time||'').slice(0,5)||'—')}</td><td style="text-align:center">${esc(String(a.out_time||'').slice(0,5)||'—')}</td></tr>`).join('');
+      out += `<div class="p-4 border-b" style="border-color:var(--line)">
+        <div class="flex justify-between items-start flex-wrap gap-2">
+          <div>
+            <b>${esc(w.name)}</b> <span class="chip chip-warn" style="font-size:10px">${esc(w.pass_no||'')}</span><br>
+            <span class="text-xs" style="color:var(--muted)">${esc(w.department||'—')}${w.line?' · '+esc(w.line):''} · Sup: ${esc(w.supervisor||'—')} · 📱 ${esc(w.phone||'—')} · Trial: ${esc(w.valid_from)} se</span>
+          </div>
+          <table class="reg" style="font-size:11px;min-width:220px"><thead><tr><th>Date</th><th>IN</th><th>OUT</th></tr></thead><tbody>${attRows || '<tr><td colspan="3" style="text-align:center;color:var(--muted)">koi punch nahi</td></tr>'}</tbody></table>
+        </div>
+        <div class="flex gap-2 flex-wrap items-end mt-3">
+          <div><label class="lbl">Employee Code *</label><input class="inp" id="wpCode${w.id}" placeholder="ZM01xxx" style="width:120px;text-transform:uppercase"></div>
+          <div><label class="lbl">Department</label><input class="inp" id="wpDept${w.id}" value="${esc(w.department||'')}" style="width:150px;text-transform:uppercase"></div>
+          <div><label class="lbl">Designation</label><input class="inp" id="wpDesig${w.id}" placeholder="HELPER" style="width:130px;text-transform:uppercase"></div>
+          <button class="btn btn-primary btn-sm" data-act="wp-appr" data-id="${w.id}" data-name="${esc(w.name)}" data-line="${esc(w.line||'')}" data-from="${esc(w.valid_from)}"><i class="fa-solid fa-check"></i> Approve → Employee</button>
+          <button class="btn btn-danger btn-sm" data-act="wp-rej" data-id="${w.id}"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+      </div>`;
+    }
+    host.innerHTML = out;
+  }catch(e){ host.innerHTML = `<p class="p-4 m-0 text-xs" style="color:var(--bad)">Error: ${esc(e.message||e)} — V86 SQL chalaya?</p>`; }
+}
 async function loadApprovals(){
+  loadWorkPassApprovals();
   const [lv, ot, ex, ea] = await Promise.all([
     sb.from('leaves').select('*').eq('status','PENDING').order('created_at'),
     sb.from('ot_requests').select('*').eq('status','PENDING').order('ot_date'),
