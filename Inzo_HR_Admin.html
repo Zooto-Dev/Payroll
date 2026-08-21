@@ -8590,7 +8590,7 @@ async function loadWorkPassApprovals(){
     let out = '';
     for(const w of wps){
       const { data: att } = await sb.rpc('wp_att', { p_id: w.id });
-      const attRows = (att||[]).map(a => `<tr><td>${esc(a.date)}</td><td style="text-align:center">${esc(String(a.in_time||'').slice(0,5)||'—')}</td><td style="text-align:center">${esc(String(a.out_time||'').slice(0,5)||'—')}</td></tr>`).join('');
+      const attRows = (att||[]).map(a => `<tr><td>${esc(a.date)}</td><td style="text-align:center">${esc(String(a.in_time||'').slice(0,5)||'—')}${a.in_photo_url?` <a href="${esc(a.in_photo_url)}" target="_blank" title="IN photo">📷</a>`:''}</td><td style="text-align:center">${esc(String(a.out_time||'').slice(0,5)||'—')}</td></tr>`).join('');
       out += `<div class="p-4 border-b" style="border-color:var(--line)">
         <div class="flex justify-between items-start flex-wrap gap-2">
           <div>
