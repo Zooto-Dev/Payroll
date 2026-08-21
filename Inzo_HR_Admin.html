@@ -3979,7 +3979,7 @@ function candStageActions(c){
       : c.offer_approval === 'APPROVED'
       ? `<div class="mb-2 p-2 rounded text-xs" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534"><b>✓ CEO approved</b> — offer email candidate ko bheja ja chuka hai.</div>
          <div class="flex gap-2 flex-wrap mb-3">
-           <button class="btn btn-ghost btn-sm" onclick="sendOfferEmail('${id}')"><i class="fa-solid fa-envelope-open-text"></i> Resend Offer Email</button>
+           <button class="btn btn-ghost btn-sm" onclick="sendOfferPdfEmail('${id}')"><i class="fa-solid fa-envelope-open-text"></i> Resend Offer Email + PDF</button>
            <button class="btn btn-ghost btn-sm" onclick="printCandidateOffer('${id}')"><i class="fa-solid fa-file-pdf"></i> Offer Letter (PDF)</button>
          </div>`
       : c.offer_approval === 'REJECTED'
@@ -4130,11 +4130,15 @@ async function sendDocRequest(id){
   $('candStageBox').innerHTML = candStageActions(c);
 }
 function printCandidateOffer(id){
-  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
+  const html = buildOfferLetterHTML(id);
+  if(html) printHTML(html);
+}
+function buildOfferLetterHTML(id){
+  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return null;
   const g = Number(($('candAgreed')||{}).value) || Number(c.agreed_salary) || 0;
   const jd = (($('candJoinDate')||{}).value) || c.join_date;
-  if(!g) return notify('Enter the agreed salary first', 'error');
-  if(!jd) return notify('Set the joining date first', 'error');
+  if(!g) return notify('Enter the agreed salary first', 'error'), null;
+  if(!jd) return notify('Set the joining date first', 'error'), null;
   const S = getSettings();
   const yr = new Date().getFullYear();
   const name = c.name || '', desig = c.position || 'the offered position', dept = c.department || '';
@@ -4150,7 +4154,29 @@ function printCandidateOffer(id){
       </ol>
       <p>Please sign and return a copy of this letter as a token of your acceptance. We look forward to welcoming you to the team.</p>
       ${annexureHTML(g, null)}`);
-  printHTML(html);
+  return html;
+}
+async function sendOfferPdfEmail(id){
+  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
+  if(!c.email) return notify('Candidate ka email saved nahi hai', 'error');
+  let html = buildOfferLetterHTML(id);
+  if(!html) return;
+  // signature/image relative paths ko absolute karo (PDF conversion ke liye)
+  html = html.replace(/src="signature\.png"/g, 'src="https://zooto-dev.github.io/Payroll/signature.png"');
+  const S = getSettings();
+  try{
+    notify('Offer letter PDF banakar email bheja ja raha hai…', 'info');
+    const res = await fetch(NX_CONFIG_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'offerpdf', to: c.email, name: c.name,
+        position: c.position || 'the offered position', company: S.name || 'Zooto Fashion Pvt Ltd',
+        joinDate: c.join_date || '', html })
+    });
+    const r = await res.json();
+    if(r && r.ok) notify('✓ Offer email + PDF letter bheja gaya: ' + c.email, 'success');
+    else notify('Email failed: ' + ((r && r.error) || 'GAS deploy check karo'), 'error');
+  }catch(e){ notify('Email failed: ' + (e.message||e), 'error'); }
 }
 async function sendOfferForApproval(id){
   const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
@@ -4170,10 +4196,9 @@ async function offerCeoDecide(id, approve){
     if(!(await nxConfirm(`${c.name} ka offer APPROVE karein?\nGross: ₹${Number(c.agreed_salary||0).toLocaleString('en-IN')} · Joining: ${c.join_date||'-'}\n\nApprove karte hi offer email candidate ko chala jayega.`, 'CEO Approve'))) return;
     await sb.from('candidates').update({ offer_approval: 'APPROVED', offer_date: todayISO(), updated_at: new Date().toISOString() }).eq('id', id);
     Object.assign(c, { offer_approval: 'APPROVED' });
-    // AUTO-SEND offer email (short version — detailed letter alag se PDF)
-    const g = Number(c.agreed_salary)||0; const alloc = splitGross(g);
-    await candEmail(c, 'offer', { gross: g, basic: alloc.basic||0, hra: alloc.hra||0, other: g-(alloc.basic||0)-(alloc.hra||0), joinDate: c.join_date });
-    notify('✓ CEO approved — offer email candidate ko bhej diya gaya', 'success');
+    // AUTO-SEND: offer email + OFFER LETTER PDF attached
+    await sendOfferPdfEmail(id);
+    notify('✓ CEO approved — offer email + PDF letter candidate ko bhej diya gaya', 'success');
   } else {
     const note = (await nxPrompt('Reject ka reason (HR ko dikhega):', 'Reject Offer')) || '';
     await sb.from('candidates').update({ offer_approval: 'REJECTED', offer_note: note, updated_at: new Date().toISOString() }).eq('id', id);
