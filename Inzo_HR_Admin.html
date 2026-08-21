@@ -3387,23 +3387,16 @@ function fillFromCTC(){
   updateGrossPreview();
   notify('Filled from CTC ₹' + ctc.toLocaleString('en-IN') + ' → Gross ₹' + gross.toLocaleString('en-IN'), 'success');
 }
-// ---- CTC math: CTC = gross + employer PF (12% of basic, ceiling 15000) + employer ESI (3.25% if gross <= 21000)
+// ---- CTC math: SAME rules as the payroll engine (employerSides): PF 12% (cap), ESI 3.25% (limit), Employer LWF — sab settings se
 function ctcParts(g){
   g = Number(g)||0;
   const basic = Math.round(g * 0.5);
-  const empPF = Math.round(Math.min(basic, 15000) * 0.12);
-  const empESI = g > 0 && g <= 21000 ? Math.round(g * 0.0325) : 0;
-  return { gross: g, basic, empPF, empESI, monthlyCTC: g + empPF + empESI, annualCTC: (g + empPF + empESI) * 12 };
+  const er = employerSides(g, basic, true, true, true);
+  return { gross: g, basic, empPF: er.erPF, empESI: er.erESI, empLWF: er.erLWF,
+           monthlyCTC: g + er.total, annualCTC: (g + er.total) * 12 };
 }
 function grossFromAnnualCTC(ctcA){
-  let g = Math.max(0, Math.round((Number(ctcA)||0) / 12));   // start guess
-  for(let i = 0; i < 25; i++){
-    const p = ctcParts(g);
-    const diff = (Number(ctcA)/12) - p.monthlyCTC;
-    if(Math.abs(diff) < 1) break;
-    g = Math.max(0, Math.round(g + diff));
-  }
-  return g;
+  return ctcToGross(Math.round((Number(ctcA)||0) / 12));   // payroll ka hi converter
 }
 function splitGross(g){
   const S = getSettings();
@@ -6538,12 +6531,12 @@ function annexureCTC_HTML(g){
       ${row('Basic Salary', basic)}${row('House Rent Allowance', hra)}${row('Conveyance Allowance', conv)}${row('Special Allowance', spl)}
       ${row('Gross Salary (A)', g, true)}
       <tr><td colspan="3" style="background:#f8fafc;font-weight:700;font-size:10.5px;letter-spacing:.04em">B. RETIRAL &amp; STATUTORY BENEFITS (EMPLOYER CONTRIBUTION)</td></tr>
-      ${row("Employer's Provident Fund (EPF)", c.empPF)}${c.empESI ? row("Employer's ESI Contribution", c.empESI) : ''}
-      ${row('Total Benefits (B)', c.empPF + c.empESI, true)}
+      ${row("Employer's Provident Fund (EPF)", c.empPF)}${c.empESI ? row("Employer's ESI Contribution", c.empESI) : ''}${c.empLWF ? row("Employer's Labour Welfare Fund (LWF)", c.empLWF) : ''}
+      ${row('Total Benefits (B)', c.empPF + c.empESI + (c.empLWF||0), true)}
       <tr style="background:#eef4ff"><th style="text-align:left;font-size:12.5px">TOTAL COST TO COMPANY (A + B)</th><th style="text-align:right;font-size:12.5px">${c.monthlyCTC.toLocaleString('en-IN')}</th><th style="text-align:right;font-size:12.5px">${c.annualCTC.toLocaleString('en-IN')}</th></tr>
     </tbody>
   </table>
-  <p style="font-size:10px;color:#64748b;margin-top:6px">Employee statutory deductions (PF, ESI, Professional Tax and TDS, as applicable) will be deducted from the gross salary as per law. ESI is applicable only while the gross salary is within the statutory ESI wage limit. The structure above may be revised as per company policy and statutory changes.</p>`;
+  <p style="font-size:10px;color:#64748b;margin-top:6px">Employee-side statutory deductions — PF (12% of PF wages), ESI (0.75%, applicable only while gross is within the statutory ESI wage limit), LWF and Professional Tax/TDS as applicable — will be deducted from the gross salary as per law. The structure above may be revised as per company policy and statutory changes.</p>`;
 }
 function annexureHTML(gross, code){
   const p = code ? (PROFILES[code] || {}) : null;
