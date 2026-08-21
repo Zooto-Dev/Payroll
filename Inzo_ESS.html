@@ -462,6 +462,18 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     </div>
 
     <div class="page" id="p-team">
+  <div class="card hidden" id="wpCard" style="background:linear-gradient(135deg,#ecfdf5,#ffffff);border:1.5px solid #a7f3d0">
+    <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-id-card-clip" style="color:#059669"></i> Work Pass — Trial Worker (3 din)</h3>
+    <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Naye worker ka 3-din trial pass banao. Worker VMS kiosk par IN/OUT karega. Trial ke baad yahin se <b>Employee Banao</b> — HR approve karega to payroll mein aa jayega.</p>
+    <div class="grid gap-2 mb-2" style="grid-template-columns:1fr 1fr">
+      <input id="wpeName" class="inp m-0" placeholder="Worker ka naam *" style="text-transform:uppercase">
+      <input id="wpePhone" type="tel" maxlength="10" class="inp m-0" placeholder="Mobile">
+      <input id="wpeDept" class="inp m-0" placeholder="Department" style="text-transform:uppercase">
+      <input id="wpeLine" class="inp m-0" placeholder="Line (optional)" style="text-transform:uppercase">
+    </div>
+    <button class="btn btn-primary w-full" onclick="wpEssCreate()" style="background:#059669;border-color:#059669"><i class="fa-solid fa-id-card-clip"></i> WORK PASS BANAO (3 din valid)</button>
+    <div id="wpeList" class="mt-3"></div>
+  </div>
   <div class="card hidden" id="teamApprCard" style="background:linear-gradient(135deg,#eff6ff,#ffffff);border:1.5px solid #bfdbfe">
     <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-clipboard-check" style="color:var(--brand)"></i> Team Approvals <span class="chip chip-blue" id="teamApprCnt">0</span></h3>
     <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Pending requests from your team.</p>
@@ -740,6 +752,7 @@ async function loadTeamApprovals(){
       $('tabTeam').classList.remove('hidden');
       $('tabTeam').innerHTML = '<i class="fa-solid fa-people-group"></i>Team' + (reqs.length ? ' <span class="chip chip-bad" style="font-size:9px;padding:1px 6px">' + reqs.length + '</span>' : '');
       card.classList.remove('hidden');
+      const wpc = $('wpCard'); if(wpc){ wpc.classList.remove('hidden'); wpEssLoad(); }
     }
     $('teamApprCnt').innerText = reqs.length;
     $('teamApprBox').innerHTML = reqs.length ? reqs.map(r => {
@@ -1009,6 +1022,52 @@ async function loanSignStep(id){
     notify('✓ Agreement signed! Ab Accounts se disbursement hoga.');
     loadMoneyReqs();
   }catch(err){ notify('Sign failed: ' + (err.message||err)); btn.disabled = false; btn.innerText = '✍️ I AGREE & SIGN'; }
+}
+function _wpSupTag(){
+  const nm = (D && D.employee && D.employee.Name) ? String(D.employee.Name).toUpperCase() : '';
+  return (nm + ' (' + String(CODE||'').toUpperCase() + ')').trim();
+}
+async function wpEssCreate(){
+  const nm = ($('wpeName').value||'').trim();
+  if(!nm) return notify('Worker ka naam bharo');
+  try{
+    const { data, error } = await sb.rpc('wp_create', { p_name: nm, p_phone: ($('wpePhone').value||'').trim(), p_dept: ($('wpeDept').value||'').trim(), p_line: ($('wpeLine').value||'').trim(), p_sup: _wpSupTag() });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    notify('✓ Work Pass ban gaya: ' + data.pass_no + ' (3 din valid) — worker ab VMS kiosk par IN/OUT karega');
+    ['wpeName','wpePhone','wpeDept','wpeLine'].forEach(i => { $(i).value = ''; });
+    wpEssLoad();
+  }catch(e){ notify('Failed: ' + (e.message||e)); }
+}
+async function wpEssLoad(){
+  const host = $('wpeList'); if(!host) return;
+  try{
+    const { data, error } = await sb.rpc('wp_list');
+    if(error) throw error;
+    const mytag = String(CODE||'').toUpperCase();
+    const list = (data||[]).filter(w => String(w.supervisor||'').toUpperCase().includes(mytag));
+    if(!list.length){ host.innerHTML = ''; return; }
+    host.innerHTML = '<p class="lbl mb-1">MERE WORK PASSES</p>' + list.map(w => {
+      const ready = w.day_no >= 3 || w.expired;
+      const pend = w.status === 'CONVERT_REQUESTED';
+      return `<div class="row" style="display:block">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span><b>${esc(w.name)}</b> <span class="text-[10px]" style="color:var(--muted)">${esc(w.pass_no||'')} · Day ${Math.min(w.day_no,3)}/3${w.today_in ? ' · IN ' + String(w.today_in).slice(0,5) : ''}${w.today_out ? ' · OUT ' + String(w.today_out).slice(0,5) : ''}</span></span>
+          ${pend ? '<span class="chip chip-blue" style="font-size:10px">⏳ HR approval pending</span>'
+            : `<button class="btn btn-sm ${ready?'btn-primary':'btn-ghost'}" ${ready?'':'disabled'} onclick="wpEssConvert(${w.id}, '${esc(w.name)}')" style="${ready?'background:#059669;border-color:#059669':''}">${ready?'👔 Employee Banao':'Trial ' + Math.min(w.day_no,3) + '/3'}</button>`}
+        </div></div>`;
+    }).join('');
+  }catch(e){ host.innerHTML = '<p class="text-xs m-0" style="color:var(--bad)">' + esc(e.message||e) + ' — V86 SQL chala?</p>'; }
+}
+async function wpEssConvert(id, nm){
+  if(!window.confirm(nm + ' ko Employee banane ki request HR ko bhejein?')) return;
+  try{
+    const { data, error } = await sb.rpc('wp_convert', { p_id: id });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    notify('✓ Request HR ko chali gayi — approve hote hi ' + nm + ' payroll mein aa jayega');
+    wpEssLoad();
+  }catch(e){ notify('Failed: ' + (e.message||e)); }
 }
 async function loanDecision(id, accept){
   if(!window.confirm(accept ? 'Loan Agreement ACCEPT karein? Terms ke hisab se EMI salary se katega.' : 'Agreement DECLINE karein? Loan cancel ho jayega.')) return;
