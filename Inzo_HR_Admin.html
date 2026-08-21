@@ -1178,7 +1178,9 @@ body.no-confidential .confidential-col{display:none!important}
     <div><label class="lbl">Employee</label><select id="idEmp" class="inp" style="min-width:240px"><option value="ALL">— All Active Employees —</option></select></div>
     <div><label class="lbl">Valid Till</label><input id="idValid" type="date" class="inp"></div>
     <button id="idGenBtn" class="btn btn-primary"><i class="fa-solid fa-id-card"></i> Generate</button>
-    <button id="idPrintBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-print"></i> Print Cards</button>
+    <button id="idPrintBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-print"></i> Print A4 Sheet</button>
+    <button id="idPvcFrontBtn" class="btn btn-primary hidden"><i class="fa-solid fa-id-card"></i> PVC Print — FRONT (L8050)</button>
+    <button id="idPvcBackBtn" class="btn btn-primary hidden" style="background:#475569;border-color:#475569"><i class="fa-solid fa-id-card"></i> PVC Print — BACK (L8050)</button>
     <div id="idPhotoWrap" class="hidden flex items-end gap-2">
       <div><label class="lbl">Upload / Change Photo</label><input id="idPhotoFile" type="file" accept="image/*" class="inp" style="max-width:220px"></div>
       <button id="idPhotoBtn" class="btn btn-ghost"><i class="fa-solid fa-camera"></i> Set Photo</button>
@@ -8519,7 +8521,7 @@ function idCardHTML(e, photo, validTill){
   const p = PROFILES[code] || {};
   const qr = 'https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=' + encodeURIComponent(code);
   const photoEl = photo ? `<img class="id-photo" src="${photo}" alt="">` : `<div class="id-photo-fallback">${esc((e.Name||'?').charAt(0).toUpperCase())}</div>`;
-  return `<div class="idcard">
+  return `<div class="idcard idc-front">
     <div class="id-head">
       <div class="co">${esc(S.name).toUpperCase()}</div>
       <div class="ad">${esc(S.addr)}</div>
@@ -8529,14 +8531,14 @@ function idCardHTML(e, photo, validTill){
       <div style="font-weight:700;font-size:11px">${esc(e.Name)}</div>
       <div style="color:var(--brand);font-weight:600;font-size:8px">${esc(e.DESIGNATION || '')}</div>
     </div>
-    <div style="padding:1.5mm 4mm 0;flex:1">
-      <table>
-        <tr><td style="color:#64748b;width:40%">Emp Code</td><td style="font-weight:700">${esc(code)}</td></tr>
-        <tr><td style="color:#64748b">Department</td><td>${esc(e.DEPARTMENT || '—')}</td></tr>
-        <tr><td style="color:#64748b">Joining</td><td>${e.DOJ ? fmtDate(e.DOJ) : '—'}</td></tr>
-        <tr><td style="color:#64748b">Valid Till</td><td>${fmtDate(validTill)}</td></tr>
-        ${(p.emergency_phone || S.phone) ? `<tr><td style="color:#64748b">Emergency</td><td>${esc(p.emergency_phone || S.phone)}</td></tr>` : ''}
-        ${p.uan ? `<tr><td style="color:#64748b">UAN</td><td>${esc(p.uan)}</td></tr>` : ''}
+    <div style="padding:1.5mm 4mm 0;flex:1;display:flex;justify-content:center">
+      <table style="width:auto;margin:0 auto">
+        <tr><td style="color:#64748b;padding-right:2.5mm;text-align:right">Emp Code</td><td style="font-weight:700">${esc(code)}</td></tr>
+        <tr><td style="color:#64748b;padding-right:2.5mm;text-align:right">Department</td><td>${esc(e.DEPARTMENT || '—')}</td></tr>
+        <tr><td style="color:#64748b;padding-right:2.5mm;text-align:right">Joining</td><td>${e.DOJ ? fmtDate(e.DOJ) : '—'}</td></tr>
+        <tr><td style="color:#64748b;padding-right:2.5mm;text-align:right">Valid Till</td><td>${fmtDate(validTill)}</td></tr>
+        ${(p.emergency_phone || S.phone) ? `<tr><td style="color:#64748b;padding-right:2.5mm;text-align:right">Emergency</td><td>${esc(p.emergency_phone || S.phone)}</td></tr>` : ''}
+        ${p.uan ? `<tr><td style="color:#64748b;padding-right:2.5mm;text-align:right">UAN</td><td>${esc(p.uan)}</td></tr>` : ''}
       </table>
     </div>
     <div style="display:flex;align-items:flex-end;justify-content:space-between;padding:0 4mm 3mm">
@@ -8544,7 +8546,7 @@ function idCardHTML(e, photo, validTill){
       <div style="text-align:right;font-size:6.5px;color:#64748b">Authorised Signatory<br><b style="font-size:8px;color:#2a2824">${esc(S.hr || '')}</b></div>
     </div>
   </div>
-  <div class="idcard">
+  <div class="idcard idc-back">
     <div style="padding:4mm;flex:1">
       <div style="font-weight:700;font-size:9px;border-bottom:.3mm solid #e2e8f0;padding-bottom:1.5mm;margin-bottom:2mm">TERMS OF USE</div>
       <ol>
@@ -8601,11 +8603,46 @@ $('idGenBtn').addEventListener('click', async () => {
     $('idWrap').innerHTML = parts.join('');
     $('idDesk').classList.remove('hidden');
     $('idPrintBtn').classList.remove('hidden');
+    $('idPvcFrontBtn').classList.remove('hidden');
+    $('idPvcBackBtn').classList.remove('hidden');
   }finally{
     btn.innerHTML = '<i class="fa-solid fa-id-card"></i> Generate'; btn.disabled = false;
   }
 });
 $('idPrintBtn').addEventListener('click', () => printHTML('<div style="display:flex;flex-wrap:wrap;gap:6mm;padding:6mm">' + $('idWrap').innerHTML + '</div>'));
+// ======== EPSON L8050 — PVC CARD DIRECT PRINT ========
+// Page = exact card size (54 x 85.6mm), zero margin, 1 card per page.
+// Printer dialog mein: Epson L8050 + Paper "PVC Card" / custom 54x86mm chunna.
+function printPVC(side){
+  const cards = Array.from(document.querySelectorAll('#idWrap .idc-' + side));
+  if(!cards.length) return notify('Pehle Generate karo', 'error');
+  const css = `
+    @page { size: 54mm 85.6mm; margin: 0; }
+    html,body{margin:0;padding:0;background:#fff}
+    .pvc-page{width:54mm;height:85.6mm;overflow:hidden;page-break-after:always;position:relative}
+    .pvc-page:last-child{page-break-after:auto}
+    .idcard{width:54mm;height:85.6mm;background:#fff;border-radius:0;overflow:hidden;font-size:8.5px;line-height:1.35;position:relative;display:flex;flex-direction:column;color:#2a2824;font-family:'Segoe UI',system-ui,sans-serif;box-shadow:none;border:none}
+    .idcard .id-head{background:#1f4b9b;color:#fff;text-align:center;padding:2.5mm 2mm 13mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .idcard .id-head .co{font-weight:700;font-size:9px;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .idcard .id-head .ad{font-size:6px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .idcard ol{list-style:decimal;padding-left:4mm;margin:0;color:#334155}
+    .idcard .id-photo{width:22mm;height:22mm;border-radius:50%;object-fit:cover;border:1.2mm solid #fff;background:#e2e8f0;margin:-11mm auto 0;display:block;position:relative;z-index:2}
+    .idcard .id-photo-fallback{width:22mm;height:22mm;border-radius:50%;border:1.2mm solid #fff;background:#dbeafe;margin:-11mm auto 0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#1f4b9b;position:relative;z-index:2}
+    .idcard table{border-collapse:collapse}
+    .idcard td{padding:.6mm 0;vertical-align:top}`;
+  const w = window.open('', '_blank', 'width=460,height=740');
+  if(!w) return notify('Popup block ho gaya — is site ke liye popups allow karo', 'error');
+  w.document.write('<html><head><title>PVC ' + side.toUpperCase() + '</title><style>' + css + '</style></head><body>'
+    + cards.map(c => '<div class="pvc-page">' + c.outerHTML + '</div>').join('') + '</body></html>');
+  w.document.close();
+  const imgs = Array.from(w.document.images);
+  let left = imgs.length, fired = false;
+  const go = () => { if(fired) return; fired = true; w.focus(); w.print(); };
+  if(!left) setTimeout(go, 250);
+  else { imgs.forEach(im => { const d = () => { if(--left <= 0) setTimeout(go, 150); }; if(im.complete) d(); else { im.onload = d; im.onerror = d; } }); setTimeout(go, 4000); }
+}
+$('idPvcFrontBtn').addEventListener('click', () => printPVC('front'));
+$('idPvcBackBtn').addEventListener('click', () => printPVC('back'));
 
 /* ================= UNUSED LEAVE DECISIONS (month-end prompt) ================= */
 async function renderLeaveDecisions(){
