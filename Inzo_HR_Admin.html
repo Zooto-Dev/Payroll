@@ -316,7 +316,7 @@ body.no-confidential .confidential-col{display:none!important}
 .idcard .id-photo-fallback{width:22mm;height:22mm;border-radius:50%;border:1.2mm solid #fff;background:var(--brand-soft);margin:-11mm auto 0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--brand);position:relative;z-index:2}
 .idcard table{width:100%;border-collapse:collapse}
 .idcard td{padding:.6mm 0;vertical-align:top}
-@media print{ .idcard{box-shadow:none;border:.3mm solid #cbd5e1;page-break-inside:avoid} }
+@media print{ .idcard{box-shadow:none;border:.3mm solid #cbd5e1;page-break-inside:avoid} .ann{page-break-inside:avoid} .ann tr{page-break-inside:avoid} }
 .loader-ring{width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
 .loader-dark{border-color:#cbd5e1;border-top-color:var(--brand)}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -6529,7 +6529,8 @@ function annexureCTC_HTML(g){
   const basic = Math.round(g*0.5), hra = Math.round(g*0.25), conv = Math.round(g*0.1), spl = g-basic-hra-conv;
   const c = ctcParts(g);
   const row = (l, m, bold) => `<tr>${bold?'<th style="text-align:left">':'<td>'}${l}${bold?'</th>':'</td>'}<t${bold?'h':'d'} style="text-align:right">${m.toLocaleString('en-IN')}</t${bold?'h':'d'}><t${bold?'h':'d'} style="text-align:right">${(m*12).toLocaleString('en-IN')}</t${bold?'h':'d'}></tr>`;
-  return `<h3 style="font-size:13px;margin:18px 0 6px">Annexure A — Cost to Company (CTC) Structure</h3>
+  return `<div style="page-break-before:always;break-before:page"></div>
+  <h3 style="font-size:13px;margin:18px 0 6px;padding-top:8px">Annexure A — Cost to Company (CTC) Structure</h3>
   <table class="ann">
     <thead><tr><th>Component</th><th style="text-align:right">Monthly (₹)</th><th style="text-align:right">Annual (₹)</th></tr></thead>
     <tbody>
