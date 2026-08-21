@@ -3973,10 +3973,22 @@ function candStageActions(c){
       <div><label class="lbl">Joining Date</label><input id="candJoinDate" type="date" class="inp" value="${c.join_date||''}"></div>
     </div>
     <div id="candOfferBreak" class="text-[11px] mb-2 p-2 rounded" style="background:var(--brand-soft)">${alloc ? candBreakupText(g) : 'Enter the agreed salary to see the breakup.'}</div>
-    <div class="flex gap-2 flex-wrap mb-3">
-      <button class="btn btn-primary btn-sm" onclick="sendOfferEmail('${id}')"><i class="fa-solid fa-envelope-open-text"></i> Send Offer Email (with breakup)</button>
-      <button class="btn btn-ghost btn-sm" onclick="printCandidateOffer('${id}')"><i class="fa-solid fa-file-pdf"></i> Offer Letter (PDF)</button>
-    </div>
+    ${c.offer_approval === 'PENDING_CEO'
+      ? `<div class="mb-3 p-2 rounded text-xs" style="background:#fffbeb;border:1px solid #fde68a;color:#854d0e"><b>⏳ CEO approval pending</b> — approve hote hi offer email candidate ko apne aap chala jayega.
+         ${loanCanCEO() ? `<div class="flex gap-2 mt-2"><button class="btn btn-primary btn-sm" onclick="offerCeoDecide('${id}', true)"><i class="fa-solid fa-check"></i> CEO Approve & Send Offer</button><button class="btn btn-danger btn-sm" onclick="offerCeoDecide('${id}', false)"><i class="fa-solid fa-xmark"></i> Reject</button></div>` : ''}</div>`
+      : c.offer_approval === 'APPROVED'
+      ? `<div class="mb-2 p-2 rounded text-xs" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534"><b>✓ CEO approved</b> — offer email candidate ko bheja ja chuka hai.</div>
+         <div class="flex gap-2 flex-wrap mb-3">
+           <button class="btn btn-ghost btn-sm" onclick="sendOfferEmail('${id}')"><i class="fa-solid fa-envelope-open-text"></i> Resend Offer Email</button>
+           <button class="btn btn-ghost btn-sm" onclick="printCandidateOffer('${id}')"><i class="fa-solid fa-file-pdf"></i> Offer Letter (PDF)</button>
+         </div>`
+      : c.offer_approval === 'REJECTED'
+      ? `<div class="mb-3 p-2 rounded text-xs" style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c"><b>✗ CEO ne reject kiya</b>${c.offer_note ? ' — ' + esc(c.offer_note) : ''} — salary/terms badal ke dobara bhejo.
+         <div class="mt-2"><button class="btn btn-primary btn-sm" onclick="sendOfferForApproval('${id}')"><i class="fa-solid fa-paper-plane"></i> Dobara CEO Approval ko Bhejo</button></div></div>`
+      : `<div class="flex gap-2 flex-wrap mb-3">
+           <button class="btn btn-primary btn-sm" onclick="sendOfferForApproval('${id}')"><i class="fa-solid fa-user-tie"></i> Send for CEO Approval</button>
+           <button class="btn btn-ghost btn-sm" onclick="printCandidateOffer('${id}')"><i class="fa-solid fa-file-pdf"></i> Offer Letter (PDF)</button>
+         </div>`}
     <div class="text-[11px] font-bold uppercase tracking-wide mb-1" style="color:var(--brand)">Resignation Acceptance (from current employer)</div>
     ${c.resignation_url
       ? `<div class="text-xs mb-2"><i class="fa-solid fa-circle-check" style="color:var(--ok)"></i> Uploaded by candidate — <button type="button" class="btn btn-ghost btn-sm" onclick="viewCandFile('${esc(c.resignation_url)}')">View</button></div>
@@ -4139,6 +4151,36 @@ function printCandidateOffer(id){
       <p>Please sign and return a copy of this letter as a token of your acceptance. We look forward to welcoming you to the team.</p>
       ${annexureHTML(g, null)}`);
   printHTML(html);
+}
+async function sendOfferForApproval(id){
+  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
+  const g = Number($('candAgreed').value)||0, jd = $('candJoinDate').value;
+  if(!g) return notify('Pehle agreed salary bharo', 'error');
+  if(!jd) return notify('Pehle joining date set karo', 'error');
+  if(!(await nxConfirm(`${c.name} ka offer CEO approval ko bhejein?\nGross: ₹${g.toLocaleString('en-IN')}/month · Joining: ${jd}\n\nCEO approve karega tabhi offer email candidate ko jayega.`, 'CEO Approval'))) return;
+  await sb.from('candidates').update({ agreed_salary: g, join_date: jd, offer_approval: 'PENDING_CEO', offer_note: null, updated_at: new Date().toISOString() }).eq('id', id);
+  Object.assign(c, { agreed_salary: g, join_date: jd, offer_approval: 'PENDING_CEO', offer_note: null });
+  notify('✓ CEO approval ke liye bhej diya — approve hote hi offer email apne aap jayega', 'success');
+  $('candStageBox').innerHTML = candStageActions(c);
+}
+async function offerCeoDecide(id, approve){
+  if(!loanCanCEO()) return notify('Sirf CEO / Super Admin approve kar sakte hain', 'error');
+  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
+  if(approve){
+    if(!(await nxConfirm(`${c.name} ka offer APPROVE karein?\nGross: ₹${Number(c.agreed_salary||0).toLocaleString('en-IN')} · Joining: ${c.join_date||'-'}\n\nApprove karte hi offer email candidate ko chala jayega.`, 'CEO Approve'))) return;
+    await sb.from('candidates').update({ offer_approval: 'APPROVED', offer_date: todayISO(), updated_at: new Date().toISOString() }).eq('id', id);
+    Object.assign(c, { offer_approval: 'APPROVED' });
+    // AUTO-SEND offer email (short version — detailed letter alag se PDF)
+    const g = Number(c.agreed_salary)||0; const alloc = splitGross(g);
+    await candEmail(c, 'offer', { gross: g, basic: alloc.basic||0, hra: alloc.hra||0, other: g-(alloc.basic||0)-(alloc.hra||0), joinDate: c.join_date });
+    notify('✓ CEO approved — offer email candidate ko bhej diya gaya', 'success');
+  } else {
+    const note = (await nxPrompt('Reject ka reason (HR ko dikhega):', 'Reject Offer')) || '';
+    await sb.from('candidates').update({ offer_approval: 'REJECTED', offer_note: note, updated_at: new Date().toISOString() }).eq('id', id);
+    Object.assign(c, { offer_approval: 'REJECTED', offer_note: note });
+    notify('Offer rejected — HR ko dikh jayega', 'success');
+  }
+  $('candStageBox').innerHTML = candStageActions(c);
 }
 async function sendOfferEmail(id){
   const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
