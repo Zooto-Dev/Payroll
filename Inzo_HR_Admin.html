@@ -4227,8 +4227,13 @@ function printCandidateAppointment(id){
   const flags = candStatFlags(c);
   const ctc = ctcParts(g, flags);
   const html = letterShell('APPOINTMENT LETTER', `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/APT/${yr}/${Math.floor(100+Math.random()*900)}`,
-    `<p style="margin:0 0 12px"><b>${esc(name)}</b></p>
-     <p style="margin:0 0 12px"><b>Subject: Letter of Appointment — ${esc(desig)}</b></p>
+    `<p style="margin:0"><b>To,</b></p>
+     <p style="margin:0"><b>Mr./Ms. ${esc(name)}</b></p>
+     ${c.address ? `<p style="margin:0;font-size:12px">Address- ${esc(c.address)}</p>` : ''}
+     <div style="height:8px"></div>
+     ${c.phone ? `<p style="margin:0;font-size:12px">+91 ${esc(c.phone)}</p>` : ''}
+     ${c.email ? `<p style="margin:0;font-size:12px">${esc(c.email)}</p>` : ''}
+     <p style="margin:14px 0 12px"><b>Subject: Letter of Appointment — ${esc(desig)}</b></p>
      <p>Dear <b>${esc(name.split(' ')[0])}</b>,</p>
      <p>With reference to our offer of employment and your acceptance thereof, we are pleased to appoint you in the services of <b>${esc(S.name)}</b> on the following terms and conditions:</p>
 
@@ -4277,9 +4282,13 @@ function buildOfferLetterHTML(id){
   const ctc = ctcParts(g, flags);
   const SEC = (n, t, body) => `<p style="margin:9px 0 1px;font-size:12px"><b>${n}. ${t}</b></p><p style="margin:0;text-align:justify">${body}</p>`;
   const html = letterShell('OFFER OF EMPLOYMENT', `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/OFR/${yr}/${Math.floor(100+Math.random()*900)}`,
-    `<p style="margin:0 0 1px"><b>${esc(name)}</b>${c.email ? ` &nbsp;·&nbsp; <span style="font-size:11px;color:#64748b">${esc(c.email)}</span>` : ''}${c.phone ? ` &nbsp;·&nbsp; <span style="font-size:11px;color:#64748b">+91 ${esc(c.phone)}</span>` : ''}</p>
-     ${c.address ? `<p style="margin:0 0 1px;font-size:11px;color:#64748b">${esc(c.address)}</p>` : ''}
-     <p style="margin:6px 0 8px"><b>Subject: Offer of Employment — ${esc(desig)}</b></p>
+    `<p style="margin:0"><b>To,</b></p>
+     <p style="margin:0"><b>Mr./Ms. ${esc(name)}</b></p>
+     ${c.address ? `<p style="margin:0;font-size:12px">Address- ${esc(c.address)}</p>` : ''}
+     <div style="height:8px"></div>
+     ${c.phone ? `<p style="margin:0;font-size:12px">+91 ${esc(c.phone)}</p>` : ''}
+     ${c.email ? `<p style="margin:0;font-size:12px">${esc(c.email)}</p>` : ''}
+     <p style="margin:14px 0 8px"><b>Subject: Offer of Employment — ${esc(desig)}</b></p>
      <p style="margin:0 0 6px">Dear <b>${esc(name.split(' ')[0])}</b>,</p>
      <p style="margin:0;text-align:justify">Thank you for exploring a career with <b>${esc(S.name)}</b>. Further to your application and our discussions, we are pleased to offer you employment on the following terms and conditions:</p>
      ${SEC(1, 'Position & Location', `You will join us as <b>${esc(desig)}</b>${dept ? ' in the <b>' + esc(dept) + '</b> department' : ''}, based at our facility at Plot 300, Sector 6, IMT Manesar, Gurugram, Haryana. Your role, reporting and place of posting may be assigned or revised by the management as per business requirements.`)}
@@ -6654,18 +6663,17 @@ function letterShell(title, refNo, body){
   const S = getSettings();
   const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' });
   return `<div class="paper" contenteditable="true" spellcheck="false">
-    <div class="doc-head">
-      <div>
-        <h1 style="margin:0;font-size:20px">${esc(S.name)}</h1>
-        <p style="margin:2px 0 0;font-size:11px;color:#64748b">${esc(S.addr)}${S.phone ? ' • ' + esc(S.phone) : ''}${S.email ? ' • ' + esc(S.email) : ''}</p>
-        ${S.cin ? `<p style="margin:1px 0 0;font-size:10px;color:#94a3b8">${esc(S.cin)}</p>` : ''}
-      </div>
-      <div style="text-align:right;font-size:11px;color:#64748b">
-        <p style="margin:0"><b>Ref:</b> ${esc(refNo)}</p>
-        <p style="margin:2px 0 0"><b>Date:</b> ${today}</p>
-      </div>
+    <div style="text-align:center;border-bottom:2.5px solid var(--ink);padding-bottom:10px">
+      <h1 style="margin:0;font-size:22px;letter-spacing:.02em">${esc(S.name)}</h1>
+      <p style="margin:3px 0 0;font-size:11.5px;color:#475569">${esc(S.addr)}</p>
+      <p style="margin:2px 0 0;font-size:11px;color:#475569">${S.phone ? 'Ph: ' + esc(S.phone) : ''}${S.phone && S.email ? ' &nbsp;•&nbsp; ' : ''}${S.email ? 'Email: ' + esc(S.email) : ''}</p>
+      ${S.cin ? `<p style="margin:2px 0 0;font-size:10px;color:#94a3b8">${esc(S.cin)}</p>` : ''}
     </div>
-    <h2 style="font-size:15px;text-align:center;text-decoration:underline;margin:22px 0 34px">${esc(title)}</h2>
+    <div class="doc-head" style="border-bottom:none;padding-bottom:0;margin:8px 0 0;font-size:11.5px;color:#334155">
+      <p style="margin:0"><b>Ref:</b> ${esc(refNo)}</p>
+      <p style="margin:0"><b>Date:</b> ${today}</p>
+    </div>
+    <h2 style="font-size:15px;text-align:center;text-decoration:underline;margin:34px 0 44px">${esc(title)}</h2>
     ${body}
     <div style="margin-top:44px;display:flex;justify-content:space-between;align-items:flex-end">
       <div>
