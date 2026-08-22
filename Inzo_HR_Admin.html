@@ -4307,6 +4307,21 @@ function buildOfferLetterHTML(id){
      ${annexureCTC_HTML(g, flags)}`);
   return html;
 }
+function inlineLetterStyles(html){
+  // ann tables: border + padding har th/td par; table pe collapse+width
+  html = html.replace(/<table class="ann"([^>]*)>/g,
+    '<table class="ann"$1 style="width:100%;border-collapse:collapse;font-size:12px;margin:10px 0" cellspacing="0">');
+  html = html.replace(/<th /g, '<th style="border:1px solid #94a3b8;padding:6px 10px;text-align:left" ');
+  html = html.replace(/<th>/g, '<th style="border:1px solid #94a3b8;padding:6px 10px;text-align:left">');
+  html = html.replace(/<td /g, '<td style="border:1px solid #94a3b8;padding:6px 10px" ');
+  html = html.replace(/<td>/g, '<td style="border:1px solid #94a3b8;padding:6px 10px">');
+  // (jinke pehle se inline text-align tha wo bhi border pa jayenge — merge safe)
+  html = html.replace(/style="border:1px solid #94a3b8;padding:6px 10px" style="text-align:right"/g,
+                      'style="border:1px solid #94a3b8;padding:6px 10px;text-align:right"');
+  html = html.replace(/style="border:1px solid #94a3b8;padding:6px 10px;text-align:left" style="text-align:right"/g,
+                      'style="border:1px solid #94a3b8;padding:6px 10px;text-align:right"');
+  return html;
+}
 async function sendOfferPdfEmail(id){
   const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
   if(!c.email) return notify('Candidate ka email saved nahi hai', 'error');
@@ -4314,6 +4329,8 @@ async function sendOfferPdfEmail(id){
   if(!html) return;
   // signature/image relative paths ko absolute karo (PDF conversion ke liye)
   html = html.replace(/src="signature\.png"/g, 'src="https://zooto-dev.github.io/Payroll/signature.png"');
+  // GAS PDF engine <style> block ko ignore karta hai -> borders INLINE kar do (warna table bina box ke aati hai)
+  html = inlineLetterStyles(html);
   const S = getSettings();
   try{
     notify('Offer letter PDF banakar email bheja ja raha hai…', 'info');
