@@ -1,11 +1,14 @@
 /* ============================================================
-   NEXUS Attendance — Service Worker (offline resilience)
-   Caches the app shell + all CDN libraries + face models the
-   first time online, so a reload works even with NO internet.
+   NEXUS Attendance — Service Worker  v6
+   - HTML: ALWAYS network-first (HTTP cache bhi bypass) -> naye
+     deploy turant har device par lagenge, purana build kabhi
+     atkega nahi. Offline par cache fallback.
+   - CDN libs + face models: cache-first (offline reload chalta rahe)
+   - Supabase / GAS: kabhi cache nahi (hamesha live)
+   - IndexedDB / localStorage ko SW touch nahi karta (punch queue SAFE)
    ============================================================ */
-const CACHE = 'nexus-attend-v5';
+const CACHE = 'nexus-attend-v6';
 
-// core files the app needs to boot (cached on install)
 const CORE = [
   './',
   './index.html',
@@ -31,48 +34,35 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const req = e.request;
-  if (req.method !== 'GET') return; // never cache POST/PUT (Supabase writes)
+  if (req.method !== 'GET') return;                       // POST/PUT kabhi cache nahi
 
   const url = new URL(req.url);
-  // Supabase API + GAS config = always live (never cache dynamic data)
   if (url.hostname.includes('supabase.co') || url.hostname.includes('script.google.com')) {
-    return; // let it hit the network normally
+    return;                                               // data hamesha live
   }
 
-  // face model shards + CDN libs + app files = cache-first (so offline reload works)
-  const isModel = url.href.includes('/models') || url.href.includes('face-api') ||
-                  url.href.includes('.onnx') || url.href.includes('-weights_manifest') ||
-                  url.href.includes('-shard');
-  const isCdn = url.hostname.includes('jsdelivr') || url.hostname.includes('cdnjs') ||
-                url.hostname.includes('cdn.tailwindcss') || url.hostname.includes('justadudewhohacks') ||
-                url.hostname.includes('githubusercontent');
-
-  const isHTML = url.origin === location.origin && (url.pathname.endsWith('.html') || url.pathname.endsWith('/'));
+  const isHTML = url.origin === location.origin &&
+                 (url.pathname.endsWith('.html') || url.pathname.endsWith('/') || req.mode === 'navigate');
 
   if (isHTML) {
-    // NETWORK-FIRST for pages: always try to get the latest; use cache only if offline.
+    // NETWORK-FIRST + HTTP-cache bypass -> hamesha fresh build
     e.respondWith(
-      fetch(req).then(resp => {
-        if (resp && resp.ok) { const copy = resp.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
-        return resp;
-      }).catch(() => caches.match(req))
+      fetch(new Request(req.url, { cache: 'reload' }))
+        .then(res => {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(req, copy));
+          return res;
+        })
+        .catch(() => caches.match(req).then(m => m || caches.match('./attendance.html')))
     );
     return;
   }
 
-  if (isModel || isCdn || url.origin === location.origin) {
-    // CACHE-FIRST for models/libraries/assets (they don't change).
-    e.respondWith(
-      caches.match(req).then(hit => {
-        if (hit) return hit;
-        return fetch(req).then(resp => {
-          if (resp && (resp.ok || resp.type === 'opaque')) {
-            const copy = resp.clone();
-            caches.open(CACHE).then(c => c.put(req, copy));
-          }
-          return resp;
-        }).catch(() => hit);
-      })
-    );
-  }
+  // baaki sab (CDN, models, images): cache-first, miss par network + cache
+  e.respondWith(
+    caches.match(req).then(hit => hit || fetch(req).then(res => {
+      if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
+      return res;
+    }).catch(() => hit))
+  );
 });
