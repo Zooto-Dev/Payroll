@@ -4307,39 +4307,59 @@ function buildOfferLetterHTML(id){
      ${annexureCTC_HTML(g, flags)}`);
   return html;
 }
-function inlineLetterStyles(html){
-  // ann tables: border + padding har th/td par; table pe collapse+width
-  html = html.replace(/<table class="ann"([^>]*)>/g,
-    '<table class="ann"$1 style="width:100%;border-collapse:collapse;font-size:12px;margin:10px 0" cellspacing="0">');
-  html = html.replace(/<th /g, '<th style="border:1px solid #94a3b8;padding:6px 10px;text-align:left" ');
-  html = html.replace(/<th>/g, '<th style="border:1px solid #94a3b8;padding:6px 10px;text-align:left">');
-  html = html.replace(/<td /g, '<td style="border:1px solid #94a3b8;padding:6px 10px" ');
-  html = html.replace(/<td>/g, '<td style="border:1px solid #94a3b8;padding:6px 10px">');
-  // (jinke pehle se inline text-align tha wo bhi border pa jayenge — merge safe)
-  html = html.replace(/style="border:1px solid #94a3b8;padding:6px 10px" style="text-align:right"/g,
-                      'style="border:1px solid #94a3b8;padding:6px 10px;text-align:right"');
-  html = html.replace(/style="border:1px solid #94a3b8;padding:6px 10px;text-align:left" style="text-align:right"/g,
-                      'style="border:1px solid #94a3b8;padding:6px 10px;text-align:right"');
-  return html;
+async function loadPdfLibs(){
+  if(!window.html2canvas){
+    await new Promise((res, rej) => { const sc=document.createElement('script');
+      sc.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      sc.onload=res; sc.onerror=()=>rej(new Error('html2canvas load fail')); document.head.appendChild(sc); });
+  }
+  if(!(window.jspdf && window.jspdf.jsPDF)){
+    await new Promise((res, rej) => { const sc=document.createElement('script');
+      sc.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      sc.onload=res; sc.onerror=()=>rej(new Error('jspdf load fail')); document.head.appendChild(sc); });
+  }
+}
+// letter HTML -> A4 multipage PDF (bilkul screen/system jaisa) -> base64
+async function letterHTMLtoPdfBase64(html){
+  await loadPdfLibs();
+  const holder = document.createElement('div');
+  holder.style.cssText = 'position:fixed;left:-99999px;top:0;width:210mm;background:#fff;z-index:-1';
+  holder.innerHTML = html;
+  const paper = holder.querySelector('.paper') || holder.firstElementChild;
+  if(paper){ paper.style.width='210mm'; paper.style.boxShadow='none'; paper.style.margin='0'; paper.removeAttribute('contenteditable'); }
+  document.body.appendChild(holder);
+  await Promise.all(Array.from(holder.querySelectorAll('img')).map(im => im.complete ? 1 :
+    new Promise(r => { im.onload=r; im.onerror=r; setTimeout(r, 4000); })));
+  const canvas = await html2canvas(paper, { scale: 2, useCORS: true, backgroundColor: '#ffffff', windowWidth: paper.scrollWidth });
+  document.body.removeChild(holder);
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const pw = 210, ph = 297;
+  const imgH = canvas.height * pw / canvas.width;
+  let pos = 0;
+  const imgData = canvas.toDataURL('image/jpeg', 0.92);
+  pdf.addImage(imgData, 'JPEG', 0, pos, pw, imgH);
+  let remaining = imgH - ph;
+  while(remaining > 0){ pos -= ph; pdf.addPage(); pdf.addImage(imgData, 'JPEG', 0, pos, pw, imgH); remaining -= ph; }
+  return pdf.output('datauristring').split(',')[1];
 }
 async function sendOfferPdfEmail(id){
   const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
   if(!c.email) return notify('Candidate ka email saved nahi hai', 'error');
   let html = buildOfferLetterHTML(id);
   if(!html) return;
-  // signature/image relative paths ko absolute karo (PDF conversion ke liye)
   html = html.replace(/src="signature\.png"/g, 'src="https://zooto-dev.github.io/Payroll/signature.png"');
-  // GAS PDF engine <style> block ko ignore karta hai -> borders INLINE kar do (warna table bina box ke aati hai)
-  html = inlineLetterStyles(html);
   const S = getSettings();
   try{
-    notify('Offer letter PDF banakar email bheja ja raha hai…', 'info');
+    notify('Offer letter PDF ban raha hai (bilkul jaisa dikhta hai)…', 'info');
+    const pdfB64 = await letterHTMLtoPdfBase64(html);   // BROWSER hi PDF banata hai => email = system jaisa hi
+    notify('PDF ban gaya — email bheja ja raha hai…', 'info');
     const res = await fetch(NX_CONFIG_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'offerpdf', to: c.email, name: c.name,
         position: c.position || 'the offered position', company: S.name || 'Zooto Fashion Pvt Ltd',
-        joinDate: c.join_date || '', html })
+        joinDate: c.join_date || '', pdf_base64: pdfB64 })
     });
     const r = await res.json();
     if(r && r.ok) notify('✓ Offer email + PDF letter bheja gaya: ' + c.email, 'success');
