@@ -417,10 +417,10 @@
             
             <div class="p-6 flex flex-col items-center">
                 <div class="w-20 h-20 rounded-2xl border border-slate-200 overflow-hidden mb-3 shadow-sm">
-                    <img id="userSnapshot" src="" alt="Employee" class="w-full h-full object-cover">
+                    <img id="userSnapshot" src="" alt="Employee" class="w-full h-full object-cover" style="min-width:150px;min-height:150px">
                 </div>
                 
-                <h3 id="empName" class="text-base font-bold text-slate-800">---</h3>
+                <h3 id="empName" class="font-bold text-slate-800" style="font-size:26px;line-height:1.15">---</h3>
                 <p id="empCode" class="text-sm text-slate-500 font-medium mb-4">ID: ---</p>
                 
                 <div class="w-full bg-slate-50 rounded-xl p-3 border border-slate-100">
@@ -1015,7 +1015,7 @@ function nxConfirm(msg, title){
         let _syncTimer = null;
         function startAutoSync(){
           if(_syncTimer) return;
-          _syncTimer = setInterval(() => { if(navigator.onLine) fetchEmployeesData(true).catch(()=>{}); }, 180000);
+          _syncTimer = setInterval(() => { if(navigator.onLine && !document.hidden) fetchEmployeesData(true).catch(()=>{}); }, 600000);   // 10 min (egress saver)
         }
         window.addEventListener('online', () => {
           setSystemStatus('ready');
@@ -1125,22 +1125,50 @@ function nxConfirm(msg, title){
                 const ctx = canvas.getContext('2d');
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // STAGE 1 (cheap): is there a face at all? just the detector, no landmarks/descriptor.
+                // STAGE 1 (cheap): saare chehre dekho — sirf PAAS wale gino (door/peeche wale ignore)
                 const _t0 = performance.now();
-                const faceBox = await faceapi.detectSingleFace(video, detectorOptions);
+                const _allFaces = await faceapi.detectAllFaces(video, detectorOptions);
+                const _vwNow = video.videoWidth || 1;
+                const _nearFaces = (_allFaces || []).filter(f => (f.box.width / _vwNow) >= 0.14);
                 const _t1 = performance.now();
-                if (!faceBox) {
+                if (!_nearFaces.length) {
                     reticle.classList.remove('detecting');
-                    trackUnknown(false, false);   // nobody in frame -> reset the unknown timer
+                    trackUnknown(false, false);   // nobody (close) in frame -> reset the unknown timer
                     resetScanState();
                     if(isDetecting) setTimeout(() => requestAnimationFrame(scanFrame), 60);
                     return;
                 }
+                if (_nearFaces.length >= 2) {
+                    // DO 2+ log camera ke paas — kiska punch? confusion = NO punch. Rok do, bolo, guide karo.
+                    currentTarget = null; matchConfidence = 0;
+                    reticle.classList.remove('detecting');
+                    statusText.innerText = 'EK BAAR MEIN EK';
+                    if (!window._mfLast || Date.now() - window._mfLast > 4000) {
+                        window._mfLast = Date.now();
+                        notify('2 chehre dikh rahe hain — ek baar mein EK vyakti hi saamne aaye', 'info');
+                        speakText('Ek baar mein ek vyakti saamne aayein. Peechhe waale kripya hatt jaayein.');
+                    }
+                    resetScanState();
+                    if(isDetecting) setTimeout(() => requestAnimationFrame(scanFrame), 250);
+                    return;
+                }
+                const faceBox = _nearFaces[0];
                 // STAGE 2 (expensive, only now that a face is found): landmarks + descriptor for THIS face.
                 const detection = await faceapi.detectSingleFace(video, detectorOptions)
                                               .withFaceLandmarks()
                                               .withFaceDescriptor();
                 const _t2 = performance.now();
+                if (detection) {
+                    // safety: stage-2 ka face wahi hona chahiye jo stage-1 mein chuna tha (beech mein doosra ghusa to skip)
+                    const b1 = faceBox.box, b2 = detection.detection.box;
+                    const cxd = Math.abs((b1.x + b1.width/2) - (b2.x + b2.width/2));
+                    const cyd = Math.abs((b1.y + b1.height/2) - (b2.y + b2.height/2));
+                    if (cxd > b1.width * 0.6 || cyd > b1.height * 0.6) {
+                        resetScanState();
+                        if(isDetecting) setTimeout(() => requestAnimationFrame(scanFrame), 100);
+                        return;
+                    }
+                }
                 hud('detect: ' + (_t1-_t0).toFixed(0) + 'ms  descriptor: ' + (_t2-_t1).toFixed(0) + 'ms  conf: ' + matchConfidence + '  target: ' + (currentTarget||'-'));
 
                 if (detection) {
@@ -1872,10 +1900,10 @@ function nxConfirm(msg, title){
                 } else {
                     // network genuinely down / DB unreachable -> emergency local queue, said OUT LOUD and shown clearly
                     queuePunch({ empCode, todayStr, timeStr, imageBase64, type: punchType, is_late: isLate, empName });
-                    let msg = speakName(empName) + (punchType === 'IN' ? ", punch in ho gaya." : ", punch out ho gaya.") + " Network nahi hai, record baad mein sync hoga.";
+                    let msg = speakName(empName) + ", dhyan dijiye. Aapka punch abhi SAVE NAHIN hua hai. Network problem hai. Punch machine mein surakshit rakh liya gaya hai aur net aate hi apne aap chala jayega. Kripya supervisor ko zaroor bata dein.";
                     speakText(msg);
-                    showSuccessUI(empData, empName, imageBase64, timeStr, punchType + " (OFFLINE \u2014 sync baaki)");
-                    nxSyncBanner('err', 'OFFLINE \u2014 DB tak nahi gaya (' + (dbWhy || 'no network') + '). Queue mein hai, net aate hi sync hoga.');
+                    showSuccessUI(empData, empName, imageBase64, timeStr, "\u26a0 " + punchType + " SAVE NAHI HUA \u2014 PENDING (machine mein surakshit, supervisor ko batao)");
+                    nxSyncBanner('err', '\u26a0 PUNCH DB TAK NAHI GAYA \u2014 machine mein surakshit hai. Har minute auto-sync try hoga. (' + (dbWhy || 'no network') + ')');
                     if (navigator.onLine) setTimeout(() => flushPendingPunches(true), 1500);
                 }
             };
@@ -2093,6 +2121,10 @@ function nxConfirm(msg, title){
         });
 
         // On-screen sync status: red = punches are NOT reaching the database (shows the real reason)
+        // ===== PAKKA AUTO-SYNC: har minute queue try + net wapas aate hi turant =====
+        setInterval(() => { try{ updatePendingBadge(); if(navigator.onLine) flushPendingPunches(true); }catch(e){} }, 60000);
+        window.addEventListener('online', () => { try{ setTimeout(() => flushPendingPunches(true), 1200); }catch(e){} });
+        setTimeout(() => { try{ updatePendingBadge(); if(navigator.onLine) flushPendingPunches(true); }catch(e){} }, 4000);
         function nxSyncBanner(kind, msg){
             let b = document.getElementById('nxSyncBanner');
             if(kind === 'hide'){ if(b) b.remove(); return; }
@@ -2199,7 +2231,7 @@ function nxConfirm(msg, title){
         });
         // also flush every 45s in case the network was just slow (no offline/online event fired)
         setInterval(() => { if(navigator.onLine) flushPendingPunches(true); }, 15000);
-        setInterval(refreshTodayCache, 600000);   // light safety net (10 min) — real-time checks are event-driven below
+        setInterval(() => { if(!document.hidden) refreshTodayCache(); }, 1200000);   // 20 min safety net (egress saver) — real-time checks are event-driven below
 
         // ---- Recover locally-stored punches (today_punches) into the DB where the OUT (or IN) is missing ----
         async function recoverLocalPunches(onProgress){
