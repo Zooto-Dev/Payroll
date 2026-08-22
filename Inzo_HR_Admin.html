@@ -1769,8 +1769,8 @@ body.no-confidential .confidential-col{display:none!important}
       <div class="col-span-2"><label class="lbl">Full Name</label><input id="candName" class="inp" style="text-transform:uppercase"></div>
       <div><label class="lbl">Phone</label><input id="candPhone" class="inp"></div>
       <div><label class="lbl">Email</label><input id="candEmail" class="inp"></div>
-      <div><label class="lbl">Position Applied</label><select id="candPos" class="inp"></select></div>
-      <div><label class="lbl">Department</label><select id="candDept" class="inp"></select></div>
+      <div><label class="lbl">Position Applied</label><input id="candPos" class="inp" list="candPosList" placeholder="type ya choose" style="text-transform:uppercase"><datalist id="candPosList"></datalist></div>
+      <div><label class="lbl">Department</label><input id="candDept" class="inp" list="candDeptList" placeholder="type ya choose" style="text-transform:uppercase"><datalist id="candDeptList"></datalist></div>
       <div><label class="lbl">Source</label><select id="candSource" class="inp"><option>Referral</option><option>Walk-in</option><option>Job Portal</option><option>Agency</option><option>Other</option></select></div>
       <div><label class="lbl">Experience</label><input id="candExp" class="inp" placeholder="e.g. 3 yrs"></div>
       <div><label class="lbl">Expected Salary (₹)</label><input id="candExpSal" type="number" class="inp"></div>
@@ -3867,8 +3867,8 @@ async function loadHiring(){
     if(error) throw error;
     CANDIDATES = data || [];
   }catch(err){ host.innerHTML = `<p style="color:var(--bad)">Error: ${esc(err.message)}</p>`; return; }
-  if($('candDept')) $('candDept').innerHTML = '<option value="">—</option>' + (window.nxDeptOpts ? window.nxDeptOpts('') : '');
-  if($('candPos')) $('candPos').innerHTML = '<option value="">—</option>' + (window.nxDesigOpts ? window.nxDesigOpts('') : '');
+  if($('candDeptList')) $('candDeptList').innerHTML = (window.nxDeptOpts ? window.nxDeptOpts('').replace(/<option value="">[^<]*<\/option>/,'') : '');
+  if($('candPosList')) $('candPosList').innerHTML = (window.nxDesigOpts ? window.nxDesigOpts('').replace(/<option value="">[^<]*<\/option>/,'') : '');
   renderHiring();
 }
 function renderHiring(){
@@ -4049,11 +4049,19 @@ function candStageActions(c){
   const id = c.id;
   const docsList = [['aadhaar','Aadhaar Card'],['pan','PAN Card'],['bank','Bank Details / Cancelled Cheque'],['salary_slip','Last Salary Slips']];
   const docs = c.docs || {};
-  let html = `<div class="text-[11px] font-bold uppercase tracking-wide mb-2 mt-3" style="color:var(--brand)">Current Stage — ${esc(c.stage)}</div>`;
-
-  if(c.resume_url){
-    html += `<div class="mb-2"><button type="button" class="btn btn-ghost btn-sm" onclick="viewCandFile('${esc(c.resume_url)}')"><i class="fa-solid fa-file-lines"></i> View Resume</button></div>`;
-  }
+  // HAMESHA-dikhne wala DOCUMENTS box (kisi bhi stage mein)
+  let dhtml = '<div class="text-[11px] font-bold uppercase tracking-wide mb-2 mt-3" style="color:var(--brand)"><i class="fa-solid fa-folder-open"></i> Documents</div>';
+  dhtml += '<div class="rounded-lg p-2 mb-3" style="background:var(--panel);border:1px solid var(--line)">';
+  if(c.resume_url) dhtml += `<div class="flex items-center justify-between text-xs py-1"><span><i class="fa-solid fa-file-lines" style="color:var(--brand)"></i> Resume</span><button type="button" class="btn btn-ghost btn-sm" onclick="viewCandFile('${esc(c.resume_url)}')">View</button></div>`;
+  docsList.forEach(d => {
+    const has = docs[d[0]];
+    dhtml += `<div class="flex items-center justify-between text-xs py-1" style="border-top:1px dashed var(--line)">
+      <span>${has ? '<i class="fa-solid fa-circle-check" style="color:var(--ok)"></i>' : '<i class="fa-regular fa-circle" style="color:var(--faint)"></i>'} ${d[1]}</span>
+      ${has ? `<button type="button" class="btn btn-ghost btn-sm" onclick="viewCandFile('${esc(has)}')">View</button>` : '<span style="color:var(--faint);font-size:11px">Pending</span>'}</div>`;
+  });
+  if(!c.resume_url && !docsList.some(d => docs[d[0]])) dhtml += '<div class="text-xs py-1" style="color:var(--faint)">Koi document abhi tak nahi aaya.</div>';
+  dhtml += '</div>';
+  let html = dhtml + `<div class="text-[11px] font-bold uppercase tracking-wide mb-2" style="color:var(--brand)">Current Stage — ${esc(c.stage)}</div>`;
 
   if(c.stage === 'APPLIED'){
     html += `<p class="text-xs mb-2" style="color:var(--muted)">Review the resume, then shortlist or reject. Rejection sends a professional email automatically.</p>
