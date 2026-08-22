@@ -1273,7 +1273,7 @@ body.no-confidential .confidential-col{display:none!important}
     <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Annual CTC ya Monthly Gross — koi bhi bharo, doosra apne aap. Basic 50% · HRA 25% · Conveyance 15% · Special = baaki.</p>
     <div class="grid grid-cols-2 gap-3 mb-2">
       <div><label class="lbl">Annual CTC (₹)</label><input id="calcCTC" type="number" class="inp" placeholder="540000" oninput="calcFromCTC()"></div>
-      <div><label class="lbl">Monthly Gross (₹)</label><input id="calcGross" type="number" class="inp" placeholder="43130" oninput="calcFromGross()"></div>
+      <div><label class="lbl">Monthly Gross (₹) <span style="font-weight:400;color:var(--muted)">(auto)</span></label><input id="calcGross" type="number" class="inp" placeholder="43130" oninput="calcFromGross()"></div>
     </div>
     <div class="flex gap-4 items-center mb-3 text-xs" style="color:var(--muted)">
       <span style="font-weight:600">Applicable:</span>
@@ -3431,6 +3431,36 @@ function fillFromCTC(){
   notify('Filled from CTC ₹' + ctc.toLocaleString('en-IN') + ' → Gross ₹' + gross.toLocaleString('en-IN'), 'success');
 }
 // ---- CTC math: SAME rules as the payroll engine (employerSides): PF 12% (cap), ESI 3.25% (limit), Employer LWF — sab settings se
+// CTC-anchored: monthly CTC do -> Basic = CTC*50%, employer PF (cap), gross = CTC - employer contributions
+function ctcPartsFromCTC(monthlyCTC, f){
+  monthlyCTC = Number(monthlyCTC)||0;
+  f = f || { pf: true, esi: true, lwf: true, tds: false };
+  const S = getSettings();
+  const basic = Math.round(monthlyCTC * 0.5);                       // Basic = CTC ka 50%
+  const pfBase = Number(S.pfCap) > 0 ? Math.min(basic, Number(S.pfCap)) : basic;
+  const erPF = f.pf ? Math.round(pfBase * Number(S.pfPct) / 100) : 0;
+  const erLWF = f.lwf ? lwfER(monthlyCTC) : 0;
+  // gross = CTC - employer PF - employer LWF - employer ESI ; ESI gross par depend karta hai -> 1-2 iteration
+  let gross = monthlyCTC - erPF - erLWF;
+  let erESI = 0;
+  for(let i=0;i<6;i++){
+    erESI = (f.esi && gross>0 && gross <= Number(S.esiLimit)) ? Math.ceil(gross * 3.25/100) : 0;
+    const ng = monthlyCTC - erPF - erLWF - erESI;
+    if(Math.abs(ng-gross)<1){ gross=ng; break; }
+    gross = ng;
+  }
+  gross = Math.round(gross);
+  // employee side
+  const eePF  = f.pf  ? Math.round(pfBase * Number(S.pfPct)/100) : 0;
+  const eeESI = (f.esi && gross>0 && gross <= Number(S.esiLimit)) ? Math.ceil(gross * Number(S.esiPct)/100) : 0;
+  const eeLWF = f.lwf ? Number(S.lwfE||0) : 0;
+  const annualCTC = monthlyCTC * 12;
+  const eeTDS = f.tds ? Math.round(nxAnnualTDS(annualCTC)/12) : 0;
+  return { gross, basic, empPF: erPF, empESI: erESI, empLWF: erLWF,
+           eePF, eeESI, eeLWF, eeTDS, eeTotal: eePF+eeESI+eeLWF+eeTDS,
+           net: gross - (eePF+eeESI+eeLWF+eeTDS),
+           monthlyCTC, annualCTC };
+}
 function ctcParts(g, f){
   g = Number(g)||0;
   f = f || { pf: true, esi: true, lwf: true, tds: false };
@@ -3474,34 +3504,35 @@ function grossFromAnnualCTC(ctcA, f){
 function calcFlags(){
   return { pf: $('calcPF').checked, esi: $('calcESI').checked, lwf: $('calcLWF').checked, tds: $('calcTDS').checked };
 }
-function calcAuto(g, ctcA){
-  const lim = Number(getSettings().esiLimit)||21000;
-  if(g > 0) $('calcESI').checked = (g <= lim);
-  if(ctcA > 0) $('calcTDS').checked = (ctcA >= 1200000);
-}
-function calcFromCTC(){
-  const ctcA = Number($('calcCTC').value)||0;
-  calcAuto(0, ctcA);
-  const g = ctcA ? grossFromAnnualCTC(ctcA, calcFlags()) : 0;
-  $('calcGross').value = g || '';
-  calcAuto(g, ctcA);
-  calcRender();
-}
-function calcFromGross(){
-  const g = Number($('calcGross').value)||0;
-  const ctcA = g ? ctcParts(g, calcFlags()).annualCTC : 0;
-  $('calcCTC').value = ctcA || '';
-  calcAuto(g, ctcA);
-  calcRender();
-}
-function calcRender(){
-  const g = Number($('calcGross').value)||0;
-  if(!g){ $('calcOut').innerHTML=''; return; }
+var _calcT = null;
+function calcFromCTC(){ clearTimeout(_calcT); _calcT = setTimeout(() => calcGo('ctc'), 500); }   // typing rukne ka wait
+function calcFromGross(){ clearTimeout(_calcT); _calcT = setTimeout(() => calcGo('gross'), 500); }
+function calcGo(src){
+  const S = getSettings(), lim = Number(S.esiLimit)||21000;
+  let monthlyCTC;
+  if(src === 'ctc'){
+    const ctcA = Number($('calcCTC').value)||0;   // yahan Annual CTC
+    monthlyCTC = Math.round(ctcA/12);
+  } else {
+    // gross diya -> monthly CTC nikaalo (gross->ctc), phir CTC-anchor
+    const g = Number($('calcGross').value)||0;
+    monthlyCTC = g ? ctcParts(g, calcFlags()).monthlyCTC : 0;
+  }
+  if(!monthlyCTC){ $('calcOut').innerHTML=''; return; }
+  // auto ESI/TDS
+  if($('calcTDS')) $('calcTDS').checked = (monthlyCTC*12 >= 1200000);
+  const cPre = ctcPartsFromCTC(monthlyCTC, calcFlags());
+  if($('calcESI')) $('calcESI').checked = (cPre.gross <= lim);
   const f = calcFlags();
-  // gross se ctc dobara sync (checkbox badle to)
-  $('calcCTC').value = ctcParts(g, f).annualCTC;
-  $('calcOut').innerHTML = annexureCTC_HTML(g, f).replace(/<div style="[^"]*page-break[^"]*"><\/div>/,'').replace(/<div style="border-top[^"]*"><\/div>/,'');
+  const c = ctcPartsFromCTC(monthlyCTC, f);
+  // doosri field bharo (jo user type NAHI kar raha)
+  if(src === 'ctc'){ $('calcGross').value = c.gross; }
+  else { $('calcCTC').value = c.annualCTC; }
+  $('calcOut').innerHTML = annexureCTC_HTML(c.gross, f)
+     .replace(/<div style="[^"]*page-break[^"]*"><\/div>/,'')
+     .replace(/<div style="border-top[^"]*"><\/div>/,'');
 }
+function calcRender(){ calcGo($('calcCTC').value ? 'ctc' : 'gross'); }
 function candStatFlags(c){
   const pf = $('candPF'), esi = $('candESI'), lwf = $('candLWF'), tds = $('candTDS');
   if(pf) return { pf: pf.checked, esi: esi.checked, lwf: lwf.checked, tds: tds ? tds.checked : false };
@@ -4166,13 +4197,14 @@ function candAutoStat(){
 }
 function candCtcChanged(){
   const ctcA = Number(($('candCTC')||{}).value)||0;
-  if($('candAgreed')) $('candAgreed').value = ctcA ? grossFromAnnualCTC(ctcA, candStatFlags()) : '';
   candAutoStat();
+  if($('candAgreed')) $('candAgreed').value = ctcA ? ctcPartsFromCTC(Math.round(ctcA/12), candStatFlags()).gross : '';
   candOfferPreview();
 }
 function candGrossChanged(){
   const g = Number(($('candAgreed')||{}).value)||0;
-  if($('candCTC')) $('candCTC').value = g ? ctcParts(g, candStatFlags()).annualCTC : '';
+  const mctc = g ? ctcParts(g, candStatFlags()).monthlyCTC : 0;
+  if($('candCTC')) $('candCTC').value = mctc ? mctc*12 : '';
   candAutoStat();
   candOfferPreview();
 }
@@ -6688,22 +6720,28 @@ $('letterType').addEventListener('change', () => {
 
 function annexureCTC_HTML(g, f){
   f = f || { pf: true, esi: true, lwf: true };
-  const c = ctcParts(g, f);
-  const basic = c.basic, hra = Math.round(g*0.25), conv = Math.round(g*0.15), spl = g-basic-hra-conv;
+  // g = MONTHLY GROSS aata hai; usse monthly CTC nikaal ke CTC-anchored structure banao (Basic = CTC*50%)
+  const _tmp = ctcParts(g, f);
+  const c = ctcPartsFromCTC(_tmp.monthlyCTC, f);
+  const gg = c.gross;                                   // adjusted gross (CTC-anchored)
+  const basic = c.basic;                                // CTC*50%
+  const hra = Math.round(basic*0.5);                    // HRA = Basic ka 50% (= CTC ka 25%)
+  const conv = Math.round(basic*0.3);                   // Conveyance = Basic ka 30% (= CTC ka 15%)
+  const spl = gg - basic - hra - conv;                  // Special = baaki gross
   const fmt = n => Number(n||0).toLocaleString('en-IN');
   const row = (l, m) => `<tr><td>${l}</td><td style="text-align:right">${fmt(m)}</td><td style="text-align:right">${fmt(m*12)}</td></tr>`;
   const trow = (l, m) => `<tr style="background:#f8fafc;font-weight:700"><td>${l}</td><td style="text-align:right">${fmt(m)}</td><td style="text-align:right">${fmt(m*12)}</td></tr>`;
   return `<div style="border-top:2px solid #1e293b;margin:18px 0 10px"></div>
   <h3 style="font-size:12.5px;margin:0 0 10px;text-align:center;text-decoration:underline;page-break-after:avoid">ANNEXURE A — SALARY &amp; CTC STRUCTURE</h3>
   <table class="ann" style="margin-bottom:8px">
-    <thead><tr><th style="text-align:left">GROSS EARNINGS</th><th style="text-align:right">Monthly (₹)</th><th style="text-align:right">Annual (₹)</th></tr></thead>
+    <thead><tr><th style="text-align:left">PART A — GROSS EARNINGS</th><th style="text-align:right">Monthly (₹)</th><th style="text-align:right">Annual (₹)</th></tr></thead>
     <tbody>
       ${row('Basic Salary', basic)}${row('House Rent Allowance (HRA)', hra)}${row('Conveyance Allowance', conv)}${row('Special Allowance', spl)}
-      ${trow('Gross Earnings', g)}
+      ${trow('Gross Earnings', gg)}
     </tbody>
   </table>
   <table class="ann" style="margin-bottom:8px">
-    <thead><tr><th style="text-align:left">EMPLOYER'S CONTRIBUTION</th><th style="text-align:right">Monthly (₹)</th><th style="text-align:right">Annual (₹)</th></tr></thead>
+    <thead><tr><th style="text-align:left">PART B — EMPLOYER'S CONTRIBUTION</th><th style="text-align:right">Monthly (₹)</th><th style="text-align:right">Annual (₹)</th></tr></thead>
     <tbody>
       ${f.pf ? row("Employer's Provident Fund (12% of PF wages)", c.empPF) : ''}
       ${c.empESI ? row("Employer's ESI Contribution (3.25%)", c.empESI) : ''}
@@ -6714,7 +6752,7 @@ function annexureCTC_HTML(g, f){
     </tbody>
   </table>
   <table class="ann">
-    <thead><tr><th style="text-align:left">EMPLOYEE'S STATUTORY DEDUCTIONS</th><th style="text-align:right">Monthly (₹)</th><th style="text-align:right">Annual (₹)</th></tr></thead>
+    <thead><tr><th style="text-align:left">PART C — EMPLOYEE'S STATUTORY DEDUCTIONS</th><th style="text-align:right">Monthly (₹)</th><th style="text-align:right">Annual (₹)</th></tr></thead>
     <tbody>
       ${f.pf ? row("Employee's Provident Fund (12% of PF wages)", c.eePF) : ''}
       ${c.eeESI ? row("Employee's ESI Contribution (0.75%)", c.eeESI) : ''}
