@@ -3143,7 +3143,7 @@ async function loadDashboard(){
       const isLate = isRowLate(r);
       return `<div class="flex items-center justify-between p-2 rounded-lg" style="background:#faf8f4">
         <div class="flex items-center gap-2">
-          ${r.in_photo_url ? `<img src="${esc(r.in_photo_url)}" loading="lazy" class="w-8 h-8 rounded-full object-cover" alt="">` : '<div class="w-8 h-8 rounded-full" style="background:var(--line)"></div>'}
+          ${r.in_photo_url ? `<button class="wh-thumb" data-full="${esc(r.in_photo_url)}" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:13px" title="Photo dekho">📷</button>` : '<div class="w-8 h-8 rounded-full" style="background:var(--line)"></div>'}
           <div><div class="font-semibold text-xs">${esc(r.Name)}</div><div class="text-[10px]" style="color:var(--muted)">${esc(r.employee_code)}${(() => { const e = EMP.find(x => x['Employee code'] === r.employee_code); return e && e.DEPARTMENT ? ' • ' + esc(e.DEPARTMENT) : ''; })()}</div></div>
         </div>
         <div class="text-right text-[11px]">
@@ -4278,6 +4278,7 @@ function buildOfferLetterHTML(id){
   const SEC = (n, t, body) => `<p style="margin:9px 0 1px;font-size:12px"><b>${n}. ${t}</b></p><p style="margin:0;text-align:justify">${body}</p>`;
   const html = letterShell('OFFER OF EMPLOYMENT', `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/OFR/${yr}/${Math.floor(100+Math.random()*900)}`,
     `<p style="margin:0 0 1px"><b>${esc(name)}</b>${c.email ? ` &nbsp;·&nbsp; <span style="font-size:11px;color:#64748b">${esc(c.email)}</span>` : ''}${c.phone ? ` &nbsp;·&nbsp; <span style="font-size:11px;color:#64748b">+91 ${esc(c.phone)}</span>` : ''}</p>
+     ${c.address ? `<p style="margin:0 0 1px;font-size:11px;color:#64748b">${esc(c.address)}</p>` : ''}
      <p style="margin:6px 0 8px"><b>Subject: Offer of Employment — ${esc(desig)}</b></p>
      <p style="margin:0 0 6px">Dear <b>${esc(name.split(' ')[0])}</b>,</p>
      <p style="margin:0;text-align:justify">Thank you for exploring a career with <b>${esc(S.name)}</b>. Further to your application and our discussions, we are pleased to offer you employment on the following terms and conditions:</p>
@@ -4286,7 +4287,7 @@ function buildOfferLetterHTML(id){
      ${SEC(3, 'Compensation', `Your total annual compensation (Cost to Company) will be <b>₹${ctc.annualCTC.toLocaleString('en-IN')}/- per annum</b> (Rupees ${esc(numToWords(ctc.annualCTC))} Only), comprising a monthly gross salary of ₹${g.toLocaleString('en-IN')}/-${(ctc.empPF+ctc.empESI+ctc.empLWF) ? " and the employer's statutory contributions" : ''}, as detailed in <b>Annexure A</b>. Salary is payable monthly in arrears, subject to statutory deductions as applicable.`)}
      ${SEC(4, 'Probation & Confirmation', `You will be on probation for <b>${S.probation} months</b> from your date of joining, extendable at the discretion of the management. Your services will stand confirmed only upon issuance of a written confirmation letter.`)}
      ${SEC(5, 'Notice Period', `During probation, either party may end the employment by giving <b>7 days'</b> notice or salary in lieu thereof. Upon confirmation, the notice period shall be <b>one month</b> from either side, or as per company policy. The company may terminate services without notice in cases of misconduct, breach of policy or misrepresentation.`)}
-     ${SEC(6, 'Working Hours & Leave', `Your working hours, shifts, weekly off, holidays and leave entitlement will be governed by the company's policies and applicable law, as amended from time to time. Attendance will be recorded through the company's attendance system.`)}
+     ${SEC(6, 'Working Hours & Leave', `The company observes a six-day working week, <b>Monday to Saturday</b>, with <b>Sunday</b> as the weekly off. Standard working hours are <b>9:00 AM to 5:30 PM</b>, which may vary based on shift or business requirements. You will be entitled to <b>one (1) paid leave per month</b>; unavailed leave shall <b>lapse at the end of each month and shall not be carried forward</b> or encashed. Additional leave, holidays and related matters shall be governed by the company's policies and applicable law. Attendance will be recorded through the company's attendance system.`)}
      ${SEC(7, 'Verification & Documents', `This offer is contingent upon satisfactory verification of your documents, credentials and background. Kindly bring originals and one set of photocopies of your educational certificates, Aadhaar, PAN, bank details and passport-size photographs at the time of joining.`)}
      ${SEC(8, 'Confidentiality', `During and after your employment, you shall maintain strict confidentiality of all business, technical and commercial information of the company and use it solely for the discharge of your duties.`)}
      ${SEC(9, 'Acceptance', `Please confirm your acceptance by signing and returning a copy of this letter (or by replying to the offer email) within <b>7 days</b> of receipt, failing which this offer may be treated as lapsed.`)}
@@ -4459,8 +4460,13 @@ function whDateBounds(){
 }
 function whThumb(url, label){
   if(!url) return '<span style="color:var(--faint);font-size:11px">\u2014</span>';
-  return `<img src="${esc(url)}" loading="lazy" class="wh-thumb" data-full="${esc(url)}" title="${label} photo — click to enlarge" style="width:40px;height:40px;border-radius:7px;object-fit:cover;cursor:pointer;border:1px solid var(--line);display:block">`;
+  // EGRESS SAVER: image tabhi download hoti hai jab 📷 par click karo (pehle sab auto-load hoti thi = MBs har view par)
+  return `<button class="wh-thumb" data-full="${esc(url)}" title="${label} photo — click to view" style="width:34px;height:34px;border-radius:7px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:15px">📷</button>`;
 }
+document.addEventListener('click', ev => {
+  const t = ev.target.closest ? ev.target.closest('.wh-thumb') : null;
+  if(t && t.dataset && t.dataset.full) whPhoto(t.dataset.full);
+});
 function whPhoto(url){
   if(!url) return;
   const ov = document.createElement('div');
@@ -6564,8 +6570,8 @@ function annexureCTC_HTML(g, f){
   const fmt = n => Number(n||0).toLocaleString('en-IN');
   const row = (l, m) => `<tr><td>${l}</td><td style="text-align:right">${fmt(m)}</td><td style="text-align:right">${fmt(m*12)}</td></tr>`;
   const trow = (l, m) => `<tr style="background:#f8fafc;font-weight:700"><td>${l}</td><td style="text-align:right">${fmt(m)}</td><td style="text-align:right">${fmt(m*12)}</td></tr>`;
-  return `<div style="page-break-before:always;break-before:page"></div>
-  <h3 style="font-size:12.5px;margin:0 0 8px;padding-top:6px;text-align:center;text-decoration:underline">ANNEXURE A — SALARY &amp; CTC STRUCTURE</h3>
+  return `<div style="border-top:2px solid #1e293b;margin:18px 0 10px"></div>
+  <h3 style="font-size:12.5px;margin:0 0 10px;text-align:center;text-decoration:underline;page-break-after:avoid">ANNEXURE A — SALARY &amp; CTC STRUCTURE</h3>
   <table class="ann" style="margin-bottom:8px">
     <thead><tr><th style="text-align:left">PART A — GROSS EARNINGS</th><th style="text-align:right">Monthly (₹)</th><th style="text-align:right">Annual (₹)</th></tr></thead>
     <tbody>
@@ -6659,7 +6665,7 @@ function letterShell(title, refNo, body){
         <p style="margin:2px 0 0"><b>Date:</b> ${today}</p>
       </div>
     </div>
-    <h2 style="font-size:15px;text-align:center;text-decoration:underline;margin:6px 0 18px">${esc(title)}</h2>
+    <h2 style="font-size:15px;text-align:center;text-decoration:underline;margin:22px 0 34px">${esc(title)}</h2>
     ${body}
     <div style="margin-top:44px;display:flex;justify-content:space-between;align-items:flex-end">
       <div>
