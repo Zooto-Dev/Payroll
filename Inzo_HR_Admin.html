@@ -4032,6 +4032,14 @@ function candStageActions(c){
       <div><label class="lbl">Monthly Gross (₹) <span style="font-weight:400;color:var(--muted)">(auto)</span></label><input id="candAgreed" type="number" class="inp" value="${c.agreed_salary||''}" oninput="candGrossChanged()"></div>
       <div><label class="lbl">Joining Date</label><input id="candJoinDate" type="date" class="inp" value="${c.join_date||''}"></div>
     </div>
+    <div class="grid grid-cols-3 gap-3 mb-2">
+      <div style="grid-column:span 2"><label class="lbl">Candidate Address (letter mein aayega)</label><input id="candAddr" class="inp" value="${esc(c.address||'')}" placeholder="Village Budera, Post Jhinjhoni, Gurugram, Haryana"></div>
+      <div><label class="lbl">Gender</label><select id="candGender" class="inp">
+        <option value="">— (Mr./Ms.)</option>
+        <option value="M" ${c.gender==='M'?'selected':''}>Male (Mr.)</option>
+        <option value="F" ${c.gender==='F'?'selected':''}>Female (Ms.)</option>
+      </select></div>
+    </div>
     <div class="flex gap-4 items-center mb-2 text-xs" style="color:var(--muted)">
       <span style="font-weight:600">Statutory applicable:</span>
       <label class="flex items-center gap-1"><input type="checkbox" id="candPF" checked onchange="candGrossChanged()"> PF</label>
@@ -4228,7 +4236,7 @@ function printCandidateAppointment(id){
   const ctc = ctcParts(g, flags);
   const html = letterShell('APPOINTMENT LETTER', `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/APT/${yr}/${Math.floor(100+Math.random()*900)}`,
     `<p style="margin:0"><b>To,</b></p>
-     <p style="margin:0"><b>Mr./Ms. ${esc(name)}</b></p>
+     <p style="margin:0"><b>${(c.gender==='M'?'Mr.':c.gender==='F'?'Ms.':'Mr./Ms.')} ${esc(name)}</b></p>
      ${c.address ? `<p style="margin:0;font-size:12px">Address- ${esc(c.address)}</p>` : ''}
      <div style="height:8px"></div>
      ${c.phone ? `<p style="margin:0;font-size:12px">+91 ${esc(c.phone)}</p>` : ''}
@@ -4237,29 +4245,21 @@ function printCandidateAppointment(id){
      <p>Dear <b>${esc(name.split(' ')[0])}</b>,</p>
      <p>With reference to our offer of employment and your acceptance thereof, we are pleased to appoint you in the services of <b>${esc(S.name)}</b> on the following terms and conditions:</p>
 
-     <p style="margin:14px 0 4px"><b>1. Appointment &amp; Effective Date</b></p>
-     <p style="margin:0 0 10px">You are appointed as <b>${esc(desig)}</b>${dept ? ' in the <b>' + esc(dept) + '</b> department' : ''}, with effect from <b>${fmtDate(jd)}</b> (your date of joining).</p>
+     <p style="margin:10px 0 0;text-align:justify"><b>1. Appointment &amp; Effective Date</b>&nbsp;&nbsp;&nbsp;You are appointed as <b>${esc(desig)}</b>${dept ? ' in the <b>' + esc(dept) + '</b> department' : ''}, with effect from <b>${fmtDate(jd)}</b> (your date of joining).</p>
 
-     <p style="margin:14px 0 4px"><b>2. Compensation</b></p>
-     <p style="margin:0 0 10px">Your total annual compensation (Cost to Company) is <b>₹${ctc.annualCTC.toLocaleString('en-IN')}/- per annum</b> (Rupees ${esc(numToWords(ctc.annualCTC))} Only), including a monthly gross salary of ₹${g.toLocaleString('en-IN')}/- and the employer's statutory contributions, as per <b>Annexure A</b>. Salary is payable monthly, subject to statutory deductions.</p>
+     <p style="margin:10px 0 0;text-align:justify"><b>2. Compensation</b>&nbsp;&nbsp;&nbsp;Your total annual compensation (Cost to Company) is <b>₹${ctc.annualCTC.toLocaleString('en-IN')}/- per annum</b> (Rupees ${esc(numToWords(ctc.annualCTC))} Only), including a monthly gross salary of ₹${g.toLocaleString('en-IN')}/- and the employer's statutory contributions, as per <b>Annexure A</b>. Salary is payable monthly, subject to statutory deductions.</p>
 
-     <p style="margin:14px 0 4px"><b>3. Probation &amp; Confirmation</b></p>
-     <p style="margin:0 0 10px">You will be on probation for <b>${S.probation} months</b> from the date of joining, extendable at the discretion of the management. Your services will stand confirmed only upon issue of a written confirmation letter.</p>
+     <p style="margin:10px 0 0;text-align:justify"><b>3. Probation &amp; Confirmation</b>&nbsp;&nbsp;&nbsp;You will be on probation for <b>${S.probation} months</b> from the date of joining, extendable at the discretion of the management. Your services will stand confirmed only upon issue of a written confirmation letter.</p>
 
-     <p style="margin:14px 0 4px"><b>4. Duties &amp; Conduct</b></p>
-     <p style="margin:0 0 10px">You shall diligently perform the duties assigned to you, comply with the company's policies, rules and code of conduct, and devote your whole time and attention to the business of the company. You shall not engage in any other employment, business or consultancy without prior written consent.</p>
+     <p style="margin:10px 0 0;text-align:justify"><b>4. Duties &amp; Conduct</b>&nbsp;&nbsp;&nbsp;You shall diligently perform the duties assigned to you, comply with the company's policies, rules and code of conduct, and devote your whole time and attention to the business of the company. You shall not engage in any other employment, business or consultancy without prior written consent.</p>
 
-     <p style="margin:14px 0 4px"><b>5. Attendance, Working Hours &amp; Leave</b></p>
-     <p style="margin:0 0 10px">Working hours, shifts, weekly offs, holidays and leave shall be governed by the company's policies and applicable law, as amended from time to time. Attendance will be recorded through the company's attendance system.</p>
+     <p style="margin:10px 0 0;text-align:justify"><b>5. Attendance, Working Hours &amp; Leave</b>&nbsp;&nbsp;&nbsp;The company observes a six-day working week (Monday to Saturday) with Sunday as the weekly off; standard hours are 9:00 AM to 5:30 PM, subject to shift/business requirements. You are entitled to one (1) paid leave per month; unavailed leave shall lapse at month-end and shall not be carried forward or encashed. Attendance is recorded through the company's attendance system.</p>
 
-     <p style="margin:14px 0 4px"><b>6. Notice &amp; Separation</b></p>
-     <p style="margin:0 0 10px">During probation, either party may terminate this appointment by giving <b>7 days'</b> notice or salary in lieu thereof. After confirmation, the notice period shall be <b>one month</b> from either side, or as per company policy. The company may terminate services without notice in cases of misconduct, breach of policy or misrepresentation.</p>
+     <p style="margin:10px 0 0;text-align:justify"><b>6. Notice &amp; Separation</b>&nbsp;&nbsp;&nbsp;During probation, either party may terminate this appointment by giving <b>7 days'</b> notice or salary in lieu thereof. After confirmation, the notice period shall be <b>one month</b> from either side, or as per company policy. The company may terminate services without notice in cases of misconduct, breach of policy or misrepresentation.</p>
 
-     <p style="margin:14px 0 4px"><b>7. Confidentiality &amp; Company Property</b></p>
-     <p style="margin:0 0 10px">You shall maintain strict confidentiality of all information of the company during and after employment, and shall return all company property, documents and data upon separation. Full &amp; final settlement will be processed as per company policy after completion of exit formalities.</p>
+     <p style="margin:10px 0 0;text-align:justify"><b>7. Confidentiality &amp; Company Property</b>&nbsp;&nbsp;&nbsp;You shall maintain strict confidentiality of all information of the company during and after employment, and shall return all company property, documents and data upon separation. Full &amp; final settlement will be processed as per company policy after completion of exit formalities.</p>
 
-     <p style="margin:14px 0 4px"><b>8. General</b></p>
-     <p style="margin:0 0 10px">Your appointment is based on the information and documents furnished by you; any misrepresentation shall render this appointment void. This letter, along with the company's policies, constitutes the terms of your employment.</p>
+     <p style="margin:10px 0 0;text-align:justify"><b>8. General</b>&nbsp;&nbsp;&nbsp;Your appointment is based on the information and documents furnished by you; any misrepresentation shall render this appointment void. This letter, along with the company's policies, constitutes the terms of your employment.</p>
 
      <p>Please sign and return the duplicate copy of this letter as a token of your acceptance of the above terms. We welcome you to ${esc(S.name)} and wish you a long and successful association.</p>
      ${annexureCTC_HTML(g, flags)}`);
@@ -4280,11 +4280,14 @@ function buildOfferLetterHTML(id){
   const name = c.name || '', desig = c.position || 'the offered position', dept = c.department || '';
   const flags = candStatFlags(c);
   const ctc = ctcParts(g, flags);
-  const SEC = (n, t, body) => `<p style="margin:9px 0 1px;font-size:12px"><b>${n}. ${t}</b></p><p style="margin:0;text-align:justify">${body}</p>`;
+  const _addr = (($('candAddr')||{}).value) || c.address || '';
+  const _gen = (($('candGender')||{}).value) || c.gender || '';
+  const _sal = _gen === 'M' ? 'Mr.' : _gen === 'F' ? 'Ms.' : 'Mr./Ms.';
+  const SEC = (n, t, body) => `<p style="margin:9px 0 0;text-align:justify"><b>${n}. ${t}</b>&nbsp;&nbsp;&nbsp;${body}</p>`;
   const html = letterShell('OFFER OF EMPLOYMENT', `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/OFR/${yr}/${Math.floor(100+Math.random()*900)}`,
     `<p style="margin:0"><b>To,</b></p>
-     <p style="margin:0"><b>Mr./Ms. ${esc(name)}</b></p>
-     ${c.address ? `<p style="margin:0;font-size:12px">Address- ${esc(c.address)}</p>` : ''}
+     <p style="margin:0"><b>${_sal} ${esc(name)}</b></p>
+     ${_addr ? `<p style="margin:0;font-size:12px">Address- ${esc(_addr)}</p>` : ''}
      <div style="height:8px"></div>
      ${c.phone ? `<p style="margin:0;font-size:12px">+91 ${esc(c.phone)}</p>` : ''}
      ${c.email ? `<p style="margin:0;font-size:12px">${esc(c.email)}</p>` : ''}
@@ -4332,8 +4335,8 @@ async function sendOfferForApproval(id){
   if(!g) return notify('Pehle agreed salary bharo', 'error');
   if(!jd) return notify('Pehle joining date set karo', 'error');
   if(!(await nxConfirm(`${c.name} ka offer CEO approval ko bhejein?\nGross: ₹${g.toLocaleString('en-IN')}/month · Joining: ${jd}\n\nCEO approve karega tabhi offer email candidate ko jayega.`, 'CEO Approval'))) return;
-  await sb.from('candidates').update({ agreed_salary: g, join_date: jd, offer_approval: 'PENDING_CEO', offer_note: null, offer_flags: JSON.stringify(candStatFlags()), updated_at: new Date().toISOString() }).eq('id', id);
-  Object.assign(c, { agreed_salary: g, join_date: jd, offer_approval: 'PENDING_CEO', offer_note: null, offer_flags: JSON.stringify(candStatFlags()) });
+  await sb.from('candidates').update({ agreed_salary: g, join_date: jd, offer_approval: 'PENDING_CEO', offer_note: null, offer_flags: JSON.stringify(candStatFlags()), address: ($('candAddr')||{}).value||null, gender: ($('candGender')||{}).value||null, updated_at: new Date().toISOString() }).eq('id', id);
+  Object.assign(c, { agreed_salary: g, join_date: jd, offer_approval: 'PENDING_CEO', offer_note: null, offer_flags: JSON.stringify(candStatFlags()), address: ($('candAddr')||{}).value||null, gender: ($('candGender')||{}).value||null });
   notify('✓ CEO approval ke liye bhej diya — approve hote hi offer email apne aap jayega', 'success');
   $('candStageBox').innerHTML = candStageActions(c);
 }
