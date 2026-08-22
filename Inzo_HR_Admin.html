@@ -1201,6 +1201,8 @@ body.no-confidential .confidential-col{display:none!important}
     <button id="idPrintBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-print"></i> Print A4 Sheet</button>
     <button id="idPvcFrontBtn" class="btn btn-primary hidden"><i class="fa-solid fa-id-card"></i> PVC Print — FRONT (L8050)</button>
     <button id="idPvcBackBtn" class="btn btn-primary hidden" style="background:#475569;border-color:#475569"><i class="fa-solid fa-id-card"></i> PVC Print — BACK (L8050)</button>
+    <button id="idPngFrontBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-download"></i> PNG Front</button>
+    <button id="idPngBackBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-download"></i> PNG Back</button>
     <div id="idPhotoWrap" class="hidden flex items-end gap-2">
       <div><label class="lbl">Upload / Change Photo</label><input id="idPhotoFile" type="file" accept="image/*" class="inp" style="max-width:220px"></div>
       <button id="idPhotoBtn" class="btn btn-ghost"><i class="fa-solid fa-camera"></i> Set Photo</button>
@@ -3410,15 +3412,39 @@ function fillFromCTC(){
   notify('Filled from CTC ₹' + ctc.toLocaleString('en-IN') + ' → Gross ₹' + gross.toLocaleString('en-IN'), 'success');
 }
 // ---- CTC math: SAME rules as the payroll engine (employerSides): PF 12% (cap), ESI 3.25% (limit), Employer LWF — sab settings se
-function ctcParts(g){
+function ctcParts(g, f){
   g = Number(g)||0;
+  f = f || { pf: true, esi: true, lwf: true };
+  const S = getSettings();
   const basic = Math.round(g * 0.5);
-  const er = employerSides(g, basic, true, true, true);
+  const er = employerSides(g, basic, !!f.pf, !!f.esi, !!f.lwf);
+  // employee-side statutory (Part C)
+  const pfBase = Number(S.pfCap) > 0 ? Math.min(basic, Number(S.pfCap)) : basic;
+  const eePF  = f.pf  ? Math.round(pfBase * Number(S.pfPct) / 100) : 0;
+  const eeESI = (f.esi && g > 0 && g <= Number(S.esiLimit)) ? Math.ceil(g * Number(S.esiPct) / 100) : 0;
+  const eeLWF = f.lwf ? Number(S.lwfE || 0) : 0;
   return { gross: g, basic, empPF: er.erPF, empESI: er.erESI, empLWF: er.erLWF,
+           eePF, eeESI, eeLWF, eeTotal: eePF + eeESI + eeLWF, net: g - (eePF + eeESI + eeLWF),
            monthlyCTC: g + er.total, annualCTC: (g + er.total) * 12 };
 }
-function grossFromAnnualCTC(ctcA){
-  return ctcToGross(Math.round((Number(ctcA)||0) / 12));   // payroll ka hi converter
+function grossFromAnnualCTC(ctcA, f){
+  f = f || { pf: true, esi: true, lwf: true };
+  const ctcm = Math.round((Number(ctcA)||0) / 12);
+  let g = ctcm;
+  for(let i = 0; i < 30; i++){
+    const er = employerSides(g, g * 0.5, !!f.pf, !!f.esi, !!f.lwf);
+    const next = ctcm - er.total;
+    if(Math.abs(next - g) < 1){ g = next; break; }
+    g = next;
+  }
+  return Math.max(0, Math.round(g));
+}
+function candStatFlags(c){
+  // checkbox dikh rahe hain to unse; warna saved offer_flags se; warna sab ON
+  const pf = $('candPF'), esi = $('candESI'), lwf = $('candLWF');
+  if(pf) return { pf: pf.checked, esi: esi.checked, lwf: lwf.checked };
+  try{ if(c && c.offer_flags) return JSON.parse(c.offer_flags); }catch(e){}
+  return { pf: true, esi: true, lwf: true };
 }
 function splitGross(g){
   const S = getSettings();
@@ -4006,6 +4032,12 @@ function candStageActions(c){
       <div><label class="lbl">Monthly Gross (₹) <span style="font-weight:400;color:var(--muted)">(auto)</span></label><input id="candAgreed" type="number" class="inp" value="${c.agreed_salary||''}" oninput="candGrossChanged()"></div>
       <div><label class="lbl">Joining Date</label><input id="candJoinDate" type="date" class="inp" value="${c.join_date||''}"></div>
     </div>
+    <div class="flex gap-4 items-center mb-2 text-xs" style="color:var(--muted)">
+      <span style="font-weight:600">Statutory applicable:</span>
+      <label class="flex items-center gap-1"><input type="checkbox" id="candPF" checked onchange="candGrossChanged()"> PF</label>
+      <label class="flex items-center gap-1"><input type="checkbox" id="candESI" checked onchange="candGrossChanged()"> ESI</label>
+      <label class="flex items-center gap-1"><input type="checkbox" id="candLWF" checked onchange="candGrossChanged()"> LWF</label>
+    </div>
     <div id="candOfferBreak" class="text-[11px] mb-2 p-2 rounded" style="background:var(--brand-soft)">${alloc ? candBreakupText(g) : 'Enter the agreed salary to see the breakup.'}</div>
     ${c.offer_approval === 'PENDING_CEO'
       ? `<div class="mb-3 p-2 rounded text-xs" style="background:#fffbeb;border:1px solid #fde68a;color:#854d0e"><b>⏳ CEO approval pending</b> — approve hote hi offer email candidate ko apne aap chala jayega.
@@ -4054,16 +4086,16 @@ function candStageActions(c){
 }
 function candCtcChanged(){
   const ctcA = Number(($('candCTC')||{}).value)||0;
-  if($('candAgreed')) $('candAgreed').value = ctcA ? grossFromAnnualCTC(ctcA) : '';
+  if($('candAgreed')) $('candAgreed').value = ctcA ? grossFromAnnualCTC(ctcA, candStatFlags()) : '';
   candOfferPreview();
 }
 function candGrossChanged(){
   const g = Number(($('candAgreed')||{}).value)||0;
-  if($('candCTC')) $('candCTC').value = g ? ctcParts(g).annualCTC : '';
+  if($('candCTC')) $('candCTC').value = g ? ctcParts(g, candStatFlags()).annualCTC : '';
   candOfferPreview();
 }
 function candBreakupText(g){
-  const _c = ctcParts(g);
+  const _c = ctcParts(g, candStatFlags());
   const ctcLine = `<b>Annual CTC: ₹${_c.annualCTC.toLocaleString('en-IN')}</b> (Gross ₹${g.toLocaleString('en-IN')}/mo + Employer PF ₹${_c.empPF.toLocaleString('en-IN')}/mo${_c.empESI?` + Employer ESI ₹${_c.empESI.toLocaleString('en-IN')}/mo`:''}) · `;
   return ctcLine + _origBreakup(g);
 }
@@ -4192,7 +4224,8 @@ function printCandidateAppointment(id){
   const S = getSettings();
   const yr = new Date().getFullYear();
   const name = c.name || '', desig = c.position || 'the appointed position', dept = c.department || '';
-  const ctc = ctcParts(g);
+  const flags = candStatFlags(c);
+  const ctc = ctcParts(g, flags);
   const html = letterShell('APPOINTMENT LETTER', `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/APT/${yr}/${Math.floor(100+Math.random()*900)}`,
     `<p style="margin:0 0 12px"><b>${esc(name)}</b></p>
      <p style="margin:0 0 12px"><b>Subject: Letter of Appointment — ${esc(desig)}</b></p>
@@ -4224,7 +4257,7 @@ function printCandidateAppointment(id){
      <p style="margin:0 0 10px">Your appointment is based on the information and documents furnished by you; any misrepresentation shall render this appointment void. This letter, along with the company's policies, constitutes the terms of your employment.</p>
 
      <p>Please sign and return the duplicate copy of this letter as a token of your acceptance of the above terms. We welcome you to ${esc(S.name)} and wish you a long and successful association.</p>
-     ${annexureCTC_HTML(g)}`);
+     ${annexureCTC_HTML(g, flags)}`);
   printHTML(html);
 }
 function printCandidateOffer(id){
@@ -4240,41 +4273,25 @@ function buildOfferLetterHTML(id){
   const S = getSettings();
   const yr = new Date().getFullYear();
   const name = c.name || '', desig = c.position || 'the offered position', dept = c.department || '';
-  const ctc = ctcParts(g);
+  const flags = candStatFlags(c);
+  const ctc = ctcParts(g, flags);
+  const SEC = (n, t, body) => `<p style="margin:9px 0 1px;font-size:12px"><b>${n}. ${t}</b></p><p style="margin:0;text-align:justify">${body}</p>`;
   const html = letterShell('OFFER OF EMPLOYMENT', `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/OFR/${yr}/${Math.floor(100+Math.random()*900)}`,
-    `<p style="margin:0 0 2px"><b>${esc(name)}</b></p>
-     ${c.email ? `<p style="margin:0 0 2px;font-size:11px;color:#64748b">${esc(c.email)}</p>` : ''}
-     ${c.phone ? `<p style="margin:0 0 12px;font-size:11px;color:#64748b">+91 ${esc(c.phone)}</p>` : '<p style="margin:0 0 12px"></p>'}
-     <p style="margin:0 0 12px"><b>Subject: Offer of Employment — ${esc(desig)}</b></p>
-     <p>Dear <b>${esc(name.split(' ')[0])}</b>,</p>
-     <p>Thank you for exploring a career with <b>${esc(S.name)}</b>. Further to your application and the discussions we have had, we are delighted to extend to you this offer of employment on the following terms:</p>
-
-     <p style="margin:14px 0 4px"><b>1. Position &amp; Location</b></p>
-     <p style="margin:0 0 10px">You will join us as <b>${esc(desig)}</b>${dept ? ' in the <b>' + esc(dept) + '</b> department' : ''}, based at our facility at Plot 300, Sector 6, IMT Manesar, Gurugram, Haryana. Your role and reporting may be assigned or revised by the management as per business requirements.</p>
-
-     <p style="margin:14px 0 4px"><b>2. Date of Joining</b></p>
-     <p style="margin:0 0 10px">You are requested to join on or before <b>${fmtDate(jd)}</b>. This offer shall stand withdrawn if you do not report by this date, unless extended by us in writing.</p>
-
-     <p style="margin:14px 0 4px"><b>3. Compensation</b></p>
-     <p style="margin:0 0 10px">Your total annual compensation (Cost to Company) will be <b>₹${ctc.annualCTC.toLocaleString('en-IN')}/- per annum</b> (Rupees ${esc(numToWords(ctc.annualCTC))} Only), which includes a monthly gross salary of ₹${g.toLocaleString('en-IN')}/- and the employer's statutory contributions, as detailed in <b>Annexure A</b>.</p>
-
-     <p style="margin:14px 0 4px"><b>4. Probation &amp; Confirmation</b></p>
-     <p style="margin:0 0 10px">You will be on probation for <b>${S.probation} months</b> from your date of joining. On successful completion, your services will be confirmed in writing. The probation period may be extended at the discretion of the management.</p>
-
-     <p style="margin:14px 0 4px"><b>5. Working Hours &amp; Leave</b></p>
-     <p style="margin:0 0 10px">Your working hours, weekly off, holidays and leave entitlement will be governed by the company's policies and applicable law, as amended from time to time.</p>
-
-     <p style="margin:14px 0 4px"><b>6. Verification &amp; Documents</b></p>
-     <p style="margin:0 0 10px">This offer is contingent upon satisfactory verification of your documents, credentials and background. Kindly bring originals and one set of photocopies of your educational certificates, Aadhaar, PAN, bank details and passport-size photographs at the time of joining.</p>
-
-     <p style="margin:14px 0 4px"><b>7. Confidentiality</b></p>
-     <p style="margin:0 0 10px">During and after your employment, you shall maintain strict confidentiality of all business, technical and commercial information of the company and shall use it solely for the discharge of your duties.</p>
-
-     <p style="margin:14px 0 4px"><b>8. Acceptance</b></p>
-     <p style="margin:0 0 10px">Please confirm your acceptance by signing and returning a copy of this letter (or by replying to the offer email) within <b>7 days</b> of receipt, failing which this offer may be treated as lapsed.</p>
-
-     <p>A detailed appointment letter will be issued to you at the time of joining. We look forward to welcoming you to the ${esc(S.name)} family.</p>
-     ${annexureCTC_HTML(g)}`);
+    `<p style="margin:0 0 1px"><b>${esc(name)}</b>${c.email ? ` &nbsp;·&nbsp; <span style="font-size:11px;color:#64748b">${esc(c.email)}</span>` : ''}${c.phone ? ` &nbsp;·&nbsp; <span style="font-size:11px;color:#64748b">+91 ${esc(c.phone)}</span>` : ''}</p>
+     <p style="margin:6px 0 8px"><b>Subject: Offer of Employment — ${esc(desig)}</b></p>
+     <p style="margin:0 0 6px">Dear <b>${esc(name.split(' ')[0])}</b>,</p>
+     <p style="margin:0;text-align:justify">Thank you for exploring a career with <b>${esc(S.name)}</b>. Further to your application and our discussions, we are pleased to offer you employment on the following terms and conditions:</p>
+     ${SEC(1, 'Position & Location', `You will join us as <b>${esc(desig)}</b>${dept ? ' in the <b>' + esc(dept) + '</b> department' : ''}, based at our facility at Plot 300, Sector 6, IMT Manesar, Gurugram, Haryana. Your role, reporting and place of posting may be assigned or revised by the management as per business requirements.`)}
+     ${SEC(2, 'Date of Joining', `You are requested to join on or before <b>${fmtDate(jd)}</b>, failing which this offer shall stand withdrawn unless extended by us in writing.`)}
+     ${SEC(3, 'Compensation', `Your total annual compensation (Cost to Company) will be <b>₹${ctc.annualCTC.toLocaleString('en-IN')}/- per annum</b> (Rupees ${esc(numToWords(ctc.annualCTC))} Only), comprising a monthly gross salary of ₹${g.toLocaleString('en-IN')}/-${(ctc.empPF+ctc.empESI+ctc.empLWF) ? " and the employer's statutory contributions" : ''}, as detailed in <b>Annexure A</b>. Salary is payable monthly in arrears, subject to statutory deductions as applicable.`)}
+     ${SEC(4, 'Probation & Confirmation', `You will be on probation for <b>${S.probation} months</b> from your date of joining, extendable at the discretion of the management. Your services will stand confirmed only upon issuance of a written confirmation letter.`)}
+     ${SEC(5, 'Notice Period', `During probation, either party may end the employment by giving <b>7 days'</b> notice or salary in lieu thereof. Upon confirmation, the notice period shall be <b>one month</b> from either side, or as per company policy. The company may terminate services without notice in cases of misconduct, breach of policy or misrepresentation.`)}
+     ${SEC(6, 'Working Hours & Leave', `Your working hours, shifts, weekly off, holidays and leave entitlement will be governed by the company's policies and applicable law, as amended from time to time. Attendance will be recorded through the company's attendance system.`)}
+     ${SEC(7, 'Verification & Documents', `This offer is contingent upon satisfactory verification of your documents, credentials and background. Kindly bring originals and one set of photocopies of your educational certificates, Aadhaar, PAN, bank details and passport-size photographs at the time of joining.`)}
+     ${SEC(8, 'Confidentiality', `During and after your employment, you shall maintain strict confidentiality of all business, technical and commercial information of the company and use it solely for the discharge of your duties.`)}
+     ${SEC(9, 'Acceptance', `Please confirm your acceptance by signing and returning a copy of this letter (or by replying to the offer email) within <b>7 days</b> of receipt, failing which this offer may be treated as lapsed.`)}
+     <p style="margin:9px 0 0;text-align:justify">A detailed appointment letter will be issued at the time of joining. We look forward to welcoming you to the ${esc(S.name)} family.</p>
+     ${annexureCTC_HTML(g, flags)}`);
   return html;
 }
 async function sendOfferPdfEmail(id){
@@ -4305,8 +4322,8 @@ async function sendOfferForApproval(id){
   if(!g) return notify('Pehle agreed salary bharo', 'error');
   if(!jd) return notify('Pehle joining date set karo', 'error');
   if(!(await nxConfirm(`${c.name} ka offer CEO approval ko bhejein?\nGross: ₹${g.toLocaleString('en-IN')}/month · Joining: ${jd}\n\nCEO approve karega tabhi offer email candidate ko jayega.`, 'CEO Approval'))) return;
-  await sb.from('candidates').update({ agreed_salary: g, join_date: jd, offer_approval: 'PENDING_CEO', offer_note: null, updated_at: new Date().toISOString() }).eq('id', id);
-  Object.assign(c, { agreed_salary: g, join_date: jd, offer_approval: 'PENDING_CEO', offer_note: null });
+  await sb.from('candidates').update({ agreed_salary: g, join_date: jd, offer_approval: 'PENDING_CEO', offer_note: null, offer_flags: JSON.stringify(candStatFlags()), updated_at: new Date().toISOString() }).eq('id', id);
+  Object.assign(c, { agreed_salary: g, join_date: jd, offer_approval: 'PENDING_CEO', offer_note: null, offer_flags: JSON.stringify(candStatFlags()) });
   notify('✓ CEO approval ke liye bhej diya — approve hote hi offer email apne aap jayega', 'success');
   $('candStageBox').innerHTML = candStageActions(c);
 }
@@ -6540,25 +6557,45 @@ $('letterType').addEventListener('change', () => {
   $('promoFieldsWrap').classList.toggle('flex', t === 'promotion');
 });
 
-function annexureCTC_HTML(g){
-  const basic = Math.round(g*0.5), hra = Math.round(g*0.25), conv = Math.round(g*0.1), spl = g-basic-hra-conv;
-  const c = ctcParts(g);
-  const row = (l, m, bold) => `<tr>${bold?'<th style="text-align:left">':'<td>'}${l}${bold?'</th>':'</td>'}<t${bold?'h':'d'} style="text-align:right">${m.toLocaleString('en-IN')}</t${bold?'h':'d'}><t${bold?'h':'d'} style="text-align:right">${(m*12).toLocaleString('en-IN')}</t${bold?'h':'d'}></tr>`;
+function annexureCTC_HTML(g, f){
+  f = f || { pf: true, esi: true, lwf: true };
+  const c = ctcParts(g, f);
+  const basic = c.basic, hra = Math.round(g*0.25), conv = Math.round(g*0.1), spl = g-basic-hra-conv;
+  const fmt = n => Number(n||0).toLocaleString('en-IN');
+  const row = (l, m) => `<tr><td>${l}</td><td style="text-align:right">${fmt(m)}</td><td style="text-align:right">${fmt(m*12)}</td></tr>`;
+  const trow = (l, m) => `<tr style="background:#f8fafc;font-weight:700"><td>${l}</td><td style="text-align:right">${fmt(m)}</td><td style="text-align:right">${fmt(m*12)}</td></tr>`;
   return `<div style="page-break-before:always;break-before:page"></div>
-  <h3 style="font-size:13px;margin:18px 0 6px;padding-top:8px">Annexure A — Cost to Company (CTC) Structure</h3>
-  <table class="ann">
-    <thead><tr><th>Component</th><th style="text-align:right">Monthly (₹)</th><th style="text-align:right">Annual (₹)</th></tr></thead>
+  <h3 style="font-size:12.5px;margin:0 0 8px;padding-top:6px;text-align:center;text-decoration:underline">ANNEXURE A — SALARY &amp; CTC STRUCTURE</h3>
+  <table class="ann" style="margin-bottom:8px">
+    <thead><tr><th style="text-align:left">PART A — GROSS EARNINGS</th><th style="text-align:right">Monthly (₹)</th><th style="text-align:right">Annual (₹)</th></tr></thead>
     <tbody>
-      <tr><td colspan="3" style="background:#f8fafc;font-weight:700;font-size:10.5px;letter-spacing:.04em">A. GROSS SALARY</td></tr>
-      ${row('Basic Salary', basic)}${row('House Rent Allowance', hra)}${row('Conveyance Allowance', conv)}${row('Special Allowance', spl)}
-      ${row('Gross Salary (A)', g, true)}
-      <tr><td colspan="3" style="background:#f8fafc;font-weight:700;font-size:10.5px;letter-spacing:.04em">B. RETIRAL &amp; STATUTORY BENEFITS (EMPLOYER CONTRIBUTION)</td></tr>
-      ${row("Employer's Provident Fund (EPF)", c.empPF)}${c.empESI ? row("Employer's ESI Contribution", c.empESI) : ''}${c.empLWF ? row("Employer's Labour Welfare Fund (LWF)", c.empLWF) : ''}
-      ${row('Total Benefits (B)', c.empPF + c.empESI + (c.empLWF||0), true)}
-      <tr style="background:#eef4ff"><th style="text-align:left;font-size:12.5px">TOTAL COST TO COMPANY (A + B)</th><th style="text-align:right;font-size:12.5px">${c.monthlyCTC.toLocaleString('en-IN')}</th><th style="text-align:right;font-size:12.5px">${c.annualCTC.toLocaleString('en-IN')}</th></tr>
+      ${row('Basic Salary', basic)}${row('House Rent Allowance (HRA)', hra)}${row('Conveyance Allowance', conv)}${row('Special Allowance', spl)}
+      ${trow('Gross Earnings (A)', g)}
     </tbody>
   </table>
-  <p style="font-size:10px;color:#64748b;margin-top:6px">Employee-side statutory deductions — PF (12% of PF wages), ESI (0.75%, applicable only while gross is within the statutory ESI wage limit), LWF and Professional Tax/TDS as applicable — will be deducted from the gross salary as per law. The structure above may be revised as per company policy and statutory changes.</p>`;
+  <table class="ann" style="margin-bottom:8px">
+    <thead><tr><th style="text-align:left">PART B — EMPLOYER'S CONTRIBUTION</th><th style="text-align:right">Monthly (₹)</th><th style="text-align:right">Annual (₹)</th></tr></thead>
+    <tbody>
+      ${f.pf ? row("Employer's Provident Fund (12% of PF wages)", c.empPF) : ''}
+      ${c.empESI ? row("Employer's ESI Contribution (3.25%)", c.empESI) : ''}
+      ${f.lwf && c.empLWF ? row("Employer's Labour Welfare Fund (LWF)", c.empLWF) : ''}
+      ${(!f.pf && !c.empESI && !(f.lwf && c.empLWF)) ? '<tr><td colspan="3" style="color:#64748b">Not applicable</td></tr>' : ''}
+      ${trow("Employer's Contribution (B)", c.empPF + c.empESI + c.empLWF)}
+      <tr style="background:#eef4ff;font-weight:800"><td>TOTAL COST TO COMPANY &nbsp;(A + B)</td><td style="text-align:right">${fmt(c.monthlyCTC)}</td><td style="text-align:right">${fmt(c.annualCTC)}</td></tr>
+    </tbody>
+  </table>
+  <table class="ann">
+    <thead><tr><th style="text-align:left">PART C — STATUTORY DEDUCTIONS (from Gross)</th><th style="text-align:right">Monthly (₹)</th><th style="text-align:right">Annual (₹)</th></tr></thead>
+    <tbody>
+      ${f.pf ? row("Employee's Provident Fund (12% of PF wages)", c.eePF) : ''}
+      ${c.eeESI ? row("Employee's ESI Contribution (0.75%)", c.eeESI) : ''}
+      ${f.lwf && c.eeLWF ? row("Employee's Labour Welfare Fund (LWF)", c.eeLWF) : ''}
+      ${(!f.pf && !c.eeESI && !(f.lwf && c.eeLWF)) ? '<tr><td colspan="3" style="color:#64748b">Not applicable</td></tr>' : ''}
+      ${trow('Total Statutory Deductions (C)', c.eeTotal)}
+      <tr style="background:#f0fdf4;font-weight:800"><td>APPROX. NET TAKE-HOME &nbsp;(A − C)</td><td style="text-align:right">${fmt(c.net)}</td><td style="text-align:right">${fmt(c.net*12)}</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:9.5px;color:#64748b;margin-top:6px;text-align:justify"><b>Notes:</b> A + B = Total CTC; A − C = Net take-home (approx.). Professional Tax and TDS (Income Tax), as applicable, will be deducted additionally as per law. ESI applies only while gross salary is within the statutory ESI wage limit. The structure above may be revised as per company policy and statutory amendments.</p>`;
 }
 function annexureHTML(gross, code){
   const p = code ? (PROFILES[code] || {}) : null;
@@ -8636,6 +8673,8 @@ $('idGenBtn').addEventListener('click', async () => {
     $('idPrintBtn').classList.remove('hidden');
     $('idPvcFrontBtn').classList.remove('hidden');
     $('idPvcBackBtn').classList.remove('hidden');
+    $('idPngFrontBtn').classList.remove('hidden');
+    $('idPngBackBtn').classList.remove('hidden');
   }finally{
     btn.innerHTML = '<i class="fa-solid fa-id-card"></i> Generate'; btn.disabled = false;
   }
@@ -8693,6 +8732,31 @@ function printPVC(side){
 }
 $('idPvcFrontBtn').addEventListener('click', () => printPVC('front'));
 $('idPvcBackBtn').addEventListener('click', () => printPVC('back'));
+// ======== PNG EXPORT (Epson Photo+ / PVC software mein import ke liye) — ~300 DPI ========
+async function idPNG(side){
+  const cards = Array.from(document.querySelectorAll('#idWrap .idc-' + side));
+  if(!cards.length) return notify('Pehle Generate karo', 'error');
+  if(!window.html2canvas){
+    await new Promise((res, rej) => { const sc = document.createElement('script');
+      sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      sc.onload = res; sc.onerror = () => rej(new Error('html2canvas load nahi hua — internet check karo')); document.head.appendChild(sc); });
+  }
+  for(const card of cards){
+    const codeEl = card.querySelector('.barcode') || card.querySelector('.back-footer');
+    const code = codeEl ? codeEl.innerText.replace(/\*/g,'').split(' ')[0].replace(/[^A-Za-z0-9]/g,'') : 'card';
+    try{
+      const canvas = await html2canvas(card, { scale: Math.max(3, 638 / card.offsetWidth), useCORS: true, backgroundColor: '#ffffff' });   // 638px ≈ 54mm @300dpi
+      const a = document.createElement('a');
+      a.download = 'IDCard_' + code + '_' + side.toUpperCase() + '.png';
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+      await new Promise(r => setTimeout(r, 400));
+    }catch(e){ notify('PNG fail (' + code + '): ' + (e.message||e), 'error'); }
+  }
+  notify('PNG download ho gayi — Epson Photo+ mein import karke PVC card pe print karo', 'success');
+}
+$('idPngFrontBtn').addEventListener('click', () => idPNG('front'));
+$('idPngBackBtn').addEventListener('click', () => idPNG('back'));
 
 async function renderLeaveDecisions(){
   const S = getSettings();
