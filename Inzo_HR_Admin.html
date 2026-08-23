@@ -459,10 +459,6 @@ body.no-confidential .confidential-col{display:none!important}
       <div class="kpi-ic" style="background:#dbeafe;color:#1f4b9b"><i class="fa-solid fa-users"></i></div>
       <div><div class="kpi-lbl">Total Active</div><div class="kpi-num" id="dTotal">—</div><div class="kpi-sub" id="dDeptCount">—</div></div>
     </div>
-    <div class="kpi">
-      <div class="kpi-ic" style="background:#ede9fe;color:#7c3aed"><i class="fa-solid fa-indian-rupee-sign"></i></div>
-      <div><div class="kpi-lbl">Last Payroll (Net)</div><div class="kpi-num money" id="dPayroll" style="font-size:22px">—</div><div class="kpi-sub" id="dPayrollMonth">—</div></div>
-    </div>
   </div>
 
   <!-- CHARTS ROW -->
@@ -1424,6 +1420,19 @@ body.no-confidential .confidential-col{display:none!important}
         <button id="holAddBtn" class="btn btn-ghost"><i class="fa-solid fa-plus"></i></button>
       </div>
       <div id="holList" class="space-y-1 text-sm" style="max-height:180px;overflow-y:auto"></div>
+
+      <h3 class="display font-bold mt-6 mb-1">Special Working / Off Days</h3>
+      <p class="text-[11px] mt-0 mb-2" style="color:var(--muted)">Sunday ko working banana ho ya kisi weekday ko off — yahan set karo. Payroll, absent, sab isko maanenge. Kisi din ko OFF karne par us din ki approved leaves apne aap refund ho jaati hain.</p>
+      <div class="flex gap-2 mb-3 flex-wrap">
+        <input id="ovDate" type="date" class="inp" style="max-width:170px">
+        <select id="ovType" class="inp" style="max-width:210px">
+          <option value="WORKING">WORKING (Sunday/holiday ko kaam)</option>
+          <option value="OFF">OFF (working day ko chutti)</option>
+        </select>
+        <input id="ovNote" class="inp" placeholder="Note (e.g. Saturday off in lieu of Sunday 24 Aug)" style="flex:1;min-width:160px">
+        <button id="ovAddBtn" class="btn btn-ghost"><i class="fa-solid fa-plus"></i></button>
+      </div>
+      <div id="ovList" class="space-y-1 text-sm" style="max-height:180px;overflow-y:auto"></div>
     </div>
   </div>
   <button id="setSaveBtn" class="btn btn-primary mt-4"><i class="fa-solid fa-floppy-disk"></i> Save Settings</button>
@@ -2651,7 +2660,7 @@ nxLoadConfig().then(c => {
 /* ---------------- Core data ---------------- */
 async function loadCore(){
   try{
-    const [empRes, faceRes, profRes, setRes, holRes, shRes, plRes] = await Promise.all([
+    const [empRes, faceRes, profRes, setRes, holRes, shRes, plRes, ovRes] = await Promise.all([
       sb.from('employees').select('Name, "Employee code", Status, DEPARTMENT, DESIGNATION, DOJ, LINE, UNIT').order('Name'),
       sb.from('employees').select('"Employee code"').not('Descriptor', 'is', null),
       sb.from('hr_profiles').select('*'),
@@ -2659,7 +2668,8 @@ async function loadCore(){
       sb.from('holidays').select('*').order('date'),
       sb.from('shifts').select('*').order('id'),
       sb.from('production_lines').select('*').order('name')
-    ]);
+    ,
+      sb.from('day_overrides').select('*').order('date')]);
     SHIFTS = shRes.data || [];
     LINES = (plRes && plRes.data) || [];
     if(empRes.error) throw empRes.error;
@@ -2669,10 +2679,13 @@ async function loadCore(){
     (profRes.data || []).forEach(p => { PROFILES[p.employee_code] = p; });
     SETTINGS = (setRes.data && setRes.data.data) || {};
     HOLIDAYS = holRes.data || [];
+    window.DAY_OVERRIDES = (typeof ovRes !== 'undefined' && ovRes && ovRes.data) ? ovRes.data : [];
     renderEmployees();
     fillEmpSelects();
     fillSettingsForm();
     renderHolidays();
+  renderDayOverrides();
+  const _ovBtn = $('ovAddBtn'); if(_ovBtn && !_ovBtn._wired){ _ovBtn._wired = true; _ovBtn.addEventListener('click', addDayOverride); }
     renderShifts();
     renderLines();
   }catch(err){
@@ -3197,7 +3210,14 @@ async function loadDashboard(){
       window._nightList.push({ code:c, name:e.Name, info: tr && tr.in_time ? ('Aaj IN '+String(tr.in_time).slice(0,5)) : 'Night shift — raat ko aayega' }); });
     if($('dNight')) $('dNight').innerText = window._nightList.length;
     const total = activeEmps().length;
-    const absentReal = activeEmps().filter(e => { const c = String(e['Employee code']).toUpperCase(); return !presentCodes.has(c) && !excused.has(c); }).length;
+    // aaj working day hai ya off? (Sunday/holiday/OFF-override; WORKING-override sab cancel kar deta hai)
+    const _ovToday = (window.DAY_OVERRIDES||[]).find(o => o.date === today);
+    const _dow = new Date(today + 'T12:00:00').getDay();
+    const _S = getSettings();
+    const todayOff = _ovToday ? (_ovToday.otype === 'OFF')
+      : (_dow === Number(_S.weekOff) || (HOLIDAYS||[]).some(h => h.date === today));
+    window._todayIsOff = todayOff;
+    const absentReal = todayOff ? 0 : activeEmps().filter(e => { const c = String(e['Employee code']).toUpperCase(); return !presentCodes.has(c) && !excused.has(c); }).length;
     const late = rows.filter(isRowLate).length;
     window._todayAtt = rows; // for the click-through lists
     // monthly late board uses is_late
@@ -3209,7 +3229,7 @@ async function loadDashboard(){
     // KPI extras
     const presentPct = total ? Math.round(rows.length / total * 100) : 0;
     if($('dPresentPct')) $('dPresentPct').innerText = presentPct + '% of ' + total;
-    if($('dAbsentPct')) $('dAbsentPct').innerText = (total ? Math.round(absentReal/total*100) : 0) + '% of ' + total;
+    if($('dAbsentPct')) $('dAbsentPct').innerText = window._todayIsOff ? 'Holiday / Off day' : ((total ? Math.round(absentReal/total*100) : 0) + '% of ' + total);
     if($('dTotal')) $('dTotal').innerText = total;
     const deptSet = new Set(activeEmps().map(e => e.DEPARTMENT).filter(Boolean));
     if($('dDeptCount')) $('dDeptCount').innerText = deptSet.size + ' departments';
@@ -3219,9 +3239,9 @@ async function loadDashboard(){
     if(slips.length){
       lastMonth = slips[0].month;
       const sum = slips.filter(s => s.month === lastMonth).reduce((a,s) => a + Number(s.net_pay||0), 0);
-      $('dPayroll').innerText = fmtINR(sum);
+      if($('dPayroll')) $('dPayroll').innerText = fmtINR(sum);
       if($('dPayrollMonth')) $('dPayrollMonth').innerText = monthLabel ? monthLabel(lastMonth) : lastMonth;
-    } else { $('dPayroll').innerText = '—'; }
+    } else { if($('dPayroll')) $('dPayroll').innerText = '—'; }
 
     // ===== CHARTS =====
     buildDashCharts(rows, total, late, monthRes.data || [], slips);
@@ -4059,7 +4079,10 @@ function buildDayStatus(ym, rows){
   for(let d = 1; d <= dim; d++){
     const iso = `${ym}-${String(d).padStart(2,'0')}`;
     const dow = new Date(y, m-1, d).getDay();
-    dayMeta.push({ d, iso, isWO: dow === Number(S.weekOff), isH: holSet.has(iso) });
+    const _ov = (window.DAY_OVERRIDES||[]).find(o => o.date === iso);
+    dayMeta.push({ d, iso,
+      isWO: dow === Number(S.weekOff) && !(_ov && _ov.otype === 'WORKING'),
+      isH: (holSet.has(iso) || (_ov && _ov.otype === 'OFF')) && !(_ov && _ov.otype === 'WORKING') });
   }
   return { attMap, dayMeta, dim };
 }
@@ -5369,9 +5392,11 @@ async function runPayroll(){
     // approved WFH days: paid like present, but shown as WFH (no punch needed)
     const wfhMap = {};      // code -> Set of WFH dates
     const gateSLMap = {};   // code -> Set of approved SHORT-LEAVE dates (late excused, pura paisa)
+    const apprReqDays = {};  // code -> Set of ALL approved request dates (WFH/GATE_SL/GATE_HD) — unauthorised-absence check
     (wfhRes.data || []).forEach(w => {
       if(w.req_type === 'WFH') (wfhMap[w.employee_code] = wfhMap[w.employee_code] || new Set()).add(w.date);
       if(w.req_type === 'GATE_SL') (gateSLMap[w.employee_code] = gateSLMap[w.employee_code] || new Set()).add(w.date);
+      (apprReqDays[w.employee_code] = apprReqDays[w.employee_code] || new Set()).add(w.date);
     });
     window._wfhMap = wfhMap;
     const LDEC = ldRes.data || [];
@@ -5495,8 +5520,20 @@ async function runPayroll(){
         const ok = before.workable > 0 ? earnCheck(before) : earnCheck(winStats(x.iso, 1, 6));
         if(ok) earnedWO++;
       });
+      // Unauthorised absence penalty: working day, no attendance, no approved leave/request
+      // -> counts as 2 days' absence (1 day already unpaid + 1 extra day LOP). Policy.
+      const todayIso_ = todayISO();
+      let unauthAbs = 0;
+      dayMeta.forEach(x => {
+        if(x.isWO || x.isH) return;
+        if(x.iso > todayIso_) return;                    // future nahi
+        if(days[x.iso]) return;                          // present tha
+        if(leaveISOs.has(x.iso)) return;                 // approved leave
+        if((apprReqDays[code]||new Set()).has(x.iso)) return;   // approved WFH/gate request
+        unauthAbs++;
+      });
       let paidDays = (present + leaveDays) > 0
-        ? Math.min(dim, present + leaveDays + earnedWO + earnedH - sandwichCut) - lateLOP
+        ? Math.min(dim, present + leaveDays + earnedWO + earnedH - sandwichCut) - lateLOP - unauthAbs
         : 0;
       paidDays = Math.max(0, paidDays);
       const lop = +(dim - paidDays).toFixed(1);
@@ -5530,7 +5567,7 @@ async function runPayroll(){
       const perHour = fullGross > 0 ? fullGross / (dim * shHrs) : 0;
 
       return { code, name: e.Name, dept: e.DEPARTMENT, desig: e.DESIGNATION,
-        dim, present, lates, lateLOP, leaveDays, paidDays: +paidDays.toFixed(1), lop,
+        dim, present, lates, lateLOP, leaveDays, unauthAbs, paidDays: +paidDays.toFixed(1), lop,
         shiftName: sh.name, shHrs, perHour,
         basic: Math.round(basic), comps, dedBreak, customDed,
         earnedGross: Math.round(earnedGross), pf, esi, pt, lwf,
@@ -6441,6 +6478,13 @@ document.body.addEventListener('click', async e => {
     if(!(await nxConfirm('Mark this advance as fully settled?', 'Settle Advance'))) return;
     await sb.from('advances').update({ balance: 0, status: 'CLOSED' }).eq('id', el.dataset.id);
     loadAdvances();
+  }
+  if(act === 'del-ov'){
+    if(!(await nxConfirm('Is special day ko hatana hai?', 'Remove'))) return;
+    await sb.from('day_overrides').delete().eq('id', el.dataset.id);
+    window.DAY_OVERRIDES = (window.DAY_OVERRIDES||[]).filter(o => String(o.id) !== String(el.dataset.id));
+    renderDayOverrides(); notify('Removed', 'success');
+    return;
   }
   if(act === 'del-hol'){
     await sb.from('holidays').delete().eq('id', el.dataset.id);
@@ -7888,6 +7932,40 @@ $('epFaceBtn').addEventListener('click', async () => {
   finally{ btn.innerHTML = '<i class="fa-solid fa-face-viewfinder"></i> Detect & Register Face'; btn.disabled = false; }
 });
 
+function renderDayOverrides(){
+  const list = window.DAY_OVERRIDES || [];
+  const el = $('ovList'); if(!el) return;
+  el.innerHTML = list.length ? list.map(o =>
+    `<div class="flex items-center justify-between p-2 rounded-lg" style="background:${o.otype==='WORKING'?'#eff6ff':'#fef2f2'}">
+      <span><b>${fmtDate(o.date)}</b> — <span class="chip ${o.otype==='WORKING'?'chip-blue':'chip-warn'}" style="font-size:10px">${o.otype}</span> ${esc(o.note||'')}</span>
+      <button class="btn btn-danger btn-sm" data-act="del-ov" data-id="${o.id}"><i class="fa-solid fa-trash"></i></button>
+    </div>`).join('') : '<p class="text-xs" style="color:var(--muted)">No special days set.</p>';
+}
+async function addDayOverride(){
+  const dt = $('ovDate').value, ty = $('ovType').value, note = $('ovNote').value;
+  if(!dt) return notify('Date chuno', 'error');
+  try{
+    const { data, error } = await sb.from('day_overrides').insert([{ date: dt, otype: ty, note }]).select();
+    if(error) throw error;
+    window.DAY_OVERRIDES = [...(window.DAY_OVERRIDES||[]), ...(data||[])].sort((a,b)=>a.date.localeCompare(b.date));
+    renderDayOverrides();
+    $('ovDate').value=''; $('ovNote').value='';
+    notify('✓ Special day set: ' + fmtDate(dt) + ' — ' + ty, 'success');
+    if(ty === 'OFF'){
+      // us din ki approved single-day leaves REFUND (cancel) karo
+      const { data: lv } = await sb.from('leaves').select('id, employee_code, from_date, to_date').eq('status','APPROVED').lte('from_date', dt).gte('to_date', dt);
+      const single = (lv||[]).filter(L => L.from_date === L.to_date);
+      const multi = (lv||[]).filter(L => L.from_date !== L.to_date);
+      if(single.length){
+        await sb.from('leaves').update({ status: 'CANCELLED', admin_note: 'Auto-refunded — ' + dt + ' declared OFF' }).in('id', single.map(L=>L.id));
+        notify(`✓ ${single.length} leave(s) refunded (us din OFF ho gaya) — balance wapas mil gaya`, 'success');
+      }
+      if(multi.length){
+        notify(`⚠ ${multi.length} multi-day leave(s) is date ko cover karti hain — unhe Leaves page par khud adjust karo (codes: ${multi.slice(0,5).map(L=>L.employee_code).join(', ')})`, 'info');
+      }
+    }
+  }catch(e){ notify('Failed: '+(e.message||e) + ' — V91 SQL chalaya?', 'error'); }
+}
 function renderHolidays(){
   $('holList').innerHTML = HOLIDAYS.length ? HOLIDAYS.map(h =>
     `<div class="flex items-center justify-between p-2 rounded-lg" style="background:#faf8f4">
