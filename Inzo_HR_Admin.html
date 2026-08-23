@@ -3624,14 +3624,22 @@ function ctcRenderBreakup(code){
   const c = ctcPartsFromCTC(monthlyCTC, f);
   const g = c.gross, basic=c.basic, hra=Math.round(basic*0.5), conv=Math.round(basic*0.3), spl=g-basic-hra-conv;
   const fmt = n => Number(n||0).toLocaleString('en-IN');
-  host.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;font-size:11.5px">
-    <div><div style="font-weight:700;color:var(--brand);margin-bottom:3px">EARNINGS (Monthly)</div>
-      Basic: ₹${fmt(basic)}<br>HRA: ₹${fmt(hra)}<br>Conveyance: ₹${fmt(conv)}<br>Special: ₹${fmt(spl)}<br><b>Gross: ₹${fmt(g)}</b></div>
-    <div><div style="font-weight:700;color:var(--brand);margin-bottom:3px">EMPLOYER SIDE</div>
-      EPF (Er): ₹${fmt(c.empPF)}<br>${c.empESI?`ESI (Er): ₹${fmt(c.empESI)}<br>`:''}LWF (Er): ₹${fmt(c.empLWF)}<br><b>Monthly CTC: ₹${fmt(c.monthlyCTC)}</b><br><b>Annual CTC: ₹${fmt(c.annualCTC)}</b></div>
-    <div><div style="font-weight:700;color:var(--brand);margin-bottom:3px">EMPLOYEE DEDUCTIONS</div>
-      EPF (Ee): ₹${fmt(c.eePF)}<br>${c.eeESI?`ESI (Ee): ₹${fmt(c.eeESI)}<br>`:''}LWF (Ee): ₹${fmt(c.eeLWF)}<br>${c.eeTDS?`TDS: ₹${fmt(c.eeTDS)}<br>`:''}<b style="color:var(--ok)">NET TAKE-HOME: ₹${fmt(c.net)}</b></div>
-  </div>`;
+  const R = (l,v,bold) => `<tr${bold?' style="font-weight:700;background:#f8fafc"':''}><td style="padding:4px 10px;border:1px solid var(--line)">${l}</td><td style="padding:4px 10px;border:1px solid var(--line);text-align:right">${v==null?'—':'₹'+fmt(v)}</td><td style="padding:4px 10px;border:1px solid var(--line);text-align:right">${v==null?'—':'₹'+fmt(v*12)}</td></tr>`;
+  const H = t => `<tr><td colspan="3" style="padding:4px 10px;border:1px solid var(--line);background:#eef2f7;font-weight:700;font-size:10.5px;letter-spacing:.03em;color:var(--brand)">${t}</td></tr>`;
+  host.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11.5px">
+    <thead><tr><th style="padding:5px 10px;border:1px solid var(--line);text-align:left">Component</th><th style="padding:5px 10px;border:1px solid var(--line);text-align:right">Monthly (₹)</th><th style="padding:5px 10px;border:1px solid var(--line);text-align:right">Annual (₹)</th></tr></thead>
+    <tbody>
+      ${H('EARNINGS')}
+      ${R('Basic Salary', basic)}${R('HRA', hra)}${R('Conveyance Allowance', conv)}${R('Special Allowance', spl)}${R('Gross Salary', g, true)}
+      ${H("EMPLOYER'S CONTRIBUTION")}
+      ${R('EPF (Employer)', c.empPF)}${c.empESI?R('ESI (Employer)', c.empESI):''}${R('LWF (Employer)', c.empLWF)}
+      ${R('Total Cost to Company (CTC)', c.monthlyCTC, true)}
+      ${H("EMPLOYEE'S DEDUCTIONS")}
+      ${R('EPF (Employee)', c.eePF)}${c.eeESI?R('ESI (Employee)', c.eeESI):''}${R('LWF (Employee)', c.eeLWF)}${c.eeTDS?R('TDS', c.eeTDS):''}
+      ${R('Total Deductions', c.eeTotal, true)}
+      <tr style="font-weight:800;background:#f0fdf4"><td style="padding:5px 10px;border:1px solid var(--line);color:#166534">NET TAKE-HOME SALARY</td><td style="padding:5px 10px;border:1px solid var(--line);text-align:right;color:#166534">₹${fmt(c.net)}</td><td style="padding:5px 10px;border:1px solid var(--line);text-align:right;color:#166534">₹${fmt(c.net*12)}</td></tr>
+    </tbody>
+  </table>`;
 }
 async function ctcLockSend(code){
   const ctcA = Number(($('ctcIn_'+code)||{}).value)||0;
@@ -4161,14 +4169,14 @@ async function candEmail(c, type, extra){
 
 function interviewFormFields(c){
   return `<div class="grid grid-cols-2 gap-3 mb-2">
-      <div><label class="lbl">Mode of Interview</label><select id="candIvMode" class="inp">
+      <div><label class="lbl">Mode of Interview</label><select id="candIvMode" class="inp" onchange="var v=document.getElementById('candVenueWrap'); if(v) v.style.display=(this.value==='VIRTUAL'?'none':'')">
         <option value="FACE_TO_FACE" ${c.interview_mode!=='VIRTUAL'?'selected':''}>Face to Face</option>
         <option value="VIRTUAL" ${c.interview_mode==='VIRTUAL'?'selected':''}>Virtual (Google Meet)</option>
       </select></div>
       <div><label class="lbl">Interview Date</label><input id="candIvDate" type="date" class="inp" value="${c.interview_date||''}"></div>
       <div><label class="lbl">Time</label><input id="candIvTime" type="time" class="inp" value="${c.interview_time||''}"></div>
-      <div id="candVenueWrap"><label class="lbl">Venue (face-to-face)</label><input id="candIvVenue" class="inp" value="${esc(c.interview_venue||'Zooto Fashion Pvt Ltd, Plot 300, Sector 6, IMT Manesar, Gurugram')}"></div>
-      <div class="col-span-2"><label class="lbl">Interview Panel (emails, comma-separated)</label><input id="candIvPanel" class="inp" placeholder="hr@zootofashion.com, manager@zootofashion.com" value="${esc(c.interviewers||'')}"></div>
+      <div id="candVenueWrap" style="${c.interview_mode==='VIRTUAL'?'display:none':''}"><label class="lbl">Venue (face-to-face)</label><input id="candIvVenue" class="inp" value="${esc(c.interview_venue||'Zooto Fashion Pvt Ltd, Plot 300, Sector 6, IMT Manesar, Gurugram')}"></div>
+      <div style="grid-column:1/-1"><label class="lbl">Interview Panel (emails, comma-separated)</label><input id="candIvPanel" class="inp" placeholder="hr@zootofashion.com, manager@zootofashion.com" value="${esc(c.interviewers||'')}"></div>
     </div>
     <p class="text-[11px] mb-2" style="color:var(--muted)">Candidate ko details email hongi. Virtual pe Google Calendar event + Google Meet link banega, aur panel + candidate ko invite jaayega.</p>`;
 }
@@ -4186,6 +4194,24 @@ function editInterview(id){
 function cancelEditInterview(id){
   const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
   const box = document.getElementById('candStageBox'); if(box) box.innerHTML = candStageActions(c);
+}
+async function cancelInterview(id){
+  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
+  if(!(await nxConfirm(`${c.name} ka interview invitation CANCEL karein?\nCandidate ko cancellation email jayega${c.interview_mode==='VIRTUAL'?' aur Google Calendar event bhi hata diya jayega':''}. Candidate wapas Shortlisted mein aa jayega.`, 'Cancel Interview'))) return;
+  try{
+    // candidate ko cancellation email (aur virtual ho to calendar cancel)
+    try{
+      await nxGas('candmail', { type: 'interview_cancel', to: c.email, name: c.name,
+        position: c.position||'the applied position', company: getSettings().name||'Zooto Fashion Pvt Ltd',
+        date: c.interview_date||'', time: c.interview_time||'', event_id: c.calendar_event_id||'' });
+    }catch(e){}
+    await sb.from('candidates').update({ stage: 'SHORTLISTED', interview_date: null, interview_time: null,
+      meet_link: null, calendar_event_id: null, updated_at: new Date().toISOString() }).eq('id', id);
+    Object.assign(c, { stage:'SHORTLISTED', interview_date:null, interview_time:null, meet_link:null, calendar_event_id:null });
+    notify('✓ Interview cancel — candidate ko email + wapas Shortlisted mein', 'success');
+    await loadCandidates(); const box = document.getElementById('candStageBox'); if(box) box.innerHTML = candStageActions(c);
+    renderPipeline && renderPipeline();
+  }catch(e){ notify('Failed: '+(e.message||e), 'error'); }
 }
 function nxCopy(t){ try{ navigator.clipboard.writeText(t); notify('Copied','success'); }catch(e){ notify('Copy failed','error'); } }
 
@@ -4234,6 +4260,7 @@ function candStageActions(c){
     ${c.interviewers ? `<div class="text-[11px] mb-2" style="color:var(--muted)"><b>Panel:</b> ${esc(c.interviewers)}</div>` : ''}
     <div class="flex gap-2 flex-wrap mb-3" style="border-bottom:1px dashed var(--line);padding-bottom:10px">
       <button class="btn btn-ghost btn-sm" onclick="editInterview('${id}')"><i class="fa-solid fa-pen"></i> Edit / Re-schedule</button>
+      <button class="btn btn-danger btn-sm" onclick="cancelInterview('${id}')"><i class="fa-solid fa-calendar-xmark"></i> Cancel Invitation</button>
       <button class="btn btn-ghost btn-sm" onclick="moveCandidate('${id}','SHORTLISTED')"><i class="fa-solid fa-arrow-left"></i> Back to Shortlisted</button>
     </div>
     <div class="grid grid-cols-2 gap-3 mb-2">
