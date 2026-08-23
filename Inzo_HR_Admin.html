@@ -451,6 +451,10 @@ body.no-confidential .confidential-col{display:none!important}
       <div class="kpi-ic" style="background:#fee2e2;color:#dc2626"><i class="fa-solid fa-user-xmark"></i></div>
       <div><div class="kpi-lbl">Absent Today</div><div class="kpi-num" id="dAbsent">—</div><div class="kpi-sub" id="dAbsentPct">—</div></div>
     </div>
+    <div class="kpi" style="cursor:pointer" onclick="showAttList('night')">
+      <div class="kpi-ic" style="background:#e0e7ff;color:#4338ca"><i class="fa-solid fa-moon"></i></div>
+      <div><div class="kpi-lbl">Night Shift</div><div class="kpi-num" id="dNight">—</div><div class="kpi-sub">raat waale — din mein absent nahi</div></div>
+    </div>
     <div class="kpi">
       <div class="kpi-ic" style="background:#dbeafe;color:#1f4b9b"><i class="fa-solid fa-users"></i></div>
       <div><div class="kpi-lbl">Total Active</div><div class="kpi-num" id="dTotal">—</div><div class="kpi-sub" id="dDeptCount">—</div></div>
@@ -2163,6 +2167,9 @@ function showAttList(kind){
   } else if(kind === 'late'){
     title = 'Late Today';
     list = rows.filter(isRowLate).map(r => ({ code:r.employee_code, name: r.Name || nameOf(r.employee_code), time: cleanInTime(r), late:true, photo: r.in_photo_url }));
+  } else if(kind === 'night'){
+    title = 'Night Shift';
+    list = (window._nightList||[]).map(x => ({ code:x.code, name:x.name, dept:x.info, absent:false, night:true }));
   } else {
     title = 'Absent Today';
     const present = new Set(rows.map(r => r.employee_code));
@@ -2174,7 +2181,7 @@ function showAttList(kind){
       ${x.photo ? `<img src="${esc(x.photo)}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">` : `<div style="width:32px;height:32px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">${esc((x.name||'?').charAt(0).toUpperCase())}</div>`}
       <div style="flex:1;min-width:0">
         <div class="text-sm font-semibold" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.name)} <span style="color:var(--muted);font-weight:400">(${esc(x.code)})</span></div>
-        <div class="text-[11px]" style="color:var(--muted)">${x.absent ? (esc(x.dept||'—') + (x.phone ? ' · 📱 ' + esc(x.phone) : '')) : ('In: ' + esc(x.time||'—') + (x.late ? ' · <span style=\'color:var(--warn)\'>LATE</span>' : ''))}</div>
+        <div class="text-[11px]" style="color:var(--muted)">${x.night ? '🌙 ' + esc(x.dept||'') : x.absent ? (esc(x.dept||'—') + (x.phone ? ' · 📱 ' + esc(x.phone) : '')) : ('In: ' + esc(x.time||'—') + (x.late ? ' · <span style=\'color:var(--warn)\'>LATE</span>' : ''))}</div>
       </div>
       ${x.absent
         ? `<input type="time" id="mkIn_${esc(x.code)}" class="inp" style="width:104px;padding:3px 5px;font-size:12px" title="IN time"><button class="btn btn-primary btn-sm" onclick="markPresentNow('${esc(x.code)}','${esc(x.name)}')" title="Present laga do"><i class="fa-solid fa-check"></i></button>`
@@ -3155,12 +3162,15 @@ async function loadDashboard(){
   $('dToday').innerText = fmtDate(today);
   try{
     const ym = today.slice(0,7);
-    const [attRes, slipRes, monthRes, lvRes, wfhRes] = await Promise.all([
+    const yday = new Date(today + 'T12:00:00'); yday.setDate(yday.getDate()-1);
+    const ydayStr = yday.toISOString().slice(0,10);
+    const [attRes, slipRes, monthRes, lvRes, wfhRes, yAttRes] = await Promise.all([
       sb.from('attendance').select('*').eq('date', today).order('created_at', { ascending:false }),
       sb.from('payslips').select('net_pay, month').order('created_at', { ascending:false }).limit(200),
       sb.from('attendance').select('employee_code, Name, in_time, is_late').gte('date', ym + '-01').lte('date', _lastDay(ym)),
       sb.from('leaves').select('employee_code').eq('status','APPROVED').lte('from_date', today).gte('to_date', today),
-      sb.from('ess_att_requests').select('employee_code, req_type').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).eq('date', today)
+      sb.from('ess_att_requests').select('employee_code, req_type').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).eq('date', today),
+      sb.from('attendance').select('employee_code, Name, in_time, out_time').eq('date', ydayStr)
     ]);
     const rows = attRes.data || [];
     // employees who are excused today (approved leave / WFH / gate pass) -> NOT absent
@@ -3170,8 +3180,22 @@ async function loadDashboard(){
     const presentCodes = new Set(rows.map(r => String(r.employee_code).toUpperCase()));
     // night-shift employees are on a different clock -> don't flag them absent during the day
     const nightIds = new Set((SHIFTS||[]).filter(sh => sh.is_night).map(sh => String(sh.id)));
-    Object.entries(PROFILES||{}).forEach(([c,p]) => { if(p && nightIds.has(String(p.shift_id))) excused.add(String(c).toUpperCase()); });
+    const nightAssigned = new Set();
+    Object.entries(PROFILES||{}).forEach(([c,p]) => { if(p && nightIds.has(String(p.shift_id))){ excused.add(String(c).toUpperCase()); nightAssigned.add(String(c).toUpperCase()); } });
+    // kal shaam (>=17:00) IN, OUT abhi nahi -> abhi night duty par (chahe shift assign na ho) -> absent NAHI
+    const nightOpen = (yAttRes.data||[]).filter(r => r.in_time && /[0-9]/.test(String(r.in_time)) && String(r.in_time).slice(0,5) >= '17:00' && !(r.out_time && /[0-9]/.test(String(r.out_time))));
+    nightOpen.forEach(r => excused.add(String(r.employee_code).toUpperCase()));
     window._todayExcused = excused;
+    // Night card data: assigned night-shift walon ka aaj/kal status + open-duty waale
+    window._nightList = [];
+    const seenN = new Set();
+    nightOpen.forEach(r => { const c = String(r.employee_code).toUpperCase(); seenN.add(c);
+      window._nightList.push({ code:c, name:r.Name || c, info:'Duty par — kal IN '+String(r.in_time).slice(0,5)+', OUT baaki' }); });
+    nightAssigned.forEach(c => { if(seenN.has(c)) return;
+      const e = EMP.find(x => String(x['Employee code']).toUpperCase() === c); if(!e || String(e.Status).toUpperCase()!=='ACTIVE') return;
+      const tr = rows.find(r => String(r.employee_code).toUpperCase() === c);
+      window._nightList.push({ code:c, name:e.Name, info: tr && tr.in_time ? ('Aaj IN '+String(tr.in_time).slice(0,5)) : 'Night shift — raat ko aayega' }); });
+    if($('dNight')) $('dNight').innerText = window._nightList.length;
     const total = activeEmps().length;
     const absentReal = activeEmps().filter(e => { const c = String(e['Employee code']).toUpperCase(); return !presentCodes.has(c) && !excused.has(c); }).length;
     const late = rows.filter(isRowLate).length;
