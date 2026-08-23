@@ -702,6 +702,7 @@ body.no-confidential .confidential-col{display:none!important}
     <button class="ap-tab" data-aptab="attfix"><i class="fa-solid fa-clock-rotate-left"></i> Att. Fix <span class="ap-cnt" id="apCntAf">0</span></button>
     <button class="ap-tab" data-aptab="mloan"><i class="fa-solid fa-sack-dollar"></i> Advance / Loan <span class="ap-cnt" id="apCntMl">0</span></button>
     <button class="ap-tab" data-aptab="wpass"><i class="fa-solid fa-id-card-clip"></i> Work Pass <span class="ap-cnt" id="apCntWp">0</span></button>
+    <button class="ap-tab" data-aptab="supatt"><i class="fa-solid fa-user-clock"></i> Supervisor Attendance <span class="ap-cnt" id="apCntSup">0</span></button>
   </div>
   <div class="card" style="padding:0;overflow:hidden">
     <div class="ap-panel" id="apPanel-leaves">
@@ -733,6 +734,9 @@ body.no-confidential .confidential-col{display:none!important}
     </div>
     <div class="ap-panel hidden" id="apPanel-wpass">
       <div id="apWpass" class="text-sm" style="padding:0"></div>
+    </div>
+    <div class="ap-panel hidden" id="apPanel-supatt">
+      <div id="apSupatt" class="text-sm" style="padding:0"></div>
     </div>
   </div>
 </div>
@@ -6548,6 +6552,21 @@ document.body.addEventListener('click', async e => {
     if(!gfixMissing().length) $('gfixBody').innerHTML = '<p class="text-xs m-0 p-3" style="color:var(--ok)">Sab set ✓ — poore staff ka gender complete!</p>';
     return;
   }
+  if(act === 'supatt-appr'){
+    if(!(await nxConfirm('Is present-request ko approve karke attendance mein daalein?', 'Approve'))) return;
+    const { data, error } = await sb.rpc('sup_att_decide', { p_id: Number(el.dataset.id), p_approve: true });
+    if(error) return notify('Failed: '+error.message, 'error');
+    if(data && data.error) return notify(data.error, 'error');
+    notify('✓ Attendance mein daal diya'+(data.late?' (LATE)':''), 'success');
+    loadApprovals();
+    return;
+  }
+  if(act === 'supatt-rej'){
+    if(!(await nxConfirm('Reject karein?', 'Reject'))) return;
+    await sb.rpc('sup_att_decide', { p_id: Number(el.dataset.id), p_approve: false });
+    notify('Rejected', 'success'); loadApprovals();
+    return;
+  }
   if(act === 'wp-appr'){
     const id = el.dataset.id;
     const code = ($('wpCode'+id).value || '').trim().toUpperCase();
@@ -9303,6 +9322,29 @@ async function loadVoice(){
 }
 
 /* ================= APPROVALS INBOX ================= */
+async function loadSupAttApprovals(){
+  const host = $('apSupatt'); if(!host) return;
+  try{
+    const { data, error } = await sb.rpc('sup_att_pending');
+    if(error) throw error;
+    const list = data || [];
+    if($('apCntSup')) $('apCntSup').innerText = list.length;
+    if(!list.length){ host.innerHTML = '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi supervisor attendance request pending nahi.</p>'; return; }
+    host.innerHTML = list.map(r => `<div class="p-4 border-b" style="border-color:var(--line)">
+      <div class="flex justify-between items-start flex-wrap gap-2">
+        <div>
+          <b>${esc(r.employee_name||r.employee_code)}</b> <span class="chip chip-warn" style="font-size:10px">${esc(r.employee_code)}</span><br>
+          <span class="text-xs" style="color:var(--muted)">Date: ${esc(r.date)} · IN: <b>${esc(r.in_time)}</b> · By: ${esc(r.by_supervisor||'—')}</span>
+        </div>
+        ${r.photo_url ? `<button class="wh-thumb" data-full="${esc(r.photo_url)}" style="width:44px;height:44px;border-radius:8px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:18px" title="Photo dekho">📷</button>` : '<span class="text-xs" style="color:var(--faint)">no photo</span>'}
+      </div>
+      <div class="flex gap-2 mt-3">
+        <button class="btn btn-primary btn-sm" data-act="supatt-appr" data-id="${r.id}"><i class="fa-solid fa-check"></i> Approve → Attendance</button>
+        <button class="btn btn-danger btn-sm" data-act="supatt-rej" data-id="${r.id}"><i class="fa-solid fa-xmark"></i> Reject</button>
+      </div>
+    </div>`).join('');
+  }catch(e){ host.innerHTML = `<p class="p-4 m-0 text-xs" style="color:var(--bad)">Error: ${esc(e.message||e)} — V89 SQL chalaya?</p>`; }
+}
 async function loadWorkPassApprovals(){
   const host = $('apWpass'); if(!host) return;
   try{
@@ -9336,6 +9378,7 @@ async function loadWorkPassApprovals(){
 }
 async function loadApprovals(){
   loadWorkPassApprovals();
+  loadSupAttApprovals();
   const [lv, ot, ex, ea] = await Promise.all([
     sb.from('leaves').select('*').eq('status','PENDING').order('created_at'),
     sb.from('ot_requests').select('*').eq('status','PENDING').order('ot_date'),
