@@ -1269,8 +1269,8 @@ body.no-confidential .confidential-col{display:none!important}
 </div>
 <div class="page" id="page-ctccalc">
   <div class="card mb-4" style="max-width:560px">
-    <h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-calculator" style="color:var(--brand)"></i> Annexure A — Salary & CTC Calculator</h3>
-    <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Annual CTC ya Monthly Gross — koi bhi bharo, doosra apne aap. Basic 50% · HRA 25% · Conveyance 15% · Special = baaki.</p>
+    <h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-calculator" style="color:var(--brand)"></i> Quick CTC Calculator</h3>
+    <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Annual CTC ya Monthly Gross — koi bhi bharo. Basic = CTC ka 50%.</p>
     <div class="grid grid-cols-2 gap-3 mb-2">
       <div><label class="lbl">Annual CTC (₹)</label><input id="calcCTC" type="number" class="inp" placeholder="540000" oninput="calcFromCTC()"></div>
       <div><label class="lbl">Monthly Gross (₹) <span style="font-weight:400;color:var(--muted)">(auto)</span></label><input id="calcGross" type="number" class="inp" placeholder="43130" oninput="calcFromGross()"></div>
@@ -1283,6 +1283,22 @@ body.no-confidential .confidential-col{display:none!important}
       <label class="flex items-center gap-1"><input type="checkbox" id="calcTDS" onchange="calcRender()"> TDS</label>
     </div>
     <div id="calcOut"></div>
+  </div>
+
+  <div class="card">
+    <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+      <h3 class="display font-bold m-0"><i class="fa-solid fa-money-check-dollar" style="color:var(--brand)"></i> Salary Structure Master</h3>
+      <div class="flex gap-2 items-center flex-wrap">
+        <div class="seg">
+          <button class="seg-btn active" data-ctcfilter="ALL" onclick="ctcMasterFilter('ALL',this)">All</button>
+          <button class="seg-btn" data-ctcfilter="STAFF" onclick="ctcMasterFilter('STAFF',this)">Staff</button>
+          <button class="seg-btn" data-ctcfilter="WORKER" onclick="ctcMasterFilter('WORKER',this)">Worker</button>
+        </div>
+        <input id="ctcSearch" class="inp" placeholder="🔍 naam / code" style="width:180px" oninput="renderCtcMaster()">
+      </div>
+    </div>
+    <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Annual CTC edit karo → <b>Lock &amp; CEO ko bhejo</b> → CEO approve karega tabhi us employee ki salary set hogi. Row ke ▸ se poora breakup.</p>
+    <div style="overflow:auto"><table class="reg" id="ctcMasterTbl" style="font-size:12px;min-width:820px" oninput="if(event.target.id&&event.target.id.indexOf('ctcIn_')===0){var cd=event.target.id.slice(6); if(_ctcExpanded[cd]) ctcRenderBreakup(cd);}"></table></div>
   </div>
 </div>
 <div class="page" id="page-settings">
@@ -2129,7 +2145,7 @@ function applyPerms(){
   const mb = document.getElementById('attFixBtn');
   if(mb) mb.classList.toggle('hidden', !canManualAtt());
 }
-const PAGE_ICONS = { dashboard:'gauge', mis:'chart-pie', employees:'users', attendance:'calendar-check', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', idcards:'id-card', approvals:'clipboard-check', voice:'comments', settings:'gear' };
+const PAGE_ICONS = { dashboard:'gauge', mis:'chart-pie', employees:'users', attendance:'calendar-check', workhours:'business-time', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', ctccalc:'calculator', idcards:'id-card', approvals:'clipboard-check', voice:'comments', settings:'gear' };
 function isRowLate(r){ return r.is_late === true || String(r.in_time||'').toUpperCase().includes('LATE'); }
 function cleanInTime(r){ return String(r.in_time||'').replace(/\s*\(?LATE\)?/i,'').trim(); }
 function initials(em){ return em.split('@')[0].replace(/[^a-z0-9]/gi, ' ').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'A'; }
@@ -2701,6 +2717,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if(page === 'exits') loadExits();
     if(page === 'reports') loadReports();
     if(page === 'adminctl'){ NX_AUTH_USERS = null; renderAdminCtl(); }
+    if(page === 'ctccalc'){ renderCtcMaster(); }
   });
 });
 document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => $(b.dataset.close).classList.remove('show')));
@@ -3533,6 +3550,133 @@ function calcGo(src){
      .replace(/<div style="border-top[^"]*"><\/div>/,'');
 }
 function calcRender(){ calcGo($('calcCTC').value ? 'ctc' : 'gross'); }
+// ============ SALARY STRUCTURE MASTER (CTC page) ============
+var _ctcFilter = 'ALL';
+var _ctcExpanded = {};
+function ctcMasterFilter(f, btn){
+  _ctcFilter = f;
+  document.querySelectorAll('[data-ctcfilter]').forEach(b => b.classList.toggle('active', b === btn));
+  renderCtcMaster();
+}
+function ctcCatOf(code){ return String((PROFILES[code]||{}).category || 'WORKER').toUpperCase(); }
+function ctcAnnualOf(code){
+  // current stored annual CTC: agar salary set hai to gross*12 + employer sides; warna profile.ctc_annual (pending edit)
+  const p = PROFILES[code] || {};
+  if(p.salary && p.salary.earn){
+    const gross = Object.values(empSalary(code)).reduce((a,b)=>a+(Number(b)||0),0);
+    const f = p.salary.flags || { pf:true, esi: gross<=Number(getSettings().esiLimit), lwf:true, tds:false };
+    return ctcParts(gross, f).annualCTC;
+  }
+  return Number(p.ctc_annual)||0;
+}
+function ctcStatusOf(code){ return String((PROFILES[code]||{}).ctc_status || '').toUpperCase(); }  // '', PENDING_CEO, APPROVED
+function renderCtcMaster(){
+  const tbl = $('ctcMasterTbl'); if(!tbl) return;
+  const q = (($('ctcSearch')||{}).value || '').toLowerCase();
+  let list = activeEmps().filter(e => _ctcFilter === 'ALL' || ctcCatOf(e['Employee code']) === _ctcFilter);
+  if(q) list = list.filter(e => [e.Name, e['Employee code'], e.DEPARTMENT].join(' ').toLowerCase().includes(q));
+  list.sort((a,b) => String(a.Name).localeCompare(String(b.Name)));
+  let h = `<thead><tr><th style="width:26px"></th><th>Employee</th><th>Code</th><th>Department</th><th>Cat</th><th style="text-align:right">Annual CTC (₹)</th><th>Status</th><th>Action</th></tr></thead><tbody>`;
+  if(!list.length) h += '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:14px">Koi employee nahi mila.</td></tr>';
+  list.forEach(e => {
+    const code = e['Employee code'];
+    const st = ctcStatusOf(code);
+    const ctcA = ctcAnnualOf(code);
+    const stChip = st === 'PENDING_CEO' ? '<span class="chip chip-warn" style="font-size:10px">⏳ CEO pending</span>'
+                 : st === 'APPROVED' ? '<span class="chip chip-green" style="font-size:10px">✓ Approved</span>'
+                 : (PROFILES[code] && PROFILES[code].salary && PROFILES[code].salary.earn) ? '<span class="chip" style="font-size:10px">Set</span>'
+                 : '<span class="chip" style="font-size:10px;color:var(--muted)">—</span>';
+    const canCeo = loanCanCEO();
+    let act = '';
+    if(st === 'PENDING_CEO'){
+      act = canCeo
+        ? `<button class="btn btn-primary btn-sm" onclick="ctcCeoDecide('${code}',true)"><i class="fa-solid fa-check"></i></button> <button class="btn btn-danger btn-sm" onclick="ctcCeoDecide('${code}',false)"><i class="fa-solid fa-xmark"></i></button>`
+        : '<span class="text-xs" style="color:var(--muted)">CEO ke paas</span>';
+    } else {
+      act = `<button class="btn btn-ghost btn-sm" onclick="ctcLockSend('${code}')"><i class="fa-solid fa-lock"></i> Lock & CEO</button>`;
+    }
+    const locked = st === 'PENDING_CEO';
+    h += `<tr>
+      <td><button class="btn btn-ghost btn-sm" onclick="ctcToggle('${code}')" style="padding:2px 6px">${_ctcExpanded[code]?'▾':'▸'}</button></td>
+      <td><b>${esc(e.Name)}</b></td><td>${esc(code)}</td><td>${esc(e.DEPARTMENT||'—')}</td>
+      <td><span class="chip" style="font-size:10px">${ctcCatOf(code)==='STAFF'?'Staff':'Worker'}</span></td>
+      <td style="text-align:right"><input type="number" id="ctcIn_${code}" value="${ctcA||''}" ${locked?'disabled':''} style="width:110px;text-align:right;padding:4px 6px;border:1px solid var(--line);border-radius:6px" placeholder="0"></td>
+      <td>${stChip}</td><td style="white-space:nowrap">${act}</td></tr>`;
+    if(_ctcExpanded[code]) h += `<tr><td colspan="8" style="padding:0;background:var(--panel)"><div id="ctcBrk_${code}" style="padding:10px 14px"></div></td></tr>`;
+  });
+  h += '</tbody>';
+  tbl.innerHTML = h;
+  list.forEach(e => { if(_ctcExpanded[e['Employee code']]) ctcRenderBreakup(e['Employee code']); });
+}
+function ctcToggle(code){ _ctcExpanded[code] = !_ctcExpanded[code]; renderCtcMaster(); }
+function ctcFlagsFor(code, gross){
+  const S = getSettings();
+  return { pf:true, esi: gross>0 && gross<=Number(S.esiLimit), lwf:true, tds: ctcAnnualOf(code) >= 1200000 };
+}
+function ctcRenderBreakup(code){
+  const host = $('ctcBrk_'+code); if(!host) return;
+  const ctcA = Number(($('ctcIn_'+code)||{}).value) || ctcAnnualOf(code);
+  if(!ctcA){ host.innerHTML = '<span class="text-xs" style="color:var(--muted)">Annual CTC bharo phir breakup dikhega.</span>'; return; }
+  const monthlyCTC = Math.round(ctcA/12);
+  const S = getSettings();
+  let gEst = ctcPartsFromCTC(monthlyCTC, {pf:true,esi:false,lwf:true,tds:false}).gross;
+  const f = { pf:true, esi: gEst<=Number(S.esiLimit), lwf:true, tds: ctcA>=1200000 };
+  const c = ctcPartsFromCTC(monthlyCTC, f);
+  const g = c.gross, basic=c.basic, hra=Math.round(basic*0.5), conv=Math.round(basic*0.3), spl=g-basic-hra-conv;
+  const fmt = n => Number(n||0).toLocaleString('en-IN');
+  host.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;font-size:11.5px">
+    <div><div style="font-weight:700;color:var(--brand);margin-bottom:3px">EARNINGS (Monthly)</div>
+      Basic: ₹${fmt(basic)}<br>HRA: ₹${fmt(hra)}<br>Conveyance: ₹${fmt(conv)}<br>Special: ₹${fmt(spl)}<br><b>Gross: ₹${fmt(g)}</b></div>
+    <div><div style="font-weight:700;color:var(--brand);margin-bottom:3px">EMPLOYER SIDE</div>
+      EPF (Er): ₹${fmt(c.empPF)}<br>${c.empESI?`ESI (Er): ₹${fmt(c.empESI)}<br>`:''}LWF (Er): ₹${fmt(c.empLWF)}<br><b>Monthly CTC: ₹${fmt(c.monthlyCTC)}</b><br><b>Annual CTC: ₹${fmt(c.annualCTC)}</b></div>
+    <div><div style="font-weight:700;color:var(--brand);margin-bottom:3px">EMPLOYEE DEDUCTIONS</div>
+      EPF (Ee): ₹${fmt(c.eePF)}<br>${c.eeESI?`ESI (Ee): ₹${fmt(c.eeESI)}<br>`:''}LWF (Ee): ₹${fmt(c.eeLWF)}<br>${c.eeTDS?`TDS: ₹${fmt(c.eeTDS)}<br>`:''}<b style="color:var(--ok)">NET TAKE-HOME: ₹${fmt(c.net)}</b></div>
+  </div>`;
+}
+async function ctcLockSend(code){
+  const ctcA = Number(($('ctcIn_'+code)||{}).value)||0;
+  if(!ctcA) return notify('Annual CTC bharo', 'error');
+  const emp = EMP.find(e => e['Employee code']===code);
+  if(!(await nxConfirm(`${emp?emp.Name:code} ka Annual CTC ₹${ctcA.toLocaleString('en-IN')} LOCK karke CEO approval ko bhejein?\nApprove hote hi is employee ki salary set ho jayegi.`, 'Lock & CEO Approval'))) return;
+  try{
+    const p = PROFILES[code] || { employee_code: code };
+    await sb.from('hr_profiles').upsert({ employee_code: code, ctc_annual: ctcA, ctc_status: 'PENDING_CEO' }, { onConflict: 'employee_code' });
+    PROFILES[code] = Object.assign(p, { ctc_annual: ctcA, ctc_status: 'PENDING_CEO' });
+    notify('✓ Locked — CEO approval ko bhej diya', 'success');
+    renderCtcMaster();
+  }catch(e){ notify('Failed: '+(e.message||e), 'error'); }
+}
+async function ctcCeoDecide(code, approve){
+  if(!loanCanCEO()) return notify('Sirf CEO / Super Admin', 'error');
+  const emp = EMP.find(e => e['Employee code']===code);
+  if(approve){
+    const ctcA = Number((PROFILES[code]||{}).ctc_annual)||0;
+    if(!ctcA) return notify('CTC nahi mila', 'error');
+    if(!(await nxConfirm(`${emp?emp.Name:code} ka CTC ₹${ctcA.toLocaleString('en-IN')} APPROVE karein?\nIski salary isi se set ho jayegi.`, 'CEO Approve'))) return;
+    try{
+      const monthlyCTC = Math.round(ctcA/12);
+      const S = getSettings();
+      let gEst = ctcPartsFromCTC(monthlyCTC, {pf:true,esi:false,lwf:true,tds:false}).gross;
+      const f = { pf:true, esi: gEst<=Number(S.esiLimit), lwf:true, tds: ctcA>=1200000 };
+      const c = ctcPartsFromCTC(monthlyCTC, f);
+      const basic=c.basic, hra=Math.round(basic*0.5), conv=Math.round(basic*0.3), spl=c.gross-basic-hra-conv;
+      const earn = { basic, hra, conveyance: conv, special_allowance: spl };
+      const p = PROFILES[code] || { employee_code: code };
+      const salary = Object.assign({}, p.salary||{}, { earn, flags: f });
+      await sb.from('hr_profiles').upsert({ employee_code: code, salary, salary_status: 'APPROVED', ctc_status: 'APPROVED', ctc_annual: ctcA }, { onConflict: 'employee_code' });
+      PROFILES[code] = Object.assign(p, { salary, salary_status:'APPROVED', ctc_status:'APPROVED', ctc_annual: ctcA });
+      notify(`✓ Approved — ${emp?emp.Name:code} ki salary set ho gayi (Gross ₹${c.gross.toLocaleString('en-IN')})`, 'success');
+      renderCtcMaster();
+    }catch(e){ notify('Failed: '+(e.message||e), 'error'); }
+  } else {
+    if(!(await nxConfirm('CTC reject karein? (wapas edit ke liye khul jayega)', 'Reject'))) return;
+    const p = PROFILES[code] || { employee_code: code };
+    await sb.from('hr_profiles').upsert({ employee_code: code, ctc_status: '' }, { onConflict: 'employee_code' });
+    PROFILES[code] = Object.assign(p, { ctc_status: '' });
+    notify('Rejected — dobara edit kar sakte ho', 'success');
+    renderCtcMaster();
+  }
+}
 function candStatFlags(c){
   const pf = $('candPF'), esi = $('candESI'), lwf = $('candLWF'), tds = $('candTDS');
   if(pf) return { pf: pf.checked, esi: esi.checked, lwf: lwf.checked, tds: tds ? tds.checked : false };
