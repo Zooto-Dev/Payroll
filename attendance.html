@@ -1816,7 +1816,22 @@ function nxConfirm(msg, title){
                 // and sync to the server in the background. The person NEVER waits for the network.
                 let lp = getLocalPunch(empCode, todayStr) || {};
                 let punchType = null, refuseMsg = null, refuseSpeak = null;
-                for (let pass = 0; pass < 2; pass++) {
+                // ===== NIGHT SHIFT: kal shaam (>=17:00) IN hua, OUT nahi, aur abhi dopahar 14:00 se pehle hai
+                // -> ye punch KAL ki attendance ka OUT hai, aaj ka naya IN NahI.
+                // Din-shift waala jo kal OUT karna bhool gaya (kal subah IN tha) -> usko aaj naya IN hi milega.
+                let punchDateStr = todayStr, nightOut = false;
+                if (!lp.in && timeStr.substring(0,5) <= '14:00') {
+                    const yD = new Date(todayStr + 'T12:00:00'); yD.setDate(yD.getDate() - 1);
+                    const yStr = yD.getFullYear() + '-' + String(yD.getMonth()+1).padStart(2,'0') + '-' + String(yD.getDate()).padStart(2,'0');
+                    const looksNight = p => p && p.in && !p.out && String(p.in).substring(0,5) >= '17:00';
+                    let yp = getLocalPunch(empCode, yStr);
+                    if (!looksNight(yp)) {
+                        const sv = await serverPunchCheck(empCode, yStr);   // ~200 bytes, sirf is halat mein
+                        if (sv) { applyServerRow(empCode, yStr, sv); yp = getLocalPunch(empCode, yStr); }
+                    }
+                    if (looksNight(yp)) { nightOut = true; punchDateStr = yStr; }
+                }
+                for (let pass = 0; pass < 2 && !nightOut; pass++) {
                     punchType = null; refuseMsg = null; refuseSpeak = null;
                     if (!lp.in) punchType = 'IN';
                     else if (!lp.out) {
@@ -1839,6 +1854,7 @@ function nxConfirm(msg, title){
                     applyServerRow(empCode, todayStr, sv);
                     lp = getLocalPunch(empCode, todayStr) || {};
                 }
+                if (nightOut) punchType = 'OUT';   // kal ki night shift ka OUT
                 if (refuseMsg) {
                     notify(refuseMsg, 'info');
                     speakText(refuseSpeak);
@@ -1877,7 +1893,7 @@ function nxConfirm(msg, title){
                     try {
                         const rpcP = (punchType === 'IN')
                             ? supabaseClient.rpc('nx_punch_in',  { p_code: empCode, p_name: empName || '', p_date: todayStr, p_time: timeStr, p_late: !!isLate })
-                            : supabaseClient.rpc('nx_punch_out', { p_code: empCode, p_date: todayStr, p_time: timeStr });
+                            : supabaseClient.rpc('nx_punch_out', { p_code: empCode, p_date: punchDateStr, p_time: timeStr });
                         const tP = new Promise(res => setTimeout(() => res({ _timeout: true }), 8000));
                         const r = await Promise.race([rpcP, tP]);
                         if (r && r._timeout) { dbWhy = 'network slow (8s timeout)'; }
@@ -1887,7 +1903,7 @@ function nxConfirm(msg, title){
                     } catch(e) { dbWhy = (e && e.message) || String(e); }
                 }
 
-                setLocalPunch(empCode, todayStr, punchType === 'IN' ? 'in' : 'out', timeStr);
+                setLocalPunch(empCode, punchType === 'IN' ? todayStr : punchDateStr, punchType === 'IN' ? 'in' : 'out', timeStr);
                 lastPunchTime.set(empCode, now);
 
                 if (dbSaved) {
@@ -1899,7 +1915,7 @@ function nxConfirm(msg, title){
                     if (dbRowId && imageBase64) uploadPunchPhotoBg(empCode, imageBase64, punchType, dbRowId);   // photo attaches in background
                 } else {
                     // network genuinely down / DB unreachable -> emergency local queue, said OUT LOUD and shown clearly
-                    queuePunch({ empCode, todayStr, timeStr, imageBase64, type: punchType, is_late: isLate, empName });
+                    queuePunch({ empCode, todayStr: (punchType === 'OUT' ? punchDateStr : todayStr), timeStr, imageBase64, type: punchType, is_late: isLate, empName });
                     let msg = speakName(empName) + ", dhyan dijiye. Aapka punch abhi SAVE NAHIN hua hai. Network problem hai. Punch machine mein surakshit rakh liya gaya hai aur net aate hi apne aap chala jayega. Kripya supervisor ko zaroor bata dein.";
                     speakText(msg);
                     showSuccessUI(empData, empName, imageBase64, timeStr, "\u26a0 " + punchType + " SAVE NAHI HUA \u2014 PENDING (machine mein surakshit, supervisor ko batao)");
