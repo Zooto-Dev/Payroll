@@ -1298,7 +1298,7 @@ body.no-confidential .confidential-col{display:none!important}
       </div>
     </div>
     <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Annual CTC edit karo → <b>Lock &amp; CEO ko bhejo</b> → CEO approve karega tabhi us employee ki salary set hogi. Row ke ▸ se poora breakup.</p>
-    <div style="overflow:auto"><table class="reg" id="ctcMasterTbl" style="font-size:12px;min-width:820px" oninput="if(event.target.id&&event.target.id.indexOf('ctcIn_')===0){var cd=event.target.id.slice(6); if(_ctcExpanded[cd]) ctcRenderBreakup(cd);}"></table></div>
+    <div style="overflow:auto"><table class="reg" id="ctcMasterTbl" style="font-size:12px;min-width:820px" oninput="if(event.target.id&&event.target.id.indexOf('ctcIn_')===0){clearTimeout(window._ctcRT);window._ctcRT=setTimeout(renderCtcMaster,600);}"></table></div>
   </div>
 </div>
 <div class="page" id="page-settings">
@@ -2163,16 +2163,18 @@ function showAttList(kind){
     title = 'Absent Today';
     const present = new Set(rows.map(r => r.employee_code));
     const _exc = window._todayExcused || new Set();
-    list = activeEmps().filter(e => !present.has(e['Employee code']) && !_exc.has(String(e['Employee code']).toUpperCase())).map(e => ({ code:e['Employee code'], name:e.Name, dept:e.DEPARTMENT, absent:true }));
+    list = activeEmps().filter(e => !present.has(e['Employee code']) && !_exc.has(String(e['Employee code']).toUpperCase())).map(e => ({ code:e['Employee code'], name:e.Name, dept:e.DEPARTMENT, phone:(PROFILES[e['Employee code']]||{}).phone||'', absent:true }));
   }
   const body = list.length ? list.map(x => `
-    <div class="flex items-center gap-3 p-2 rounded-lg" style="border:1px solid var(--line)">
-      ${x.photo ? `<img src="${esc(x.photo)}" style="width:34px;height:34px;border-radius:50%;object-fit:cover">` : `<div style="width:34px;height:34px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">${esc((x.name||'?').charAt(0).toUpperCase())}</div>`}
-      <div style="flex:1">
-        <div class="text-sm font-semibold">${esc(x.name)} <span style="color:var(--muted);font-weight:400">(${esc(x.code)})</span></div>
-        <div class="text-[11px]" style="color:var(--muted)">${x.absent ? esc(x.dept||'—') : ('In: ' + esc(x.time||'—') + (x.late ? ' · <span style=\'color:var(--warn)\'>LATE</span>' : ''))}</div>
+    <div class="flex items-center gap-2 p-2 rounded-lg" style="border:1px solid var(--line)">
+      ${x.photo ? `<img src="${esc(x.photo)}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">` : `<div style="width:32px;height:32px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">${esc((x.name||'?').charAt(0).toUpperCase())}</div>`}
+      <div style="flex:1;min-width:0">
+        <div class="text-sm font-semibold" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.name)} <span style="color:var(--muted);font-weight:400">(${esc(x.code)})</span></div>
+        <div class="text-[11px]" style="color:var(--muted)">${x.absent ? (esc(x.dept||'—') + (x.phone ? ' · 📱 ' + esc(x.phone) : '')) : ('In: ' + esc(x.time||'—') + (x.late ? ' · <span style=\'color:var(--warn)\'>LATE</span>' : ''))}</div>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="closeAttList();openEmpModal('${esc(x.code)}')"><i class="fa-solid fa-user"></i></button>
+      ${x.absent
+        ? `<input type="time" id="mkIn_${esc(x.code)}" class="inp" style="width:104px;padding:3px 5px;font-size:12px" title="IN time"><button class="btn btn-primary btn-sm" onclick="markPresentNow('${esc(x.code)}','${esc(x.name)}')" title="Present laga do"><i class="fa-solid fa-check"></i></button>`
+        : `<button class="btn btn-ghost btn-sm" onclick="closeAttList();openEmpModal('${esc(x.code)}')"><i class="fa-solid fa-user"></i></button>`}
     </div>`).join('') : '<p style="color:var(--muted);text-align:center;padding:20px">No one in this list.</p>';
   let m = document.getElementById('attListModal');
   if(!m){ m = document.createElement('div'); m.id = 'attListModal'; m.className = 'modal'; document.body.appendChild(m); }
@@ -2185,6 +2187,26 @@ function showAttList(kind){
   m.classList.add('show');
 }
 function closeAttList(){ const m = document.getElementById('attListModal'); if(m) m.classList.remove('show'); }
+async function markPresentNow(code, name){
+  const t = (($('mkIn_'+code)||{}).value || '').trim();
+  if(!t) return notify('Pehle IN time daalo', 'error');
+  const inT = t.length === 5 ? t + ':00' : t;
+  // STAFF late rule
+  const p = PROFILES[code] || {};
+  const emp = EMP.find(e => e['Employee code']===code) || {};
+  const cat = String(p.category||'WORKER').toUpperCase();
+  const dept = String(emp.DEPARTMENT||'').toUpperCase();
+  const staffFlex = cat==='STAFF' && !dept.includes('PRODUCTION') && !dept.includes('STORE');
+  const late = t > (staffFlex ? '10:00' : '09:10');
+  try{
+    const { error } = await sb.rpc('nx_bulk_att', { p_rows: [{ employee_code: code, Name: name||emp.Name||code, date: todayISO(), in_time: inT, out_time: '', is_late: late }] });
+    if(error) throw error;
+    notify(`✓ ${name||code} present laga diya (IN ${t}${late?' · LATE':''})`, 'success');
+    // local cache update + list refresh
+    if(window._todayAtt) window._todayAtt.push({ employee_code: code, Name: name||emp.Name, date: todayISO(), in_time: inT, is_late: late });
+    showAttList('absent');
+  }catch(e){ notify('Failed: '+(e.message||e), 'error'); }
+}
 const KZ_PARAMS = [
   { k:'cost',    label:'Cost Saving',            max:20 },
   { k:'prod',    label:'Productivity',           max:20 },
@@ -2286,12 +2308,13 @@ function exportAttList(kind){
   let data = [];
   if(kind === 'absent'){
     const present = new Set(rows.map(r => r.employee_code));
-    data = activeEmps().filter(e => !present.has(e['Employee code'])).map(e => [e['Employee code'], e.Name, e.DEPARTMENT||'', 'ABSENT']);
+    data = activeEmps().filter(e => !present.has(e['Employee code'])).map(e => [e['Employee code'], e.Name, e.DEPARTMENT||'', (PROFILES[e['Employee code']]||{}).phone||'', 'ABSENT']);
   } else {
     let src2 = kind === 'late' ? rows.filter(isRowLate) : rows;
     data = src2.map(r => [r.employee_code, r.Name||nameOf(r.employee_code), cleanInTime(r), isRowLate(r)?'LATE':'ON TIME']);
   }
-  const csv = 'Code,Name,Info,Status\n' + data.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const head = kind === 'absent' ? 'Code,Name,Department,Mobile,Status' : 'Code,Name,Info,Status';
+  const csv = head + '\n' + data.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv' }));
   a.download = kind + '_' + todayISO() + '.csv'; a.click();
@@ -3576,37 +3599,55 @@ function renderCtcMaster(){
   let list = activeEmps().filter(e => _ctcFilter === 'ALL' || ctcCatOf(e['Employee code']) === _ctcFilter);
   if(q) list = list.filter(e => [e.Name, e['Employee code'], e.DEPARTMENT].join(' ').toLowerCase().includes(q));
   list.sort((a,b) => String(a.Name).localeCompare(String(b.Name)));
-  let h = `<thead><tr><th style="width:26px"></th><th>Employee</th><th>Code</th><th>Department</th><th>Cat</th><th style="text-align:right">Annual CTC (₹)</th><th>Status</th><th>Action</th></tr></thead><tbody>`;
-  if(!list.length) h += '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:14px">Koi employee nahi mila.</td></tr>';
+  const S = getSettings(), fmt = n => Number(n||0).toLocaleString('en-IN');
+  let h = `<thead><tr style="font-size:10.5px">
+    <th>Employee</th><th>Code</th><th>Dept</th><th>Cat</th>
+    <th style="text-align:right">Annual CTC</th>
+    <th style="text-align:right">Basic</th><th style="text-align:right">HRA</th><th style="text-align:right">CA</th><th style="text-align:right">SA</th><th style="text-align:right">Gross</th>
+    <th style="text-align:right">EPF-Er</th><th style="text-align:right">ESI-Er</th><th style="text-align:right">LWF-Er</th>
+    <th style="text-align:right">EPF-Ee</th><th style="text-align:right">ESI-Ee</th><th style="text-align:right">LWF-Ee</th><th style="text-align:right">TDS</th>
+    <th style="text-align:right">Net</th><th>Status</th><th>Action</th></tr></thead><tbody style="font-size:10.5px">`;
+  if(!list.length) h += '<tr><td colspan="20" style="text-align:center;color:var(--muted);padding:14px">Koi employee nahi mila.</td></tr>';
   list.forEach(e => {
     const code = e['Employee code'];
     const st = ctcStatusOf(code);
     const ctcA = ctcAnnualOf(code);
-    const stChip = st === 'PENDING_CEO' ? '<span class="chip chip-warn" style="font-size:10px">⏳ CEO pending</span>'
-                 : st === 'APPROVED' ? '<span class="chip chip-green" style="font-size:10px">✓ Approved</span>'
-                 : (PROFILES[code] && PROFILES[code].salary && PROFILES[code].salary.earn) ? '<span class="chip" style="font-size:10px">Set</span>'
-                 : '<span class="chip" style="font-size:10px;color:var(--muted)">—</span>';
+    // breakup compute
+    let basic=0,hra=0,conv=0,spl=0,g=0,c={empPF:0,empESI:0,empLWF:0,eePF:0,eeESI:0,eeLWF:0,eeTDS:0,net:0};
+    if(ctcA){
+      const monthlyCTC = Math.round(ctcA/12);
+      let gEst = ctcPartsFromCTC(monthlyCTC, {pf:true,esi:false,lwf:true,tds:false}).gross;
+      const f = { pf:true, esi: gEst<=Number(S.esiLimit), lwf:true, tds: ctcA>=1200000 };
+      c = ctcPartsFromCTC(monthlyCTC, f);
+      g=c.gross; basic=c.basic; hra=Math.round(basic*0.5); conv=Math.round(basic*0.3); spl=g-basic-hra-conv;
+    }
+    const stChip = st === 'PENDING_CEO' ? '<span class="chip chip-warn" style="font-size:9px">⏳ CEO</span>'
+                 : st === 'APPROVED' ? '<span class="chip chip-green" style="font-size:9px">✓</span>'
+                 : (PROFILES[code] && PROFILES[code].salary && PROFILES[code].salary.earn) ? '<span class="chip" style="font-size:9px">Set</span>'
+                 : '<span style="font-size:9px;color:var(--muted)">—</span>';
     const canCeo = loanCanCEO();
+    const locked = st === 'PENDING_CEO';
     let act = '';
     if(st === 'PENDING_CEO'){
       act = canCeo
-        ? `<button class="btn btn-primary btn-sm" onclick="ctcCeoDecide('${code}',true)"><i class="fa-solid fa-check"></i></button> <button class="btn btn-danger btn-sm" onclick="ctcCeoDecide('${code}',false)"><i class="fa-solid fa-xmark"></i></button>`
-        : '<span class="text-xs" style="color:var(--muted)">CEO ke paas</span>';
+        ? `<button class="btn btn-primary btn-sm" onclick="ctcCeoDecide('${code}',true)" style="padding:2px 6px"><i class="fa-solid fa-check"></i></button> <button class="btn btn-danger btn-sm" onclick="ctcCeoDecide('${code}',false)" style="padding:2px 6px"><i class="fa-solid fa-xmark"></i></button>`
+        : '<span style="font-size:9px;color:var(--muted)">CEO</span>';
     } else {
-      act = `<button class="btn btn-ghost btn-sm" onclick="ctcLockSend('${code}')"><i class="fa-solid fa-lock"></i> Lock & CEO</button>`;
+      act = `<button class="btn btn-ghost btn-sm" onclick="ctcLockSend('${code}')" style="padding:2px 6px" title="Lock & CEO"><i class="fa-solid fa-lock"></i></button>`;
     }
-    const locked = st === 'PENDING_CEO';
+    const rt = 'text-align:right';
     h += `<tr>
-      <td><button class="btn btn-ghost btn-sm" onclick="ctcToggle('${code}')" style="padding:2px 6px">${_ctcExpanded[code]?'▾':'▸'}</button></td>
       <td><b>${esc(e.Name)}</b></td><td>${esc(code)}</td><td>${esc(e.DEPARTMENT||'—')}</td>
-      <td><span class="chip" style="font-size:10px">${ctcCatOf(code)==='STAFF'?'Staff':'Worker'}</span></td>
-      <td style="text-align:right"><input type="number" id="ctcIn_${code}" value="${ctcA||''}" ${locked?'disabled':''} style="width:110px;text-align:right;padding:4px 6px;border:1px solid var(--line);border-radius:6px" placeholder="0"></td>
+      <td>${ctcCatOf(code)==='STAFF'?'S':'W'}</td>
+      <td style="${rt}"><input type="number" id="ctcIn_${code}" value="${ctcA||''}" ${locked?'disabled':''} style="width:82px;text-align:right;padding:3px 4px;border:1px solid var(--line);border-radius:5px;font-size:10.5px" placeholder="0"></td>
+      <td style="${rt}">${basic?fmt(basic):'—'}</td><td style="${rt}">${hra?fmt(hra):'—'}</td><td style="${rt}">${conv?fmt(conv):'—'}</td><td style="${rt}">${spl?fmt(spl):'—'}</td><td style="${rt};font-weight:600">${g?fmt(g):'—'}</td>
+      <td style="${rt}">${c.empPF?fmt(c.empPF):'—'}</td><td style="${rt}">${c.empESI?fmt(c.empESI):'—'}</td><td style="${rt}">${c.empLWF?fmt(c.empLWF):'—'}</td>
+      <td style="${rt}">${c.eePF?fmt(c.eePF):'—'}</td><td style="${rt}">${c.eeESI?fmt(c.eeESI):'—'}</td><td style="${rt}">${c.eeLWF?fmt(c.eeLWF):'—'}</td><td style="${rt}">${c.eeTDS?fmt(c.eeTDS):'—'}</td>
+      <td style="${rt};font-weight:700;color:#166534">${c.net?fmt(c.net):'—'}</td>
       <td>${stChip}</td><td style="white-space:nowrap">${act}</td></tr>`;
-    if(_ctcExpanded[code]) h += `<tr><td colspan="8" style="padding:0;background:var(--panel)"><div id="ctcBrk_${code}" style="padding:10px 14px"></div></td></tr>`;
   });
   h += '</tbody>';
   tbl.innerHTML = h;
-  list.forEach(e => { if(_ctcExpanded[e['Employee code']]) ctcRenderBreakup(e['Employee code']); });
 }
 function ctcToggle(code){ _ctcExpanded[code] = !_ctcExpanded[code]; renderCtcMaster(); }
 function ctcFlagsFor(code, gross){
