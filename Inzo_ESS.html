@@ -1120,26 +1120,45 @@ function renderTeamMonth(mon){
         cell = `<span title="IN ${String(r.in_time).slice(0,5)}${r.out_time?' OUT '+String(r.out_time).slice(0,5):''}${r.total_hours?' ('+String(r.total_hours).slice(0,5)+')':''}">${r.is_late?'<span style=\'color:#d97706\'>L</span>':'P'}</span>`;
         bg = r.is_late ? '#fffbeb' : '#f0fdf4';
       } else if(isFuture){ cell = ''; }
+      else if(r && r.on_leave){ cell = '<span style="color:#7c3aed;font-weight:700" title="Approved leave">L̲</span>'; bg = '#f5f3ff'; }
+      else if(r && r.has_pass){ cell = '<span style="color:#0891b2;font-weight:700" title="Approved gatepass/WFH">G</span>'; bg = '#ecfeff'; }
       else {
-        // ABSENT — clickable to mark present
-        cell = `<button onclick="supMarkOpen('${esc(code)}','${esc(emp.name)}','${dt}')" style="border:none;background:none;color:#dc2626;cursor:pointer;font-weight:700" title="Present laga do">A</button>`;
+        // ABSENT (koi leave/pass nahi) — pencil se present-request
+        cell = `<span style="color:#dc2626;font-weight:700">A</span> <button onclick="supMarkAsk('${esc(code)}','${esc(emp.name).replace(/'/g,"\\'")}','${dt}')" style="border:none;background:none;color:#2563eb;cursor:pointer;padding:0 2px" title="Present mark karo">✏️</button>`;
         bg = '#fef2f2';
       }
       h += `<td style="padding:3px 5px;border:1px solid var(--line);text-align:center;background:${bg}">${cell}</td>`;
     }
     h += '</tr>';
   });
-  h += '</tbody></table><p class="text-[10px] mt-1" style="color:var(--muted)">P=Present · <span style="color:#d97706">L</span>=Late · <span style="color:#dc2626">A</span>=Absent (click karke present request) · hover se timing</p>';
+  h += '</tbody></table><p class="text-[10px] mt-1" style="color:var(--muted)">P=Present · <span style="color:#d97706">L</span>=Late · <span style="color:#7c3aed">L̲</span>=Leave · <span style="color:#0891b2">G</span>=Gatepass · <span style="color:#dc2626">A</span>=Absent (✏️ se present request) · hover se timing</p>';
   box.innerHTML = h;
 }
 // present-marking with photo
 var _supMark = null, _supCamStream = null;
-function supMarkOpen(code, name, dt){
-  const t = prompt('IN time daalo (HH:MM, 24-hour) — ' + name + ' · ' + dt, '09:00');
-  if(!t) return;
-  if(!/^[0-9]{1,2}:[0-9]{2}$/.test(t.trim())){ notify('Time galat — HH:MM format mein daalo'); return; }
-  _supMark = { code, name, dt, time: t.trim() };
-  supCamOpen(name);
+function supMarkAsk(code, name, dt){
+  const fmtD = (() => { try{ return new Date(dt+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'}); }catch(e){ return dt; } })();
+  // simple confirm popup — YES/NO
+  let ov = document.getElementById('supAskOv');
+  if(!ov){ ov = document.createElement('div'); ov.id='supAskOv'; document.body.appendChild(ov); }
+  ov.style.cssText = 'position:fixed;inset:0;z-index:210;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML = `<div style="background:#fff;border-radius:16px;max-width:340px;width:100%;padding:20px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.3)">
+    <div style="font-size:15px;font-weight:700;margin-bottom:4px">${esc(name)}</div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:14px">${fmtD} ko ye employee <b>present</b> tha?</div>
+    <div style="display:flex;gap:10px">
+      <button id="supAskYes" style="flex:1;border:none;border-radius:12px;background:#059669;color:#fff;font-weight:800;padding:12px;font-size:15px">YES</button>
+      <button id="supAskNo" style="flex:1;border:none;border-radius:12px;background:#f1f5f9;color:#334155;font-weight:700;padding:12px;font-size:15px">NO</button>
+    </div>
+  </div>`;
+  document.getElementById('supAskNo').onclick = () => { ov.remove(); };
+  document.getElementById('supAskYes').onclick = () => {
+    ov.remove();
+    const t = prompt('IN time daalo (HH:MM, 24-hour):', '09:00');
+    if(!t) return;
+    if(!/^[0-9]{1,2}:[0-9]{2}$/.test(t.trim())){ notify('Time galat — HH:MM format mein daalo'); return; }
+    _supMark = { code, name, dt, time: t.trim() };
+    supCamOpen(name);
+  };
 }
 async function supCamOpen(name){
   $('supCamName').innerText = name + ' — line par photo lo';
