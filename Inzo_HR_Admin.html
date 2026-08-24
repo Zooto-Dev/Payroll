@@ -2198,13 +2198,17 @@ function showAttList(kind){
   const shChip = sh => sh ? `<span class="chip" style="font-size:10px;${/night/i.test(sh)?'background:#e0e7ff;color:#4338ca':''}">${esc(sh)}</span>` : '<span style="color:var(--faint);font-size:11px">—</span>';
   let head, rowsHtml;
   if(kind === 'absent'){
-    head = `<tr><th>#</th><th>Employee</th><th>Code</th><th>Department</th><th>Shift</th><th>Mobile</th><th>Mark Present</th></tr>`;
+    const _canFix = isSuper();
+    head = _canFix
+      ? `<tr><th>#</th><th>Employee</th><th>Code</th><th>Department</th><th>Shift</th><th>Mobile</th><th>Mark Present</th><th>Exit</th></tr>`
+      : `<tr><th>#</th><th>Employee</th><th>Code</th><th>Department</th><th>Shift</th><th>Mobile</th></tr>`;
     rowsHtml = list.map((x,i) => `<tr>
       <td style="color:var(--muted)">${i+1}</td>
       <td><b>${esc(x.name)}</b></td><td>${esc(x.code)}</td><td>${esc(x.dept||'—')}</td>
       <td>${shChip(x.shift)}</td>
       <td>${x.phone ? '📱 '+esc(x.phone) : '<span style="color:var(--faint)">—</span>'}</td>
-      <td style="white-space:nowrap"><input type="time" id="mkIn_${esc(x.code)}" class="inp" style="width:96px;padding:3px 5px;font-size:12px"> <button class="btn btn-primary btn-sm" onclick="markPresentNow('${esc(x.code)}','${esc(x.name).replace(/'/g,"\\'")}')" title="Present laga do"><i class="fa-solid fa-check"></i></button></td>
+      ${_canFix ? `<td style="white-space:nowrap"><input type="time" id="mkIn_${esc(x.code)}" class="inp" style="width:90px;padding:3px 5px;font-size:12px"> <button class="btn btn-primary btn-sm" onclick="markPresentNow('${esc(x.code)}','${esc(x.name).replace(/'/g,"\\'")}')" title="Present laga do"><i class="fa-solid fa-check"></i></button></td>
+      <td><button class="btn btn-danger btn-sm" onclick="exitFromAbsent('${esc(x.code)}','${esc(x.name).replace(/'/g,"\\'")}')" title="Exit date daalo"><i class="fa-solid fa-right-from-bracket"></i></button></td>` : ''}
     </tr>`).join('');
   } else if(kind === 'night'){
     head = `<tr><th>#</th><th>Employee</th><th>Code</th><th>Department</th><th>Shift</th><th>Status</th><th></th></tr>`;
@@ -2240,7 +2244,24 @@ function showAttList(kind){
   m.classList.add('show');
 }
 function closeAttList(){ const m = document.getElementById('attListModal'); if(m) m.classList.remove('show'); }
+async function exitFromAbsent(code, name){
+  if(!isSuper()) return notify('Sirf Super Admin', 'error');
+  const dt = prompt('Exit date (YYYY-MM-DD) for ' + name + ':', todayISO());
+  if(!dt) return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dt.trim())) return notify('Date format galat — YYYY-MM-DD', 'error');
+  const reason = prompt('Exit reason (optional):', '') || '';
+  if(!(await nxConfirm(`${name} (${code}) ko EXIT mark karein?\nExit date: ${dt}\nStatus INACTIVE ho jayega — attendance/absent se hat jayega.`, 'Confirm Exit'))) return;
+  try{
+    await sb.from('hr_profiles').upsert({ employee_code: code, exit_date: dt.trim(), exit_reason: reason }, { onConflict: 'employee_code' });
+    await sb.from('employees').update({ Status: 'INACTIVE' }).eq('Employee code', code);
+    const e = EMP.find(x => x['Employee code'] === code); if(e) e.Status = 'INACTIVE';
+    PROFILES[code] = Object.assign(PROFILES[code]||{ employee_code:code }, { exit_date: dt.trim(), exit_reason: reason });
+    notify(`✓ ${name} exited (${dt}) — ab absent/active mein nahi aayega`, 'success');
+    showAttList('absent');
+  }catch(err){ notify('Failed: '+(err.message||err), 'error'); }
+}
 async function markPresentNow(code, name){
+  if(!isSuper()) return notify('Sirf Super Admin attendance correction kar sakta hai', 'error');
   const t = (($('mkIn_'+code)||{}).value || '').trim();
   if(!t) return notify('Pehle IN time daalo', 'error');
   const inT = t.length === 5 ? t + ':00' : t;
@@ -4219,7 +4240,8 @@ async function loadHiring(){
 }
 function renderHiring(){
   const host = $('hrBoard'); if(!host) return;
-  const filter = $('hrStageFilter').value;
+  const filter = (window._hireFilter !== undefined) ? window._hireFilter : $('hrStageFilter').value;
+  if($('hrStageFilter') && $('hrStageFilter').value !== filter) $('hrStageFilter').value = filter;
   const counts = {}; HR_STAGES.forEach(s => counts[s.k] = 0);
   CANDIDATES.forEach(c => { if(counts[c.stage]!==undefined) counts[c.stage]++; });
   $('hrStats').innerHTML = HR_STAGES.map(s => `<span class="hr-stat"><b>${counts[s.k]}</b> ${s.label}</span>`).join('');
@@ -4241,7 +4263,7 @@ function renderHiring(){
     </tbody></table></div></div>`;
 }
 $('hrAddBtn').addEventListener('click', () => openCand(null));
-$('hrStageFilter').addEventListener('change', renderHiring);
+$('hrStageFilter').addEventListener('change', function(){ window._hireFilter = this.value; renderHiring(); });
 
 // ===================== VACANCIES (Careers) =====================
 const CAREERS_URL = 'https://zootofashion.com/Apply.html';
