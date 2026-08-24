@@ -1299,10 +1299,14 @@ body.no-confidential .confidential-col{display:none!important}
           <button class="seg-btn" data-ctcfilter="WORKER" onclick="ctcMasterFilter('WORKER',this)">Worker</button>
         </div>
         <input id="ctcSearch" class="inp" placeholder="🔍 naam / code" style="width:180px" oninput="renderCtcMaster()">
+        <button class="btn btn-ghost btn-sm" onclick="ctcCsvDownload()" title="Current data CSV mein"><i class="fa-solid fa-download"></i> CSV</button>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer" title="CSV se bulk CTC update"><i class="fa-solid fa-upload"></i> Upload
+          <input type="file" id="ctcCsvFile" accept=".csv" style="display:none" onchange="ctcCsvUpload(this)">
+        </label>
       </div>
     </div>
     <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Annual CTC edit karo → <b>Lock &amp; CEO ko bhejo</b> → CEO approve karega tabhi us employee ki salary set hogi. Row ke ▸ se poora breakup.</p>
-    <div style="overflow:auto"><table class="reg" id="ctcMasterTbl" style="font-size:12px;min-width:820px" oninput="if(event.target.id&&event.target.id.indexOf('ctcIn_')===0){clearTimeout(window._ctcRT);window._ctcRT=setTimeout(renderCtcMaster,600);}"></table></div>
+    <div style="overflow:auto"><table class="reg" id="ctcMasterTbl" style="font-size:12px;min-width:820px" oninput="if(event.target.id&&event.target.id.indexOf('ctcIn_')===0){_ctcDraft[event.target.id.slice(6)]=Number(event.target.value)||0;clearTimeout(window._ctcRT);window._ctcRT=setTimeout(renderCtcMaster,700);}"></table></div>
   </div>
 </div>
 <div class="page" id="page-settings">
@@ -2358,11 +2362,15 @@ function exportAttList(kind){
   if(kind === 'absent'){
     const present = new Set(rows.map(r => r.employee_code));
     data = activeEmps().filter(e => !present.has(e['Employee code'])).map(e => [e['Employee code'], e.Name, e.DEPARTMENT||'', shiftNameOf(e['Employee code'])||'', (PROFILES[e['Employee code']]||{}).phone||'', 'ABSENT']);
+  } else if(kind === 'night'){
+    data = (window._nightList||[]).map(x => [x.code, x.name, (EMP.find(e=>e['Employee code']===x.code)||{}).DEPARTMENT||'', shiftNameOf(x.code)||'', x.info||'']);
   } else {
     let src2 = kind === 'late' ? rows.filter(isRowLate) : rows;
-    data = src2.map(r => [r.employee_code, r.Name||nameOf(r.employee_code), cleanInTime(r), isRowLate(r)?'LATE':'ON TIME']);
+    data = src2.map(r => [r.employee_code, r.Name||nameOf(r.employee_code), (EMP.find(e=>e['Employee code']===r.employee_code)||{}).DEPARTMENT||'', shiftNameOf(r.employee_code)||'', cleanInTime(r), isRowLate(r)?'LATE':'ON TIME']);
   }
-  const head = kind === 'absent' ? 'Code,Name,Department,Shift,Mobile,Status' : 'Code,Name,Info,Status';
+  const head = kind === 'absent' ? 'Code,Name,Department,Shift,Mobile,Status'
+             : kind === 'night' ? 'Code,Name,Department,Shift,Status'
+             : 'Code,Name,Department,Shift,In Time,Status';
   const csv = head + '\n' + data.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv' }));
@@ -3225,18 +3233,26 @@ async function loadDashboard(){
     const nightAssigned = new Set();
     Object.entries(PROFILES||{}).forEach(([c,p]) => { if(p && nightIds.has(String(p.shift_id))){ excused.add(String(c).toUpperCase()); nightAssigned.add(String(c).toUpperCase()); } });
     // kal shaam (>=17:00) IN, OUT abhi nahi -> abhi night duty par (chahe shift assign na ho) -> absent NAHI
-    const nightOpen = (yAttRes.data||[]).filter(r => r.in_time && /[0-9]/.test(String(r.in_time)) && String(r.in_time).slice(0,5) >= '17:00' && !(r.out_time && /[0-9]/.test(String(r.out_time))));
+    // "open night" sirf UNKO maano jinki NIGHT shift assigned hai AND kal 17:00+ IN + OUT baaki
+    // (warna purana OUT-missing data bhi ghus jata tha — wahi galti thi)
+    const nightOpen = (yAttRes.data||[]).filter(r =>
+      r.in_time && /[0-9]/.test(String(r.in_time)) && String(r.in_time).slice(0,5) >= '17:00'
+      && !(r.out_time && /[0-9]/.test(String(r.out_time)))
+      && nightAssigned.has(String(r.employee_code).toUpperCase()));
     nightOpen.forEach(r => excused.add(String(r.employee_code).toUpperCase()));
     window._todayExcused = excused;
-    // Night card data: assigned night-shift walon ka aaj/kal status + open-duty waale
+    // Night card = SIRF wo employees jinki hr_profiles me NIGHT shift assigned hai. (random koi nahi)
     window._nightList = [];
-    const seenN = new Set();
-    nightOpen.forEach(r => { const c = String(r.employee_code).toUpperCase(); seenN.add(c);
-      window._nightList.push({ code:c, name:r.Name || c, info:'Duty par — kal IN '+String(r.in_time).slice(0,5)+', OUT baaki' }); });
-    nightAssigned.forEach(c => { if(seenN.has(c)) return;
-      const e = EMP.find(x => String(x['Employee code']).toUpperCase() === c); if(!e || String(e.Status).toUpperCase()!=='ACTIVE') return;
-      const tr = rows.find(r => String(r.employee_code).toUpperCase() === c);
-      window._nightList.push({ code:c, name:e.Name, info: tr && tr.in_time ? ('Aaj IN '+String(tr.in_time).slice(0,5)) : 'Night shift — raat ko aayega' }); });
+    const openSet = new Set(nightOpen.map(r => String(r.employee_code).toUpperCase()));
+    Array.from(nightAssigned).forEach(c => {
+      const e = EMP.find(x => String(x['Employee code']).toUpperCase() === c);
+      if(!e || String(e.Status).toUpperCase() !== 'ACTIVE') return;
+      let info;
+      if(openSet.has(c)){ const yr = yAttRes.data.find(r => String(r.employee_code).toUpperCase()===c); info = 'On duty — kal IN '+String(yr.in_time).slice(0,5)+', OUT pending'; }
+      else { const tr = rows.find(r => String(r.employee_code).toUpperCase() === c); info = tr && tr.in_time ? ('Today IN '+String(tr.in_time).slice(0,5)) : 'Night shift — will come tonight'; }
+      window._nightList.push({ code:c, name:e.Name, info });
+    });
+    window._nightList.sort((a,b)=>String(a.name).localeCompare(String(b.name)));
     if($('dNight')) $('dNight').innerText = window._nightList.length;
     const total = activeEmps().length;
     // aaj working day hai ya off? (Sunday/holiday/OFF-override; WORKING-override sab cancel kar deta hai)
@@ -3653,6 +3669,61 @@ function calcRender(){ calcGo($('calcCTC').value ? 'ctc' : 'gross'); }
 // ============ SALARY STRUCTURE MASTER (CTC page) ============
 var _ctcFilter = 'ALL';
 var _ctcExpanded = {};
+var _ctcDraft = {};   // code -> typed (unsaved) annual CTC — re-render par value na ude
+function ctcCsvDownload(){
+  const rows = [['Employee Code','Name','Department','Category','Annual CTC']];
+  activeEmps().forEach(e => {
+    const code = e['Employee code'];
+    rows.push([code, e.Name, e.DEPARTMENT||'', ctcCatOf(code), ctcAnnualOf(code)||'']);
+  });
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff'+csv], { type:'text/csv' }));
+  a.download = 'salary_ctc_master.csv'; a.click();
+  notify('CSV download — isi format mein Annual CTC bhar ke wapas Upload karo', 'info');
+}
+async function ctcCsvUpload(inp){
+  const f = inp.files && inp.files[0]; inp.value = '';
+  if(!f) return;
+  const text = await f.text();
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if(lines.length < 2) return notify('CSV khaali hai', 'error');
+  // parse (simple CSV with quotes)
+  const parse = l => { const out=[]; let cur='', q=false;
+    for(let i=0;i<l.length;i++){ const ch=l[i];
+      if(q){ if(ch==='"'){ if(l[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=ch; }
+      else { if(ch==='"') q=true; else if(ch===','){ out.push(cur); cur=''; } else cur+=ch; } }
+    out.push(cur); return out; };
+  const head = parse(lines[0]).map(h => h.trim().toLowerCase());
+  const ci = head.findIndex(h => h.includes('code'));
+  const cc = head.findIndex(h => h.includes('ctc'));
+  if(ci < 0 || cc < 0) return notify('CSV mein "Employee Code" aur "Annual CTC" columns chahiye', 'error');
+  const valid = [], skipped = [];
+  for(let i=1;i<lines.length;i++){
+    const p = parse(lines[i]);
+    const code = String(p[ci]||'').trim().toUpperCase();
+    const ctcA = Math.round(Number(String(p[cc]||'').replace(/[^0-9.]/g,''))||0);
+    if(!code) continue;
+    const emp = EMP.find(e => String(e['Employee code']).toUpperCase() === code);
+    if(!emp){ skipped.push(code); continue; }
+    if(!ctcA){ continue; }   // blank CTC = skip (koi change nahi)
+    if(ctcStatusOf(code) === 'PENDING_CEO'){ skipped.push(code + ' (CEO pending — locked)'); continue; }
+    valid.push({ employee_code: code, ctc_annual: ctcA });
+  }
+  if(!valid.length) return notify('Kuch bhi update karne layak nahi mila. Skipped: ' + skipped.slice(0,5).join(', '), 'error');
+  if(!(await nxConfirm(`${valid.length} employees ka Annual CTC update hoga (CSV se).${skipped.length ? '\nSkip: '+skipped.length : ''}\nNote: ye sirf draft CTC set karta hai — salary tabhi lagegi jab Lock → CEO Approve hoga.`, 'Bulk CTC Update'))) return;
+  try{
+    // chunks of 50
+    for(let i=0;i<valid.length;i+=50){
+      const chunk = valid.slice(i, i+50);
+      const { error } = await sb.from('hr_profiles').upsert(chunk, { onConflict: 'employee_code' });
+      if(error) throw error;
+    }
+    valid.forEach(v => { PROFILES[v.employee_code] = Object.assign(PROFILES[v.employee_code]||{ employee_code:v.employee_code }, { ctc_annual: v.ctc_annual }); delete _ctcDraft[v.employee_code]; });
+    notify(`✓ ${valid.length} employees ka CTC update ho gaya${skipped.length ? ' · '+skipped.length+' skip' : ''}`, 'success');
+    renderCtcMaster();
+  }catch(e){ notify('Upload failed: '+(e.message||e), 'error'); }
+}
 function ctcMasterFilter(f, btn){
   _ctcFilter = f;
   document.querySelectorAll('[data-ctcfilter]').forEach(b => b.classList.toggle('active', b === btn));
@@ -3688,7 +3759,7 @@ function renderCtcMaster(){
   list.forEach(e => {
     const code = e['Employee code'];
     const st = ctcStatusOf(code);
-    const ctcA = ctcAnnualOf(code);
+    const ctcA = (_ctcDraft[code] !== undefined && st !== 'PENDING_CEO') ? _ctcDraft[code] : ctcAnnualOf(code);
     // breakup compute
     let basic=0,hra=0,conv=0,spl=0,g=0,c={empPF:0,empESI:0,empLWF:0,eePF:0,eeESI:0,eeLWF:0,eeTDS:0,net:0};
     if(ctcA){
@@ -3768,6 +3839,7 @@ async function ctcLockSend(code){
     const p = PROFILES[code] || { employee_code: code };
     await sb.from('hr_profiles').upsert({ employee_code: code, ctc_annual: ctcA, ctc_status: 'PENDING_CEO' }, { onConflict: 'employee_code' });
     PROFILES[code] = Object.assign(p, { ctc_annual: ctcA, ctc_status: 'PENDING_CEO' });
+    delete _ctcDraft[code];
     notify('✓ Locked — CEO approval ko bhej diya', 'success');
     renderCtcMaster();
   }catch(e){ notify('Failed: '+(e.message||e), 'error'); }
@@ -3791,6 +3863,7 @@ async function ctcCeoDecide(code, approve){
       const salary = Object.assign({}, p.salary||{}, { earn, flags: f });
       await sb.from('hr_profiles').upsert({ employee_code: code, salary, salary_status: 'APPROVED', ctc_status: 'APPROVED', ctc_annual: ctcA }, { onConflict: 'employee_code' });
       PROFILES[code] = Object.assign(p, { salary, salary_status:'APPROVED', ctc_status:'APPROVED', ctc_annual: ctcA });
+      delete _ctcDraft[code];
       notify(`✓ Approved — ${emp?emp.Name:code} ki salary set ho gayi (Gross ₹${c.gross.toLocaleString('en-IN')})`, 'success');
       renderCtcMaster();
     }catch(e){ notify('Failed: '+(e.message||e), 'error'); }
