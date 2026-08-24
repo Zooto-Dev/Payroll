@@ -1096,7 +1096,13 @@ function renderTeamMonth(mon){
   const box = $('tmBox');
   // group by employee
   const byEmp = {};
-  _tmData.forEach(r => { (byEmp[r.code] = byEmp[r.code] || { name:r.name, dept:r.dept, rows:[] }).rows.push(r); });
+  (_tmData||[]).forEach(r => {
+    if(!r) return;
+    const code = r.code || r.employee_code || '';
+    if(!code) return;
+    if(!byEmp[code]) byEmp[code] = { name: r.name || r.Name || code, dept: r.dept || '', rows: [] };
+    byEmp[code].rows.push(r);
+  });
   const codes = Object.keys(byEmp);
   if(!codes.length){ box.innerHTML = '<p class="text-xs m-0" style="color:var(--muted)">Team ka koi data nahi. (Reporting manager set hai kya?)</p>'; return; }
   const [yy,mm] = mon.split('-').map(Number);
@@ -1106,7 +1112,7 @@ function renderTeamMonth(mon){
     + '<th style="position:sticky;left:0;background:#f8fafc;padding:5px 8px;border:1px solid var(--line);text-align:left">Employee</th>';
   for(let d=1; d<=days; d++) h += `<th style="padding:3px 5px;border:1px solid var(--line);text-align:center">${d}</th>`;
   h += '</tr></thead><tbody>';
-  codes.sort((a,b)=>byEmp[a].name.localeCompare(byEmp[b].name)).forEach(code => {
+  codes.sort((a,b)=>String(byEmp[a].name||'').localeCompare(String(byEmp[b].name||''))).forEach(code => {
     const emp = byEmp[code];
     const map = {};
     emp.rows.forEach(r => { if(r.date) map[r.date] = r; });
