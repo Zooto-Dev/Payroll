@@ -491,7 +491,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div id="tmBox" style="overflow:auto"><p class="text-xs m-0" style="color:var(--muted)">Month chuno…</p></div>
   </div>
   <!-- photo capture overlay for present-marking -->
-  <div id="supCam" class="hidden" style="position:fixed;inset:0;z-index:200;background:rgba(15,23,42,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px">
+  <div id="supCam" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(15,23,42,.92);flex-direction:column;align-items:center;justify-content:center;padding:16px">
     <p id="supCamName" style="color:#fff;font-weight:700;font-size:16px;margin-bottom:8px"></p>
     <video id="supCamVideo" autoplay playsinline muted style="width:min(92vw,380px);border-radius:16px;transform:scaleX(-1)"></video>
     <div style="display:flex;gap:10px;margin-top:14px">
@@ -1143,7 +1143,7 @@ function supMarkOpen(code, name, dt){
 }
 async function supCamOpen(name){
   $('supCamName').innerText = name + ' — line par photo lo';
-  $('supCam').classList.remove('hidden');
+  $('supCam').style.display='flex';
   try{
     _supCamStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio:false });
     $('supCamVideo').srcObject = _supCamStream;
@@ -1152,7 +1152,7 @@ async function supCamOpen(name){
     catch(e2){ notify('Camera nahi khula — bina photo submit kar rahe hain'); supCamClose(); supSubmit(null); }
   }
 }
-function supCamClose(){ try{ if(_supCamStream) _supCamStream.getTracks().forEach(t=>t.stop()); }catch(e){} _supCamStream=null; $('supCam').classList.add('hidden'); }
+function supCamClose(){ try{ if(_supCamStream) _supCamStream.getTracks().forEach(t=>t.stop()); }catch(e){} _supCamStream=null; const el=$('supCam'); if(el) el.style.display='none'; }
 function supCamShoot(){
   const v = $('supCamVideo'); let img = null;
   try{ const c = document.createElement('canvas'); c.width=v.videoWidth||480; c.height=v.videoHeight||640; c.getContext('2d').drawImage(v,0,0,c.width,c.height); img = c.toDataURL('image/jpeg',0.75); }catch(e){}
