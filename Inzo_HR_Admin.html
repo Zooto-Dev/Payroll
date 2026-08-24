@@ -548,6 +548,7 @@ body.no-confidential .confidential-col{display:none!important}
       <button id="hrAddBtn" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Add Candidate</button>
       <button id="hrVacBtn" class="btn btn-ghost"><i class="fa-solid fa-briefcase"></i> Vacancies</button>
       <button id="hrCareersBtn" class="btn btn-ghost"><i class="fa-solid fa-share-nodes"></i> Careers Link</button>
+      <button class="btn btn-ghost" onclick="closeVacancyMail()" title="Position fill ho gayi — bacche candidates ko close mail"><i class="fa-solid fa-envelope-circle-check"></i> Close Vacancy</button>
       <select id="hrStageFilter" class="inp" style="width:170px">
         <option value="">All stages</option>
         <option value="APPLIED">Applied</option>
@@ -4236,6 +4237,53 @@ async function loadHiring(){
   }catch(err){ host.innerHTML = `<p style="color:var(--bad)">Error: ${esc(err.message)}</p>`; return; }
   if($('candDeptList')) $('candDeptList').innerHTML = (window.nxDeptOpts ? window.nxDeptOpts('').replace(/<option value="">[^<]*<\/option>/,'') : '');
   if($('candPosList')) $('candPosList').innerHTML = (window.nxDesigOpts ? window.nxDesigOpts('').replace(/<option value="">[^<]*<\/option>/,'') : '');
+  renderHiring();
+}
+async function closeVacancyMail(){
+  // position list (jinme Applied/Shortlisted candidates hain, email ke saath)
+  const openStages = ['APPLIED','SHORTLISTED'];
+  const pool = CANDIDATES.filter(c => openStages.includes(c.stage) && c.email);
+  if(!pool.length) return notify('Applied/Shortlisted mein koi email-wala candidate nahi', 'info');
+  const positions = [...new Set(pool.map(c => (c.position||'').trim()).filter(Boolean))].sort();
+  const posOpts = ['<option value="__ALL__">All open positions</option>'].concat(positions.map(p => `<option value="${esc(p)}">${esc(p)} (${pool.filter(c=>(c.position||'').trim()===p).length})</option>`)).join('');
+
+  let ov = document.getElementById('closeVacOv');
+  if(!ov){ ov = document.createElement('div'); ov.id='closeVacOv'; ov.className='modal'; document.body.appendChild(ov); }
+  ov.classList.add('show');
+  ov.innerHTML = `<div class="modal-box" style="max-width:460px">
+    <div class="flex items-center justify-between mb-3"><h3 class="display font-bold m-0">Close Vacancy</h3><button class="btn btn-ghost btn-sm" onclick="document.getElementById('closeVacOv').classList.remove('show')"><i class="fa-solid fa-xmark"></i></button></div>
+    <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Position fill ho gayi? Jo candidates abhi <b>Applied</b> ya <b>Shortlisted</b> stage par hain, unhe professional "position filled" email chala jayega aur wo <b>Rejected</b> mein move honge.</p>
+    <label class="lbl">Position</label>
+    <select id="closeVacPos" class="inp mb-2" onchange="closeVacCount()">${posOpts}</select>
+    <div id="closeVacInfo" class="text-xs mb-3" style="color:var(--brand)"></div>
+    <button class="btn btn-primary w-full" onclick="closeVacancySend()"><i class="fa-solid fa-paper-plane"></i> Send Close Emails</button>
+  </div>`;
+  closeVacCount();
+}
+function closeVacTargets(){
+  const pos = ($('closeVacPos')||{}).value || '__ALL__';
+  return CANDIDATES.filter(c => ['APPLIED','SHORTLISTED'].includes(c.stage) && c.email && (pos === '__ALL__' || (c.position||'').trim() === pos));
+}
+function closeVacCount(){
+  const t = closeVacTargets();
+  if($('closeVacInfo')) $('closeVacInfo').innerHTML = `<b>${t.length}</b> candidate(s) ko email jayega.`;
+}
+async function closeVacancySend(){
+  const targets = closeVacTargets();
+  if(!targets.length) return notify('Koi candidate nahi mila', 'error');
+  if(!(await nxConfirm(`${targets.length} candidate(s) ko "position filled" email bhejein? Wo Rejected mein move ho jayenge.`, 'Close Vacancy'))) return;
+  document.getElementById('closeVacOv').classList.remove('show');
+  let sent = 0, fail = 0;
+  for(const c of targets){
+    try{
+      await nxGas('candmail', { type: 'vacancy_closed', to: c.email, name: c.name,
+        position: c.position || 'the applied position', company: getSettings().name || 'Zooto Fashion Pvt Ltd' });
+      await sb.from('candidates').update({ stage: 'REJECTED', updated_at: new Date().toISOString() }).eq('id', c.id);
+      const cc = CANDIDATES.find(x => x.id === c.id); if(cc) cc.stage = 'REJECTED';
+      sent++;
+    }catch(e){ fail++; }
+  }
+  notify(`✓ ${sent} email bheje${fail ? ' · '+fail+' fail' : ''} — candidates Rejected mein`, sent ? 'success' : 'error');
   renderHiring();
 }
 function renderHiring(){
