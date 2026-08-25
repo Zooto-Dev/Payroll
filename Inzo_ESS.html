@@ -1129,15 +1129,20 @@ function renderTeamMonth(mon){
       else if(r && r.on_leave){ cell = '<span style="color:#7c3aed;font-weight:700" title="Approved leave">L̲</span>'; bg = '#f5f3ff'; }
       else if(r && r.has_pass){ cell = '<span style="color:#0891b2;font-weight:700" title="Approved gatepass/WFH">G</span>'; bg = '#ecfeff'; }
       else {
-        // ABSENT (koi leave/pass nahi) — pencil se present-request
-        cell = `<span style="color:#dc2626;font-weight:700">A</span> <button onclick="supMarkAsk('${esc(code)}','${esc(emp.name).replace(/'/g,"\\'")}','${dt}')" style="border:none;background:none;color:#2563eb;cursor:pointer;padding:0 2px" title="Present mark karo">✏️</button>`;
+        // ABSENT (koi leave/pass nahi)
+        if(dt === today){
+          // pencil SIRF aaj — HR approval ke liye request
+          cell = `<span style="color:#dc2626;font-weight:700">A</span> <button onclick="supMarkAsk('${esc(code)}','${esc(emp.name).replace(/'/g,"\\'")}','${dt}')" style="border:none;background:none;color:#2563eb;cursor:pointer;padding:0 2px" title="Present mark karo (HR approval)">✏️</button>`;
+        } else {
+          cell = '<span style="color:#dc2626;font-weight:700">A</span>';
+        }
         bg = '#fef2f2';
       }
       h += `<td style="padding:3px 5px;border:1px solid var(--line);text-align:center;background:${bg}">${cell}</td>`;
     }
     h += '</tr>';
   });
-  h += '</tbody></table><p class="text-[10px] mt-1" style="color:var(--muted)">P=Present · <span style="color:#d97706">L</span>=Late · <span style="color:#7c3aed">L̲</span>=Leave · <span style="color:#0891b2">G</span>=Gatepass · <span style="color:#dc2626">A</span>=Absent (✏️ se present request) · hover se timing</p>';
+  h += '</tbody></table><p class="text-[10px] mt-1" style="color:var(--muted)">P=Present · <span style="color:#d97706">L</span>=Late · <span style="color:#7c3aed">L̲</span>=Leave · <span style="color:#0891b2">G</span>=Gatepass · <span style="color:#dc2626">A</span>=Absent · <b>✏️ sirf aaj</b> ke absent par (HR approve karega tab attendance lagegi) · hover se timing</p>';
   box.innerHTML = h;
 }
 // present-marking with photo
@@ -1150,7 +1155,7 @@ function supMarkAsk(code, name, dt){
   ov.style.cssText = 'position:fixed;inset:0;z-index:210;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:20px';
   ov.innerHTML = `<div style="background:#fff;border-radius:16px;max-width:340px;width:100%;padding:20px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.3)">
     <div style="font-size:15px;font-weight:700;margin-bottom:4px">${esc(name)}</div>
-    <div style="font-size:12px;color:#64748b;margin-bottom:14px">${fmtD} ko ye employee <b>present</b> tha?</div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:14px">${fmtD} ko ye employee <b>present</b> tha?<br><span style="font-size:11px;color:#94a3b8">(HR approve karega tabhi attendance lagegi)</span></div>
     <div style="display:flex;gap:10px">
       <button id="supAskYes" style="flex:1;border:none;border-radius:12px;background:#059669;color:#fff;font-weight:800;padding:12px;font-size:15px">YES</button>
       <button id="supAskNo" style="flex:1;border:none;border-radius:12px;background:#f1f5f9;color:#334155;font-weight:700;padding:12px;font-size:15px">NO</button>
@@ -1174,29 +1179,34 @@ async function supCamOpen(name){
     $('supCamVideo').srcObject = _supCamStream;
   }catch(e){
     try{ _supCamStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:false }); $('supCamVideo').srcObject=_supCamStream; }
-    catch(e2){ notify('Camera nahi khula — bina photo submit kar rahe hain'); supCamClose(); supSubmit(null); }
+    catch(e2){ notify('Camera nahi khula — photo ke bina attendance submit nahi ho sakti. Camera permission do aur dobara try karo.'); supCamClose(); _supMark = null; }
   }
 }
 function supCamClose(){ try{ if(_supCamStream) _supCamStream.getTracks().forEach(t=>t.stop()); }catch(e){} _supCamStream=null; const el=$('supCam'); if(el) el.style.display='none'; }
 function supCamShoot(){
   const v = $('supCamVideo'); let img = null;
   try{ const c = document.createElement('canvas'); c.width=v.videoWidth||480; c.height=v.videoHeight||640; c.getContext('2d').drawImage(v,0,0,c.width,c.height); img = c.toDataURL('image/jpeg',0.75); }catch(e){}
+  if(!img || img.length < 2000){ notify('Photo capture nahi hui — dobara try karo'); return; }   // photo zaroori
   supCamClose();
   supSubmit(img);
 }
 async function supSubmit(imgData){
   if(!_supMark) return;
   const m = _supMark;
+  if(!imgData){ notify('Photo zaroori hai — attendance submit nahi hui'); return; }
+  notify('Photo upload ho rahi hai…');
   try{
     let photoUrl = '';
-    if(imgData){
-      try{
-        const bin = atob(imgData.split(',')[1]); const arr = new Uint8Array(bin.length);
-        for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
-        const fn = 'sup_marks/'+m.code+'_'+m.dt+'_'+Date.now()+'.jpg';
-        const up = await sb.storage.from('attendance-photos').upload(fn, new Blob([arr],{type:'image/jpeg'}), { contentType:'image/jpeg' });
-        if(!up.error) photoUrl = SUPABASE_URL + '/storage/v1/object/public/attendance-photos/' + fn;
-      }catch(e){}
+    try{
+      const bin = atob(imgData.split(',')[1]); const arr = new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+      const fn = 'sup_marks/'+m.code+'_'+m.dt+'_'+Date.now()+'.jpg';
+      const up = await sb.storage.from('attendance-photos').upload(fn, new Blob([arr],{type:'image/jpeg'}), { contentType:'image/jpeg' });
+      if(up.error) throw up.error;
+      photoUrl = SUPABASE_URL + '/storage/v1/object/public/attendance-photos/' + fn;
+    }catch(upErr){
+      notify('Photo upload fail — internet check karke dobara try karo. Attendance submit NAHI hui.');
+      return;   // bina photo request nahi jayegi
     }
     const { data, error } = await sb.rpc('ess_sup_mark', { p_code:String(CODE||'').toUpperCase(), p_phone:PHONE, p_emp:m.code, p_name:m.name, p_date:m.dt, p_in:m.time, p_photo:photoUrl });
     if(error) throw error;
