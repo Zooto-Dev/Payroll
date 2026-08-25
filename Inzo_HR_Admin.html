@@ -1344,6 +1344,7 @@ body.no-confidential .confidential-col{display:none!important}
         <div><label class="lbl">Email</label><input id="setEmail" class="inp"></div>
         <div><label class="lbl">HR / Signatory Name</label><input id="setHR" class="inp" placeholder="Kartik"></div>
         <div><label class="lbl">Signatory Designation</label><input id="setHRDesig" class="inp" placeholder="Director"></div>
+        <div><label class="lbl">CEO Email (approvals yahan jayenge)</label><input id="setCEOEmail" class="inp" placeholder="ceo@zootofashion.com"></div>
         <div><label class="lbl">CIN / GSTIN (optional)</label><input id="setCIN" class="inp"></div>
         <div><label class="lbl">Probation (months)</label><input id="setProbation" type="number" class="inp" value="6"></div>
         <div><label class="lbl">Notice Period (days)</label><input id="setNotice" type="number" class="inp" value="30"></div>
@@ -3958,6 +3959,11 @@ async function ctcLockSend(code){
     delete _ctcDraft[code];
     notify('✓ Locked — CEO approval ko bhej diya', 'success');
     renderCtcMaster();
+    const emp2 = EMP.find(e => e['Employee code']===code) || {};
+    await nxSendApprovalEmail('ctc', code, 'Salary / CTC Approval — ' + (emp2.Name||code), [
+      ['Employee', emp2.Name||code], ['Code', code], ['Department', emp2.DEPARTMENT||'—'],
+      ['Annual CTC', '₹' + ctcA.toLocaleString('en-IN')]
+    ]);
   }catch(e){ notify('Failed: '+(e.message||e), 'error'); }
 }
 async function ctcCeoDecide(code, approve){
@@ -4678,8 +4684,14 @@ function candStageActions(c){
       <label class="flex items-center gap-1"><input type="checkbox" id="candTDS" onchange="candOfferPreview()"> TDS</label>
     </div>
     <div id="candOfferBreak" class="text-[11px] mb-2 p-2 rounded" style="background:var(--brand-soft)">${alloc ? candBreakupText(g) : 'Enter the agreed salary to see the breakup.'}</div>
-    ${c.offer_approval === 'PENDING_CEO'
-      ? `<div class="mb-3 p-2 rounded text-xs" style="background:#fffbeb;border:1px solid #fde68a;color:#854d0e"><b>⏳ CEO approval pending</b> — approve hote hi offer email candidate ko apne aap chala jayega.
+    ${c.offer_approval === 'CEO_APPROVED'
+      ? `<div class="mb-3 p-2 rounded text-xs" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534"><b>✓ CEO ne email se APPROVE kiya</b> — ab offer letter candidate ko bhejo.
+         <div class="mt-2"><button class="btn btn-primary btn-sm" onclick="offerCeoDecide('${id}', true)"><i class="fa-solid fa-paper-plane"></i> Send Offer Letter to Candidate</button></div></div>`
+      : c.offer_approval === 'CEO_REJECTED'
+      ? `<div class="mb-3 p-2 rounded text-xs" style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c"><b>✗ CEO ne email se REJECT kiya</b> — salary/terms badal ke dobara bhejo.
+         <div class="mt-2"><button class="btn btn-primary btn-sm" onclick="sendOfferForApproval('${id}')"><i class="fa-solid fa-paper-plane"></i> Dobara CEO Approval ko Bhejo</button></div></div>`
+      : c.offer_approval === 'PENDING_CEO'
+      ? `<div class="mb-3 p-2 rounded text-xs" style="background:#fffbeb;border:1px solid #fde68a;color:#854d0e"><b>⏳ CEO approval pending</b> — CEO ke email par Approve/Reject button gaya hai. Ya yahin se decide karo.
          ${loanCanCEO() ? `<div class="flex gap-2 mt-2"><button class="btn btn-primary btn-sm" onclick="offerCeoDecide('${id}', true)"><i class="fa-solid fa-check"></i> CEO Approve & Send Offer</button><button class="btn btn-danger btn-sm" onclick="offerCeoDecide('${id}', false)"><i class="fa-solid fa-xmark"></i> Reject</button></div>` : ''}</div>`
       : c.offer_approval === 'APPROVED'
       ? `<div class="mb-2 p-2 rounded text-xs" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534"><b>✓ CEO approved</b> — offer email candidate ko bheja ja chuka hai.</div>
@@ -5017,8 +5029,24 @@ async function sendOfferForApproval(id){
   if(!(await nxConfirm(`${c.name} ka offer CEO approval ko bhejein?\nGross: ₹${g.toLocaleString('en-IN')}/month · Joining: ${jd}\n\nCEO approve karega tabhi offer email candidate ko jayega.`, 'CEO Approval'))) return;
   await sb.from('candidates').update({ agreed_salary: g, join_date: jd, offer_approval: 'PENDING_CEO', offer_note: null, offer_flags: JSON.stringify(candStatFlags()), address: ($('candAddr')||{}).value||null, gender: ($('candGender')||{}).value||null, updated_at: new Date().toISOString() }).eq('id', id);
   Object.assign(c, { agreed_salary: g, join_date: jd, offer_approval: 'PENDING_CEO', offer_note: null, offer_flags: JSON.stringify(candStatFlags()), address: ($('candAddr')||{}).value||null, gender: ($('candGender')||{}).value||null });
-  notify('✓ CEO approval ke liye bhej diya — approve hote hi offer email apne aap jayega', 'success');
+  notify('✓ CEO approval ke liye bhej diya', 'success');
   $('candStageBox').innerHTML = candStageActions(c);
+  // CEO ko approve/reject email bhejo
+  await nxSendApprovalEmail('offer', c.id, 'Offer Approval — ' + c.name, [
+    ['Candidate', c.name], ['Position', c.position || '—'], ['Department', c.department || '—'],
+    ['Monthly Gross', '₹' + g.toLocaleString('en-IN')], ['Annual CTC', '₹' + (ctcParts(g, candStatFlags()).annualCTC).toLocaleString('en-IN')],
+    ['Joining Date', jd]
+  ]);
+}
+// generic: CEO ko approval email bhejo (button-based). rows = [[label,value],...]
+async function nxSendApprovalEmail(kind, id, title, rows){
+  const ceo = (getSettings().ceoEmail || '').trim();
+  if(!ceo){ notify('⚠ CEO email Settings mein set nahi hai — email nahi gaya (dashboard se approve kar sakte ho)', 'info'); return; }
+  const lines = (rows||[]).map(r => `<tr><td style="padding:5px 14px 5px 0;color:#64748b">${esc(r[0])}</td><td style="padding:5px 0;font-weight:600">${esc(String(r[1]))}</td></tr>`).join('');
+  try{
+    await nxGas('sendapproval', { to: ceo, kind, id: String(id), title, lines, company: getSettings().name || 'Zooto Fashion Pvt Ltd' });
+    notify('✉ CEO ko approval email bhej di gayi: ' + ceo, 'success');
+  }catch(e){ notify('CEO email fail (dashboard se approve ho sakta hai): ' + (e.message||e), 'info'); }
 }
 async function offerCeoDecide(id, approve){
   if(!loanCanCEO()) return notify('Sirf CEO / Super Admin approve kar sakte hain', 'error');
@@ -7601,7 +7629,7 @@ function fillSettingsForm(){
   loadContractors();
   const S = getSettings();
   $('setName').value = S.name; $('setAddr').value = S.addr; $('setPhone').value = S.phone;
-  $('setEmail').value = S.email; $('setCIN').value = S.cin; $('setHR').value = S.hr; $('setHRDesig').value = S.hrDesig;
+  $('setEmail').value = S.email; $('setCIN').value = S.cin; $('setHR').value = S.hr; $('setHRDesig').value = S.hrDesig; if($('setCEOEmail')) $('setCEOEmail').value = S.ceoEmail || '';
   $('setProbation').value = S.probation; $('setNotice').value = S.notice;
   $('setWeekOff').value = S.weekOff; $('setLates').value = S.latesHalf; $('setMinWO').value = S.minWO || 4;
   $('setEarlyDepts').value = S.earlyDepts || 'PRODUCTION,STORE';
@@ -7627,7 +7655,7 @@ $('setSaveBtn').addEventListener('click', async () => {
   try{
     SETTINGS = {
       name: $('setName').value, addr: $('setAddr').value, phone: $('setPhone').value,
-      email: $('setEmail').value, cin: $('setCIN').value, hr: $('setHR').value, hrDesig: $('setHRDesig').value,
+      email: $('setEmail').value, cin: $('setCIN').value, hr: $('setHR').value, hrDesig: $('setHRDesig').value, ceoEmail: $('setCEOEmail').value,
       probation: Number($('setProbation').value)||6, notice: Number($('setNotice').value)||30,
       weekOff: Number($('setWeekOff').value), latesHalf: Number($('setLates').value)||3, minWO: Number($('setMinWO').value)||4,
       earlyDepts: $('setEarlyDepts').value || 'PRODUCTION,STORE',
