@@ -317,13 +317,13 @@
         <header class="kiosk-header" style="position:relative">
             <img src="nexus-logo.png" alt="Nexus" class="kiosk-logo" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'">
             <span class="kiosk-logo-fb" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;letter-spacing:.14em;font-size:18px;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</span>
-            <button onclick="openRecoveryScreen()" title="Offline punch recovery / sync" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:9px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer"><i class="fa-solid fa-cloud-arrow-up"></i> Sync</button>
+            <button id="hdrSyncBtn" title="Offline punch recovery / sync" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:9px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer"><i class="fa-solid fa-cloud-arrow-up"></i> Sync</button>
         </header>
 
         <div id="offlineBanner" class="hidden w-full bg-red-500 text-white text-[10px] font-bold text-center py-1.5 uppercase tracking-widest shadow-inner z-50">
             <i class="fa-solid fa-wifi-slash mr-1"></i> Offline Mode - Data will be saved locally
         </div>
-        <div id="pendingBadge" class="hidden w-full text-[10px] font-bold text-center py-1.5 uppercase tracking-widest z-50" style="background:#f59e0b;color:#78350f;cursor:pointer" onclick="openRecoveryScreen()">
+        <div id="pendingBadge" class="hidden w-full text-[10px] font-bold text-center py-1.5 uppercase tracking-widest z-50" style="background:#f59e0b;color:#78350f;cursor:pointer" onclick="try{openRecoveryScreen()}catch(e){alert('Recovery error: '+e.message)}">
             <i class="fa-solid fa-cloud-arrow-up mr-1"></i> <span id="pendingCount">0</span> punches waiting to sync — TAP TO OPEN RECOVERY
         </div>
 
@@ -1631,7 +1631,7 @@ function nxConfirm(msg, title){
         }
         async function _idbSet(str){ try{ const db = await _idbOpen(); const tx = db.transaction('kv','readwrite'); tx.objectStore('kv').put(str, 'pending_punches'); }catch(e){} }
         async function _idbGet(){ try{ const db = await _idbOpen(); return await new Promise(r => { const g = db.transaction('kv','readonly').objectStore('kv').get('pending_punches'); g.onsuccess = () => r(g.result || '[]'); g.onerror = () => r('[]'); }); }catch(e){ return '[]'; } }
-        function _savePending(str){ try{ _savePending(str); }catch(e){} _idbSet(str); }
+        function _savePending(str){ try{ localStorage.setItem('pending_punches', str); }catch(e){} _idbSet(str); }
         async function _rehydratePending(){
             try{
                 const ls = JSON.parse(localStorage.getItem('pending_punches') || '[]');
@@ -1659,16 +1659,34 @@ function nxConfirm(msg, title){
             }catch(e){}
         }
         function queuePunch(item){
-            let pending = JSON.parse(localStorage.getItem('pending_punches') || '[]');
+            // returns TRUE only if the punch is VERIFIABLY in localStorage after write.
+            let pending = [];
+            try{ pending = JSON.parse(localStorage.getItem('pending_punches') || '[]'); }catch(e){ pending = []; }
             pending.push(item);
+            const stamp = (item.empCode||'') + '|' + (item.type||'IN') + '|' + (item.timeStr||'') + '|' + (item.todayStr||'');
+            const verify = () => {
+                try{
+                    const back = JSON.parse(localStorage.getItem('pending_punches') || '[]');
+                    return back.some(p => ((p.empCode||'') + '|' + (p.type||'IN') + '|' + (p.timeStr||'') + '|' + (p.todayStr||'')) === stamp);
+                }catch(e){ return false; }
+            };
+            // attempt 1: full item (with photo)
+            try{ localStorage.setItem('pending_punches', JSON.stringify(pending)); }catch(e){}
+            if(verify()){ _idbSet(JSON.stringify(pending)); updatePendingBadge(); return true; }
+            // attempt 2: drop photos (storage full) — punch NEVER dropped
+            const noPhoto = pending.map(p => { const q = Object.assign({}, p); delete q.imageBase64; return q; });
+            try{ localStorage.setItem('pending_punches', JSON.stringify(noPhoto)); }catch(e){}
+            if(verify()){ _idbSet(JSON.stringify(noPhoto)); updatePendingBadge(); return true; }
+            // attempt 3: bilkul minimal (sirf zaroori fields)
             try{
-                _savePending(JSON.stringify(pending));
-            }catch(e){
-                // storage full (many queued photos): drop the PHOTOS but never the punches
-                pending = pending.map(p => { const q = Object.assign({}, p); delete q.imageBase64; return q; });
-                try{ _savePending(JSON.stringify(pending)); }catch(e2){}
-            }
+                const back = JSON.parse(localStorage.getItem('pending_punches') || '[]');
+                back.push({ empCode:item.empCode, empName:item.empName, type:item.type||'IN', timeStr:item.timeStr, todayStr:item.todayStr, is_late:item.is_late });
+                localStorage.setItem('pending_punches', JSON.stringify(back));
+            }catch(e){}
+            const ok = verify();
+            if(ok) _idbSet(localStorage.getItem('pending_punches') || '[]');
             updatePendingBadge();
+            return ok;   // FALSE = localStorage bhi save nahi kar paaya (bahut rare)
         }
         // pull today's server records into the local map so IN/OUT decisions stay right
         // even if the kiosk phone restarts or its local data was cleared
@@ -1908,20 +1926,30 @@ function nxConfirm(msg, title){
                 lastPunchTime.set(empCode, now);
 
                 if (dbSaved) {
+                    // ===== STATE 1: DB tak PAKKA gaya (server se confirm) =====
                     let msg = speakName(empName) + (punchType === 'IN' ? ", aapka punch in safal raha." : ", aapka punch out safal raha.");
                     if(punchType === 'IN' && isLate) msg += " Dhyan rahe, aap late hain.";
                     speakText(msg);
                     showSuccessUI(empData, empName, imageBase64, timeStr, punchType);
                     nxSyncBanner('ok', 'Server saved \u2713 ' + (empName || empCode));
-                    if (dbRowId && imageBase64) uploadPunchPhotoBg(empCode, imageBase64, punchType, dbRowId);   // photo attaches in background
+                    if (dbRowId && imageBase64) uploadPunchPhotoBg(empCode, imageBase64, punchType, dbRowId);
                 } else {
-                    // network genuinely down / DB unreachable -> emergency local queue, said OUT LOUD and shown clearly
-                    queuePunch({ empCode, todayStr: (punchType === 'OUT' ? punchDateStr : todayStr), timeStr, imageBase64, type: punchType, is_late: isLate, empName });
-                    let msg = speakName(empName) + ", dhyan dijiye. Aapka punch abhi SAVE NAHIN hua hai. Network problem hai. Punch machine mein surakshit rakh liya gaya hai aur net aate hi apne aap chala jayega. Kripya supervisor ko zaroor bata dein.";
-                    speakText(msg);
-                    showSuccessUI(empData, empName, imageBase64, timeStr, "\u26a0 " + punchType + " SAVE NAHI HUA \u2014 PENDING (machine mein surakshit, supervisor ko batao)");
-                    nxSyncBanner('err', '\u26a0 PUNCH DB TAK NAHI GAYA \u2014 machine mein surakshit hai. Har minute auto-sync try hoga. (' + (dbWhy || 'no network') + ')');
-                    if (navigator.onLine) setTimeout(() => flushPendingPunches(true), 1500);
+                    // DB tak nahi gaya -> localStorage mein daalo aur PAKKA verify karo
+                    const saved = queuePunch({ empCode, todayStr: (punchType === 'OUT' ? punchDateStr : todayStr), timeStr, imageBase64, type: punchType, is_late: isLate, empName });
+                    if (saved) {
+                        // ===== STATE 2: net nahi tha, par localStorage mein PAKKA save hua =====
+                        let msg = speakName(empName) + ", net nahi hai, par aapka punch machine mein surakshit save ho gaya hai. Net aate hi apne aap chala jayega.";
+                        speakText(msg);
+                        showSuccessUI(empData, empName, imageBase64, timeStr, "\u2713 OFFLINE SAVE HUA \u2014 net aate hi sync hoga");
+                        nxSyncBanner('warn', '\u2713 Offline save (machine mein surakshit) \u2014 ' + (empName || empCode) + ' \u2014 net aate hi auto-sync');
+                        if (navigator.onLine) setTimeout(() => flushPendingPunches(true), 1500);
+                    } else {
+                        // ===== STATE 3: localStorage bhi FAIL (bahut rare) -> RED, koi success nahi =====
+                        let msg = speakName(empName) + ", dhyan dijiye. Aapka punch SAVE NAHI HUA. Kripya supervisor ko abhi batayein aur dobara koshish karein.";
+                        speakText(msg);
+                        showSuccessUI(empData, empName, imageBase64, timeStr, "\u274c SAVE NAHI HUA \u2014 SUPERVISOR KO BATAO (dobara punch karein)");
+                        nxSyncBanner('err', '\u274c PUNCH SAVE NAHI HUA (machine storage full/blocked) \u2014 supervisor ko batao');
+                    }
                 }
             };
 
@@ -2155,6 +2183,10 @@ function nxConfirm(msg, title){
                 b.style.background = '#14532d'; b.style.color = '#bbf7d0';
                 b.textContent = msg;
                 clearTimeout(b._t); b._t = setTimeout(() => { try{ b.remove(); }catch(e){} }, 4000);
+            } else if(kind === 'warn'){
+                b.style.background = '#78350f'; b.style.color = '#fde68a';   // amber — offline saved, net aate hi sync
+                b.textContent = msg;
+                clearTimeout(b._t); b._t = setTimeout(() => { try{ b.remove(); }catch(e){} }, 6000);
             } else {
                 b.style.background = '#7f1d1d'; b.style.color = '#fecaca';
                 b.textContent = msg;
@@ -2280,7 +2312,7 @@ function nxConfirm(msg, title){
             return { checked, fixedIn, fixedOut, total };
         }
         // ---- MOBILE OFFLINE-RECOVERY SCREEN — open  attendance.html?recover=1  (no console needed) ----
-        function openRecoveryScreen(){
+        window.openRecoveryScreen = function openRecoveryScreen(){
           function draw(){
             let pending = [];
             try{ pending = JSON.parse(localStorage.getItem('pending_punches') || '[]'); }catch(e){}
@@ -2359,6 +2391,19 @@ function nxConfirm(msg, title){
           if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(openRecoveryScreen, 900));
           else setTimeout(openRecoveryScreen, 900);
         }
+        // header Sync button — pakka listener (onclick scope issue se bachne ke liye)
+        (function(){
+          function wire(){
+            const b = document.getElementById('hdrSyncBtn');
+            if(b && !b._wired){ b._wired = true; b.addEventListener('click', function(){
+              try{ if(typeof openRecoveryScreen === 'function'){ openRecoveryScreen(); } else { location.href = location.pathname + '?recover=1'; } }
+              catch(e){ alert('Recovery kholne mein dikkat: ' + (e.message||e) + '\n\nURL se try karo: apne link ke end mein ?recover=1 lagao'); }
+            }); }
+          }
+          if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
+          else wire();
+          setTimeout(wire, 1500);
+        })();
         setTimeout(refreshTodayCache, 4000);
 
         // --- STREAMING_CHUNK: Presentation ---
