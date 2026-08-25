@@ -2293,7 +2293,8 @@ function nxConfirm(msg, title){
               <h2 style="margin:0 0 6px;font-size:20px">Offline Attendance Recovery</h2>
               <p style="color:#93c5fd;margin:0 0 18px;font-size:14px">Is device par abhi <b style="color:#fbbf24;font-size:18px">${pending.length}</b> offline punch pending hain.</p>
               ${pending.length ? `
-                <button id="_recSync" style="width:100%;padding:15px;background:#22c55e;color:#052e16;border:none;border-radius:14px;font-size:16px;font-weight:800;margin-bottom:16px">&#8593; SYNC NOW (${pending.length})</button>
+                <button id="_recSync" style="width:100%;padding:15px;background:#22c55e;color:#052e16;border:none;border-radius:14px;font-size:16px;font-weight:800;margin-bottom:10px">&#8593; SYNC NOW (${pending.length})</button>
+                <button id="_recCopy" style="width:100%;padding:13px;background:#a855f7;color:#fff;border:none;border-radius:14px;font-size:14px;font-weight:700;margin-bottom:16px">&#128203; COPY DATA (admin mein paste karke sync karo)</button>
                 <div style="overflow-x:auto;background:#111a2e;border-radius:12px;padding:6px 10px"><table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr style="color:#93c5fd;border-bottom:1px solid #1e293b"><th style="padding:6px 4px">#</th><th style="padding:6px 4px;text-align:left">Name</th><th style="padding:6px 4px">Type</th><th style="padding:6px 4px">Time</th><th style="padding:6px 4px">Date</th></tr></thead><tbody>${rows}</tbody></table></div>
               ` : `<div style="background:#1e293b;padding:18px;border-radius:14px;font-size:14px;line-height:1.6">Queue khaali hai. Matlab ya to sab <b>already sync</b> ho gaya, ya is device par offline data nahi tha. <br><br>Admin &#8594; Work Hours mein <b>aaj ka data</b> check karo — shayad wo sync ho chuka hai.</div>`}
               <div style="margin-top:14px;background:#111a2e;border-radius:10px;padding:10px 12px;font-size:12px;color:#cbd5e1">
@@ -2320,6 +2321,22 @@ function nxConfirm(msg, title){
                 st.innerHTML = left === 0 ? '<span style="color:#22c55e;font-weight:700">&#10003; Sab sync ho gaya! Admin mein verify karo.</span>' : `<span style="color:#fbbf24">${left} abhi bhi baaki &#8212; button dobara dabao.</span>`;
                 setTimeout(draw, 1200);
               }catch(e){ st.innerHTML = '<span style="color:#f87171">Sync fail: ' + e + '</span>'; btn.disabled=false; btn.innerHTML='&#8593; SYNC NOW'; }
+            });
+            const cb = document.getElementById('_recCopy');
+            if(cb) cb.addEventListener('click', async () => {
+              const st = document.getElementById('_recStatus');
+              let pend = []; try{ pend = JSON.parse(localStorage.getItem('pending_punches')||'[]'); }catch(e){}
+              const payload = 'NXPUNCH:' + btoa(unescape(encodeURIComponent(JSON.stringify(pend))));
+              try{
+                await navigator.clipboard.writeText(payload);
+                st.innerHTML = '<span style=\'color:#22c55e;font-weight:700\'>&#10003; Copy ho gaya! Ab admin panel &#8594; Pending Sync mein paste karo.</span>';
+              }catch(e){
+                // clipboard fail -> textarea dikha do manually copy ke liye
+                const ta = document.createElement('textarea'); ta.value = payload;
+                ta.style.cssText = 'width:100%;height:80px;margin-top:10px;font-size:11px;background:#111a2e;color:#93c5fd;border:1px solid #334155;border-radius:8px;padding:8px';
+                st.innerHTML = 'Neeche wala poora text copy karke admin mein paste karo:';
+                st.appendChild(ta); ta.select();
+              }
             });
             const lb = document.getElementById('_recLocal');
             if(lb) lb.addEventListener('click', async () => {
