@@ -954,7 +954,7 @@ function nxConfirm(msg, title){
                 });
 
                 if(labeledFaceDescriptors.length > 0) {
-                    faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.48); 
+                    faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.42); 
                     if (!isSilent) {
                         updateLoading(100, "System Ready");
                         
@@ -1218,11 +1218,11 @@ function nxConfirm(msg, title){
                     _gpuErrStreak = 0;   // a full successful detection = GPU healthy
                     const match = faceMatcher.findBestMatch(detection.descriptor);
                     if (match.label !== 'unknown' && detection.landmarks) trackBlink(match.label, detection.landmarks);
-                    trackUnknown(true, match.label !== 'unknown' && match.distance < 0.50);
+                    trackUnknown(true, match.label !== 'unknown' && match.distance < 0.42);
                     if(NX_DEBUG) hud('detect:' + (_t1-_t0).toFixed(0) + ' desc:' + (_t2-_t1).toFixed(0) + 'ms  best:' + match.label + ' dist:' + match.distance.toFixed(3) + ' conf:' + matchConfidence);
 
-                    const CONFIDENT = 0.42;   // clearly this person -> one scan is enough (fast)
-                    const STRICT    = 0.48;   // outer limit
+                    const CONFIDENT = 0.36;   // clearly this person -> one scan is enough (fast)
+                    const STRICT    = 0.42;   // outer limit — isse door = unknown (galat match rokta hai)
                     // Compute best & second-best distance so we can guarantee it's not someone else.
                     let ambiguous = false, greyZone = false, matchOk = false;
                     if (match.label !== 'unknown' && match.distance < STRICT) {
@@ -1238,7 +1238,7 @@ function nxConfirm(msg, title){
                         }
                         greyZone = best >= CONFIDENT;                 // borderline match
                         // Require a clear gap to the NEXT DIFFERENT person. Wider gap in the grey zone.
-                        const needGap = greyZone ? 0.20 : 0.14;
+                        const needGap = greyZone ? 0.28 : 0.20;   // dusre bande se saaf gap — warna ambiguous = reject
                         ambiguous = (secondLabel && secondLabel !== bestLabel) ? ((second - best) < needGap) : false;
                         matchOk = !ambiguous;
                     }
@@ -2989,7 +2989,7 @@ function nxConfirm(msg, title){
                         // drop any old entry for this code, then add fresh
                         labeledFaceDescriptors = labeledFaceDescriptors.filter(l => l.label !== liveCode);
                         labeledFaceDescriptors.push(new faceapi.LabeledFaceDescriptors(liveCode, floatDescs));
-                        faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.48);
+                        faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.42);
                     }
                     if(!window._regExistingCode){
                         employeeDataMap.set(empCode, row);
