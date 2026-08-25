@@ -602,6 +602,29 @@ body.no-confidential .confidential-col{display:none!important}
 
 <!-- ================= WORK HOURS ================= -->
 <div class="page" id="page-workhours">
+  <div class="card mb-4" style="border:1.5px solid #fde68a;background:linear-gradient(135deg,#fffbeb,#ffffff)">
+    <div class="flex items-center justify-between flex-wrap gap-2">
+      <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-cloud-arrow-up" style="color:#d97706"></i> Offline Punch Sync <span id="psBadge" class="chip chip-warn" style="display:none"></span></h3>
+      <button class="btn btn-ghost btn-sm" onclick="psToggle()"><i class="fa-solid fa-chevron-down" id="psChev"></i></button>
+    </div>
+    <div id="psBody" class="hidden" style="margin-top:10px">
+      <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Offline ki wajah se kiosk par atke punches yahan sync karo. <b>Do tareeke:</b></p>
+      <div class="grid grid-cols-2 gap-3 mb-2" style="max-width:640px">
+        <div class="rounded-lg p-3" style="border:1px solid var(--line)">
+          <div class="text-xs font-bold mb-1" style="color:var(--brand)">A) Isi device se</div>
+          <p class="text-[11px] mt-0 mb-2" style="color:var(--muted)">Agar admin usi phone/tab par khula hai jahan punches atke the.</p>
+          <button class="btn btn-primary btn-sm w-full" onclick="psSyncLocal()"><i class="fa-solid fa-rotate"></i> Is device ke punches sync karo</button>
+        </div>
+        <div class="rounded-lg p-3" style="border:1px solid var(--line)">
+          <div class="text-xs font-bold mb-1" style="color:var(--brand)">B) Doosre device se (paste)</div>
+          <p class="text-[11px] mt-0 mb-2" style="color:var(--muted)">Kiosk phone par Recovery &#8594; "COPY DATA" &#8594; yahan paste karo.</p>
+          <textarea id="psPaste" class="inp" style="width:100%;height:52px;font-size:11px" placeholder="NXPUNCH:... yahan paste karo"></textarea>
+          <button class="btn btn-primary btn-sm w-full mt-1" onclick="psSyncPaste()"><i class="fa-solid fa-paste"></i> Paste se sync karo</button>
+        </div>
+      </div>
+      <div id="psResult" class="text-xs" style="color:var(--brand)"></div>
+    </div>
+  </div>
   <div class="card mb-4">
     <div class="toolbar">
       <div class="fld" style="width:150px"><label class="lbl">View</label>
@@ -2171,6 +2194,76 @@ const PAGE_ICONS = { dashboard:'gauge', mis:'chart-pie', employees:'users', atte
 function isRowLate(r){ return r.is_late === true || String(r.in_time||'').toUpperCase().includes('LATE'); }
 function cleanInTime(r){ return String(r.in_time||'').replace(/\s*\(?LATE\)?/i,'').trim(); }
 function initials(em){ return em.split('@')[0].replace(/[^a-z0-9]/gi, ' ').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'A'; }
+// ============ OFFLINE PUNCH SYNC (admin) ============
+function psToggle(){
+  const b = document.getElementById('psBody'), ch = document.getElementById('psChev');
+  if(!b) return; b.classList.toggle('hidden');
+  if(ch) ch.className = b.classList.contains('hidden') ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-up';
+  psRefreshBadge();
+}
+function psReadLocal(){
+  try{ return JSON.parse(localStorage.getItem('pending_punches') || '[]'); }catch(e){ return []; }
+}
+function psRefreshBadge(){
+  const n = psReadLocal().length;
+  const b = document.getElementById('psBadge');
+  if(b){ if(n){ b.style.display=''; b.innerText = n + ' pending is device par'; } else b.style.display='none'; }
+}
+async function psSyncArray(arr, fromLocal){
+  if(!Array.isArray(arr) || !arr.length){ document.getElementById('psResult').innerHTML = '<span style="color:var(--muted)">Koi pending punch nahi mila.</span>'; return; }
+  const res = document.getElementById('psResult');
+  res.innerHTML = 'Syncing ' + arr.length + ' punches…';
+  // INs pehle, phir OUTs
+  arr.sort((a,b) => (a.type==='OUT'?1:0) - (b.type==='OUT'?1:0));
+  let ok = 0, fail = 0, skip = 0;
+  const doneKeys = [];
+  for(const p of arr){
+    const date = p.todayStr || p.date;
+    const time = p.timeStr || p.time;
+    if(!p.empCode || !date || !time){ skip++; continue; }
+    try{
+      if(p.type === 'OUT'){
+        const { data, error } = await sb.rpc('nx_punch_out', { p_code: p.empCode, p_date: date, p_time: time });
+        if(error) throw error;
+        ok++;
+      } else if(p.type === 'LOG'){
+        skip++;   // deployment log — chhodo
+      } else {
+        const { data, error } = await sb.rpc('nx_punch_in', { p_code: p.empCode, p_name: p.empName || '', p_date: date, p_time: time, p_late: !!p.is_late });
+        if(error) throw error;
+        ok++;
+      }
+      doneKeys.push(JSON.stringify(p));
+    }catch(e){ fail++; }
+  }
+  // local se sync tha to synced items hata do
+  if(fromLocal){
+    const cur = psReadLocal().filter(x => !doneKeys.includes(JSON.stringify(x)));
+    try{ localStorage.setItem('pending_punches', JSON.stringify(cur)); }catch(e){}
+    psRefreshBadge();
+  }
+  res.innerHTML = `<span style="color:var(--ok);font-weight:600">✓ ${ok} synced</span>${fail?` · <span style="color:var(--bad)">${fail} fail</span>`:''}${skip?` · ${skip} skip`:''}. Ab Work Hours mein aaj ka data check karo.`;
+  // dashboard refresh
+  if(typeof loadDashboard === 'function') try{ loadDashboard(); }catch(e){}
+}
+async function psSyncLocal(){
+  const arr = psReadLocal();
+  if(!arr.length){ document.getElementById('psResult').innerHTML = '<span style="color:var(--muted)">Is device par koi pending punch nahi.</span>'; return; }
+  if(!(await nxConfirm(arr.length + ' punches is device se sync karein?', 'Sync'))) return;
+  await psSyncArray(arr, true);
+}
+async function psSyncPaste(){
+  let txt = (document.getElementById('psPaste').value || '').trim();
+  if(!txt){ document.getElementById('psResult').innerHTML = '<span style="color:var(--bad)">Pehle paste karo.</span>'; return; }
+  let arr = null;
+  try{
+    if(txt.indexOf('NXPUNCH:') === 0) txt = decodeURIComponent(escape(atob(txt.slice(8))));
+    arr = JSON.parse(txt);
+  }catch(e){ document.getElementById('psResult').innerHTML = '<span style="color:var(--bad)">Data galat/toota hua hai. Kiosk se dobara COPY karke paste karo.</span>'; return; }
+  if(!(await nxConfirm((arr.length||0) + ' punches paste se sync karein?', 'Sync'))) return;
+  await psSyncArray(arr, false);
+  document.getElementById('psPaste').value = '';
+}
 function shiftNameOf(code){
   const p = PROFILES[code] || {};
   if(!p.shift_id) return '';
@@ -2824,6 +2917,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if(page === 'reports') loadReports();
     if(page === 'adminctl'){ NX_AUTH_USERS = null; renderAdminCtl(); }
     if(page === 'ctccalc'){ renderCtcMaster(); }
+    if(page === 'workhours'){ psRefreshBadge(); }
   });
 });
 document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => $(b.dataset.close).classList.remove('show')));
