@@ -314,16 +314,17 @@
 
     <main class="app-container">
         
-        <header class="kiosk-header">
+        <header class="kiosk-header" style="position:relative">
             <img src="nexus-logo.png" alt="Nexus" class="kiosk-logo" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'">
             <span class="kiosk-logo-fb" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;letter-spacing:.14em;font-size:18px;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</span>
+            <button onclick="openRecoveryScreen()" title="Offline punch recovery / sync" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:9px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer"><i class="fa-solid fa-cloud-arrow-up"></i> Sync</button>
         </header>
 
         <div id="offlineBanner" class="hidden w-full bg-red-500 text-white text-[10px] font-bold text-center py-1.5 uppercase tracking-widest shadow-inner z-50">
             <i class="fa-solid fa-wifi-slash mr-1"></i> Offline Mode - Data will be saved locally
         </div>
-        <div id="pendingBadge" class="hidden w-full text-[10px] font-bold text-center py-1.5 uppercase tracking-widest z-50" style="background:#f59e0b;color:#78350f;cursor:pointer" onclick="flushPendingPunches(false)">
-            <i class="fa-solid fa-cloud-arrow-up mr-1"></i> <span id="pendingCount">0</span> punches waiting to sync — tap to sync now
+        <div id="pendingBadge" class="hidden w-full text-[10px] font-bold text-center py-1.5 uppercase tracking-widest z-50" style="background:#f59e0b;color:#78350f;cursor:pointer" onclick="openRecoveryScreen()">
+            <i class="fa-solid fa-cloud-arrow-up mr-1"></i> <span id="pendingCount">0</span> punches waiting to sync — TAP TO OPEN RECOVERY
         </div>
 
         <!-- Device Auth State -->
@@ -2279,8 +2280,7 @@ function nxConfirm(msg, title){
             return { checked, fixedIn, fixedOut, total };
         }
         // ---- MOBILE OFFLINE-RECOVERY SCREEN — open  attendance.html?recover=1  (no console needed) ----
-        (function(){
-          if(!/[?&#]recover/i.test(location.href)) return;
+        function openRecoveryScreen(){
           function draw(){
             let pending = [];
             try{ pending = JSON.parse(localStorage.getItem('pending_punches') || '[]'); }catch(e){}
@@ -2352,9 +2352,13 @@ function nxConfirm(msg, title){
             });
           }
           async function boot(){ try{ await _rehydratePending(); }catch(e){} draw(); }
-          if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 900));
-          else setTimeout(boot, 900);
-        })();
+          boot();
+        }
+        // URL se auto-open (purana tarika bhi chale)
+        if(/[?&#]recover/i.test(location.href)){
+          if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(openRecoveryScreen, 900));
+          else setTimeout(openRecoveryScreen, 900);
+        }
         setTimeout(refreshTodayCache, 4000);
 
         // --- STREAMING_CHUNK: Presentation ---
