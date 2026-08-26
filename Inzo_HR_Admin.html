@@ -3830,16 +3830,23 @@ async function ctcCsvUpload(inp){
   if(!valid.length) return notify('Kuch bhi update karne layak nahi mila. Skipped: ' + skipped.slice(0,5).join(', '), 'error');
   if(!(await nxConfirm(`${valid.length} employees ka Annual CTC update hoga (CSV se).${skipped.length ? '\nSkip: '+skipped.length : ''}\nNote: ye sirf draft CTC set karta hai — salary tabhi lagegi jab Lock → CEO Approve hoga.`, 'Bulk CTC Update'))) return;
   try{
-    // chunks of 50
+    let saved = 0;
     for(let i=0;i<valid.length;i+=50){
       const chunk = valid.slice(i, i+50);
-      const { error } = await sb.from('hr_profiles').upsert(chunk, { onConflict: 'employee_code' });
+      const { data, error } = await sb.from('hr_profiles').upsert(chunk, { onConflict: 'employee_code' }).select('employee_code, ctc_annual');
       if(error) throw error;
+      // sach mein save hua confirm karo
+      (data||[]).forEach(row => {
+        const code = String(row.employee_code).toUpperCase();
+        PROFILES[code] = Object.assign(PROFILES[code]||{ employee_code: code }, { ctc_annual: Number(row.ctc_annual)||0 });
+        delete _ctcDraft[code];
+        saved++;
+      });
     }
-    valid.forEach(v => { PROFILES[v.employee_code] = Object.assign(PROFILES[v.employee_code]||{ employee_code:v.employee_code }, { ctc_annual: v.ctc_annual }); delete _ctcDraft[v.employee_code]; });
-    notify(`✓ ${valid.length} employees ka CTC update ho gaya${skipped.length ? ' · '+skipped.length+' skip' : ''}`, 'success');
+    if(saved === 0){ notify('⚠ Upload gaya par DB ne 0 rows save kiye — RLS/permission ya column issue. Console dekho.', 'error'); return; }
+    notify(`✓ ${saved} employees ka CTC update ho gaya (DB se confirm)${skipped.length ? ' · '+skipped.length+' skip' : ''}`, 'success');
     renderCtcMaster();
-  }catch(e){ notify('Upload failed: '+(e.message||e), 'error'); }
+  }catch(e){ notify('Upload failed: '+(e.message||e), 'error'); console.error('CTC upload error:', e); }
 }
 function ctcMasterFilter(f, btn){
   _ctcFilter = f;
@@ -3848,14 +3855,16 @@ function ctcMasterFilter(f, btn){
 }
 function ctcCatOf(code){ return String((PROFILES[code]||{}).category || 'WORKER').toUpperCase(); }
 function ctcAnnualOf(code){
-  // current stored annual CTC: agar salary set hai to gross*12 + employer sides; warna profile.ctc_annual (pending edit)
   const p = PROFILES[code] || {};
+  // ctc_annual jo bhara hai (upload/manual/approved) usko pehle dikhao
+  if(Number(p.ctc_annual) > 0) return Number(p.ctc_annual);
+  // warna agar approved salary set hai to usse nikaalo
   if(p.salary && p.salary.earn){
     const gross = Object.values(empSalary(code)).reduce((a,b)=>a+(Number(b)||0),0);
     const f = p.salary.flags || { pf:true, esi: gross<=Number(getSettings().esiLimit), lwf:true, tds:false };
     return ctcParts(gross, f).annualCTC;
   }
-  return Number(p.ctc_annual)||0;
+  return 0;
 }
 function ctcStatusOf(code){ return String((PROFILES[code]||{}).ctc_status || '').toUpperCase(); }  // '', PENDING_CEO, APPROVED
 function renderCtcMaster(){
