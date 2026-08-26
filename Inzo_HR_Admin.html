@@ -727,7 +727,6 @@ body.no-confidential .confidential-col{display:none!important}
     <button class="ap-tab" data-aptab="mloan"><i class="fa-solid fa-sack-dollar"></i> Advance / Loan <span class="ap-cnt" id="apCntMl">0</span></button>
     <button class="ap-tab" data-aptab="wpass"><i class="fa-solid fa-id-card-clip"></i> Work Pass <span class="ap-cnt" id="apCntWp">0</span></button>
     <button class="ap-tab" data-aptab="supatt"><i class="fa-solid fa-user-clock"></i> Supervisor Attendance <span class="ap-cnt" id="apCntSup">0</span></button>
-    <button class="ap-tab" data-aptab="approved" style="margin-left:auto;background:#f0fdf4;color:#166534"><i class="fa-solid fa-circle-check"></i> Approved History</button>
   </div>
   <div class="card" style="padding:0;overflow:hidden">
     <div class="ap-panel" id="apPanel-leaves">
@@ -738,8 +737,10 @@ body.no-confidential .confidential-col{display:none!important}
       <div id="apLeaves" class="text-sm" style="padding:0"></div>
     </div>
     <div class="ap-panel hidden" id="apPanel-ot">
-      <div class="p-3 border-b flex items-center justify-end" style="border-color:var(--line)">
-        <button class="btn btn-primary btn-sm" data-act="ot-approve-all"><i class="fa-solid fa-check-double"></i> Approve All</button>
+      <div class="p-3 border-b flex items-center gap-2" style="border-color:var(--line)">
+        <button class="btn btn-primary btn-sm" id="apOtPend" onclick="apEssMode('ot','PENDING')">Pending</button>
+        <button class="btn btn-ghost btn-sm" id="apOtAppr" onclick="apEssMode('ot','APPROVED')">Approved</button>
+        <button class="btn btn-ghost btn-sm ml-auto" data-act="ot-approve-all"><i class="fa-solid fa-check-double"></i> Approve All</button>
       </div>
       <div id="apOT" class="text-sm" style="padding:0"></div>
     </div>
@@ -750,37 +751,28 @@ body.no-confidential .confidential-col{display:none!important}
       </div>
       <div id="apExp" class="text-sm" style="padding:0"></div>
     </div>
-    <div class="ap-panel hidden" id="apPanel-field"><div id="apField" class="text-sm" style="padding:0"></div></div>
-    <div class="ap-panel hidden" id="apPanel-wfh"><div id="apWfh" class="text-sm" style="padding:0"></div></div>
-    <div class="ap-panel hidden" id="apPanel-gate"><div id="apGate" class="text-sm" style="padding:0"></div></div>
-    <div class="ap-panel hidden" id="apPanel-attfix"><div id="apAttfix" class="text-sm" style="padding:0"></div></div>
+    <div class="ap-panel hidden" id="apPanel-field">
+      <div class="p-3 border-b flex gap-2" style="border-color:var(--line)"><button class="btn btn-primary btn-sm" id="apFieldPend" onclick="apEssMode('field','PENDING')">Pending</button><button class="btn btn-ghost btn-sm" id="apFieldAppr" onclick="apEssMode('field','APPROVED')">Approved</button></div>
+      <div id="apField" class="text-sm" style="padding:0"></div></div>
+    <div class="ap-panel hidden" id="apPanel-wfh">
+      <div class="p-3 border-b flex gap-2" style="border-color:var(--line)"><button class="btn btn-primary btn-sm" id="apWfhPend" onclick="apEssMode('wfh','PENDING')">Pending</button><button class="btn btn-ghost btn-sm" id="apWfhAppr" onclick="apEssMode('wfh','APPROVED')">Approved</button></div>
+      <div id="apWfh" class="text-sm" style="padding:0"></div></div>
+    <div class="ap-panel hidden" id="apPanel-gate">
+      <div class="p-3 border-b flex gap-2" style="border-color:var(--line)"><button class="btn btn-primary btn-sm" id="apGatePend" onclick="apEssMode('gate','PENDING')">Pending</button><button class="btn btn-ghost btn-sm" id="apGateAppr" onclick="apEssMode('gate','APPROVED')">Approved</button></div>
+      <div id="apGate" class="text-sm" style="padding:0"></div></div>
+    <div class="ap-panel hidden" id="apPanel-attfix">
+      <div class="p-3 border-b flex gap-2" style="border-color:var(--line)"><button class="btn btn-primary btn-sm" id="apAfPend" onclick="apEssMode('attfix','PENDING')">Pending</button><button class="btn btn-ghost btn-sm" id="apAfAppr" onclick="apEssMode('attfix','APPROVED')">Approved</button></div>
+      <div id="apAttfix" class="text-sm" style="padding:0"></div></div>
     <div class="ap-panel hidden" id="apPanel-mloan">
+      <div class="p-3 border-b flex gap-2" style="border-color:var(--line)"><button class="btn btn-primary btn-sm" id="apMlPend" onclick="apEssMode('mloan','PENDING')">Pending</button><button class="btn btn-ghost btn-sm" id="apMlAppr" onclick="apEssMode('mloan','APPROVED')">Approved</button></div>
       <div id="apMloan" class="text-sm" style="padding:0"></div>
     </div>
     <div class="ap-panel hidden" id="apPanel-wpass">
       <div id="apWpass" class="text-sm" style="padding:0"></div>
     </div>
     <div class="ap-panel hidden" id="apPanel-supatt">
+      <div class="p-3 border-b flex gap-2" style="border-color:var(--line)"><button class="btn btn-primary btn-sm" id="apSupPend" onclick="apSupMode('PENDING')">Pending</button><button class="btn btn-ghost btn-sm" id="apSupAppr" onclick="apSupMode('APPROVED')">Approved</button></div>
       <div id="apSupatt" class="text-sm" style="padding:0"></div>
-    </div>
-    <div class="ap-panel hidden" id="apPanel-approved">
-      <div class="p-3 border-b flex items-center gap-2 flex-wrap" style="border-color:var(--line)">
-        <select id="apvType" class="inp" style="width:170px" onchange="loadApprovedHistory()">
-          <option value="ALL">All types</option>
-          <option value="leaves">Leaves</option>
-          <option value="ot">Overtime</option>
-          <option value="expenses">Expenses</option>
-          <option value="field">Field Duty</option>
-          <option value="wfh">WFH</option>
-          <option value="gate">Gate Pass</option>
-          <option value="mloan">Advance / Loan</option>
-          <option value="supatt">Supervisor Attendance</option>
-        </select>
-        <input type="month" id="apvMonth" class="inp" style="width:150px" onchange="loadApprovedHistory()">
-        <input id="apvSearch" class="inp" placeholder="🔍 naam / code" style="width:160px" oninput="loadApprovedHistory()">
-        <button class="btn btn-ghost btn-sm" onclick="loadApprovedHistory()"><i class="fa-solid fa-rotate"></i></button>
-      </div>
-      <div id="apApproved" class="text-sm" style="padding:0"><p class="m-0 text-xs p-3" style="color:var(--muted)">Type/month chuno — approved requests dikhengi.</p></div>
     </div>
   </div>
 </div>
@@ -9747,6 +9739,22 @@ async function loadVoice(){
 }
 
 /* ================= APPROVALS INBOX ================= */
+async function apSupMode(mode){
+  _apToggle2('apSupPend', 'apSupAppr', mode);
+  if(mode === 'PENDING') return loadSupAttApprovals();
+  const host = $('apSupatt'); if(!host) return;
+  host.innerHTML = '<p class="m-0 text-xs p-3" style="color:var(--muted)">Loading…</p>';
+  const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
+  try{
+    const { data } = await sb.from('sup_att_requests').select('*').eq('status','APPROVED').order('date',{ascending:false}).limit(200);
+    host.innerHTML = (data||[]).length ? (data||[]).map(r => `<div class="p-3 border-b flex items-center gap-3" style="border-color:var(--line)">
+      ${r.photo_url ? `<button class="wh-thumb" data-full="${esc(r.photo_url)}" style="width:44px;height:44px;border-radius:8px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:18px" title="Photo dekho">📷</button>` : '<span class="text-xs" style="color:var(--faint);width:44px">no photo</span>'}
+      <div style="flex:1;min-width:0"><div class="font-semibold text-sm">${esc(nameOf(r.emp_code || r.employee_code))} <span class="text-xs" style="color:var(--muted)">(${esc(r.emp_code || r.employee_code)})</span></div>
+        <div class="text-xs" style="color:var(--muted)">${fmtDate(r.date)} · IN ${esc(r.in_time||'—')} · by ${esc(r.sup_code||r.sup_name||'—')}</div></div>
+      <span class="chip chip-ok" style="font-size:10px">APPROVED</span>
+    </div>`).join('') : '<p class="m-0 text-xs p-3" style="color:var(--muted)">No approved supervisor attendance.</p>';
+  }catch(e){ host.innerHTML = '<p class="m-0 text-xs p-3" style="color:var(--bad)">Error: '+esc(e.message||e)+'</p>'; }
+}
 async function loadSupAttApprovals(){
   const host = $('apSupatt'); if(!host) return;
   try{
@@ -9945,63 +9953,64 @@ function _apToggleBtns(pendBtn, apprBtn, mode){
   $(pendBtn).className = 'btn btn-sm ' + (mode === 'PENDING' ? 'btn-primary' : 'btn-ghost');
   $(apprBtn).className = 'btn btn-sm ' + (mode === 'PENDING' ? 'btn-ghost' : 'btn-primary');
 }
-async function loadApprovedHistory(){
-  const host = $('apApproved'); if(!host) return;
-  const type = ($('apvType')||{}).value || 'ALL';
-  const mon = ($('apvMonth')||{}).value || '';   // YYYY-MM
-  const q = (($('apvSearch')||{}).value || '').toLowerCase().trim();
+function _apToggle2(pendId, apprId, mode){
+  const p = document.getElementById(pendId), a = document.getElementById(apprId);
+  if(p){ p.className = 'btn btn-sm ' + (mode==='PENDING' ? 'btn-primary' : 'btn-ghost'); }
+  if(a){ a.className = 'btn btn-sm ' + (mode==='APPROVED' ? 'btn-primary' : 'btn-ghost'); }
+}
+// har ESS-type tab ka Pending/Approved toggle (proof/photo ke saath)
+async function apEssMode(kind, mode){
+  const map = {
+    field: { host:'apField', pend:'apFieldPend', appr:'apFieldAppr' },
+    wfh:   { host:'apWfh',   pend:'apWfhPend',   appr:'apWfhAppr' },
+    gate:  { host:'apGate',  pend:'apGatePend',  appr:'apGateAppr' },
+    attfix:{ host:'apAttfix',pend:'apAfPend',    appr:'apAfAppr' },
+    ot:    { host:'apOT',    pend:'apOtPend',    appr:'apOtAppr' },
+    mloan: { host:'apMloan', pend:'apMlPend',    appr:'apMlAppr' }
+  };
+  const m = map[kind]; if(!m) return;
+  _apToggle2(m.pend, m.appr, mode);
+  if(mode === 'PENDING') return loadApprovals();   // pending wapas normal load
+
+  const host = $(m.host); if(host) host.innerHTML = '<p class="m-0 text-xs p-3" style="color:var(--muted)">Loading…</p>';
   const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
-  const inMon = d => !mon || String(d||'').slice(0,7) === mon;
-  const matchQ = (code) => !q || (String(code)+' '+nameOf(code)).toLowerCase().includes(q);
-  host.innerHTML = '<p class="m-0 text-xs p-3" style="color:var(--muted)">Loading…</p>';
-  const rows = [];
+
   try{
-    const want = t => type === 'ALL' || type === t;
-    // leaves
-    if(want('leaves')){
-      const { data } = await sb.from('leaves').select('*').eq('status','APPROVED').order('from_date',{ascending:false}).limit(300);
-      (data||[]).filter(x=>inMon(x.from_date)&&matchQ(x.employee_code)).forEach(x=>rows.push({ type:'Leave', code:x.employee_code, date:x.from_date, detail:`${x.leave_type||''} · ${fmtDate(x.from_date)}→${fmtDate(x.to_date)} · ${x.days||''}d`, extra:x.reason||'' }));
+    if(kind === 'ot'){
+      const { data } = await sb.from('ot_requests').select('*').eq('status','APPROVED').order('ot_date',{ascending:false}).limit(200);
+      host.innerHTML = (data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
+        <thead><tr><th>Employee</th><th>Date</th><th>Hours</th><th>Reason</th></tr></thead><tbody>
+        ${data.map(r=>`<tr><td class="font-semibold">${esc(nameOf(r.employee_code))}</td><td class="text-xs">${fmtDate(r.ot_date)}</td><td>${esc(String(r.hours||r.ot_hours||''))}</td><td class="text-xs">${esc(r.reason||'—')}</td></tr>`).join('')}
+        </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">No approved overtime.</p>';
+      return;
     }
-    // overtime
-    if(want('ot')){
-      const { data } = await sb.from('ot_requests').select('*').eq('status','APPROVED').order('date',{ascending:false}).limit(300);
-      (data||[]).filter(x=>inMon(x.date)&&matchQ(x.employee_code)).forEach(x=>rows.push({ type:'Overtime', code:x.employee_code, date:x.date, detail:`${fmtDate(x.date)} · ${x.hours||''} hrs`, extra:x.reason||'' }));
+    if(kind === 'mloan'){
+      const { data } = await sb.from('money_requests').select('*').in('status',['APPROVED','CEO_APPROVED','PAID']).order('created_at',{ascending:false}).limit(200);
+      host.innerHTML = (data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
+        <thead><tr><th>Employee</th><th>Type</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>
+        ${data.map(r=>`<tr><td class="font-semibold">${esc(nameOf(r.employee_code))}</td><td class="text-xs">${esc(r.req_type||'Advance')}</td><td>₹${esc(String(r.amount||0))}</td><td><span class="chip chip-ok" style="font-size:10px">${esc(r.status)}</span></td><td class="text-xs">${fmtDate((r.created_at||'').slice(0,10))}</td></tr>`).join('')}
+        </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">No approved advances/loans.</p>';
+      return;
     }
-    // expenses
-    if(want('expenses')){
-      const { data } = await sb.from('expenses').select('*').in('status',['APPROVED','PAID']).order('expense_date',{ascending:false}).limit(300);
-      (data||[]).filter(x=>inMon(x.expense_date)&&matchQ(x.employee_code)).forEach(x=>rows.push({ type:'Expense', code:x.employee_code, date:x.expense_date, detail:`${x.category||''} · ₹${x.amount||0}`, extra:x.status }));
-    }
-    // ess_att_requests: field/wfh/gate
-    if(want('field')||want('wfh')||want('gate')){
-      const types = [];
-      if(want('field')) types.push('FIELD');
-      if(want('wfh')) types.push('WFH');
-      if(want('gate')) types.push('GATE_SL','GATE_HD');
-      if(types.length){
-        const { data } = await sb.from('ess_att_requests').select('*').eq('status','APPROVED').in('req_type',types).order('date',{ascending:false}).limit(300);
-        (data||[]).filter(x=>inMon(x.date)&&matchQ(x.employee_code)).forEach(x=>rows.push({ type:x.req_type, code:x.employee_code, date:x.date, detail:`${fmtDate(x.date)}${x.location?' · '+x.location:''}`, extra:x.reason||'' }));
-      }
-    }
-    // money (advance/loan)
-    if(want('mloan')){
-      const { data } = await sb.from('money_requests').select('*').in('status',['APPROVED','CEO_APPROVED','PAID']).order('created_at',{ascending:false}).limit(300);
-      (data||[]).filter(x=>inMon(x.created_at)&&matchQ(x.employee_code)).forEach(x=>rows.push({ type:x.req_type||'Advance', code:x.employee_code, date:(x.created_at||'').slice(0,10), detail:`₹${x.amount||0}`, extra:x.status }));
-    }
-    // supervisor attendance
-    if(want('supatt')){
-      const { data } = await sb.from('sup_att_requests').select('*').eq('status','APPROVED').order('date',{ascending:false}).limit(300);
-      (data||[]).filter(x=>inMon(x.date)&&matchQ(x.emp_code||x.employee_code)).forEach(x=>rows.push({ type:'Sup-Att', code:x.emp_code||x.employee_code, date:x.date, detail:`${fmtDate(x.date)} · IN ${x.in_time||''}`, extra:'by '+(x.sup_code||'') }));
-    }
-    rows.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+    // ess_att_requests: field / wfh / gate / attfix — PROOF button ke saath
+    const typeFilter = kind === 'field' ? ['FIELD'] : kind === 'wfh' ? ['WFH'] : kind === 'gate' ? ['GATE_SL','GATE_HD'] : ['ATT_FIX'];
+    let qb = sb.from('ess_att_requests').select('*').eq('status','APPROVED').order('date',{ascending:false}).limit(200);
+    // FIELD includes null req_type
+    const { data } = await qb;
+    let rows = (data||[]).filter(r => {
+      if(kind === 'field') return !r.req_type || r.req_type === 'FIELD';
+      return typeFilter.includes(r.req_type);
+    });
     host.innerHTML = rows.length ? `<div style="overflow-x:auto"><table class="tbl">
-      <thead><tr><th>Type</th><th>Employee</th><th>Code</th><th>Detail</th><th>Note</th></tr></thead><tbody>
-      ${rows.map(r=>`<tr><td><span class="chip chip-ok" style="font-size:10px">${esc(r.type)}</span></td>
-        <td class="font-semibold">${esc(nameOf(r.code))}</td><td class="text-xs">${esc(r.code)}</td>
-        <td class="text-xs">${esc(r.detail)}</td><td class="text-xs" style="color:var(--muted)">${esc(String(r.extra||''))}</td></tr>`).join('')}
-      </tbody></table></div>
-      <p class="text-xs p-2" style="color:var(--muted)">${rows.length} approved requests${mon?' · '+mon:''}</p>`
-      : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Is filter mein koi approved request nahi mili.</p>';
+      <thead><tr><th>Employee</th><th>Date</th><th>Detail</th><th>Reason</th><th>Proof</th></tr></thead><tbody>
+      ${rows.map(r=>{
+        const extra = r.req_type === 'GATE_SL' ? (r.gp_slot === 'MORNING' ? 'Short Leave · Subah' : r.gp_slot === 'EVENING' ? 'Short Leave · Shaam' : 'Short Leave')
+          : r.req_type === 'GATE_HD' ? 'Half Day'
+          : r.req_type === 'ATT_FIX' ? ('In ' + (r.fix_in ? String(r.fix_in).substring(0,5) : '—') + (r.fix_out ? ' · Out ' + String(r.fix_out).substring(0,5) : '')) : (r.location||'—');
+        const proofBtn = r.proof_path ? `<button class="btn btn-ghost btn-sm" data-act="ex-proof" data-path="${esc(r.proof_path)}" title="View proof"><i class="fa-solid fa-paperclip"></i> View</button>` : '<span style="color:var(--faint)">—</span>';
+        return `<tr><td class="font-semibold">${esc(r.name || nameOf(r.employee_code))}</td><td class="text-xs">${fmtDate(r.date)}</td><td class="text-xs">${esc(extra)}</td><td class="text-xs" style="max-width:200px">${esc(r.reason||'—')}</td><td>${proofBtn}</td></tr>`;
+      }).join('')}
+      </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">No approved requests.</p>';
   }catch(e){ host.innerHTML = '<p class="m-0 text-xs p-3" style="color:var(--bad)">Error: '+esc(e.message||e)+'</p>'; }
 }
 async function apLvMode(mode){
@@ -10031,11 +10040,6 @@ async function apExMode(mode){
 document.querySelectorAll('.ap-tab').forEach(t => t.addEventListener('click', () => {
   document.querySelectorAll('.ap-tab').forEach(x => x.classList.toggle('active', x === t));
   document.querySelectorAll('.ap-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'apPanel-' + t.dataset.aptab));
-  if(t.dataset.aptab === 'approved'){
-    const mEl = document.getElementById('apvMonth');
-    if(mEl && !mEl.value){ const d = new Date(); mEl.value = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
-    loadApprovedHistory();
-  }
 }));
 
 /* ---------------- Bulk OT (admin, directly approved) ---------------- */
