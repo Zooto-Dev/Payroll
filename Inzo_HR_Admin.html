@@ -6818,6 +6818,11 @@ document.body.addEventListener('click', async e => {
     await sb.from('leaves').update({ status: 'CANCELLED' }).eq('id', el.dataset.id);
     loadLeaves();
   }
+  // reject reason helper — employee ko ESS mein dikhega
+  window._askRejectReason = window._askRejectReason || (async function(what){
+    const r = await nxPrompt('Reject reason' + (what?' ('+what+')':'') + ' — ye employee ko ESS mein dikhega:', 'Reject');
+    return (r === null) ? null : (String(r||'').trim() || 'Not specified');
+  });
   if((act === 'appr-leave' || act === 'rej-leave') && !(canApprove('leave') && roleCEO())) return notify('Only the CEO can approve leaves', 'error');
   if((act === 'ot-appr-grp' || act === 'ot-rej-grp') && !(canApprove('ot') && roleCEO())) return notify('Only the CEO can approve overtime', 'error');
   if((act === 'appr-exp' || act === 'rej-exp' || act === 'appr-ex' || act === 'rej-ex') && !(canApprove('expense') && roleAcctMgr())) return notify('Only the Accounts team can approve expenses', 'error');
@@ -6827,7 +6832,10 @@ document.body.addEventListener('click', async e => {
     if($('page-approvals').classList.contains('show')) loadApprovals(); else loadLeaves();
   }
   if(act === 'cancel-leave-x'){
-    await sb.from('leaves').update({ status: 'CANCELLED' }).eq('id', el.dataset.id);
+    const reason = await _askRejectReason('leave');
+    if(reason === null) return;
+    await sb.from('leaves').update({ status: 'CANCELLED', admin_note: reason }).eq('id', el.dataset.id);
+    notify('Leave rejected', 'success');
     loadApprovals();
   }
   if(act === 'ot-approve-all'){
@@ -6914,7 +6922,9 @@ document.body.addEventListener('click', async e => {
     return;
   }
   if(act === 'ml-rej'){
-    await sb.from('money_requests').update({ status: 'REJECTED', decided_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
+    const _mrReason = await _askRejectReason('advance/loan');
+    if(_mrReason === null) return;
+    await sb.from('money_requests').update({ status: 'REJECTED', decided_by: ME_EMAIL, decided_at: new Date().toISOString(), reject_reason: _mrReason }).eq('id', el.dataset.id);
     notify('Rejected', 'success');
     loadApprovals();
     return;
@@ -7055,7 +7065,9 @@ document.body.addEventListener('click', async e => {
       if(fx && fx.error) return notify(fx.error, 'error');
       notify('Correction approved — attendance record created for ' + fmtDate(r.date), 'success');
     } else {
-      await sb.from('ess_att_requests').update({ status: act === 'ea-appr' ? 'APPROVED' : 'REJECTED', approved_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', el.dataset.id);
+      let _essRejReason = null;
+      if(act === 'ea-rej'){ _essRejReason = await _askRejectReason(r.req_type||'request'); if(_essRejReason === null) return; }
+      await sb.from('ess_att_requests').update({ status: act === 'ea-appr' ? 'APPROVED' : 'REJECTED', approved_by: ME_EMAIL, decided_at: new Date().toISOString(), reject_reason: _essRejReason }).eq('id', el.dataset.id);
       // Recompute late for that day based on the leave:
       //  - Half Day  -> not late
       //  - Morning Short Leave -> allowed to arrive up to (normal cutoff + 3 hours); late only after that
