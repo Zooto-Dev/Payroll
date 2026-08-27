@@ -5712,6 +5712,7 @@ async function runPayroll(){
     (wfhRes.data || []).forEach(w => {
       if(w.req_type === 'WFH') (wfhMap[w.employee_code] = wfhMap[w.employee_code] || new Set()).add(w.date);
       if(w.req_type === 'GATE_SL') (gateSLMap[w.employee_code] = gateSLMap[w.employee_code] || new Set()).add(w.date);
+      if(w.req_type === 'GATE_HD') (window._gateHDMap = window._gateHDMap || {}, (window._gateHDMap[w.employee_code] = window._gateHDMap[w.employee_code] || new Set()).add(w.date));
       (apprReqDays[w.employee_code] = apprReqDays[w.employee_code] || new Set()).add(w.date);
     });
     window._wfhMap = wfhMap;
@@ -5760,7 +5761,7 @@ async function runPayroll(){
         if(r && !x.isWO && !x.isH){
           present++;
           // approved SHORT-LEAVE gate pass = late excused (pura paisa, manager-approved)
-          if(isRowLate(r) && !((gateSLMap[code]||new Set()).has(x.iso))) lates++;
+          if(isRowLate(r) && !((gateSLMap[code]||new Set()).has(x.iso)) && !(((window._gateHDMap||{})[code]||new Set()).has(x.iso))) lates++;
         }
       });
       // OT = strictly approval-based (approved by CEO). A normal long day does NOT earn OT.
@@ -5809,7 +5810,13 @@ async function runPayroll(){
       const encashRows = LDEC.filter(d => d.employee_code === code && d.action === 'ENCASH' && !d.paid);
       const encashDays = encashRows.length * Number(S.accrual);
       otHours = Math.round(otHours * 2) / 2; // nearest 0.5
-      const lateLOP = Math.floor(lates / Math.max(1, Number(S.latesHalf))) * 0.5;
+      // UNUSED gate-pass quota -> late maafi: quota/month = 2 SL + 1 HD
+      // unused HD = 2 late maaf ; har unused SL = 1 late maaf
+      const usedSL = ((gateSLMap[code]||new Set()).size);
+      const usedHD = ((((window._gateHDMap||{})[code])||new Set()).size);
+      const lateForgive = Math.max(0, 1 - usedHD) * 2 + Math.max(0, 2 - usedSL) * 1;
+      const latesEff = Math.max(0, lates - lateForgive);
+      const lateLOP = Math.floor(latesEff / Math.max(1, Number(S.latesHalf))) * 0.5;
       const sandwichCut = 0; // sandwich policy removed — WO/H inside leave never charged
       // Week-offs/holidays are paid only when the employee actually worked or
       // was on paid leave this month — a fully absent month earns nothing.
@@ -6840,7 +6847,7 @@ document.body.addEventListener('click', async e => {
   if(act === 'cancel-leave-x'){
     const reason = await _askRejectReason('leave');
     if(reason === null) return;
-    await sb.from('leaves').update({ status: 'CANCELLED', admin_note: reason }).eq('id', el.dataset.id);
+    await sb.from('leaves').update({ status: 'REJECTED', admin_note: reason }).eq('id', el.dataset.id);
     notify('Leave rejected', 'success');
     loadApprovals();
   }
