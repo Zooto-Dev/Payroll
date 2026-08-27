@@ -156,7 +156,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <img src="nexus-logo.png" alt="Nexus" style="height:44px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
       <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Portal</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B68</b> — 27 Aug</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B69</b> — 27 Aug</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -182,7 +182,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <div>
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B68</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B69</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -2392,13 +2392,20 @@ $('lvBtn').addEventListener('click', async () => {
     if(error) throw error;
     if(data && data.error) return notify(data.error);
     notify(`Leave request submitted (${data.days} days) — pending HR approval`);
-    essSendApprovalEmail('leaves', data.id || '', 'Leave Request — ' + ((D.employee&&D.employee.Name)||CODE), [
-      ['Employee', (D.employee&&D.employee.Name)||CODE], ['Type', $('lvType').value],
-      ['From', $('lvFrom').value], ['To', $('lvTo').value], ['Days', String(data.days||'')], ['Reason', $('lvReason').value||'—']
-    ]);
+    const _lvType = $('lvType').value, _lvFrom = $('lvFrom').value, _lvTo = $('lvTo').value, _lvReason = $('lvReason').value;
     $('lvFrom').value = ''; $('lvTo').value = ''; $('lvReason').value = '';
+    // fresh data lao — usi se nayi leave ka ID nikaalo (email button ke liye)
     const { data: fresh } = await sb.rpc('ess_get_data', { p_code: CODE, p_phone: PHONE });
     if(fresh && !fresh.error){ D = fresh; renderLeaves(); }
+    let _lvId = data.id || '';
+    if(!_lvId){
+      const cand = (D.leaves||[]).filter(x => x.from_date === _lvFrom && String(x.status).toUpperCase() === 'PENDING');
+      if(cand.length) _lvId = cand.sort((a,b)=>(b.id||0)-(a.id||0))[0].id || '';
+    }
+    essSendApprovalEmail('leaves', _lvId, 'Leave Request — ' + ((D.employee&&D.employee.Name)||CODE), [
+      ['Employee', (D.employee&&D.employee.Name)||CODE], ['Type', _lvType],
+      ['From', _lvFrom], ['To', _lvTo], ['Days', String(data.days||'')], ['Reason', _lvReason||'—']
+    ]);
   }catch(err){ notify(err.message); }
   finally{ btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit for Approval'; btn.disabled = false; }
 });
