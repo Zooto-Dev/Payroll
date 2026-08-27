@@ -1865,6 +1865,12 @@ async function renderCalendar(){
   const rows = await monthRows(ym);
   const attMap = {}; rows.forEach(r => attMap[r.date] = r);
   const holSet = new Set((D.holidays||[]).filter(h => String(h.date).startsWith(ym)).map(h => String(h.date)));
+  // Special Working/Off days (day_overrides)
+  let ovWork = new Set(), ovOff = new Set();
+  try{
+    const { data: ov } = await sb.from('day_overrides').select('date, otype').gte('date', ym + '-01').lte('date', _lastDay(ym));
+    (ov||[]).forEach(o => { if(o.otype === 'WORKING') ovWork.add(String(o.date)); if(o.otype === 'OFF') ovOff.add(String(o.date)); });
+  }catch(e){}
   const lvSet = new Set();
   (D.leaves||[]).forEach(L => {
     if(L.status !== 'APPROVED') return;
@@ -1891,8 +1897,10 @@ async function renderCalendar(){
     if(r){ const late = essLate(r); cls = late ? 'd-L' : 'd-P'; tip += ` | IN ${(r.in_time||'').substring(0,5)}${r.out_time ? ' OUT ' + r.out_time.substring(0,5) : ''}`; if(hasG) tip += ' | Morning Short Leave (G) — late maaf'; }
     else if(window._myWfhSet && window._myWfhSet.has(iso)){ cls = 'd-WFH'; tip += ' | Work From Home (paid)'; }
     else if(lvSet.has(iso)) cls = 'd-LV';
+    else if(ovOff.has(iso)){ cls = 'd-H'; tip += ' | Declared OFF day'; }
     else if(holSet.has(iso)) cls = 'd-H';
-    else if(dow === weekOff) cls = 'd-WO';
+    else if(dow === weekOff && !ovWork.has(iso)) cls = 'd-WO';
+    else if(ovWork.has(iso) && iso > today) { cls = 'd-none'; tip += ' | WORKING day (Sunday/holiday)'; }
     else if(iso <= today) cls = 'd-A';
     html += `<div class="day ${cls}" title="${tip}">${d}${hasG ? '<span class="gflag">G</span>' : ''}</div>`;
   }
@@ -2341,8 +2349,10 @@ function renderLeaves(){
   const lv = D.leaves || [];
   $('lvBox').innerHTML = lv.length ? lv.map(L => {
     const chip = L.status === 'APPROVED' ? 'chip-ok' : (L.status === 'PENDING' ? 'chip-warn' : 'chip-bad');
-    return `<div class="row"><span><b>${esc(L.leave_type)}</b> ${fmtDate(L.from_date)} → ${fmtDate(L.to_date)} (${L.days}d)</span>
-      <span class="chip ${chip}">${esc(L.status)}</span></div>`;
+    const showReason = (L.status === 'REJECTED' || L.status === 'CANCELLED') && L.admin_note;
+    return `<div class="row" style="flex-wrap:wrap"><span><b>${esc(L.leave_type)}</b> ${fmtDate(L.from_date)} → ${fmtDate(L.to_date)} (${L.days}d)</span>
+      <span class="chip ${chip}">${esc(L.status)}</span>
+      ${showReason ? `<div style="width:100%;font-size:11px;color:var(--bad);margin-top:3px"><i class="fa-solid fa-circle-info" style="opacity:.6"></i> ${esc(L.admin_note)}</div>` : ''}</div>`;
   }).join('') : '<p class="m-0" style="color:var(--muted)">No leaves this year.</p>';
 }
 
