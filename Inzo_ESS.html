@@ -565,6 +565,38 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 
 /* ---- Nexus config from the GAS endpoint (keys live in the SUPABASE sheet) ---- */
 const NX_CONFIG_URL = 'https://script.google.com/macros/s/AKfycbyLyxuzYzGZ1odibF_-ORvn314hFY_zKg4595HpDZrhMObhqbcAh_LIw60sTc4b_dPI/exec';
+// ESS se approval-request email — reporting_manager ho to usko, warna CEO ko
+async function essSendApprovalEmail(kind, id, title, rows){
+  try{
+    const codeU = String(CODE||'').trim().toUpperCase();
+    // reporting manager ka email dhundo
+    let toEmail = '';
+    const rm = (D.profile && D.profile.reporting_manager) || (window._essFlags && window._essFlags.reporting_manager) || '';
+    if(rm){
+      // manager code ya naam -> uska email
+      const { data: mgr } = await sb.from('hr_profiles').select('email, employee_code').or(`employee_code.ilike.${rm},employee_code.eq.${rm.toUpperCase()}`).limit(1);
+      if(mgr && mgr[0] && mgr[0].email) toEmail = mgr[0].email;
+      // agar naam se hai to employees se code nikaal ke email
+      if(!toEmail){
+        const { data: e2 } = await sb.from('employees').select('"Employee code"').ilike('Name', rm).limit(1);
+        if(e2 && e2[0]){ const { data: p2 } = await sb.from('hr_profiles').select('email').ilike('employee_code', e2[0]['Employee code']).limit(1); if(p2&&p2[0]) toEmail = p2[0].email; }
+      }
+    }
+    // manager nahi mila -> CEO email (settings se)
+    if(!toEmail){
+      const { data: st } = await sb.from('company_settings').select('data').eq('id',1).limit(1);
+      toEmail = (st && st[0] && st[0].data && st[0].data.ceoEmail) || '';
+    }
+    if(!toEmail) return;   // koi email nahi -> chup-chaap chhodo (request to save ho hi gayi)
+    const lines = (rows||[]).map(r => `<tr><td style="padding:5px 14px 5px 0;color:#64748b">${r[0]}</td><td style="padding:5px 0;font-weight:600">${r[1]}</td></tr>`).join('');
+    // JSONP call GAS sendapproval
+    const url = NX_CONFIG_URL + '?action=sendapproval&to=' + encodeURIComponent(toEmail)
+      + '&kind=' + encodeURIComponent(kind) + '&id=' + encodeURIComponent(id)
+      + '&title=' + encodeURIComponent(title) + '&lines=' + encodeURIComponent(lines)
+      + '&company=' + encodeURIComponent('Zooto Fashion Pvt Ltd') + '&t=' + Date.now();
+    const img = new Image(); img.src = url;   // fire-and-forget
+  }catch(e){ /* email fail se request nahi rukni chahiye */ }
+}
 function nxLoadConfig(){
 
   return new Promise((resolve, reject) => {
@@ -914,7 +946,8 @@ document.addEventListener('click', async e => {
     const path = 'attfix/' + codeU + '_' + Date.now() + '_' + f.name.replace(/[^A-Za-z0-9._-]/g,'_');
     const { error: upErr } = await sb.storage.from('expense-bills').upload(path, f);
     if(upErr) throw upErr;
-    const { error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: d, reason: $('afReason').value.trim()||null, status: 'PENDING', req_type: 'ATT_FIX', fix_in: (tin || null), fix_out: (tout || null), proof_path: path }]);
+    const { data: aRow, error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: d, reason: $('afReason').value.trim()||null, status: 'PENDING', req_type: 'ATT_FIX', fix_in: (tin || null), fix_out: (tout || null), proof_path: path }]).select('id').single();
+    if(!error) essSendApprovalEmail('field', (aRow&&aRow.id)||'', 'Attendance Correction — ' + ((D.employee&&D.employee.Name)||codeU), [['Employee',(D.employee&&D.employee.Name)||codeU],['Date',d],['In',tin||'—'],['Out',tout||'—'],['Reason',$('afReason').value.trim()||'—']]);
     if(error && String(error.message||'').includes('duplicate')) notify('Us din ki ek request pehle se hai');
     else if(error) throw error;
     else notify('Correction request bheji ✓ — manager approve karega');
@@ -953,7 +986,8 @@ document.addEventListener('click', async e => {
   try{
     let ok = 0, dup = 0;
     for(const dt of dates){
-      const { error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: dt, reason: $('fldReason').value.trim()||null, status: 'PENDING', req_type: 'FIELD' }]);
+      const { data: fRow, error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: dt, reason: $('fldReason').value.trim()||null, status: 'PENDING', req_type: 'FIELD' }]).select('id').single();
+      if(!error) essSendApprovalEmail('field', (fRow&&fRow.id)||'', 'Field Duty Request — ' + ((D.employee&&D.employee.Name)||codeU), [['Employee',(D.employee&&D.employee.Name)||codeU],['Date',dt],['Reason',$('fldReason').value.trim()||'—']]);
       if(error){ if(String(error.message||'').includes('duplicate')) dup++; else throw error; }
       else ok++;
     }
@@ -1293,7 +1327,8 @@ document.addEventListener('click', async e => {
   const amt = Number($('mrAmt').value);
   if(!amt || amt <= 0) return notify('Enter a valid amount');
   try{
-    const { error } = await sb.from('money_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, req_type: $('mrType').value, amount: amt, months: $('mrType').value === 'LOAN' ? Number($('mrMonths').value) : null, reason: $('mrReason').value.trim()||null, status: 'PENDING' }]);
+    const { data: mRow, error } = await sb.from('money_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, req_type: $('mrType').value, amount: amt, months: $('mrType').value === 'LOAN' ? Number($('mrMonths').value) : null, reason: $('mrReason').value.trim()||null, status: 'PENDING' }]).select('id').single();
+    if(!error) essSendApprovalEmail('money', (mRow&&mRow.id)||'', ($('mrType').value) + ' Request — ' + ((D.employee&&D.employee.Name)||codeU), [['Employee',(D.employee&&D.employee.Name)||codeU],['Type',$('mrType').value],['Amount','₹'+amt],['Reason',$('mrReason').value.trim()||'—']]);
     if(error) throw error;
     notify('Request submitted for HR approval ✓');
     $('mrAmt').value = ''; $('mrReason').value = '';
@@ -1365,7 +1400,8 @@ document.addEventListener('click', async e => {
   const d = $('wfhDate').value;
   if(!d) return notify('WFH date chuno');
   try{
-    const { error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: d, reason: $('wfhReason').value.trim()||null, status: 'PENDING', req_type: 'WFH' }]);
+    const { data: wRow, error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: d, reason: $('wfhReason').value.trim()||null, status: 'PENDING', req_type: 'WFH' }]).select('id').single();
+    if(!error) essSendApprovalEmail('wfh', (wRow&&wRow.id)||'', 'WFH Request — ' + ((D.employee&&D.employee.Name)||codeU), [['Employee',(D.employee&&D.employee.Name)||codeU],['Date',d],['Reason',$('wfhReason').value.trim()||'—']]);
     if(error && String(error.message||'').includes('duplicate')) notify('Us din ki request pehle se hai');
     else if(error) throw error;
     else notify('WFH request bheji ✓ — manager approve karega');
@@ -2355,6 +2391,10 @@ $('lvBtn').addEventListener('click', async () => {
     if(error) throw error;
     if(data && data.error) return notify(data.error);
     notify(`Leave request submitted (${data.days} days) — pending HR approval`);
+    essSendApprovalEmail('leaves', data.id || '', 'Leave Request — ' + ((D.employee&&D.employee.Name)||CODE), [
+      ['Employee', (D.employee&&D.employee.Name)||CODE], ['Type', $('lvType').value],
+      ['From', $('lvFrom').value], ['To', $('lvTo').value], ['Days', String(data.days||'')], ['Reason', $('lvReason').value||'—']
+    ]);
     $('lvFrom').value = ''; $('lvTo').value = ''; $('lvReason').value = '';
     const { data: fresh } = await sb.rpc('ess_get_data', { p_code: CODE, p_phone: PHONE });
     if(fresh && !fresh.error){ D = fresh; renderLeaves(); }
