@@ -182,7 +182,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <div>
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B66</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B67</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -571,8 +571,15 @@ async function essSendApprovalEmail(kind, id, title, rows){
       + '&kind=' + encodeURIComponent(kind) + '&id=' + encodeURIComponent(id)
       + '&title=' + encodeURIComponent(title) + '&lines=' + encodeURIComponent(lines)
       + '&company=' + encodeURIComponent('Zooto Fashion Pvt Ltd') + '&t=' + Date.now();
-    const img = new Image(); img.src = url;   // fire-and-forget (GAS email bhej dega)
-  }catch(e){ /* email fail se request nahi rukni chahiye */ }
+    console.log('[ESS] approval email trigger:', url.slice(0, 120) + '…');
+    try{
+      await fetch(url, { mode: 'no-cors', cache: 'no-store' });   // GAS tak request pakka jaaye
+      notify('✉ Approval email bhej di gayi');
+    }catch(e1){
+      const img = new Image(); img.src = url;   // fallback
+      notify('✉ Approval email trigger (backup)');
+    }
+  }catch(e){ console.warn('[ESS] email trigger fail:', e); }
 }
 function nxLoadConfig(){
 
