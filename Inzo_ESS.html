@@ -316,13 +316,9 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           Monthly limit: <b>1 Half Day OR 2 Short Leaves</b>. Requires reporting manager approval. Approved passes are fully paid.</div>
         <p class="text-[11px] mt-0 mb-3 font-semibold" id="gpQuota" style="color:#0d9488">…</p>
         <div class="grid grid-cols-2 gap-2 mb-2">
-          <div><label class="lbl">Type</label><select id="gpKind" class="inp" onchange="$('gpSlotWrap').classList.toggle('hidden', this.value!=='SL')">
-            <option value="SL">Short Leave (2 hrs)</option>
-            <option value="HD">Half Day</option>
-          </select></div>
-          <div id="gpSlotWrap"><label class="lbl">Time</label><select id="gpSlot" class="inp">
-            <option value="MORNING">Morning — arrive up to 3 hrs late</option>
-            <option value="EVENING">Evening — leave 2 hrs early</option>
+          <div><label class="lbl">Type</label><select id="gpKind" class="inp">
+            <option value="SL">Short Leave (3 hrs late maaf)</option>
+            <option value="HD">Half Day (aadhe din tak late maaf)</option>
           </select></div>
           <div><label class="lbl">Date</label><input id="gpDate" type="date" class="inp"></div>
           <div><label class="lbl">Reason</label><input id="gpReason" class="inp" placeholder="Reason"></div>
@@ -842,7 +838,7 @@ async function teamDecide(id, action){
 }
 function gpTypeLabel(r){
   if(r.req_type === 'GATE_HD') return '<span class="chip" style="background:#fef3c7;color:#92400e;font-size:9px">HALF DAY</span>';
-  if(r.req_type === 'GATE_SL') return '<span class="chip" style="background:#ccfbf1;color:#115e59;font-size:9px">SHORT LEAVE' + (r.gp_slot ? (r.gp_slot === 'MORNING' ? ' · Subah' : ' · Shaam') : '') + '</span>';
+  if(r.req_type === 'GATE_SL') return '<span class="chip" style="background:#ccfbf1;color:#115e59;font-size:9px">SHORT LEAVE</span>';
   if(r.req_type === 'WFH') return '<span class="chip" style="background:#f3e8ff;color:#6b21a8;font-size:9px">WFH</span>';
   if(r.req_type === 'ATT_FIX') return '<span class="chip" style="background:#fee2e2;color:#b91c1c;font-size:9px">ATT FIX' + (r.fix_in ? ' · In ' + String(r.fix_in).substring(0,5) : '') + '</span>';
   return '<span class="chip chip-blue" style="font-size:9px">FIELD</span>';
@@ -1355,7 +1351,7 @@ document.addEventListener('click', async e => {
     if(kind === 'HD' && hdUsed >= 1) return notify('Is month ki 1 Half Day limit ho chuki hai');
   }catch(e){}
   try{
-    const { data, error } = await sb.rpc('ess_gate_request', { p_code: codeU, p_phone: PHONE, p_date: d, p_kind: kind, p_slot: kind === 'SL' ? $('gpSlot').value : null, p_reason: $('gpReason').value.trim() || null });
+    const { data, error } = await sb.rpc('ess_gate_request', { p_code: codeU, p_phone: PHONE, p_date: d, p_kind: kind, p_slot: null, p_reason: $('gpReason').value.trim() || null });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
     notify('Gate pass request bheji ✓ — manager approve karega');
@@ -1864,7 +1860,7 @@ async function renderCalendar(){
   try{
     const codeU2 = String(CODE||'').trim().toUpperCase();
     const { data: gp } = await sb.from('ess_att_requests').select('date, req_type, gp_slot').ilike('employee_code', codeU2).eq('status','APPROVED').in('req_type',['GATE_SL','GATE_HD']).gte('date', ym + '-01').lte('date', _lastDay(ym));
-    window._myGateSet = new Set((gp||[]).filter(r => r.req_type === 'GATE_SL' && r.gp_slot === 'MORNING').map(r => r.date));
+    window._myGateSet = new Set((gp||[]).filter(r => r.req_type === 'GATE_SL').map(r => r.date));
   }catch(e){ window._myGateSet = new Set(); }
   const rows = await monthRows(ym);
   const attMap = {}; rows.forEach(r => attMap[r.date] = r);
