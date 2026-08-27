@@ -889,7 +889,7 @@ async function loadAttFix(){
     const { data } = await sb.from('ess_att_requests').select('*').ilike('employee_code', codeU).eq('req_type','ATT_FIX').order('date', { ascending:false }).limit(8);
     host.innerHTML = (data||[]).length ? data.map(r => {
       const chip = { PENDING:'chip-warn', APPROVED:'chip-ok', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
-      return `<div class="row"><span>${fmtDate(r.date)} · In ${String(r.fix_in||'').substring(0,5)}${r.fix_out?' – Out '+String(r.fix_out).substring(0,5):''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status==='PENDING'?_cancelChip('ATT', r.id):''}</span></div>`;
+      return `<div class="row"><span>${fmtDate(r.date)} · In ${String(r.fix_in||'').substring(0,5)}${r.fix_out?' – Out '+String(r.fix_out).substring(0,5):''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status==='PENDING'?_cancelChip('ATT', r.id):''}${r.status==='REJECTED'&&r.reject_reason?`<div class="text-[10px]" style="color:var(--bad);text-align:right;width:100%">${esc(r.reject_reason)}</div>`:''}</span></div>`;
     }).join('') : '';
   }catch(e){}
 }
@@ -931,7 +931,7 @@ async function loadFieldReqs(){
     const { data } = await sb.from('ess_att_requests').select('*').ilike('employee_code', codeU).eq('req_type','FIELD').order('date', { ascending:false }).limit(10);
     host.innerHTML = (data||[]).length ? data.map(r => {
       const chip = { PENDING:'chip-warn', APPROVED:'chip-ok', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
-      return `<div class="row"><span>${fmtDate(r.date)}${r.reason?' · '+esc(r.reason):''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status==='PENDING'?_cancelChip('ATT', r.id):''}</span></div>`;
+      return `<div class="row"><span>${fmtDate(r.date)}${r.reason?' · '+esc(r.reason):''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status==='PENDING'?_cancelChip('ATT', r.id):''}${r.status==='REJECTED'&&r.reject_reason?`<div class="text-[10px]" style="color:var(--bad);text-align:right;width:100%">${esc(r.reject_reason)}</div>`:''}</span></div>`;
     }).join('') : '';
   }catch(e){}
 }
@@ -1319,7 +1319,7 @@ async function loadGatePass(){
     const { data } = await sb.from('ess_att_requests').select('*').ilike('employee_code', codeU).in('req_type',['GATE_SL','GATE_HD']).order('date', { ascending:false }).limit(8);
     host.innerHTML = (data||[]).length ? data.map(r => {
       const chip = { PENDING:'chip-warn', APPROVED:'chip-ok', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
-      return `<div class="row"><span>${fmtDate(r.date)} ${gpTypeLabel(r)}${r.reason?' · '+esc(r.reason):''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status==='PENDING'?_cancelChip('ATT', r.id):''}</span></div>`;
+      return `<div class="row"><span>${fmtDate(r.date)} ${gpTypeLabel(r)}${r.reason?' · '+esc(r.reason):''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status==='PENDING'?_cancelChip('ATT', r.id):''}${r.status==='REJECTED'&&r.reject_reason?`<div class="text-[10px]" style="color:var(--bad);text-align:right;width:100%">${esc(r.reject_reason)}</div>`:''}</span></div>`;
     }).join('') : '';
   }catch(e){ _dbg('gate-ERROR', e); }
 }
@@ -1355,7 +1355,7 @@ async function loadWfh(){
     const { data } = await sb.from('ess_att_requests').select('*').ilike('employee_code', codeU).eq('req_type','WFH').order('date', { ascending:false }).limit(8);
     host.innerHTML = (data||[]).length ? data.map(r => {
       const chip = { PENDING:'chip-warn', APPROVED:'chip-ok', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
-      return `<div class="row"><span>${fmtDate(r.date)}${r.reason?' · '+esc(r.reason):''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status==='PENDING'?_cancelChip('ATT', r.id):''}</span></div>`;
+      return `<div class="row"><span>${fmtDate(r.date)}${r.reason?' · '+esc(r.reason):''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status==='PENDING'?_cancelChip('ATT', r.id):''}${r.status==='REJECTED'&&r.reject_reason?`<div class="text-[10px]" style="color:var(--bad);text-align:right;width:100%">${esc(r.reject_reason)}</div>`:''}</span></div>`;
     }).join('') : '';
   }catch(e){}
 }
@@ -1903,15 +1903,41 @@ function renderExpenses(){
   if(ex.length && ex.some(x => !x.id) && !window._claimsIdLoaded){
     window._claimsIdLoaded = true;
     const codeU = String(CODE||'').trim().toUpperCase();
-    sb.from('expenses').select('*').ilike('employee_code', codeU).order('created_at', { ascending:false }).limit(40)
+    sb.from('expenses').select('*').ilike('employee_code', codeU).order('created_at', { ascending:false }).limit(200)
       .then(({ data }) => { if(data && data.length){ D.expenses = data; renderExpenses(); } }).catch(()=>{});
   }
-  $('exBox').innerHTML = ex.length ? ex.map(x => {
-    const chip = { PENDING:'chip-warn', APPROVED:'chip-blue', PAID:'chip-ok', REJECTED:'chip-bad' }[x.status] || 'chip-gray';
-    const paidNote = x.status === 'PAID' && x.paid_at ? `<div class="text-[10px]" style="color:var(--ok)">Paid on ${fmtDate(String(x.paid_at).slice(0,10))} ✓${x.payment_ref ? ` · <a href="#" onclick="essViewProof('${esc(x.payment_ref)}');return false" style="color:var(--brand)">View payment proof</a>` : ''}</div>` : '';
-    const canDel = x.status === 'PENDING' && x.id;
-    return `<div class="row"><span><b>${esc(x.category)}</b> ${fmtDate(x.expense_date)} — ${fmtINR(x.amount)}${paidNote}</span><span style="display:flex;align-items:center;gap:8px"><span class="chip ${chip}">${esc(x.status)}</span>${canDel ? `<button onclick="delExpense(${x.id})" title="Delete this pending claim" style="background:none;border:none;color:var(--bad);cursor:pointer;font-size:13px"><i class="fa-solid fa-trash"></i></button>` : ''}</span></div>`;
-  }).join('') : '<p class="m-0" style="color:var(--muted)">No claims yet.</p>';
+  // sort latest first
+  const exs = ex.slice().sort((a,b)=>String(b.expense_date||'').localeCompare(String(a.expense_date||'')));
+  const PER = 8;
+  if(window._exPage === undefined) window._exPage = 0;
+  const pages = Math.max(1, Math.ceil(exs.length / PER));
+  if(window._exPage >= pages) window._exPage = pages - 1;
+  const slice = exs.slice(window._exPage*PER, window._exPage*PER + PER);
+  const statusChip = st => `<span class="chip ${({PENDING:'chip-warn',APPROVED:'chip-blue',PAID:'chip-ok',REJECTED:'chip-bad'}[st]||'chip-gray')}" style="font-size:10px">${esc(st)}</span>`;
+  $('exBox').innerHTML = exs.length ? `
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="text-align:left;color:var(--muted);font-size:11px">
+        <th style="padding:5px 8px">Date</th><th style="padding:5px 8px">Category</th><th style="padding:5px 8px;text-align:right">Amount</th><th style="padding:5px 8px">Status</th><th style="padding:5px 8px"></th>
+      </tr></thead><tbody>
+      ${slice.map(x => {
+        const canDel = x.status === 'PENDING' && x.id;
+        const paid = x.status === 'PAID' && x.paid_at ? `<div class="text-[10px]" style="color:var(--ok)">Paid ${fmtDate(String(x.paid_at).slice(0,10))}${x.payment_ref ? ` · <a href="#" onclick="essViewProof('${esc(x.payment_ref)}');return false" style="color:var(--brand)">proof</a>` : ''}</div>` : '';
+        const rej = x.status === 'REJECTED' && x.rejection_reason ? `<div class="text-[10px]" style="color:var(--bad)">${esc(x.rejection_reason)}</div>` : '';
+        return `<tr style="border-top:1px solid var(--line)">
+          <td style="padding:6px 8px;white-space:nowrap">${fmtDate(x.expense_date)}</td>
+          <td style="padding:6px 8px">${esc(x.category)}${paid}${rej}</td>
+          <td style="padding:6px 8px;text-align:right;font-weight:600">${fmtINR(x.amount)}</td>
+          <td style="padding:6px 8px">${statusChip(x.status)}</td>
+          <td style="padding:6px 8px">${canDel ? `<button onclick="delExpense(${x.id})" title="Delete" style="background:none;border:none;color:var(--bad);cursor:pointer;font-size:12px"><i class="fa-solid fa-trash"></i></button>` : ''}</td>
+        </tr>`;
+      }).join('')}
+      </tbody></table></div>
+      ${pages > 1 ? `<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:8px">
+        <button onclick="window._exPage=Math.max(0,window._exPage-1);renderExpenses()" ${window._exPage===0?'disabled':''} style="border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:4px 10px;cursor:pointer;font-size:12px${window._exPage===0?';opacity:.4':''}">‹ Prev</button>
+        <span style="font-size:12px;color:var(--muted)">Page ${window._exPage+1} / ${pages}</span>
+        <button onclick="window._exPage=Math.min(${pages-1},window._exPage+1);renderExpenses()" ${window._exPage>=pages-1?'disabled':''} style="border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:4px 10px;cursor:pointer;font-size:12px${window._exPage>=pages-1?';opacity:.4':''}">Next ›</button>
+      </div>` : ''}
+    ` : '<p class="m-0" style="color:var(--muted)">No claims yet.</p>';
   // UPI prefill (from RPC profile, else direct read once)
   if($('myUpi') && !$('myUpi').value){
     if(window._essFlags && window._essFlags.upi_id) $('myUpi').value = window._essFlags.upi_id;
