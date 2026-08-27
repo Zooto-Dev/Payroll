@@ -5641,6 +5641,7 @@ async function loadDeployment(){
   if(!LINES.length){ $('deployCard').classList.add('hidden'); return; }
   $('deployCard').classList.remove('hidden');
   const today = todayISO();
+  const ym = today.slice(0,7);
   const wfhRegRes = await sb.from('ess_att_requests').select('employee_code, date, req_type').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).gte('date', ym + '-01').lte('date', _lastDay(ym)).then(r => r).catch(() => ({ data: [] }));
   const wfhRegMap = {}, gateSLRegMap = {}, gateHDRegMap = {};
   (wfhRegRes.data || []).forEach(w => {
@@ -9739,6 +9740,22 @@ async function loadVoice(){
 }
 
 /* ================= APPROVALS INBOX ================= */
+// SUPER ADMIN only: approved request ko wapas PENDING karo
+async function stepBackReq(table, id, statusCol, reloadFn){
+  if(!isSuper()) return notify('Sirf Super Admin step-back kar sakta hai', 'error');
+  if(!(await nxConfirm('Ye approved request wapas PENDING mein aa jayegi. Aap dobara approve/reject kar sakte ho. Confirm?', 'Step Back'))) return;
+  try{
+    const patch = {}; patch[statusCol] = 'PENDING';
+    const { error } = await sb.from(table).update(patch).eq('id', id);
+    if(error) throw error;
+    notify('✓ Wapas Pending mein daal diya — ab Pending tab mein dikhega', 'success');
+    if(typeof reloadFn === 'function') reloadFn();
+  }catch(e){ notify('Step-back fail: '+(e.message||e), 'error'); }
+}
+function _stepBackBtn(table, id, col, reloadFnName){
+  if(!isSuper()) return '';
+  return `<button class="btn btn-ghost btn-sm" onclick="stepBackReq('${table}','${id}','${col}',${reloadFnName})" title="Wapas Pending karo (Super Admin)" style="color:#b45309"><i class="fa-solid fa-rotate-left"></i> Step Back</button>`;
+}
 async function apSupMode(mode){
   _apToggle2('apSupPend', 'apSupAppr', mode);
   if(mode === 'PENDING') return loadSupAttApprovals();
@@ -9752,6 +9769,7 @@ async function apSupMode(mode){
       <div style="flex:1;min-width:0"><div class="font-semibold text-sm">${esc(nameOf(r.emp_code || r.employee_code))} <span class="text-xs" style="color:var(--muted)">(${esc(r.emp_code || r.employee_code)})</span></div>
         <div class="text-xs" style="color:var(--muted)">${fmtDate(r.date)} · IN ${esc(r.in_time||'—')} · by ${esc(r.sup_code||r.sup_name||'—')}</div></div>
       <span class="chip chip-ok" style="font-size:10px">APPROVED</span>
+      ${isSuper()?_stepBackBtn('sup_att_requests', r.id, 'status', "()=>apSupMode('APPROVED')"):''}
     </div>`).join('') : '<p class="m-0 text-xs p-3" style="color:var(--muted)">No approved supervisor attendance.</p>';
   }catch(e){ host.innerHTML = '<p class="m-0 text-xs p-3" style="color:var(--bad)">Error: '+esc(e.message||e)+'</p>'; }
 }
@@ -10001,14 +10019,15 @@ async function apEssMode(kind, mode){
       if(kind === 'field') return !r.req_type || r.req_type === 'FIELD';
       return typeFilter.includes(r.req_type);
     });
+    const _rl = "()=>apEssMode('"+kind+"','APPROVED')";
     host.innerHTML = rows.length ? `<div style="overflow-x:auto"><table class="tbl">
-      <thead><tr><th>Employee</th><th>Date</th><th>Detail</th><th>Reason</th><th>Proof</th></tr></thead><tbody>
+      <thead><tr><th>Employee</th><th>Date</th><th>Detail</th><th>Reason</th><th>Proof</th>${isSuper()?'<th></th>':''}</tr></thead><tbody>
       ${rows.map(r=>{
         const extra = r.req_type === 'GATE_SL' ? (r.gp_slot === 'MORNING' ? 'Short Leave · Subah' : r.gp_slot === 'EVENING' ? 'Short Leave · Shaam' : 'Short Leave')
           : r.req_type === 'GATE_HD' ? 'Half Day'
           : r.req_type === 'ATT_FIX' ? ('In ' + (r.fix_in ? String(r.fix_in).substring(0,5) : '—') + (r.fix_out ? ' · Out ' + String(r.fix_out).substring(0,5) : '')) : (r.location||'—');
         const proofBtn = r.proof_path ? `<button class="btn btn-ghost btn-sm" data-act="ex-proof" data-path="${esc(r.proof_path)}" title="View proof"><i class="fa-solid fa-paperclip"></i> View</button>` : '<span style="color:var(--faint)">—</span>';
-        return `<tr><td class="font-semibold">${esc(r.name || nameOf(r.employee_code))}</td><td class="text-xs">${fmtDate(r.date)}</td><td class="text-xs">${esc(extra)}</td><td class="text-xs" style="max-width:200px">${esc(r.reason||'—')}</td><td>${proofBtn}</td></tr>`;
+        return `<tr><td class="font-semibold">${esc(r.name || nameOf(r.employee_code))}</td><td class="text-xs">${fmtDate(r.date)}</td><td class="text-xs">${esc(extra)}</td><td class="text-xs" style="max-width:200px">${esc(r.reason||'—')}</td><td>${proofBtn}</td>${isSuper()?`<td>${_stepBackBtn('ess_att_requests', r.id, 'status', _rl)}</td>`:''}</tr>`;
       }).join('')}
       </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">No approved requests.</p>';
   }catch(e){ host.innerHTML = '<p class="m-0 text-xs p-3" style="color:var(--bad)">Error: '+esc(e.message||e)+'</p>'; }
@@ -10019,9 +10038,9 @@ async function apLvMode(mode){
   const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
   const { data } = await sb.from('leaves').select('*').eq('status','APPROVED').order('from_date', { ascending:false }).limit(150);
   $('apLeaves').innerHTML = (data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
-    <thead><tr><th>Employee</th><th>Type</th><th>Days</th><th>Dates</th><th>Reason</th></tr></thead><tbody>
+    <thead><tr><th>Employee</th><th>Type</th><th>Days</th><th>Dates</th><th>Reason</th>${isSuper()?'<th></th>':''}</tr></thead><tbody>
     ${data.map(L => `<tr><td class="font-semibold">${esc(nameOf(L.employee_code))}</td><td><span class="chip chip-ok">${esc(L.leave_type)}</span></td><td>${L.days}</td>
-      <td class="text-xs">${fmtDate(L.from_date)} → ${fmtDate(L.to_date)}</td><td class="text-xs">${esc(L.reason||'—')}</td></tr>`).join('')}
+      <td class="text-xs">${fmtDate(L.from_date)} → ${fmtDate(L.to_date)}</td><td class="text-xs">${esc(L.reason||'—')}</td>${isSuper()?`<td>${_stepBackBtn('leaves', L.id, 'status', "()=>apLvMode('APPROVED')")}</td>`:''}</tr>`).join('')}
     </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">No approved leaves yet.</p>';
 }
 async function apExMode(mode){
@@ -10030,11 +10049,11 @@ async function apExMode(mode){
   const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
   const { data } = await sb.from('expenses').select('*').in('status',['APPROVED','PAID']).order('expense_date', { ascending:false }).limit(150);
   $('apExp').innerHTML = (data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
-    <thead><tr><th>Employee</th><th>Category</th><th>Amount</th><th>Date</th><th>Status</th><th>Proof</th></tr></thead><tbody>
+    <thead><tr><th>Employee</th><th>Category</th><th>Amount</th><th>Date</th><th>Status</th><th>Proof</th>${isSuper()?'<th></th>':''}</tr></thead><tbody>
     ${data.map(x => `<tr><td class="font-semibold text-xs">${esc(nameOf(x.employee_code))}</td><td class="text-xs">${esc(x.category)}</td>
       <td class="font-semibold">${fmtINR(x.amount)}</td><td class="text-xs">${fmtDate(x.expense_date)}</td>
       <td><span class="chip ${x.status==='PAID'?'chip-ok':'chip-blue'}">${esc(x.status)}</span>${x.status==='PAID'&&x.paid_at?`<div class="text-[10px]" style="color:var(--muted)">${fmtDate(String(x.paid_at).slice(0,10))}</div>`:''}</td>
-      <td>${x.payment_ref?`<button class="btn btn-ghost btn-sm" data-act="ex-proof" data-path="${esc(x.payment_ref)}"><i class="fa-solid fa-receipt"></i></button>`:'—'}</td></tr>`).join('')}
+      <td>${x.payment_ref?`<button class="btn btn-ghost btn-sm" data-act="ex-proof" data-path="${esc(x.payment_ref)}"><i class="fa-solid fa-receipt"></i></button>`:'—'}</td>${isSuper()?`<td>${x.status==='PAID'?'<span class="text-[10px]" style="color:var(--faint)">paid</span>':_stepBackBtn('expenses', x.id, 'status', "()=>apExMode('APPROVED')")}</td>`:''}</tr>`).join('')}
     </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing approved yet.</p>';
 }
 document.querySelectorAll('.ap-tab').forEach(t => t.addEventListener('click', () => {
