@@ -347,6 +347,10 @@ body.no-confidential .confidential-col{display:none!important}
 /* re-assert responsive rules after the design layer */
 
 
+.ep-tabs .ep-tab{background:none;border:none;padding:9px 14px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;border-radius:8px 8px 0 0;white-space:nowrap}
+.ep-tabs .ep-tab:hover{color:var(--ink);background:var(--brand-soft)}
+.ep-tabs .ep-tab.active{color:var(--brand);border-bottom-color:var(--brand)}
+.ep-tab i{margin-right:5px}
 </style>
 </head>
 <body><div id="nxSplash"><div class="nx-glow"></div><img src="nexus-logo.png" alt="Nexus" class="nx-logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="nx-word" style="display:none"><span class="nx-l">N</span><span class="nx-l nx-c">E</span><span class="nx-l">X</span><span class="nx-l nx-c">U</span><span class="nx-l">S</span></div><div class="nx-sub">HR &nbsp;SUITE</div><div class="nx-bar"><i></i></div></div>
@@ -1342,7 +1346,14 @@ body.no-confidential .confidential-col{display:none!important}
       </div>
     </div>
     <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Annual CTC edit karo → <b>Lock &amp; CEO ko bhejo</b> → CEO approve karega tabhi us employee ki salary set hogi. Row ke ▸ se poora breakup.</p>
-    <div style="overflow:auto"><table class="reg" id="ctcMasterTbl" style="font-size:12px;min-width:820px" oninput="if(event.target.id&&event.target.id.indexOf('ctcIn_')===0){_ctcDraft[event.target.id.slice(6)]=Number(event.target.value)||0;clearTimeout(window._ctcRT);window._ctcRT=setTimeout(renderCtcMaster,700);}"></table></div>
+    <div id="ctcBulkBar" style="display:none;align-items:center;gap:8px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:8px 12px;margin-bottom:8px;flex-wrap:wrap">
+      <b style="font-size:12px"><span id="ctcBulkCount">0</span> selected</b>
+      <span style="font-size:11px;color:var(--muted)">Set for selected:</span>
+      <button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('pf',true)">PF ✓</button><button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('pf',false)">PF ✗</button>
+      <button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('esi',true)">ESI ✓</button><button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('esi',false)">ESI ✗</button>
+      <button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('lwf',true)">LWF ✓</button><button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('lwf',false)">LWF ✗</button>
+    </div>
+    <div style="overflow:auto"><table class="reg" id="ctcMasterTbl" style="font-size:12px;min-width:1000px" oninput="if(event.target.id&&event.target.id.indexOf('ctcIn_')===0){_ctcDraft[event.target.id.slice(6)]=Number(event.target.value)||0;clearTimeout(window._ctcRT);window._ctcRT=setTimeout(renderCtcMaster,700);}"></table></div>
   </div>
 </div>
 <div class="page" id="page-settings">
@@ -1501,11 +1512,21 @@ body.no-confidential .confidential-col{display:none!important}
       <button class="btn btn-ghost btn-sm" data-close="empModal"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <input type="hidden" id="epCode">
+    <div class="flex items-center gap-3 p-3 rounded-xl mb-3" style="background:var(--brand-soft)">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style="background:var(--brand)" id="epAvatar">?</div>
+      <div><div class="font-bold" id="epNameShow">—</div><div class="text-xs" style="color:var(--muted)" id="epMetaShow">—</div></div>
+    </div>
+    <!-- TAB BAR -->
+    <div class="ep-tabs" style="display:flex;gap:4px;flex-wrap:wrap;border-bottom:2px solid var(--line);margin-bottom:16px;padding-bottom:0">
+      <button type="button" class="ep-tab active" data-eptab="basic"><i class="fa-solid fa-user"></i> Basic</button>
+      <button type="button" class="ep-tab" data-eptab="job"><i class="fa-solid fa-briefcase"></i> Job</button>
+      <button type="button" class="ep-tab" data-eptab="salary"><i class="fa-solid fa-indian-rupee-sign"></i> Salary</button>
+      <button type="button" class="ep-tab" data-eptab="bank"><i class="fa-solid fa-building-columns"></i> Bank & Docs</button>
+      <button type="button" class="ep-tab" data-eptab="face"><i class="fa-solid fa-face-viewfinder"></i> Face</button>
+    </div>
+    <!-- ===== TAB: BASIC ===== -->
+    <div class="ep-pane" data-eppane="basic">
     <div class="grid grid-cols-2 gap-3">
-      <div class="col-span-2 flex items-center gap-3 p-3 rounded-xl" style="background:var(--brand-soft)">
-        <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style="background:var(--brand)" id="epAvatar">?</div>
-        <div><div class="font-bold" id="epNameShow">—</div><div class="text-xs" style="color:var(--muted)" id="epMetaShow">—</div></div>
-      </div>
       <div><label class="lbl">Full Name</label><input id="epName" class="inp" style="text-transform:uppercase"></div>
       <div><label class="lbl">Date of Joining</label><input id="epDOJ" type="date" class="inp"></div>
       <div><label class="lbl">Phone</label><input id="epPhone" class="inp"></div>
@@ -1524,7 +1545,9 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">Gender</label><select id="epGender" class="inp"><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></div>
       <div class="col-span-2"><label class="lbl">Address</label><input id="epAddr" class="inp"></div>
     </div>
-    <h4 class="display font-bold mt-5 mb-2">Employment Details</h4>
+    </div><!-- /BASIC pane -->
+    <!-- ===== TAB: JOB ===== -->
+    <div class="ep-pane hidden" data-eppane="job">
     <div class="grid grid-cols-3 gap-3">
       <div><label class="lbl">Shift</label><select id="epShift" class="inp"></select></div>
       <div><label class="lbl">Grade</label><input id="epGrade" class="inp" placeholder="A / B / C"></div>
@@ -1548,8 +1571,11 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">Exit Date <span class="text-[10px]" style="color:var(--muted)">(set to offboard)</span></label><input id="epExitDate" type="date" class="inp"></div>
       <div class="col-span-1"><label class="lbl">Exit Reason</label><input id="epExitReason" class="inp" placeholder="Resigned / Terminated…"></div>
     </div>
+    </div><!-- /JOB pane -->
+    <!-- ===== TAB: SALARY ===== -->
+    <div class="ep-pane hidden" data-eppane="salary">
     <div id="epSalarySection">
-    <h4 class="display font-bold mt-5 mb-2">Salary Structure (Monthly) <span class="text-[10px] font-normal" style="color:var(--muted)">components are managed in Settings</span></h4>
+    <h4 class="display font-bold mt-1 mb-2">Salary Structure (Monthly) <span class="text-[10px] font-normal" style="color:var(--muted)">components are managed in Settings</span></h4>
     <div id="epSalStatus" class="mb-2"></div>
     <div class="mb-3">
       <label class="lbl">Salary Type</label>
@@ -1559,14 +1585,13 @@ body.no-confidential .confidential-col{display:none!important}
       </select>
     </div>
     <div id="epCatInfo" class="hidden mb-3 p-3 rounded-xl text-sm" style="background:var(--brand-soft)"></div>
-    <div id="epCTCWrap" class="flex items-end gap-2 mb-3 p-3 rounded-xl" style="background:var(--brand-soft)">
-      <div style="flex:1"><label class="lbl">Monthly CTC (₹) — auto-structure</label><input id="epCTC" type="number" class="inp" placeholder="35000"></div>
-      <button id="epCTCBtn" class="btn btn-primary btn-sm" style="padding:9px 14px"><i class="fa-solid fa-wand-magic-sparkles"></i> Build from CTC</button>
-    </div>
-    <div class="mb-3 p-3 rounded-xl flex items-end gap-2" style="background:#eef2ff;border:1px solid #c7d2fe">
-      <div style="flex:1"><label class="lbl">Enter Monthly CTC (₹) — auto-splits Basic 50% + HRA + allowances</label>
-        <input id="epCTCInput" type="number" class="inp" placeholder="e.g. 25000"></div>
-      <button type="button" class="btn btn-primary btn-sm" onclick="fillFromCTC()"><i class="fa-solid fa-wand-magic-sparkles"></i> Auto-fill</button>
+    <div id="epCTCWrap" class="mb-3 p-3 rounded-xl" style="background:var(--brand-soft)">
+      <div class="flex items-end gap-2">
+        <div style="flex:1"><label class="lbl">Monthly CTC (₹)</label><input id="epCTC" type="number" class="inp" placeholder="e.g. 25000"></div>
+        <button id="epCTCBtn" class="btn btn-primary btn-sm" style="padding:9px 14px"><i class="fa-solid fa-wand-magic-sparkles"></i> Build Structure</button>
+      </div>
+      <p class="text-[11px] mt-2 mb-0" style="color:var(--muted)"><i class="fa-solid fa-circle-info"></i> CTC daalo → Basic/HRA/allowances + gross apne aap ban jayenge. Neeche PF/ESI/LWF box badloge to gross turant update hoga.</p>
+      <input type="hidden" id="epCTCInput">
     </div>
     <div class="grid grid-cols-4 gap-3" id="epSalWrap"></div>
     <div class="mt-3 p-3 rounded-xl" style="background:#faf8f4;border:1px solid var(--line)">
@@ -1602,14 +1627,20 @@ body.no-confidential .confidential-col{display:none!important}
       <button id="epReviseBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-arrow-trend-up"></i> Revise Salary</button>
     </div>
     <div id="epRevList" class="space-y-1 text-xs"></div>
-    <h4 class="display font-bold mt-5 mb-2">Face Registration <span class="text-[10px] font-normal" style="color:var(--muted)">for the attendance camera</span></h4>
+    </div><!-- /SALARY pane -->
+    <!-- ===== TAB: FACE ===== -->
+    <div class="ep-pane hidden" data-eppane="face">
+    <h4 class="display font-bold mt-1 mb-2">Face Registration <span class="text-[10px] font-normal" style="color:var(--muted)">for the attendance camera</span></h4>
     <div class="flex items-end gap-2 flex-wrap">
       <span id="epFaceStatus" class="chip chip-gray">Checking…</span>
       <div style="flex:1;min-width:180px"><label class="lbl">Upload a clear front-facing photo</label><input id="epFaceFile" type="file" accept="image/*" class="inp"></div>
       <button id="epFaceBtn" class="btn btn-ghost"><i class="fa-solid fa-face-viewfinder"></i> Detect & Register Face</button>
     </div>
     <p class="text-[11px] mt-1 mb-0" style="color:var(--muted)">One face, good light, no mask/sunglasses. The face descriptor is saved to the employees table — the attendance camera will recognise them immediately.</p>
-    <h4 class="display font-bold mt-5 mb-2">Bank & Statutory</h4>
+    </div><!-- /FACE pane -->
+    <!-- ===== TAB: BANK & DOCS ===== -->
+    <div class="ep-pane hidden" data-eppane="bank">
+    <h4 class="display font-bold mt-1 mb-2">Bank & Statutory</h4>
     <div class="grid grid-cols-2 gap-3">
       <div><label class="lbl">Bank Name</label><input id="epBank" class="inp"></div>
       <div><label class="lbl">Account No.</label><input id="epAcc" class="inp"></div>
@@ -1632,6 +1663,7 @@ body.no-confidential .confidential-col{display:none!important}
       <button id="docUploadBtn" class="btn btn-ghost"><i class="fa-solid fa-cloud-arrow-up"></i> Upload</button>
     </div>
     <div id="docList" class="mt-3 space-y-1 text-xs"></div>
+    </div><!-- /BANK pane -->
     <button id="epSaveBtn" class="btn btn-primary w-full justify-center mt-5"><i class="fa-solid fa-floppy-disk"></i> Save Profile</button>
   </div>
 </div>
@@ -3599,8 +3631,19 @@ function _wireExitAuto(){
   const ex = document.getElementById('epExitDate');
   if(ex && !ex._wired){ ex._wired = true; ex.addEventListener('change', () => { if(ex.value) document.getElementById('epStatus').value = 'INACTIVE'; }); }
 }
+function epSwitchTab(name){
+  document.querySelectorAll('.ep-tab').forEach(t => t.classList.toggle('active', t.dataset.eptab === name));
+  document.querySelectorAll('.ep-pane').forEach(p => p.classList.toggle('hidden', p.dataset.eppane !== name));
+  const box = document.querySelector('#empModal .modal-box'); if(box) box.scrollTop = 0;
+}
+function _wireEpTabs(){
+  if(window._epTabsWired) return; window._epTabsWired = true;
+  document.querySelectorAll('.ep-tab').forEach(t => t.addEventListener('click', () => epSwitchTab(t.dataset.eptab)));
+}
 async function openEmpModal(code){
   _wireExitAuto();
+  _wireEpTabs();
+  epSwitchTab('basic');   // hamesha pehle tab se shuru
   const e = EMP.find(x => x['Employee code'] === code); if(!e) return;
   const p = PROFILES[code] || {};
   $('epCode').value = code;
@@ -3799,11 +3842,37 @@ function calcRender(){ calcGo($('calcCTC').value ? 'ctc' : 'gross'); }
 var _ctcFilter = 'ALL';
 var _ctcExpanded = {};
 var _ctcDraft = {};   // code -> typed (unsaved) annual CTC — re-render par value na ude
+var _ctcFlagDraft = {};   // code -> {pf,esi,lwf} per-employee statutory toggle (CTC master)
+function ctcFlagsOf(code){
+  if(_ctcFlagDraft[code]) return _ctcFlagDraft[code];
+  const p = PROFILES[code] || {};
+  const sf = (p.salary && p.salary.flags) || {};
+  return { pf: p.pf_applicable !== false && sf.pf !== false,
+           esi: p.esi_applicable !== false && sf.esi !== false,
+           lwf: p.lwf_applicable !== false && sf.lwf !== false };
+}
+function ctcToggleFlag(code, which, on){
+  const cur = Object.assign({}, ctcFlagsOf(code)); cur[which] = on;
+  _ctcFlagDraft[code] = cur; renderCtcMaster();
+}
+function ctcSelectAll(on){ document.querySelectorAll('.ctcRowSel').forEach(cb => { if(!cb.disabled) cb.checked = on; }); ctcUpdateBulkBar(); }
+function ctcSelectedCodes(){ return Array.from(document.querySelectorAll('.ctcRowSel:checked')).map(cb => cb.value); }
+function ctcUpdateBulkBar(){
+  const n = ctcSelectedCodes().length;
+  const bar = document.getElementById('ctcBulkBar');
+  if(bar){ bar.style.display = n ? 'flex' : 'none'; const c = document.getElementById('ctcBulkCount'); if(c) c.innerText = n; }
+}
+function ctcBulkFlag(which, on){
+  const codes = ctcSelectedCodes();
+  if(!codes.length) return notify('Pehle employees select karo', 'error');
+  codes.forEach(code => { if(ctcStatusOf(code) === 'PENDING_CEO') return; const cur = Object.assign({}, ctcFlagsOf(code)); cur[which] = on; _ctcFlagDraft[code] = cur; });
+  renderCtcMaster(); notify(`${codes.length} employees: ${which.toUpperCase()} ${on?'ON':'OFF'}`, 'success');
+}
 function ctcCsvDownload(){
-  const rows = [['Employee Code','Name','Department','Category','Annual CTC']];
+  const rows = [['Employee Code','Name','Department','Category','Annual CTC','PF','ESI','LWF']];
   activeEmps().forEach(e => {
-    const code = e['Employee code'];
-    rows.push([code, e.Name, e.DEPARTMENT||'', ctcCatOf(code), ctcAnnualOf(code)||'']);
+    const code = e['Employee code']; const ef = ctcFlagsOf(code);
+    rows.push([code, e.Name, e.DEPARTMENT||'', ctcCatOf(code), ctcAnnualOf(code)||'', ef.pf?'Y':'N', ef.esi?'Y':'N', ef.lwf?'Y':'N']);
   });
   const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
@@ -3826,7 +3895,11 @@ async function ctcCsvUpload(inp){
   const head = parse(lines[0]).map(h => h.trim().toLowerCase());
   const ci = head.findIndex(h => h.includes('code'));
   const cc = head.findIndex(h => h.includes('ctc'));
+  const cpf = head.findIndex(h => h.trim() === 'pf');
+  const cesi = head.findIndex(h => h.trim() === 'esi');
+  const clwf = head.findIndex(h => h.trim() === 'lwf');
   if(ci < 0 || cc < 0) return notify('CSV mein "Employee Code" aur "Annual CTC" columns chahiye', 'error');
+  const yn = v => { const t = String(v||'').trim().toUpperCase(); return t === 'N' || t === 'NO' || t === 'FALSE' || t === '0' ? false : true; };
   const valid = [], skipped = [];
   for(let i=1;i<lines.length;i++){
     const p = parse(lines[i]);
@@ -3837,7 +3910,14 @@ async function ctcCsvUpload(inp){
     if(!emp){ skipped.push(code); continue; }
     if(!ctcA){ continue; }   // blank CTC = skip (koi change nahi)
     if(ctcStatusOf(code) === 'PENDING_CEO'){ skipped.push(code + ' (CEO pending — locked)'); continue; }
-    valid.push({ employee_code: code, ctc_annual: ctcA });
+    const row = { employee_code: code, ctc_annual: ctcA };
+    // PF/ESI/LWF columns hon to flags bhi set
+    if(cpf >= 0 || cesi >= 0 || clwf >= 0){
+      const ff = { pf: cpf>=0?yn(p[cpf]):ctcFlagsOf(code).pf, esi: cesi>=0?yn(p[cesi]):ctcFlagsOf(code).esi, lwf: clwf>=0?yn(p[clwf]):ctcFlagsOf(code).lwf };
+      _ctcFlagDraft[code] = ff;
+      row.pf_applicable = ff.pf; row.esi_applicable = ff.esi; row.lwf_applicable = ff.lwf;
+    }
+    valid.push(row);
   }
   if(!valid.length) return notify('Kuch bhi update karne layak nahi mila. Skipped: ' + skipped.slice(0,5).join(', '), 'error');
   if(!(await nxConfirm(`${valid.length} employees ka Annual CTC update hoga (CSV se).${skipped.length ? '\nSkip: '+skipped.length : ''}\nNote: ye sirf draft CTC set karta hai — salary tabhi lagegi jab Lock → CEO Approve hoga.`, 'Bulk CTC Update'))) return;
@@ -3845,7 +3925,7 @@ async function ctcCsvUpload(inp){
     let saved = 0;
     for(let i=0;i<valid.length;i+=50){
       const chunk = valid.slice(i, i+50);
-      const { data, error } = await sb.from('hr_profiles').upsert(chunk, { onConflict: 'employee_code' }).select('employee_code, ctc_annual');
+      const { data, error } = await sb.from('hr_profiles').upsert(chunk, { onConflict: 'employee_code' }).select('employee_code, ctc_annual, pf_applicable, esi_applicable, lwf_applicable');
       if(error) throw error;
       // sach mein save hua confirm karo
       (data||[]).forEach(row => {
@@ -3887,13 +3967,15 @@ function renderCtcMaster(){
   list.sort((a,b) => String(a.Name).localeCompare(String(b.Name)));
   const S = getSettings(), fmt = n => Number(n||0).toLocaleString('en-IN');
   let h = `<thead><tr style="font-size:10.5px">
+    <th><input type="checkbox" id="ctcSelAll" onchange="ctcSelectAll(this.checked)" title="Select all"></th>
     <th>Employee</th><th>Code</th><th>Dept</th><th>Cat</th>
+    <th style="text-align:center" title="Provident Fund">PF</th><th style="text-align:center" title="ESI">ESI</th><th style="text-align:center" title="Labour Welfare Fund">LWF</th>
     <th style="text-align:right">Annual CTC</th>
     <th style="text-align:right">Basic</th><th style="text-align:right">HRA</th><th style="text-align:right">CA</th><th style="text-align:right">SA</th><th style="text-align:right">Gross</th>
     <th style="text-align:right">EPF-Er</th><th style="text-align:right">ESI-Er</th><th style="text-align:right">LWF-Er</th>
     <th style="text-align:right">EPF-Ee</th><th style="text-align:right">ESI-Ee</th><th style="text-align:right">LWF-Ee</th><th style="text-align:right">TDS</th>
     <th style="text-align:right">Net</th><th>Status</th><th>Action</th></tr></thead><tbody style="font-size:10.5px">`;
-  if(!list.length) h += '<tr><td colspan="20" style="text-align:center;color:var(--muted);padding:14px">Koi employee nahi mila.</td></tr>';
+  if(!list.length) h += '<tr><td colspan="24" style="text-align:center;color:var(--muted);padding:14px">Koi employee nahi mila.</td></tr>';
   list.forEach(e => {
     const code = e['Employee code'];
     const st = ctcStatusOf(code);
@@ -3902,8 +3984,9 @@ function renderCtcMaster(){
     let basic=0,hra=0,conv=0,spl=0,g=0,c={empPF:0,empESI:0,empLWF:0,eePF:0,eeESI:0,eeLWF:0,eeTDS:0,net:0};
     if(ctcA){
       const monthlyCTC = Math.round(ctcA/12);
-      let gEst = ctcPartsFromCTC(monthlyCTC, {pf:true,esi:false,lwf:true,tds:false}).gross;
-      const f = { pf:true, esi: gEst<=Number(S.esiLimit), lwf:true, tds: ctcA>=1200000 };
+      const _ef = ctcFlagsOf(code);
+      let gEst = ctcPartsFromCTC(monthlyCTC, {pf:_ef.pf,esi:false,lwf:_ef.lwf,tds:false}).gross;
+      const f = { pf:_ef.pf, esi: _ef.esi && gEst<=Number(S.esiLimit), lwf:_ef.lwf, tds: ctcA>=1200000 };
       c = ctcPartsFromCTC(monthlyCTC, f);
       g=c.gross; basic=c.basic; hra=Math.round(basic*0.5); conv=Math.round(basic*0.3); spl=g-basic-hra-conv;
     }
@@ -3922,9 +4005,13 @@ function renderCtcMaster(){
       act = `<button class="btn btn-ghost btn-sm" onclick="ctcLockSend('${code}')" style="padding:2px 6px" title="Lock & CEO"><i class="fa-solid fa-lock"></i></button>`;
     }
     const rt = 'text-align:right';
+    const efc = ctcFlagsOf(code);
+    const cbx = (which) => `<input type="checkbox" ${efc[which]?'checked':''} ${locked?'disabled':''} onchange="ctcToggleFlag('${code}','${which}',this.checked)">`;
     h += `<tr>
+      <td><input type="checkbox" class="ctcRowSel" value="${code}" ${locked?'disabled':''} onchange="ctcUpdateBulkBar()"></td>
       <td><b>${esc(e.Name)}</b></td><td>${esc(code)}</td><td>${esc(e.DEPARTMENT||'—')}</td>
       <td>${ctcCatOf(code)==='STAFF'?'S':'W'}</td>
+      <td style="text-align:center">${cbx('pf')}</td><td style="text-align:center">${cbx('esi')}</td><td style="text-align:center">${cbx('lwf')}</td>
       <td style="${rt}"><input type="number" id="ctcIn_${code}" value="${ctcA||''}" ${locked?'disabled':''} style="width:82px;text-align:right;padding:3px 4px;border:1px solid var(--line);border-radius:5px;font-size:10.5px" placeholder="0"></td>
       <td style="${rt}">${basic?fmt(basic):'—'}</td><td style="${rt}">${hra?fmt(hra):'—'}</td><td style="${rt}">${conv?fmt(conv):'—'}</td><td style="${rt}">${spl?fmt(spl):'—'}</td><td style="${rt};font-weight:600">${g?fmt(g):'—'}</td>
       <td style="${rt}">${c.empPF?fmt(c.empPF):'—'}</td><td style="${rt}">${c.empESI?fmt(c.empESI):'—'}</td><td style="${rt}">${c.empLWF?fmt(c.empLWF):'—'}</td>
@@ -3997,14 +4084,16 @@ async function ctcCeoDecide(code, approve){
     try{
       const monthlyCTC = Math.round(ctcA/12);
       const S = getSettings();
-      let gEst = ctcPartsFromCTC(monthlyCTC, {pf:true,esi:false,lwf:true,tds:false}).gross;
-      const f = { pf:true, esi: gEst<=Number(S.esiLimit), lwf:true, tds: ctcA>=1200000 };
+      const _ef = ctcFlagsOf(code);
+      let gEst = ctcPartsFromCTC(monthlyCTC, {pf:_ef.pf,esi:false,lwf:_ef.lwf,tds:false}).gross;
+      const f = { pf:_ef.pf, esi: _ef.esi && gEst<=Number(S.esiLimit), lwf:_ef.lwf, tds: ctcA>=1200000 };
       const c = ctcPartsFromCTC(monthlyCTC, f);
       const basic=c.basic, hra=Math.round(basic*0.5), conv=Math.round(basic*0.3), spl=c.gross-basic-hra-conv;
       const earn = { basic, hra, conveyance: conv, special_allowance: spl };
       const p = PROFILES[code] || { employee_code: code };
       const salary = Object.assign({}, p.salary||{}, { earn, flags: f });
-      await sb.from('hr_profiles').upsert({ employee_code: code, salary, salary_status: 'APPROVED', ctc_status: 'APPROVED', ctc_annual: ctcA }, { onConflict: 'employee_code' });
+      await sb.from('hr_profiles').upsert({ employee_code: code, salary, salary_status: 'APPROVED', ctc_status: 'APPROVED', ctc_annual: ctcA, pf_applicable: f.pf, esi_applicable: f.esi, lwf_applicable: f.lwf }, { onConflict: 'employee_code' });
+      delete _ctcFlagDraft[code];
       PROFILES[code] = Object.assign(p, { salary, salary_status:'APPROVED', ctc_status:'APPROVED', ctc_annual: ctcA });
       delete _ctcDraft[code];
       notify(`✓ Approved — ${emp?emp.Name:code} ki salary set ho gayi (Gross ₹${c.gross.toLocaleString('en-IN')})`, 'success');
@@ -4171,12 +4260,9 @@ function updateGrossPreview(){
     <br>Employee deductions: PF ${fmtINR(eePF)} • ESI ${fmtINR(eeESI)} • LWF ${fmtINR(eeLWF)} &nbsp;→&nbsp; <b>Take-home ≈ ${fmtINR(g - eePF - eeESI - eeLWF)}</b>`;
 }
 ['epPF','epESI','epPT','epLWF'].forEach(id => document.addEventListener('DOMContentLoaded', () => {}) || null);
-$('epPF').addEventListener('change', updateGrossPreview);
-$('epESI').addEventListener('change', updateGrossPreview);
-$('epLWF').addEventListener('change', updateGrossPreview);
-$('epCTCBtn').addEventListener('click', () => {
+function epBuildFromCTC(silent){
   const ctc = Number($('epCTC').value);
-  if(!ctc || ctc < 1000) return notify('Enter a valid monthly CTC', 'error');
+  if(!ctc || ctc < 1000){ if(!silent) notify('Enter a valid monthly CTC', 'error'); return; }
   const S = getSettings();
   const pfOn = $('epPF').checked, esiOn = $('epESI').checked, lwfOn = $('epLWF').checked;
   // iterate: gross = CTC - employer contributions(gross)
@@ -4202,8 +4288,17 @@ $('epCTCBtn').addEventListener('click', () => {
   alloc[restKey] = (alloc[restKey]||0) + (g - assigned);
   document.querySelectorAll('#epSalWrap .sal-part').forEach(i => { i.value = alloc[i.dataset.comp] || 0; });
   updateGrossPreview();
-  notify(`Structured: Gross ${fmtINR(g)} + employer contributions = CTC ${fmtINR(ctc)}`, 'success');
-});
+  if(!silent) notify(`Structured: Gross ${fmtINR(g)} + employer contributions = CTC ${fmtINR(ctc)}`, 'success');
+}
+// CTC field bhara hai to flag toggle pe DOBARA build (gross sahi rahe); warna sirf preview
+function epFlagChanged(){
+  if(Number($('epCTC').value) >= 1000) epBuildFromCTC(true);
+  else updateGrossPreview();
+}
+$('epPF').addEventListener('change', epFlagChanged);
+$('epESI').addEventListener('change', epFlagChanged);
+$('epLWF').addEventListener('change', epFlagChanged);
+$('epCTCBtn').addEventListener('click', () => epBuildFromCTC(false));
 
 $('epSaveBtn').addEventListener('click', async () => {
   const btn = $('epSaveBtn');
