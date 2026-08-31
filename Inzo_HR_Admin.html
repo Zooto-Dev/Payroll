@@ -5975,18 +5975,32 @@ async function runPayroll(){
       // Unauthorised absence penalty: working day, no attendance, no approved leave/request
       // -> counts as 2 days' absence (1 day already unpaid + 1 extra day LOP). Policy.
       const todayIso_ = todayISO();
-      let unauthAbs = 0;
+      // Employment window: DOJ se pehle aur exit ke baad ke din — na paid, na penalty (rule)
+      const _doj = (e.DOJ || e['DOJ'] || (PROFILES[code]||{}).doj || '') && String(e.DOJ || (PROFILES[code]||{}).doj || '').slice(0,10);
+      const _exit = ((PROFILES[code]||{}).exit_date || '') && String((PROFILES[code]||{}).exit_date || '').slice(0,10);
+      const inEmployment = iso => {
+        if(_doj && iso < _doj) return false;   // joining se pehle
+        if(_exit && iso > _exit) return false;  // exit ke baad
+        return true;
+      };
+      // days jab employee employed tha lekin working day pe absent (bina leave/pass) = unauthorized
+      let unauthAbs = 0, outsideDays = 0;
       dayMeta.forEach(x => {
         if(x.isWO || x.isH) return;
         if(x.iso > todayIso_) return;                    // future nahi
+        if(!inEmployment(x.iso)){ outsideDays++; return; }   // DOJ se pehle / exit ke baad — penalty nahi
         if(days[x.iso]) return;                          // present tha
         if(leaveISOs.has(x.iso)) return;                 // approved leave
         if((apprReqDays[code]||new Set()).has(x.iso)) return;   // approved WFH/gate request
-        unauthAbs++;
+        unauthAbs++;                                     // genuine unauthorized absence (employed + working day + no punch/leave)
       });
+      // paidDays: earned (present + leave + off-days) + 1 EXTRA penalty per unauthorized absence.
+      // outsideDays (pre-joining/post-exit) simply reduce the payable month, no double penalty.
+      const earnedDays = present + leaveDays + earnedWO + earnedH - sandwichCut;
       let paidDays = (present + leaveDays) > 0
-        ? Math.min(dim, present + leaveDays + earnedWO + earnedH - sandwichCut) - lateLOP - unauthAbs
+        ? earnedDays - lateLOP - unauthAbs                // har unauthorized absence = +1 extra din kata (absent din khud earnedDays me nahi hai)
         : 0;
+      paidDays = Math.min(dim, paidDays);
       paidDays = Math.max(0, paidDays);
       const lop = +(dim - paidDays).toFixed(1);
       const ratio = paidDays / dim;
