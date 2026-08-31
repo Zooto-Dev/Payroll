@@ -3378,7 +3378,7 @@ async function loadDashboard(){
     const [attRes, slipRes, monthRes, lvRes, wfhRes, yAttRes] = await Promise.all([
       sb.from('attendance').select('*').eq('date', today).order('created_at', { ascending:false }),
       sb.from('payslips').select('net_pay, month').order('created_at', { ascending:false }).limit(200),
-      sb.from('attendance').select('employee_code, Name, in_time, is_late').gte('date', ym + '-01').lte('date', _lastDay(ym)),
+      sbFetchAllAtt('employee_code, Name, in_time, is_late', ym + '-01', _lastDay(ym)).then(d => ({ data: d })).catch(() => ({ data: [] })),
       sb.from('leaves').select('employee_code').eq('status','APPROVED').lte('from_date', today).gte('to_date', today),
       sb.from('ess_att_requests').select('employee_code, req_type').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).eq('date', today),
       sb.from('attendance').select('employee_code, Name, in_time, out_time').eq('date', ydayStr)
@@ -4384,11 +4384,39 @@ $('epSaveBtn').addEventListener('click', async () => {
 });
 
 /* ---------------- Attendance data (shared) ---------------- */
+// Supabase 1000-row limit se bachne ke liye: kisi bhi date-range attendance query ko paginate karo
+async function sbFetchAllAtt(cols, first, last){
+  const PAGE = 1000; let all = [], from = 0;
+  for(let g = 0; g < 100; g++){
+    const { data, error } = await sb.from('attendance').select(cols)
+      .gte('date', first).lte('date', last).order('date', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if(error) throw error;
+    if(!data || !data.length) break;
+    all = all.concat(data);
+    if(data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
 async function fetchMonthAttendance(ym){
-  const { data, error } = await sb.from('attendance').select('employee_code, Name, date, in_time, out_time, total_hours, is_late')
-    .gte('date', ym + '-01').lte('date', _lastDay(ym));
-  if(error) throw error;
-  return data || [];
+  // Supabase default limit 1000 — 300+ employees ka month = 9000+ rows.
+  // Isliye pagination se SAARI rows laao (1000-1000 karke), warna aadhi attendance chhoot jaati hai.
+  const first = ym + '-01', last = _lastDay(ym);
+  const PAGE = 1000; let all = [], from = 0;
+  for(let guard = 0; guard < 100; guard++){
+    const { data, error } = await sb.from('attendance')
+      .select('employee_code, Name, date, in_time, out_time, total_hours, is_late')
+      .gte('date', first).lte('date', last)
+      .order('date', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if(error) throw error;
+    if(!data || !data.length) break;
+    all = all.concat(data);
+    if(data.length < PAGE) break;   // last page
+    from += PAGE;
+  }
+  return all;
 }
 async function fetchMonthLeaves(ym){
   const dim = daysInMonth(ym);
