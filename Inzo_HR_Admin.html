@@ -5947,8 +5947,15 @@ async function runPayroll(){
       // leave) around it — not by a single present day in the whole month.
       const leaveISOs = new Set();
       myLeaves.forEach(L => { Object.keys(expandLeave(L)).forEach(iso => { if(!days[iso]) leaveISOs.add(iso); }); });
-      // attended = present OR paid leave OR holiday (a holiday is not the worker's fault)
-      const attended = iso => { const m = dayMetaMap[iso]; return !!m && !m.isWO && (m.isH || !!days[iso] || leaveISOs.has(iso)); };
+      // attended = present OR WFH OR approved gate-pass OR paid leave OR holiday
+      // (WFH/gate-pass/leave sab "working credit" dete hain — off-day earning ke liye)
+      const attended = iso => {
+        const m = dayMetaMap[iso];
+        if(!m || m.isWO) return false;
+        return m.isH || !!days[iso] || leaveISOs.has(iso)
+            || myWfh.has(iso)                                  // approved WFH
+            || (apprReqDays[code] || new Set()).has(iso);      // approved gate-pass / request
+      };
       const winStats = (iso, from, to) => {
         let credit = 0, workable = 0;
         for(let k = from; k <= to; k++){
