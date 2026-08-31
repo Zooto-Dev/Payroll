@@ -1874,7 +1874,7 @@ async function renderCalendar(){
   try{
     const codeU2 = String(CODE||'').trim().toUpperCase();
     const { data: gp } = await sb.from('ess_att_requests').select('date, req_type, gp_slot').ilike('employee_code', codeU2).eq('status','APPROVED').in('req_type',['GATE_SL','GATE_HD']).gte('date', ym + '-01').lte('date', _lastDay(ym));
-    window._myGateSet = new Set((gp||[]).filter(r => r.req_type === 'GATE_SL').map(r => r.date));
+    window._myGateSet = new Set((gp||[]).filter(r => r.req_type === 'GATE_SL' || r.req_type === 'GATE_HD').map(r => r.date));
   }catch(e){ window._myGateSet = new Set(); }
   const rows = await monthRows(ym);
   const attMap = {}; rows.forEach(r => attMap[r.date] = r);
@@ -1908,7 +1908,7 @@ async function renderCalendar(){
     const r = attMap[iso];
     let cls = 'd-none', tip = iso;
     const hasG = window._myGateSet && window._myGateSet.has(iso);
-    if(r){ const late = essLate(r); cls = late ? 'd-L' : 'd-P'; tip += ` | IN ${(r.in_time||'').substring(0,5)}${r.out_time ? ' OUT ' + r.out_time.substring(0,5) : ''}`; if(hasG) tip += ' | Morning Short Leave (G) — late maaf'; }
+    if(r){ let late = essLate(r); if(hasG) late = false; cls = late ? 'd-L' : 'd-P'; tip += ` | IN ${(r.in_time||'').substring(0,5)}${r.out_time ? ' OUT ' + r.out_time.substring(0,5) : ''}`; if(hasG) tip += ' | Gate Pass approved — late maaf'; }
     else if(window._myWfhSet && window._myWfhSet.has(iso)){ cls = 'd-WFH'; tip += ' | Work From Home (paid)'; }
     else if(lvSet.has(iso)) cls = 'd-LV';
     else if(ovOff.has(iso)){ cls = 'd-H'; tip += ' | Declared OFF day'; }
