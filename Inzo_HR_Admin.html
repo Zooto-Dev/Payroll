@@ -1340,6 +1340,7 @@ body.no-confidential .confidential-col{display:none!important}
         </div>
         <input id="ctcSearch" class="inp" placeholder="🔍 naam / code" style="width:180px" oninput="renderCtcMaster()">
         <button class="btn btn-ghost btn-sm" onclick="ctcCsvDownload()" title="Current data CSV mein"><i class="fa-solid fa-download"></i> CSV</button>
+        <button id="ctcApproveAllBtn" class="btn btn-primary btn-sm" onclick="ctcBulkApprove(false)" style="display:none" title="Saari CEO-pending salary ek saath approve"><i class="fa-solid fa-check-double"></i> Approve All Pending <span id="ctcPendCount" class="chip chip-warn" style="font-size:10px;margin-left:4px">0</span></button>
         <label class="btn btn-ghost btn-sm" style="cursor:pointer" title="CSV se bulk CTC update"><i class="fa-solid fa-upload"></i> Upload
           <input type="file" id="ctcCsvFile" accept=".csv" style="display:none" onchange="ctcCsvUpload(this)">
         </label>
@@ -1352,6 +1353,7 @@ body.no-confidential .confidential-col{display:none!important}
       <button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('pf',true)">PF ✓</button><button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('pf',false)">PF ✗</button>
       <button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('esi',true)">ESI ✓</button><button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('esi',false)">ESI ✗</button>
       <button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('lwf',true)">LWF ✓</button><button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('lwf',false)">LWF ✗</button>
+      <button class="btn btn-primary btn-sm" onclick="ctcBulkApprove(true)" title="Selected CEO-pending approve"><i class="fa-solid fa-check-double"></i> Approve Selected (CEO)</button>
     </div>
     <div style="overflow:auto"><table class="reg" id="ctcMasterTbl" style="font-size:12px;min-width:1000px" oninput="if(event.target.id&&event.target.id.indexOf('ctcIn_')===0){_ctcDraft[event.target.id.slice(6)]=Number(event.target.value)||0;clearTimeout(window._ctcRT);window._ctcRT=setTimeout(renderCtcMaster,700);}"></table></div>
   </div>
@@ -4021,6 +4023,16 @@ function renderCtcMaster(){
   });
   h += '</tbody>';
   tbl.innerHTML = h;
+  // Approve-All button: sirf CEO/super ko, aur jab CEO-pending ho
+  try{
+    const pendCount = activeEmps().map(e => e['Employee code']).filter(c => ctcStatusOf(c) === 'PENDING_CEO').length;
+    const btn = document.getElementById('ctcApproveAllBtn');
+    if(btn){
+      if(loanCanCEO() && pendCount > 0){ btn.style.display = ''; const c = document.getElementById('ctcPendCount'); if(c) c.innerText = pendCount; }
+      else btn.style.display = 'none';
+    }
+  }catch(e){}
+  ctcUpdateBulkBar();
 }
 function ctcToggle(code){ _ctcExpanded[code] = !_ctcExpanded[code]; renderCtcMaster(); }
 function ctcFlagsFor(code, gross){
@@ -4073,6 +4085,54 @@ async function ctcLockSend(code){
       ['Annual CTC', '₹' + ctcA.toLocaleString('en-IN')]
     ]);
   }catch(e){ notify('Failed: '+(e.message||e), 'error'); }
+}
+// ek employee ka approved-salary payload banao (single + bulk dono use karte hain)
+function ctcApprovePayload(code){
+  const ctcA = Number((PROFILES[code]||{}).ctc_annual)||0;
+  if(!ctcA) return null;
+  const monthlyCTC = Math.round(ctcA/12);
+  const S = getSettings();
+  const _ef = ctcFlagsOf(code);
+  let gEst = ctcPartsFromCTC(monthlyCTC, {pf:_ef.pf,esi:false,lwf:_ef.lwf,tds:false}).gross;
+  const f = { pf:_ef.pf, esi: _ef.esi && gEst<=Number(S.esiLimit), lwf:_ef.lwf, tds: ctcA>=1200000 };
+  const c = ctcPartsFromCTC(monthlyCTC, f);
+  const basic=c.basic, hra=Math.round(basic*0.5), conv=Math.round(basic*0.3), spl=c.gross-basic-hra-conv;
+  const earn = { basic, hra, conveyance: conv, special_allowance: spl };
+  const p = PROFILES[code] || { employee_code: code };
+  const salary = Object.assign({}, p.salary||{}, { earn, flags: f });
+  return { row: { employee_code: code, salary, salary_status: 'APPROVED', ctc_status: 'APPROVED', ctc_annual: ctcA, pf_applicable: f.pf, esi_applicable: f.esi, lwf_applicable: f.lwf }, salary, ctcA, gross: c.gross };
+}
+// BULK: saare (ya selected) PENDING_CEO ek saath approve
+async function ctcBulkApprove(selectedOnly){
+  if(!loanCanCEO()) return notify('Sirf CEO / Super Admin', 'error');
+  let codes;
+  if(selectedOnly){
+    codes = ctcSelectedCodes().filter(c => ctcStatusOf(c) === 'PENDING_CEO');
+    if(!codes.length) return notify('Selected mein koi CEO-pending nahi', 'error');
+  } else {
+    codes = activeEmps().map(e => e['Employee code']).filter(c => ctcStatusOf(c) === 'PENDING_CEO');
+    if(!codes.length) return notify('Koi CEO-pending salary nahi', 'info');
+  }
+  if(!(await nxConfirm(`${codes.length} employees ki CTC salary APPROVE karein?\nSabki salary structure isi CTC se set ho jayegi.`, 'Bulk CEO Approve'))) return;
+  const payloads = [], bad = [];
+  codes.forEach(code => { const pl = ctcApprovePayload(code); if(pl) payloads.push(pl); else bad.push(code); });
+  if(!payloads.length) return notify('Kisi ka CTC nahi mila', 'error');
+  let saved = 0;
+  try{
+    for(let i=0;i<payloads.length;i+=50){
+      const chunk = payloads.slice(i, i+50).map(p => p.row);
+      const { data, error } = await sb.from('hr_profiles').upsert(chunk, { onConflict: 'employee_code' }).select('employee_code');
+      if(error) throw error;
+      (data||[]).forEach(r => {
+        const code = r.employee_code;
+        const pl = payloads.find(p => p.row.employee_code === code);
+        if(pl){ PROFILES[code] = Object.assign(PROFILES[code]||{employee_code:code}, { salary: pl.salary, salary_status:'APPROVED', ctc_status:'APPROVED', ctc_annual: pl.ctcA }); delete _ctcDraft[code]; delete _ctcFlagDraft[code]; }
+        saved++;
+      });
+    }
+    notify(`✓ ${saved} employees ki salary approve ho gayi${bad.length ? ' · '+bad.length+' skip (CTC nahi)' : ''}`, 'success');
+    renderCtcMaster();
+  }catch(e){ notify('Bulk approve fail: '+(e.message||e), 'error'); }
 }
 async function ctcCeoDecide(code, approve){
   if(!loanCanCEO()) return notify('Sirf CEO / Super Admin', 'error');
