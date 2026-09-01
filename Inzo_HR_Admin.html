@@ -5817,7 +5817,10 @@ async function loadRegister(){
         else { cls = 'c-A'; txt = 'A'; a++; }
         return `<td class="${cls}" title="${x.iso}${r ? ' | IN ' + esc(r.in_time||'') + (r.out_time ? ' OUT ' + esc(r.out_time) : '') : ''}">${txt}</td>`;
       }).join('');
-      REG_CSV.push([e.Name, code, sh.name, p, l, lv, a]);
+      // LOP payroll se (agar calculate hua ho), warna absent din
+      const _pr = (PAY_ROWS||[]).find(pr => pr.code === code);
+      const lopVal = _pr ? _pr.lop : a;
+      REG_CSV.push([e.Name, code, e.DEPARTMENT||'', sh.name, p, l, lv, a, lopVal]);
       return `<tr><td class="name-cell">${esc(e.Name)}<br><span class="text-[10px] font-normal" style="color:var(--muted)">${esc(code)} • ${esc(sh.name)}</span></td>${cells}
         <td class="c-P">${p}</td><td class="c-L">${l}</td><td class="c-A">${a}</td></tr>`;
     }).join('');
@@ -5826,7 +5829,10 @@ async function loadRegister(){
 }
 $('attCsvBtn').addEventListener('click', () => {
   if(!REG_CSV.length) return notify('Load the register first', 'error');
-  const csv = 'data:text/csv;charset=utf-8,' + [['Name','Code','Shift','Present','Late','Leave','Absent'].join(','), ...REG_CSV.map(r => r.join(','))].join('\n');
+  if(!(PAY_ROWS||[]).length) notify('Note: LOP column ke liye pehle Payroll page pe Calculate karo — abhi LOP = absent din dikhega', 'info');
+  const esc2 = v => { const str = String(v==null?'':v); return /[",\n]/.test(str) ? '"'+str.replace(/"/g,'""')+'"' : str; };
+  const header = ['Name','Employee Code','Department','Shift','Present','Late','Leave','Absent','Total LOP (Payroll)'];
+  const csv = 'data:text/csv;charset=utf-8,\ufeff' + [header.join(','), ...REG_CSV.map(r => r.map(esc2).join(','))].join('\n');
   const a = document.createElement('a');
   a.href = encodeURI(csv); a.download = `Attendance_Summary_${$('attMonth').value}.csv`;
   document.body.appendChild(a); a.click(); a.remove();
