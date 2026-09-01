@@ -3098,7 +3098,12 @@ new MutationObserver(muts => {
     if(tb && !seen.has(tb)){ seen.add(tb); }
     if(m.target.tagName === 'TBODY' && m.target.closest('.tbl') && !seen.has(m.target)) seen.add(m.target);
   });
-  seen.forEach(tb => { try { nxPaginate(tb); } catch(e){} });
+  seen.forEach(tb => { try {
+    const table = tb.closest('table');
+    // pehle filter dobara lagao (naye rows pe nxFilterHide set ho), phir paginate
+    if(table && typeof window.nxApplyFilters === 'function') window.nxApplyFilters(table);
+    else nxPaginate(tb);
+  } catch(e){ try{ nxPaginate(tb); }catch(_){} } });
 }).observe(document.body, { childList: true, subtree: true });
 
 /* ---------------- Dashboard ---------------- */
@@ -10427,6 +10432,7 @@ $('holAddBtn').addEventListener('click', async () => {
 (function(){
   const FILTERS = new WeakMap();
   function cellText(tr, i){ const td = tr.children[i]; return td ? (td.innerText||'').trim() : ''; }
+  window.nxApplyFilters = applyFilters;
   function applyFilters(table){
     const state = FILTERS.get(table) || {};
     const rows = Array.from(table.tBodies[0]?.rows || []);
