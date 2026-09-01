@@ -1648,15 +1648,58 @@ function nxConfirm(msg, title){
                 }
             }catch(e){}
         }
-        async function uploadPunchPhotoBg(empCode, imageBase64, punchType, rowId){
+        async function uploadPunchPhotoBg(empCode, imageBase64, punchType, rowId, attempt){
+            attempt = attempt || 1;
             try{
                 const fileName = `corp_photos/${empCode}_${Date.now()}.jpg`;
                 const blob = dataURItoBlob(imageBase64);
                 const up = await supabaseClient.storage.from('attendance-photos').upload(fileName, blob, { contentType: 'image/jpeg', cacheControl: '86400' });
-                if(up && up.error) return;
+                if(up && up.error) throw up.error;
                 const url = supabaseUrl + '/storage/v1/object/public/attendance-photos/' + fileName;
-                await supabaseClient.rpc('nx_attach_photo', { p_id: rowId, p_kind: punchType === 'IN' ? 'in' : 'out', p_url: url });
-            }catch(e){}
+                const { error: rerr } = await supabaseClient.rpc('nx_attach_photo', { p_id: rowId, p_kind: punchType === 'IN' ? 'in' : 'out', p_url: url });
+                if(rerr) throw rerr;
+                // success — is photo ko queue se hatao (agar tha)
+                _photoQueueRemove(rowId, punchType);
+            }catch(e){
+                if(attempt < 3){
+                    // 2s baad dobara koshish (network glitch)
+                    setTimeout(() => uploadPunchPhotoBg(empCode, imageBase64, punchType, rowId, attempt + 1), 2000 * attempt);
+                } else {
+                    // 3 baar fail — photo ko queue mein daalo, baad me auto-sync hoga
+                    _photoQueueAdd({ empCode, imageBase64, punchType, rowId, ts: Date.now() });
+                }
+            }
+        }
+        // ===== PHOTO QUEUE — fail hui photos ko save karke baad me sync =====
+        function _photoQueueGet(){ try{ return JSON.parse(localStorage.getItem('pending_photos') || '[]'); }catch(e){ return []; } }
+        function _photoQueueSave(a){ try{ localStorage.setItem('pending_photos', JSON.stringify(a)); }catch(e){} }
+        function _photoQueueAdd(item){
+            const q = _photoQueueGet();
+            // same row+kind ko dobara na daalo
+            if(q.some(x => x.rowId === item.rowId && x.punchType === item.punchType)) return;
+            q.push(item); _photoQueueSave(q);
+        }
+        function _photoQueueRemove(rowId, punchType){
+            const q = _photoQueueGet().filter(x => !(x.rowId === rowId && x.punchType === punchType));
+            _photoQueueSave(q);
+        }
+        async function flushPhotoQueue(){
+            const q = _photoQueueGet();
+            if(!q.length) return;
+            for(const item of q.slice()){
+                // 3 hafte purani photo chhodo (bekaar)
+                if(Date.now() - (item.ts||0) > 21*86400000){ _photoQueueRemove(item.rowId, item.punchType); continue; }
+                try{
+                    const fileName = `corp_photos/${item.empCode}_${item.rowId}_${item.punchType}.jpg`;
+                    const blob = dataURItoBlob(item.imageBase64);
+                    const up = await supabaseClient.storage.from('attendance-photos').upload(fileName, blob, { contentType: 'image/jpeg', cacheControl: '86400', upsert: true });
+                    if(up && up.error) throw up.error;
+                    const url = supabaseUrl + '/storage/v1/object/public/attendance-photos/' + fileName;
+                    const { error: rerr } = await supabaseClient.rpc('nx_attach_photo', { p_id: item.rowId, p_kind: item.punchType === 'IN' ? 'in' : 'out', p_url: url });
+                    if(rerr) throw rerr;
+                    _photoQueueRemove(item.rowId, item.punchType);
+                }catch(e){ /* agli baar dobara try hoga */ }
+            }
         }
         function queuePunch(item){
             // returns TRUE only if the punch is VERIFIABLY in localStorage after write.
@@ -2167,9 +2210,9 @@ function nxConfirm(msg, title){
 
         // On-screen sync status: red = punches are NOT reaching the database (shows the real reason)
         // ===== PAKKA AUTO-SYNC: har minute queue try + net wapas aate hi turant =====
-        setInterval(() => { try{ updatePendingBadge(); if(navigator.onLine) flushPendingPunches(true); }catch(e){} }, 60000);
+        setInterval(() => { try{ updatePendingBadge(); if(navigator.onLine){ flushPendingPunches(true); flushPhotoQueue(); } }catch(e){} }, 60000);
         window.addEventListener('online', () => { try{ setTimeout(() => flushPendingPunches(true), 1200); }catch(e){} });
-        setTimeout(() => { try{ updatePendingBadge(); if(navigator.onLine) flushPendingPunches(true); }catch(e){} }, 4000);
+        setTimeout(() => { try{ updatePendingBadge(); if(navigator.onLine){ flushPendingPunches(true); flushPhotoQueue(); } }catch(e){} }, 4000);
         function nxSyncBanner(kind, msg){
             let b = document.getElementById('nxSyncBanner');
             if(kind === 'hide'){ if(b) b.remove(); return; }
