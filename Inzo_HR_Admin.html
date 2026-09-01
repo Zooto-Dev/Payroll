@@ -3064,8 +3064,11 @@ const NX_PER_PAGE = 15;
 function nxPaginate(tbody){
   const table = tbody.closest('table');
   if(!table) return;
-  // sirf wo rows jo filter se hide NAHI hain (filter-aware pagination)
-  const rows = [...tbody.rows].filter(r => r.dataset.nxFilterHide !== '1');
+  const allRows = [...tbody.rows];
+  // filter se hide waale rows ko PAKKA chhupao (display:none)
+  allRows.forEach(r => { if(r.dataset.nxFilterHide === '1') r.style.display = 'none'; });
+  // sirf filter-se-bache (visible) rows ko paginate karo
+  const rows = allRows.filter(r => r.dataset.nxFilterHide !== '1');
   let pager = table.parentElement.querySelector(':scope > .nx-pager');
   if(rows.length <= NX_PER_PAGE){ if(pager) pager.remove(); rows.forEach(r => { r.style.display = ''; }); return; }
   // pichhla page yaad rakho (filter change pe reset hoga alag se)
