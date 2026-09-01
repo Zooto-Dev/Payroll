@@ -793,6 +793,8 @@ async function loadTeamApprovals(){
     _dbg('team', 'name=' + (data.my_name||'?') + ' team=' + (data.team_count||0) + ' pending=' + ((data.requests||[]).length));
     const reqs = data.requests || [];
     const isManager = (Number(data.team_count) || 0) > 0;
+    window._essTeamCount = Number(data.team_count) || 0;
+    if(typeof renderOT === 'function') try{ renderOT(); }catch(e){}   // OT team-btn refresh
     const card = $('teamApprCard'); if(!card) return;
     if(isManager || reqs.length){
       // manager hai -> Team tab HAMESHA dikhega (pending ho ya na ho)
@@ -2248,11 +2250,14 @@ $('fbBtn').addEventListener('click', async () => {
 
 /* ---------- Overtime requests ---------- */
 function renderOT(){
-  const desig = ((D.employee||{}).DESIGNATION || '').toUpperCase();
-  const can = desig.includes('MANAGER') || desig.includes('EXECUTIVE');
-  $('otCard').classList.toggle('hidden', !can);
-  if($('tilOT')) $('tilOT').classList.toggle('hidden', !can);
-  if(!can) return;
+  // OT ab SABKO — apna OT koi bhi maang sakta hai
+  $('otCard').classList.remove('hidden');
+  if($('tilOT')) $('tilOT').classList.remove('hidden');
+  // "For My Team" sirf tabhi jab is bande ke reportees hon (team_count > 0)
+  const isMgr = (window._essTeamCount || 0) > 0;
+  const teamBtn = $('otModeTeam');
+  if(teamBtn) teamBtn.style.display = isMgr ? '' : 'none';
+  if(!isMgr && typeof otMode === 'function'){ try{ otMode('self'); }catch(e){} }
   $('otDate').value = $('otDate').value || new Date().toISOString().slice(0,10);
   const ot = D.ot_requests || [];
   $('otBox').innerHTML = ot.length ? ot.map(o => {
@@ -2274,7 +2279,7 @@ $('otModeSelf').addEventListener('click', () => setOtMode('self'));
 $('otModeTeam').addEventListener('click', () => setOtMode('team'));
 async function loadWorkers(){
   $('otWorkers').innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Loading workers…</p>';
-  const { data, error } = await sb.rpc('ess_get_workers', { p_code: CODE, p_phone: PHONE });
+  const { data, error } = await sb.rpc('ess_get_workers', { p_code: CODE, p_phone: PHONE, p_team_only: true });
   if(error || (data && data.error)){ $('otWorkers').innerHTML = '<p class="m-0 text-xs" style="color:var(--bad)">' + esc((data && data.error) || error.message) + '</p>'; return; }
   WORKERS = data.rows || [];
   // department filter options
