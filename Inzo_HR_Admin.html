@@ -5833,7 +5833,9 @@ async function loadRegister(){
       // LOP payroll se (agar calculate hua ho), warna absent din
       const _pr = (PAY_ROWS||[]).find(pr => pr.code === code);
       const lopVal = _pr ? _pr.lop : a;
-      REG_CSV.push([e.Name, code, e.DEPARTMENT||'', sh.name, p, l, wfh, lv, a, lopVal]);
+      const woEarned = _pr && _pr.earnedWO != null ? _pr.earnedWO : '';
+      const hEarned  = _pr && _pr.earnedH  != null ? _pr.earnedH  : '';
+      REG_CSV.push([e.Name, code, e.DEPARTMENT||'', sh.name, p, l, wfh, lv, a, woEarned, hEarned, lopVal]);
       return `<tr><td class="name-cell">${esc(e.Name)}<br><span class="text-[10px] font-normal" style="color:var(--muted)">${esc(code)} • ${esc(sh.name)}</span></td>${cells}
         <td class="c-P">${p}</td><td class="c-L">${l}</td><td class="c-A">${a}</td></tr>`;
     }).join('');
@@ -5844,7 +5846,7 @@ $('attCsvBtn').addEventListener('click', () => {
   if(!REG_CSV.length) return notify('Load the register first', 'error');
   if(!(PAY_ROWS||[]).length) notify('Note: LOP column ke liye pehle Payroll page pe Calculate karo — abhi LOP = absent din dikhega', 'info');
   const esc2 = v => { const str = String(v==null?'':v); return /[",\n]/.test(str) ? '"'+str.replace(/"/g,'""')+'"' : str; };
-  const header = ['Name','Employee Code','Department','Shift','Present','Late','WFH','Leave','Absent','Total LOP (Payroll)'];
+  const header = ['Name','Employee Code','Department','Shift','Present','Late','WFH','Leave','Absent','Week Off (Earned)','Holiday (Earned)','Total LOP (Payroll)'];
   const csv = 'data:text/csv;charset=utf-8,\ufeff' + [header.join(','), ...REG_CSV.map(r => r.map(esc2).join(','))].join('\n');
   const a = document.createElement('a');
   a.href = encodeURI(csv); a.download = `Attendance_Summary_${$('attMonth').value}.csv`;
@@ -6143,6 +6145,7 @@ async function runPayroll(){
 
       return { code, name: e.Name, dept: e.DEPARTMENT, desig: e.DESIGNATION,
         dim, present, lates, lateLOP, leaveDays, unauthAbs, paidDays: +paidDays.toFixed(1), lop,
+        earnedWO, earnedH, wfhDays,
         shiftName: sh.name, shHrs, perHour,
         basic: Math.round(basic), comps, dedBreak, customDed,
         earnedGross: Math.round(earnedGross), pf, esi, pt, lwf,
