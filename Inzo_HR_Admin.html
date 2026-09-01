@@ -3062,14 +3062,19 @@ $('otrCsvBtn').addEventListener('click', () => {
 /* ---------------- Universal table pagination ---------------- */
 const NX_PER_PAGE = 15;
 function nxPaginate(tbody){
-  const rows = [...tbody.rows];
   const table = tbody.closest('table');
   if(!table) return;
+  // sirf wo rows jo filter se hide NAHI hain (filter-aware pagination)
+  const rows = [...tbody.rows].filter(r => r.dataset.nxFilterHide !== '1');
   let pager = table.parentElement.querySelector(':scope > .nx-pager');
-  if(rows.length <= NX_PER_PAGE){ if(pager) pager.remove(); rows.forEach(r => r.style.display = ''); return; }
-  const state = { page: 1, per: NX_PER_PAGE, total: Math.ceil(rows.length / NX_PER_PAGE) };
+  if(rows.length <= NX_PER_PAGE){ if(pager) pager.remove(); rows.forEach(r => { r.style.display = ''; }); return; }
+  // pichhla page yaad rakho (filter change pe reset hoga alag se)
+  const prevState = table._nxPage || 1;
+  const total = Math.ceil(rows.length / NX_PER_PAGE);
+  const state = { page: Math.min(prevState, total), per: NX_PER_PAGE, total };
   if(!pager){ pager = document.createElement('div'); pager.className = 'nx-pager'; table.insertAdjacentElement('afterend', pager); }
   function draw(){
+    table._nxPage = state.page;
     rows.forEach((r, i) => { r.style.display = (i >= (state.page - 1) * state.per && i < state.page * state.per) ? '' : 'none'; });
     const from = (state.page - 1) * state.per + 1, to = Math.min(rows.length, state.page * state.per);
     let nums = ''; 
@@ -10423,20 +10428,26 @@ $('holAddBtn').addEventListener('click', async () => {
   const FILTERS = new WeakMap();
   function cellText(tr, i){ const td = tr.children[i]; return td ? (td.innerText||'').trim() : ''; }
   function applyFilters(table){
-    const state = FILTERS.get(table); if(!state) return;
+    const state = FILTERS.get(table) || {};
     const rows = Array.from(table.tBodies[0]?.rows || []);
+    let anyFilter = false;
+    for(const k in state){ if(state[k] && state[k].size){ anyFilter = true; break; } }
     rows.forEach(tr => {
-      if(tr.dataset.nofilter === '1') return;
+      if(tr.dataset.nofilter === '1'){ tr.dataset.nxFilterHide = '0'; return; }
       let show = true;
       for(const [ci, set] of Object.entries(state)){
         if(set && set.size){ if(!set.has(cellText(tr, +ci))) { show = false; break; } }
       }
-      tr.style.display = show ? '' : 'none';
+      // filter ka faisla dataset me — display pagination decide karega
+      tr.dataset.nxFilterHide = show ? '0' : '1';
     });
     Array.from(table.tHead?.rows[0]?.cells || []).forEach((th, i) => {
       const btn = th.querySelector('.colf-btn');
       if(btn){ const s = state[i]; btn.classList.toggle('active', !!(s && s.size)); }
     });
+    // filter badla -> page 1 se dikhao, phir re-paginate (filtered rows pe)
+    table._nxPage = 1;
+    if(typeof nxPaginate === 'function' && table.tBodies[0]) nxPaginate(table.tBodies[0]);
   }
   function openMenu(table, th, ci){
     document.querySelectorAll('.colf-menu').forEach(m => m.remove());
