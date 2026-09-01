@@ -588,6 +588,27 @@ async function essSendApprovalEmail(kind, id, title, rows){
     });
   }catch(e){ console.warn('[ESS] email trigger fail:', e); }
 }
+// file ka SHA-256 hash (image ka fingerprint) — same image = same hash
+async function nxFileHash(file){
+  const buf = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+// duplicate check — pehle upload hua to true (aur message dikhao)
+// returns { blocked: bool }
+async function nxCheckProofDuplicate(file, kind){
+  try{
+    const hash = await nxFileHash(file);
+    const { data, error } = await sb.rpc('check_proof_hash', { p_hash: hash, p_code: String(CODE||'').toUpperCase(), p_kind: kind || 'proof' });
+    if(error){ return { blocked: false }; }   // check fail -> upload allow (block na karein bina wajah)
+    if(data && data.duplicate){
+      const who = data.by_code === String(CODE||'').toUpperCase() ? 'aapne khud' : (data.by_name || 'kisi aur');
+      notify('⚠ Ye proof pehle bhi upload ho chuka hai (' + who + ' ne ' + (data.when||'') + ' ko). Duplicate proof allow nahi.\n\nThis proof was already uploaded before — duplicate not allowed.');
+      return { blocked: true };
+    }
+    return { blocked: false };
+  }catch(e){ return { blocked: false }; }
+}
 function nxLoadConfig(){
 
   return new Promise((resolve, reject) => {
@@ -935,6 +956,9 @@ document.addEventListener('click', async e => {
   const f = $('afProof').files && $('afProof').files[0];
   if(!f) return notify('Proof attach karna zaroori hai — bina proof correction nahi hogi');
   b.disabled = true;
+  // DUPLICATE PROOF CHECK
+  const dup = await nxCheckProofDuplicate(f, 'attfix');
+  if(dup.blocked){ b.disabled = false; return; }
   try{
     const path = 'attfix/' + codeU + '_' + Date.now() + '_' + f.name.replace(/[^A-Za-z0-9._-]/g,'_');
     const { error: upErr } = await sb.storage.from('expense-bills').upload(path, f);
@@ -2107,6 +2131,9 @@ $('exBtn').addEventListener('click', async () => {
     const receipts = [];
     for(const f of files){
       if(f.size > 5 * 1024 * 1024) return notify('Each photo must be under 5 MB');
+      // DUPLICATE PROOF CHECK — same bill dobara na chale
+      const dup = await nxCheckProofDuplicate(f, 'expense');
+      if(dup.blocked) return;
       const path = CODE + '/' + Date.now() + '_' + Math.random().toString(36).slice(2,7) + '_' + f.name.replace(/[^A-Za-z0-9._-]/g, '_');
       const { error: upErr } = await sb.storage.from('expense-bills').upload(path, f);
       if(upErr) return notify('Photo upload failed: ' + upErr.message);
