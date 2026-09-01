@@ -6083,7 +6083,15 @@ async function runPayroll(){
         return true;
       };
       // days jab employee employed tha lekin working day pe absent (bina leave/pass) = unauthorized
-      let unauthAbs = 0, outsideDays = 0;
+      // AAKHRI attendance/activity ka din nikaalo — uske baad ke absent = "continuously gayab"
+      // (unauthorized 2x penalty SIRF tab jab absence ke baad WAPAS aaya ho)
+      let lastActiveIso = '';
+      dayMeta.forEach(x => {
+        if(days[x.iso] || leaveISOs.has(x.iso) || (apprReqDays[code]||new Set()).has(x.iso)){
+          if(x.iso <= todayIso_ && x.iso > lastActiveIso) lastActiveIso = x.iso;
+        }
+      });
+      let unauthAbs = 0, outsideDays = 0, trailingAbs = 0;
       dayMeta.forEach(x => {
         if(x.isWO || x.isH) return;
         if(x.iso > todayIso_) return;                    // future nahi
@@ -6091,7 +6099,9 @@ async function runPayroll(){
         if(days[x.iso]) return;                          // present tha
         if(leaveISOs.has(x.iso)) return;                 // approved leave
         if((apprReqDays[code]||new Set()).has(x.iso)) return;   // approved WFH/gate request
-        unauthAbs++;                                     // genuine unauthorized absence (employed + working day + no punch/leave)
+        // aakhri active din ke BAAD ka absent = trailing (continuously gayab) — 2x penalty NAHI
+        if(lastActiveIso && x.iso > lastActiveIso){ trailingAbs++; return; }
+        unauthAbs++;                                     // beech ka unauthorized absence (wapas aaya) — 2x penalty
       });
       // paidDays: earned (present + leave + off-days) + 1 EXTRA penalty per unauthorized absence.
       // outsideDays (pre-joining/post-exit) simply reduce the payable month, no double penalty.
