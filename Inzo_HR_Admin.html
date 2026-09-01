@@ -6061,8 +6061,15 @@ async function runPayroll(){
       };
       const minWO = Math.max(1, Number(S.minWO) || 4);
       const earnCheck = st => st.workable > 0 && st.credit >= Math.min(minWO, st.workable);
+      // holiday earn ke liye: aas-paas ACTUAL present/WFH/leave chahiye
+      // (doosra holiday/off ko "attended" NAHI maano — warna holiday khud ko earn kara deta hai)
+      const reallyWorked = iso => {
+        const m = dayMetaMap[iso];
+        if(!m || m.isWO || m.isH) return false;   // WO/holiday khud attended nahi
+        return !!days[iso] || leaveISOs.has(iso) || myWfh.has(iso) || (apprReqDays[code] || new Set()).has(iso);
+      };
       function attendedAroundH(iso){
-        for(let k = -3; k <= 3; k++){ if(k !== 0 && attended(isoAdd(iso, k))) return true; }
+        for(let k = -3; k <= 3; k++){ if(k !== 0 && reallyWorked(isoAdd(iso, k))) return true; }
         return false;
       }
       let earnedWO = 0, earnedH = 0;
