@@ -5789,6 +5789,19 @@ async function loadRegister(){
     const rows = await fetchMonthAttendance(ym);
     const { attMap, dayMeta } = buildDayStatus(ym, rows);
     const lvMap = await fetchMonthLeaves(ym);
+    // WFH / gate-pass maps (approved) — register mein WFH/SL/HD dikhane ke liye
+    const wfhRegMap = {}, gateSLRegMap = {}, gateHDRegMap = {};
+    try{
+      const { data: reqData } = await sb.from('ess_att_requests')
+        .select('employee_code, date, req_type').eq('status','APPROVED')
+        .in('req_type',['WFH','GATE_SL','GATE_HD'])
+        .gte('date', ym + '-01').lte('date', _lastDay(ym));
+      (reqData||[]).forEach(w => {
+        if(w.req_type === 'WFH') (wfhRegMap[w.employee_code] = wfhRegMap[w.employee_code] || new Set()).add(w.date);
+        if(w.req_type === 'GATE_SL') (gateSLRegMap[w.employee_code] = gateSLRegMap[w.employee_code] || new Set()).add(w.date);
+        if(w.req_type === 'GATE_HD') (gateHDRegMap[w.employee_code] = gateHDRegMap[w.employee_code] || new Set()).add(w.date);
+      });
+    }catch(e){}
     const emps = activeEmps();
     REG_CSV = [];
     let head = '<tr><th class="name-cell">Employee</th>' + dayMeta.map(x => `<th>${x.d}</th>`).join('') + '<th>P</th><th>L</th><th>A</th></tr>';
@@ -5796,7 +5809,7 @@ async function loadRegister(){
       const code = e['Employee code'];
       const sh = shiftOf(code);
       const lvSet = lvMap[code] || new Set();
-      let p = 0, l = 0, a = 0, lv = 0;
+      let p = 0, l = 0, a = 0, lv = 0, wfh = 0;
       const cells = dayMeta.map(x => {
         const r = (attMap[code] || {})[x.iso];
         const future = x.iso > todayISO();
@@ -5809,7 +5822,7 @@ async function loadRegister(){
           txt = hasHD ? 'HD' : (hasSL ? 'SL' : (isL ? 'L' : 'P'));
           p++; if(isL) l++;
         }
-        else if((wfhRegMap[code]||new Set()).has(x.iso) && !x.isWO && !x.isH){ cls = 'c-WFH'; txt = 'WFH'; p++; }
+        else if((wfhRegMap[code]||new Set()).has(x.iso) && !x.isWO && !x.isH){ cls = 'c-WFH'; txt = 'WFH'; p++; wfh++; }
         else if(lvSet.has(x.iso) && !x.isWO && !x.isH){ cls = 'c-LV'; txt = 'LV'; lv++; }
         else if(x.isH){ cls = 'c-H'; txt = 'H'; }
         else if(x.isWO){ cls = 'c-WO'; txt = 'WO'; }
@@ -5820,7 +5833,7 @@ async function loadRegister(){
       // LOP payroll se (agar calculate hua ho), warna absent din
       const _pr = (PAY_ROWS||[]).find(pr => pr.code === code);
       const lopVal = _pr ? _pr.lop : a;
-      REG_CSV.push([e.Name, code, e.DEPARTMENT||'', sh.name, p, l, lv, a, lopVal]);
+      REG_CSV.push([e.Name, code, e.DEPARTMENT||'', sh.name, p, l, wfh, lv, a, lopVal]);
       return `<tr><td class="name-cell">${esc(e.Name)}<br><span class="text-[10px] font-normal" style="color:var(--muted)">${esc(code)} • ${esc(sh.name)}</span></td>${cells}
         <td class="c-P">${p}</td><td class="c-L">${l}</td><td class="c-A">${a}</td></tr>`;
     }).join('');
@@ -5831,7 +5844,7 @@ $('attCsvBtn').addEventListener('click', () => {
   if(!REG_CSV.length) return notify('Load the register first', 'error');
   if(!(PAY_ROWS||[]).length) notify('Note: LOP column ke liye pehle Payroll page pe Calculate karo — abhi LOP = absent din dikhega', 'info');
   const esc2 = v => { const str = String(v==null?'':v); return /[",\n]/.test(str) ? '"'+str.replace(/"/g,'""')+'"' : str; };
-  const header = ['Name','Employee Code','Department','Shift','Present','Late','Leave','Absent','Total LOP (Payroll)'];
+  const header = ['Name','Employee Code','Department','Shift','Present','Late','WFH','Leave','Absent','Total LOP (Payroll)'];
   const csv = 'data:text/csv;charset=utf-8,\ufeff' + [header.join(','), ...REG_CSV.map(r => r.map(esc2).join(','))].join('\n');
   const a = document.createElement('a');
   a.href = encodeURI(csv); a.download = `Attendance_Summary_${$('attMonth').value}.csv`;
