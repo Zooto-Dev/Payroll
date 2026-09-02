@@ -1670,6 +1670,19 @@ function nxConfirm(msg, title){
                 }
             }
         }
+        // SAFETY NET: jab punch RPC ne row id nahi diya, tab abhi likhi row ko dhoondh kar
+        // us par photo attach karo. (Purane kiosk cache / edge cases ke liye — normal case
+        // me nx_punch_in ab id lautata hai, to yeh chalega hi nahi.)
+        async function attachPhotoByLookup(empCode, imageBase64, punchType, dateStr){
+            try{
+                const { data } = await supabaseClient
+                    .from('attendance').select('id')
+                    .eq('employee_code', empCode).eq('date', dateStr)
+                    .order('created_at', { ascending: false }).limit(1);
+                const rowId = data && data[0] && data[0].id;
+                if(rowId) uploadPunchPhotoBg(empCode, imageBase64, punchType, rowId);
+            }catch(e){ /* photo best-effort — punch to pehle hi save ho chuka hai */ }
+        }
         // ===== PHOTO QUEUE — fail hui photos ko save karke baad me sync =====
         function _photoQueueGet(){ try{ return JSON.parse(localStorage.getItem('pending_photos') || '[]'); }catch(e){ return []; } }
         function _photoQueueSave(a){ try{ localStorage.setItem('pending_photos', JSON.stringify(a)); }catch(e){} }
@@ -1975,7 +1988,12 @@ function nxConfirm(msg, title){
                     speakText(msg);
                     showSuccessUI(empData, empName, imageBase64, timeStr, punchType);
                     nxSyncBanner('ok', 'Server saved \u2713 ' + (empName || empCode));
-                    if (dbRowId && imageBase64) uploadPunchPhotoBg(empCode, imageBase64, punchType, dbRowId);
+                    if (imageBase64) {
+                        if (dbRowId) uploadPunchPhotoBg(empCode, imageBase64, punchType, dbRowId);
+                        // SAFETY NET: agar RPC ne row id nahi lautaya (purana nx_punch_in / edge case)
+                        // to abhi likhi row ko dhoondh kar photo attach karo — warna photo gum ho jati.
+                        else attachPhotoByLookup(empCode, imageBase64, punchType, (punchType === 'IN' ? todayStr : punchDateStr));
+                    }
                 } else {
                     // DB tak nahi gaya -> localStorage mein daalo aur PAKKA verify karo
                     const saved = queuePunch({ empCode, todayStr: (punchType === 'OUT' ? punchDateStr : todayStr), timeStr, imageBase64, type: punchType, is_late: isLate, empName });
