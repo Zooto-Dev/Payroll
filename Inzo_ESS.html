@@ -240,6 +240,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <button class="req-tile" data-rs="money"><span class="rt-ic" style="background:#dbeafe;color:#2563eb"><i class="fa-solid fa-receipt"></i></span><span>Expenses</span></button>
         <button class="req-tile" data-rs="adv"><span class="rt-ic" style="background:#fef9c3;color:#ca8a04"><i class="fa-solid fa-sack-dollar"></i></span><span>Advance / Loan</span></button>
         <button class="req-tile hidden" id="tilOT" data-rs="ot"><span class="rt-ic" style="background:#fef3c7;color:#d97706"><i class="fa-solid fa-clock"></i></span><span>Overtime</span></button>
+        <button class="req-tile hidden" id="tilFuel" data-rs="fuel"><span class="rt-ic" style="background:#dbeafe;color:#2563eb"><i class="fa-solid fa-gas-pump"></i></span><span>Fuel Meter</span></button>
         <button class="req-tile" data-rs="payslip"><span class="rt-ic" style="background:#d1fae5;color:#059669"><i class="fa-solid fa-indian-rupee-sign"></i></span><span>Payslips</span></button>
         <button class="req-tile" data-rs="assets"><span class="rt-ic" style="background:#ede9fe;color:#7c3aed"><i class="fa-solid fa-boxes-stacked"></i></span><span>My Assets</span></button>
         <button class="req-tile" data-rs="celebrate"><span class="rt-ic" style="background:#ffe4e6;color:#e11d48"><i class="fa-solid fa-cake-candles"></i></span><span>Celebrations</span></button>
@@ -383,6 +384,23 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       </div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-money-check-dollar" style="color:var(--ok)"></i> Payments Received</h3><div id="exPayBox"></div></div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm">My Claims</h3><div id="exBox"></div></div>
+      </div>
+      <div class="req-sec hidden" id="rs-fuel">
+      <div class="card" id="fuelCard">
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-gas-pump" style="color:#2563eb"></i> Fuel Meter Reading <span class="chip" style="background:#dbeafe;color:#1e40af;font-size:9px">SECURITY</span></h3>
+        <p class="text-[11px] mt-0 mb-2" style="color:var(--muted)">Employee ke vehicle ka meter reading daalo. Distance = OUT − IN. Amount = distance × ₹/km. HR approve karega.</p>
+        <div class="grid grid-cols-2 gap-2 mb-2">
+          <div class="col-span-2"><label class="lbl">Employee Code (jiska fuel)</label><input id="fuelEmp" class="inp" placeholder="ZM01xxx" style="text-transform:uppercase"></div>
+          <div><label class="lbl">Date</label><input id="fuelDate" type="date" class="inp"></div>
+          <div><label class="lbl">Rate (₹/km)</label><input id="fuelRate" type="number" class="inp" value="4"></div>
+          <div><label class="lbl">Meter IN (start)</label><input id="fuelIn" type="number" class="inp" placeholder="12500" oninput="fuelCalc()"></div>
+          <div><label class="lbl">Meter OUT (end)</label><input id="fuelOut" type="number" class="inp" placeholder="12560" oninput="fuelCalc()"></div>
+          <div class="col-span-2"><label class="lbl">Note (optional)</label><input id="fuelNote" class="inp" placeholder="Reason / trip detail"></div>
+        </div>
+        <div id="fuelPreview" class="text-xs mb-2 p-2 rounded" style="background:#eff6ff;color:#1e40af;display:none"></div>
+        <button id="fuelBtn" class="btn btn-primary w-full justify-center" onclick="submitFuel()"><i class="fa-solid fa-paper-plane"></i> Submit Fuel Log</button>
+        <div id="fuelBox" class="mt-3 space-y-1 text-xs"></div>
+      </div>
       </div>
       <div class="req-sec hidden" id="rs-ot">
       <div class="card hidden" id="otCard">
@@ -815,7 +833,7 @@ async function loadTeamApprovals(){
     const reqs = data.requests || [];
     const isManager = (Number(data.team_count) || 0) > 0;
     window._essTeamCount = Number(data.team_count) || 0;
-    if(typeof renderOT === 'function') try{ renderOT(); }catch(e){}   // OT team-btn refresh
+    if(typeof renderOT === 'function') try{ renderOT(); if(typeof renderFuel === "function") renderFuel(); }catch(e){}   // OT team-btn refresh
     const card = $('teamApprCard'); if(!card) return;
     if(isManager || reqs.length){
       // manager hai -> Team tab HAMESHA dikhega (pending ho ya na ho)
@@ -2275,6 +2293,56 @@ $('fbBtn').addEventListener('click', async () => {
   finally{ btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit'; btn.disabled = false; }
 });
 
+/* ---------- Fuel Meter (Security only) ---------- */
+function fuelCalc(){
+  const inV = Number($('fuelIn').value)||0, outV = Number($('fuelOut').value)||0, rate = Number($('fuelRate').value)||4;
+  const box = $('fuelPreview');
+  if(outV > inV){
+    const dist = outV - inV, amt = dist * rate;
+    box.style.display = ''; box.innerHTML = `Distance: <b>${dist} km</b> × ₹${rate}/km = <b>₹${amt.toLocaleString('en-IN')}</b>`;
+  } else { box.style.display = 'none'; }
+}
+async function renderFuel(){
+  // security check
+  let isSec = false;
+  try{ const { data } = await sb.rpc('ess_is_security', { p_code: String(CODE||'').toUpperCase(), p_phone: PHONE }); isSec = !!(data && data.security); }catch(e){}
+  window._isSecurity = isSec;
+  if($('tilFuel')) $('tilFuel').classList.toggle('hidden', !isSec);
+  if(!isSec) return;
+  if($('fuelDate')) $('fuelDate').value = $('fuelDate').value || new Date().toISOString().slice(0,10);
+  // meri entries
+  try{
+    const { data } = await sb.rpc('ess_fuel_my', { p_code: String(CODE||'').toUpperCase(), p_phone: PHONE });
+    const list = data || [];
+    $('fuelBox').innerHTML = list.length ? '<div class="text-[11px] font-semibold mt-2 mb-1" style="color:var(--muted)">Recent entries:</div>' + list.map(f => {
+      const chip = f.status === 'APPROVED' ? 'chip-ok' : f.status === 'REJECTED' ? 'chip-bad' : 'chip-warn';
+      return `<div class="row"><span>${esc(f.employee_name||f.employee_code)} · ${fmtDate(f.log_date)} · ${f.distance}km · ₹${f.amount}</span><span class="chip ${chip}">${esc(f.status)}</span></div>${f.status==='REJECTED'&&f.reject_reason?`<div class="text-[10px]" style="color:var(--bad);margin:-4px 0 4px 4px">${esc(f.reject_reason)}</div>`:''}`;
+    }).join('') : '';
+  }catch(e){}
+}
+async function submitFuel(){
+  const b = $('fuelBtn');
+  const emp = ($('fuelEmp').value||'').trim().toUpperCase();
+  const inV = Number($('fuelIn').value), outV = Number($('fuelOut').value), rate = Number($('fuelRate').value)||4;
+  if(!emp) return notify('Employee code daalo');
+  if(!inV || !outV) return notify('Meter IN aur OUT dono daalo');
+  if(outV < inV) return notify('OUT reading IN se kam nahi ho sakti');
+  b.disabled = true;
+  try{
+    const { data, error } = await sb.rpc('ess_fuel_add', {
+      p_code: String(CODE||'').toUpperCase(), p_phone: PHONE, p_emp: emp,
+      p_date: $('fuelDate').value || null, p_in: inV, p_out: outV, p_rate: rate,
+      p_in_photo: null, p_out_photo: null, p_note: $('fuelNote').value.trim()||null
+    });
+    if(error) throw error;
+    if(data && data.error) { b.disabled = false; return notify(data.error); }
+    notify(`✓ Fuel log bheja — ${data.distance}km · ₹${data.amount} (HR approve karega)`);
+    $('fuelEmp').value=''; $('fuelIn').value=''; $('fuelOut').value=''; $('fuelNote').value='';
+    $('fuelPreview').style.display='none';
+    renderFuel();
+  }catch(e){ notify('Failed: '+(e.message||e)); }
+  b.disabled = false;
+}
 /* ---------- Overtime requests ---------- */
 function renderOT(){
   // OT ab SABKO — apna OT koi bhi maang sakta hai
