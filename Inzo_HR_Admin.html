@@ -813,7 +813,10 @@ body.no-confidential .confidential-col{display:none!important}
   <div class="card mb-4 flex items-end gap-3 flex-wrap">
     <div><label class="lbl">Payroll Month</label><input type="month" id="payMonth" class="inp"></div>
     <button id="payRunBtn" class="btn btn-primary"><i class="fa-solid fa-calculator"></i> Calculate Payroll</button>
-    <button id="payFinalizeBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-lock"></i> Finalize & Save All</button>
+    <button id="payLockBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-lock"></i> Lock &amp; Send for Approval</button>
+    <button id="payUnlockBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-lock-open"></i> Unlock / Edit</button>
+    <span id="payLockPill" class="chip hidden"></span>
+    <button id="payFinalizeBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-file-invoice-dollar"></i> Finalize &amp; Save All</button>
     <button id="payPrintAllBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-print"></i> Print All Payslips</button>
     <button id="payBankBtn" class="btn btn-ghost hidden super-only"><i class="fa-solid fa-building-columns"></i> Bank Advice</button>
     <div class="ml-auto text-right">
@@ -830,6 +833,19 @@ body.no-confidential .confidential-col{display:none!important}
         <tbody><tr><td colspan="17" class="text-center py-8" style="color:var(--muted)">Run payroll to see calculations. Salary structures are set on the Employees page.</td></tr></tbody>
       </table>
     </div>
+  </div>
+
+  <!-- CEO late-LOP approval panel (Staff only, excl PRODUCTION/STORE) -->
+  <div class="card mt-4 hidden" id="lateApprovalPanel">
+    <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+      <h3 class="display font-bold m-0"><i class="fa-solid fa-user-clock" style="color:var(--brand)"></i> Late-LOP Approvals <span class="text-[11px] font-normal" style="color:var(--muted)">— Staff only (PRODUCTION/STORE excluded)</span></h3>
+      <div class="flex gap-2" id="lateApprBulk"></div>
+    </div>
+    <p class="text-[11px] mt-0 mb-3" style="color:var(--muted)">Jinke <b>late</b> ki wajah se LOP badha hai. CEO <b>Approve</b> kare = late maaf (LOP 0). <b>Reject</b> = LOP count hoga. Decision ke baad neeche table apne-aap update hota hai.</p>
+    <div style="overflow-x:auto"><table class="tbl" id="lateApprTable">
+      <thead><tr><th>Employee</th><th>Dept</th><th>Lates</th><th>Late LOP (days)</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
   </div>
 </div>
 
@@ -2024,6 +2040,8 @@ let SETTINGS = {};       // company_settings.data
 let HOLIDAYS = [];       // [{date,name}]
 let PAY_ROWS = [];       // current payroll calculation
 let PAY_MONTH = "";
+let PAY_LOCK = null;      // payroll_locks row for PAY_MONTH (null = not locked)
+let LATE_REVIEWS = {};    // employee_code -> 'PENDING'|'APPROVED'|'REJECTED' (CEO late-LOP decision)
 let SHIFTS = [];         // shift master
 let LINES = [];          // production lines
 let LEAVES_CACHE = [];   // month leaves for register
@@ -5921,6 +5939,14 @@ async function runPayroll(){
     const advMap = {};
     (advData || []).forEach(a => { advMap[a.employee_code] = advMap[a.employee_code] || []; advMap[a.employee_code].push(a); });
 
+    // ===== Payroll lock state + CEO late-LOP decisions for this month =====
+    const _lockRes = await sb.from('payroll_locks').select('*').eq('month', ym).limit(1);
+    PAY_LOCK = (_lockRes.data && _lockRes.data[0]) || null;
+    const _revRes = await sb.from('payroll_late_reviews').select('employee_code, status').eq('month', ym);
+    const lateReviewMap = {};
+    (_revRes.data || []).forEach(x => { lateReviewMap[x.employee_code] = String(x.status || 'PENDING').toUpperCase(); });
+    LATE_REVIEWS = lateReviewMap;
+
     const woCount = dayMeta.filter(x => x.isWO).length;
     const hCount = dayMeta.filter(x => x.isH && !x.isWO).length;
 
@@ -6036,13 +6062,25 @@ async function runPayroll(){
       const encashRows = LDEC.filter(d => d.employee_code === code && d.action === 'ENCASH' && !d.paid);
       const encashDays = encashRows.length * Number(S.accrual);
       otHours = Math.round(otHours * 2) / 2; // nearest 0.5
-      // UNUSED gate-pass quota -> late maafi: quota/month = 2 SL + 1 HD
-      // unused HD = 2 late maaf ; har unused SL = 1 late maaf
+      // Late rule: har `perHalf` (default 3) lates = 0.5 din LOP.
+      // Gate-pass quota/month = YA TO 2 Short-Leave (SL) YA 1 Half-Day (HD) — dono nahi.
+      // UNUSED quota se late maafi: 1 unused SL = 0.5 din (3 late), 1 unused HD = 1 din (6 late).
       const usedSL = ((gateSLMap[code]||new Set()).size);
       const usedHD = ((((window._gateHDMap||{})[code])||new Set()).size);
-      const lateForgive = Math.max(0, 1 - usedHD) * 2 + Math.max(0, 2 - usedSL) * 1;
+      const perHalf = Math.max(1, Number(S.latesHalf));      // lates per 0.5-day LOP
+      const lateForgive = usedHD > 0
+        ? Math.max(0, 1 - usedHD) * (perHalf * 2)            // HD track: unused HD -> 1 din (6 late)
+        : Math.max(0, 2 - usedSL) * perHalf;                // SL track: har unused SL -> 0.5 din (3 late)
       const latesEff = Math.max(0, lates - lateForgive);
-      const lateLOP = Math.floor(latesEff / Math.max(1, Number(S.latesHalf))) * 0.5;
+      const baseLateLOP = Math.floor(latesEff / perHalf) * 0.5;
+      // CEO late-forgiveness: SIRF Staff, PRODUCTION/STORE dept chhod kar.
+      const _catU  = String((p.category) || 'WORKER').toUpperCase();
+      const _deptU = String(e.DEPARTMENT || '').toUpperCase();
+      const lateFgEligible = _catU === 'STAFF' && baseLateLOP > 0
+                              && !(_deptU.includes('PROD') || _deptU.includes('STORE'));
+      const lateDecision = lateFgEligible ? (lateReviewMap[code] || 'PENDING') : 'NA';
+      // APPROVED = late maaf (LOP 0). PENDING/REJECTED/ineligible = LOP count hoga.
+      const lateLOP = (lateFgEligible && lateDecision === 'APPROVED') ? 0 : baseLateLOP;
       const sandwichCut = 0; // sandwich policy removed — WO/H inside leave never charged
       // Week-offs/holidays are paid only when the employee actually worked or
       // was on paid leave this month — a fully absent month earns nothing.
@@ -6160,7 +6198,8 @@ async function runPayroll(){
       const perHour = fullGross > 0 ? fullGross / (dim * shHrs) : 0;
 
       return { code, name: e.Name, dept: e.DEPARTMENT, desig: e.DESIGNATION,
-        dim, present, lates, lateLOP, leaveDays, unauthAbs, paidDays: +paidDays.toFixed(1), lop,
+        dim, present, lates, lateLOP, baseLateLOP, lateFgEligible, lateDecision, usedSL, usedHD,
+        leaveDays, unauthAbs, paidDays: +paidDays.toFixed(1), lop,
         earnedWO, earnedH, wfhDays,
         shiftName: sh.name, shHrs, perHour,
         basic: Math.round(basic), comps, dedBreak, customDed,
@@ -6173,7 +6212,7 @@ async function runPayroll(){
         otherDed: 0, bonus: 0, fullGross: Math.round(fullGross), hasSalary: fullGross > 0 };
     });
     renderPayTable();
-    $('payFinalizeBtn').classList.remove('hidden');
+    renderPayLockUI();     // Lock/Unlock buttons + CEO late-LOP approval panel
     $('payPrintAllBtn').classList.remove('hidden');
     $('payBankBtn').classList.remove('hidden');
     if(_skippedContract.length){
@@ -6222,7 +6261,7 @@ function renderPayTable(){
       <td><div class="font-semibold">${esc(r.name)}${warn}</div><div class="text-[10px]" style="color:var(--muted)">${esc(r.code)} • ${esc(r.shiftName)} • ${r.present}P / ${r.lates}L</div></td>
       <td class="money">${r.paidDays}/${r.dim}</td>
       <td class="money" style="color:${r.leaveDays ? '#7c3aed' : 'var(--muted)'}" title="${r.lopLeave ? r.lopLeave + ' day(s) beyond balance went to LOP' : ''}">${r.leaveDays}${r.lopLeave ? '<span style="color:var(--bad)">+' + r.lopLeave + 'L</span>' : ''}</td>
-      <td class="money" style="color:${r.lop > 0 ? 'var(--bad)' : 'var(--muted)'}">${r.lop}</td>
+      <td class="money" style="color:${r.lop > 0 ? 'var(--bad)' : 'var(--muted)'}">${r.lop}${lateBadge(r)}</td>
       <td class="money font-semibold">${fmtINR(r.earnedGross)}</td>
       <td><input type="number" step="0.5" class="inp money" style="width:70px;padding:5px 8px;${r.otApprovedMode ? 'border-color:var(--ok)' : ''}" title="${r.otApprovedMode ? 'From approved OT requests' : 'Auto-calculated from hours worked'}" value="${r.otHours}" data-pay="otHours" data-i="${i}"></td>
       <td class="money" id="otpay-${i}">${fmtINR(r.otPay)}</td>
@@ -6260,9 +6299,155 @@ $('payTable').addEventListener('input', e => {
   $('payTotal').innerText = fmtINR(PAY_ROWS.reduce((a,r) => a + netOf(r), 0));
 });
 
+/* ===== Payroll LOCK -> CEO late-LOP approval -> FINALIZE ===== */
+// small badge in the LOP column showing the late-LOP decision state
+function lateBadge(r){
+  if(!(r.baseLateLOP > 0)) return '';
+  if(!r.lateFgEligible) return ` <span class="chip chip-gray" style="font-size:9px" title="Late LOP ${r.baseLateLOP}d — Worker / PROD / STORE: CEO maafi lagoo nahi">L:${r.baseLateLOP}</span>`;
+  if(r.lateDecision === 'APPROVED') return ` <span class="chip chip-ok" style="font-size:9px" title="Late ${r.baseLateLOP}d — CEO ne maaf kiya">late maaf</span>`;
+  if(r.lateDecision === 'REJECTED') return ` <span class="chip chip-bad" style="font-size:9px" title="Late ${r.baseLateLOP}d — CEO ne reject kiya (count)">L:${r.baseLateLOP}</span>`;
+  return ` <span class="chip chip-blue" style="font-size:9px" title="Late ${r.baseLateLOP}d — CEO approval pending (abhi count ho raha hai)">L:${r.baseLateLOP}?</span>`;
+}
+const isLocked = () => !!(PAY_LOCK && String(PAY_LOCK.status).toUpperCase() !== 'UNLOCKED');
+function lateEligibleRows(){ return PAY_ROWS.filter(r => r.lateFgEligible && r.baseLateLOP > 0); }
+function renderPayLockUI(){
+  const locked = isLocked();
+  const pill = $('payLockPill'), lockB = $('payLockBtn'), unlockB = $('payUnlockBtn'), finB = $('payFinalizeBtn');
+  // Lock button: dikhe jab calculate ho chuka ho aur locked na ho
+  lockB.classList.toggle('hidden', !PAY_ROWS.length || locked);
+  unlockB.classList.toggle('hidden', !locked);
+  // Finalize sirf Lock ke baad
+  finB.classList.toggle('hidden', !locked);
+  if(locked){
+    const st = String(PAY_LOCK.status).toUpperCase();
+    pill.className = 'chip ' + (st === 'FINALIZED' ? 'chip-ok' : 'chip-blue');
+    pill.textContent = st === 'FINALIZED' ? 'FINALIZED' : ('LOCKED' + (PAY_LOCK.locked_by ? ' · ' + PAY_LOCK.locked_by.split('@')[0] : ''));
+    pill.classList.remove('hidden');
+  } else { pill.classList.add('hidden'); }
+  renderLateApprovalPanel();
+}
+function renderLateApprovalPanel(){
+  const panel = $('lateApprovalPanel');
+  const rows = lateEligibleRows();
+  // panel sirf lock ke baad, aur jab koi late-LOP case ho
+  if(!isLocked() || !rows.length){ panel.classList.add('hidden'); return; }
+  panel.classList.remove('hidden');
+  const ceo = (typeof roleCEO === 'function') ? roleCEO() : isSuper();
+  const tb = $('lateApprTable').querySelector('tbody');
+  tb.innerHTML = rows.map(r => {
+    const st = r.lateDecision || 'PENDING';
+    const stChip = st === 'APPROVED' ? '<span class="chip chip-ok">Maaf (Approved)</span>'
+      : st === 'REJECTED' ? '<span class="chip chip-bad">Count (Rejected)</span>'
+      : '<span class="chip chip-blue">Pending</span>';
+    const act = !ceo ? '<span class="text-[10px]" style="color:var(--muted)">CEO only</span>'
+      : `<button class="btn btn-sm ${st==='APPROVED'?'btn-primary':'btn-ghost'}" data-late="APPROVED" data-code="${esc(r.code)}"><i class="fa-solid fa-check"></i> Maaf</button>
+         <button class="btn btn-sm ${st==='REJECTED'?'btn-primary':'btn-ghost'}" data-late="REJECTED" data-code="${esc(r.code)}"><i class="fa-solid fa-xmark"></i> Count</button>`;
+    return `<tr><td><div class="font-semibold">${esc(r.name)}</div><div class="text-[10px]" style="color:var(--muted)">${esc(r.code)} • ${r.lates} late</div></td>
+      <td>${esc(r.dept||'')}</td><td class="money">${r.lates}</td><td class="money" style="color:var(--bad)">${r.baseLateLOP}</td>
+      <td>${stChip}</td><td><div class="flex gap-1">${act}</div></td></tr>`;
+  }).join('');
+  const bulk = $('lateApprBulk');
+  bulk.innerHTML = ceo ? `<button class="btn btn-ghost btn-sm" data-late-all="APPROVED"><i class="fa-solid fa-check-double"></i> Sabko Maaf</button>
+      <button class="btn btn-ghost btn-sm" data-late-all="REJECTED"><i class="fa-solid fa-ban"></i> Sabko Count</button>` : '';
+}
+async function setLateDecision(codes, decision){
+  if(!PAY_MONTH) return;
+  const rows = codes.map(code => {
+    const r = PAY_ROWS.find(x => x.code === code) || {};
+    return { month: PAY_MONTH, employee_code: code, base_late_lop: r.baseLateLOP || 0, lates: r.lates || 0,
+             status: decision, decided_by: ME_EMAIL || '', decided_at: new Date().toISOString() };
+  });
+  const { error } = await sb.from('payroll_late_reviews').upsert(rows, { onConflict: 'month,employee_code' });
+  if(error) return notify('Save nahi hua: ' + error.message, 'error');
+  // local state update + recompute affected rows (net) without a full re-fetch
+  codes.forEach(code => {
+    LATE_REVIEWS[code] = decision;
+    const r = PAY_ROWS.find(x => x.code === code);
+    if(r){
+      const oldLateLOP = r.lateLOP || 0;
+      r.lateDecision = decision;
+      r.lateLOP = (decision === 'APPROVED') ? 0 : r.baseLateLOP;
+      // paidDays ko PICHHLE decision ke sapeksh adjust karo (LOP kam hua -> paidDays badhega)
+      const delta = oldLateLOP - r.lateLOP;
+      r.paidDays = Math.max(0, Math.min(r.dim, +( (r.paidDays || 0) + delta ).toFixed(1)));
+      r.lop = +(r.dim - r.paidDays).toFixed(1);
+      recalcRowGross(r);
+    }
+  });
+  renderPayTable(); renderLateApprovalPanel();
+  notify('Late decision saved (' + (decision === 'APPROVED' ? 'Maaf' : 'Count') + ')', 'success');
+}
+// earnedGross + statutory ko paidDays/dim ratio par dobara nikaalta hai (late decision ke baad)
+function recalcRowGross(r){
+  const S = getSettings();
+  const ratio = r.dim ? r.paidDays / r.dim : 0;
+  const salMap = empSalary(r.code);
+  r.comps = S.earnComps.map(c => ({ k:c.k, name:c.name, pf:!!c.pf, full: salMap[c.k]||0, amt: Math.round((salMap[c.k]||0) * ratio) }));
+  r.earnedGross = Math.round(r.comps.reduce((a,c) => a + c.amt, 0));
+  const pfWages = r.comps.filter(c => c.pf).reduce((a,c) => a + c.amt, 0);
+  r.basic = Math.round(Number(S.pfCap) > 0 ? Math.min(pfWages, Number(S.pfCap)) : pfWages);
+  const p = PROFILES[r.code] || {};
+  r.pf  = p.pf_applicable !== false ? Math.round(r.basic * Number(S.pfPct) / 100) : 0;
+  r.esi = (p.esi_applicable !== false && r.fullGross <= Number(S.esiLimit)) ? Math.ceil(r.earnedGross * Number(S.esiPct) / 100) : 0;
+  r.lwf = (p.lwf_applicable !== false) ? lwfEE(r.earnedGross) : 0;
+  r.erPF = r.pf > 0 ? r.pf : 0;
+  r.erESI = r.esi > 0 ? Math.ceil(r.earnedGross * 3.25 / 100) : 0;
+  r.erLWF = (p.lwf_applicable !== false) ? lwfER(r.earnedGross) : 0;
+  r.hasPay = (r.present + r.leaveDays) > 0 && r.paidDays > 0 && r.earnedGross > 0;
+}
+$('payLockBtn').addEventListener('click', async () => {
+  if(!canFinalize()) return notify('Aapko payroll lock karne ki permission nahi — super admin se pooche', 'error');
+  if(!PAY_ROWS.length) return;
+  if(!(await nxConfirm(`${monthLabel(PAY_MONTH)} ka payroll LOCK karein? Lock ke baad Staff (PROD/STORE chhod kar) ke late-LOP CEO approval ke liye chale jaenge. Aap baad me Unlock/edit kar sakte hain.`, 'Lock Payroll'))) return;
+  const btn = $('payLockBtn'); btn.disabled = true; btn.innerHTML = '<div class="loader-ring"></div> Locking…';
+  try{
+    const { error: le } = await sb.from('payroll_locks').upsert(
+      { month: PAY_MONTH, status: 'LOCKED', locked_by: ME_EMAIL || '', updated_at: new Date().toISOString() },
+      { onConflict: 'month' });
+    if(le) throw le;
+    // eligible staff ke late-LOP cases ke liye PENDING review rows banao (pehle se decided ko chhodo)
+    const rows = lateEligibleRows()
+      .filter(r => !LATE_REVIEWS[r.code])
+      .map(r => ({ month: PAY_MONTH, employee_code: r.code, base_late_lop: r.baseLateLOP, lates: r.lates, status: 'PENDING' }));
+    if(rows.length){
+      const { error: re } = await sb.from('payroll_late_reviews').upsert(rows, { onConflict: 'month,employee_code' });
+      if(re) throw re;
+      rows.forEach(x => LATE_REVIEWS[x.employee_code] = 'PENDING');
+    }
+    PAY_LOCK = { month: PAY_MONTH, status: 'LOCKED', locked_by: ME_EMAIL || '' };
+    renderPayLockUI();
+    notify(`Payroll locked — ${lateEligibleRows().length} staff late-LOP CEO approval ke liye bheje gaye`, 'success');
+  }catch(err){ notify(err.message, 'error'); }
+  finally{ btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-lock"></i> Lock & Send for Approval'; }
+});
+$('payUnlockBtn').addEventListener('click', async () => {
+  if(!canFinalize()) return notify('Aapko unlock ki permission nahi', 'error');
+  if(PAY_LOCK && String(PAY_LOCK.status).toUpperCase() === 'FINALIZED'
+     && !(await nxConfirm('Ye month FINALIZED hai. Phir bhi Unlock karke edit karein?', 'Unlock finalized?'))) return;
+  const { error } = await sb.from('payroll_locks').upsert(
+    { month: PAY_MONTH, status: 'UNLOCKED', locked_by: ME_EMAIL || '', updated_at: new Date().toISOString() },
+    { onConflict: 'month' });
+  if(error) return notify(error.message, 'error');
+  PAY_LOCK = { month: PAY_MONTH, status: 'UNLOCKED' };
+  renderPayLockUI();
+  notify('Payroll unlocked — ab edit kar sakte hain', 'info');
+});
+document.getElementById('lateApprTable').addEventListener('click', e => {
+  const b = e.target.closest('[data-late]'); if(!b) return;
+  setLateDecision([b.dataset.code], b.dataset.late);
+});
+document.getElementById('lateApprBulk').addEventListener('click', e => {
+  const b = e.target.closest('[data-late-all]'); if(!b) return;
+  const codes = lateEligibleRows().map(r => r.code);
+  if(codes.length) setLateDecision(codes, b.dataset.lateAll);
+});
+
 $('payFinalizeBtn').addEventListener('click', async () => {
   if(!canFinalize()) return notify('You are not allowed to finalize payroll — ask a super admin', 'error');
   if(!PAY_ROWS.length) return;
+  if(!isLocked()) return notify('Pehle payroll LOCK karein, phir Finalize', 'error');
+  const _pend = lateEligibleRows().filter(r => (r.lateDecision || 'PENDING') === 'PENDING');
+  if(_pend.length && !(await nxConfirm(`${_pend.length} staff ke late-LOP par CEO ne abhi decide nahi kiya — inka LOP COUNT hoga. Phir bhi finalize karein?`, 'Pending late approvals'))) return;
   if(!(await nxConfirm(`Finalize payroll for ${monthLabel(PAY_MONTH)}? Payslips will be saved and advance balances updated.`, 'Finalize Payroll'))) return;
   const btn = $('payFinalizeBtn');
   btn.innerHTML = '<div class="loader-ring loader-dark"></div> Saving…'; btn.disabled = true;
@@ -6310,9 +6495,15 @@ $('payFinalizeBtn').addEventListener('click', async () => {
         if(PROFILES[r.code]) PROFILES[r.code].salary = sal;
       }
     }
+    // mark month FINALIZED (lock state)
+    await sb.from('payroll_locks').upsert(
+      { month: PAY_MONTH, status: 'FINALIZED', locked_by: ME_EMAIL || '', updated_at: new Date().toISOString() },
+      { onConflict: 'month' });
+    PAY_LOCK = { month: PAY_MONTH, status: 'FINALIZED', locked_by: ME_EMAIL || '' };
+    renderPayLockUI();
     notify(`Payroll finalized — ${slips.length} payslips saved`, 'success');
   }catch(err){ notify(err.message, 'error'); }
-  finally{ btn.innerHTML = '<i class="fa-solid fa-lock"></i> Finalize & Save All'; btn.disabled = false; }
+  finally{ btn.innerHTML = '<i class="fa-solid fa-file-invoice-dollar"></i> Finalize & Save All'; btn.disabled = false; }
 });
 
 /* ---------------- Payslip render & print ---------------- */

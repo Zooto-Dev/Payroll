@@ -1398,15 +1398,17 @@ document.addEventListener('click', async e => {
   const codeU = String(CODE||'').trim().toUpperCase();
   const d = $('gpDate').value;
   if(!d) return notify('Date chuno');
-  // Monthly limit: 2 Short Leave + 1 Half Day per month
+  // Monthly quota: YA TO 2 Short Leave YA 1 Half Day (dono nahi — mutually exclusive)
   const kind = $('gpKind').value;
   const ym = String(d).slice(0,7);
   try{
     const { data: used } = await sb.from('ess_att_requests').select('req_type,status').ilike('employee_code', codeU).in('req_type',['GATE_SL','GATE_HD']).neq('status','REJECTED').gte('date', ym+'-01').lte('date', _lastDay(ym));
     const slUsed = (used||[]).filter(g => g.req_type === 'GATE_SL').length;
     const hdUsed = (used||[]).filter(g => g.req_type === 'GATE_HD').length;
-    if(kind === 'SL' && slUsed >= 2) return notify('Is month ki 2 Short Leave limit ho chuki hai');
-    if(kind === 'HD' && hdUsed >= 1) return notify('Is month ki 1 Half Day limit ho chuki hai');
+    // ek HD lene par poora quota khatam; SL lene par HD band aur SL max 2
+    if(hdUsed >= 1) return notify('Is month ka quota use ho chuka hai (1 Half Day liya gaya). Ab is month koi aur gate-pass nahi.');
+    if(kind === 'HD' && slUsed >= 1) return notify('Aap is month Short Leave le chuke hain — ab Half Day nahi milega (quota: 2 SL ya 1 HD).');
+    if(kind === 'SL' && slUsed >= 2) return notify('Is month ki 2 Short Leave limit ho chuki hai.');
   }catch(e){}
   try{
     const { data, error } = await sb.rpc('ess_gate_request', { p_code: codeU, p_phone: PHONE, p_date: d, p_kind: kind, p_slot: null, p_reason: $('gpReason').value.trim() || null });
