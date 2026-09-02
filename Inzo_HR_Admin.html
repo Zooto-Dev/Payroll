@@ -731,6 +731,7 @@ body.no-confidential .confidential-col{display:none!important}
     <button class="ap-tab" data-aptab="mloan"><i class="fa-solid fa-sack-dollar"></i> Advance / Loan <span class="ap-cnt" id="apCntMl">0</span></button>
     <button class="ap-tab" data-aptab="wpass"><i class="fa-solid fa-id-card-clip"></i> Work Pass <span class="ap-cnt" id="apCntWp">0</span></button>
     <button class="ap-tab" data-aptab="supatt"><i class="fa-solid fa-user-clock"></i> Supervisor Attendance <span class="ap-cnt" id="apCntSup">0</span></button>
+    <button class="ap-tab" data-aptab="fuel"><i class="fa-solid fa-gas-pump"></i> Fuel / Meter <span class="ap-cnt" id="apCntFuel">0</span></button>
   </div>
   <div class="card" style="padding:0;overflow:hidden">
     <div class="ap-panel" id="apPanel-leaves">
@@ -777,6 +778,14 @@ body.no-confidential .confidential-col{display:none!important}
     <div class="ap-panel hidden" id="apPanel-supatt">
       <div class="p-3 border-b flex gap-2" style="border-color:var(--line)"><button class="btn btn-primary btn-sm" id="apSupPend" onclick="apSupMode('PENDING')">Pending</button><button class="btn btn-ghost btn-sm" id="apSupAppr" onclick="apSupMode('APPROVED')">Approved</button></div>
       <div id="apSupatt" class="text-sm" style="padding:0"></div>
+    </div>
+    <div class="ap-panel hidden" id="apPanel-fuel">
+      <div class="p-3 border-b flex gap-2 items-center" style="border-color:var(--line)">
+        <button class="btn btn-primary btn-sm" id="apFuelPend" onclick="apFuelMode('PENDING')">Pending</button>
+        <button class="btn btn-ghost btn-sm" id="apFuelAppr" onclick="apFuelMode('APPROVED')">Approved</button>
+        <span class="text-xs ml-auto" style="color:var(--muted)">Total pending: <b id="apFuelTotal">₹0</b></span>
+      </div>
+      <div id="apFuel" class="text-sm" style="padding:0"></div>
     </div>
   </div>
 </div>
@@ -10053,6 +10062,50 @@ async function apSupMode(mode){
       ${isSuper()?_stepBackBtn('sup_att_requests', r.id, 'status', "()=>apSupMode('APPROVED')"):''}
     </div>`).join('') : '<p class="m-0 text-xs p-3" style="color:var(--muted)">No approved supervisor attendance.</p>';
   }catch(e){ host.innerHTML = '<p class="m-0 text-xs p-3" style="color:var(--bad)">Error: '+esc(e.message||e)+'</p>'; }
+}
+async function loadFuelApprovals(){
+  const host = $('apFuel'); if(!host) return;
+  try{
+    const { data } = await sb.from('fuel_logs').select('*').eq('status','PENDING').order('created_at',{ascending:false});
+    const list = data || [];
+    if($('apCntFuel')) $('apCntFuel').innerText = list.length;
+    const total = list.reduce((a,f)=>a+(Number(f.amount)||0),0);
+    if($('apFuelTotal')) $('apFuelTotal').innerText = '₹'+total.toLocaleString('en-IN');
+    host.innerHTML = list.length ? `<div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>Employee</th><th>Date</th><th>IN</th><th>OUT</th><th>Distance</th><th>Rate</th><th>Amount</th><th>By</th><th>Action</th></tr></thead><tbody>
+      ${list.map(f=>`<tr>
+        <td class="font-semibold">${esc(f.employee_name||f.employee_code)}<div class="text-[10px]" style="color:var(--muted)">${esc(f.employee_code)}</div></td>
+        <td class="text-xs">${fmtDate(f.log_date)}</td>
+        <td>${esc(String(f.meter_in))}</td><td>${esc(String(f.meter_out))}</td>
+        <td><b>${esc(String(f.distance))} km</b></td><td class="text-xs">₹${esc(String(f.rate_per_km))}</td>
+        <td><b style="color:var(--ok)">₹${Number(f.amount).toLocaleString('en-IN')}</b></td>
+        <td class="text-[10px]" style="color:var(--muted)">${esc(f.logged_by_name||f.logged_by||'')}</td>
+        <td style="white-space:nowrap"><button class="btn btn-primary btn-sm" onclick="fuelDecide(${f.id},true)"><i class="fa-solid fa-check"></i></button> <button class="btn btn-danger btn-sm" onclick="fuelDecide(${f.id},false)"><i class="fa-solid fa-xmark"></i></button></td>
+      </tr>`).join('')}
+      </tbody></table></div>` : '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi fuel log pending nahi.</p>';
+  }catch(e){ host.innerHTML = '<p class="p-4 m-0 text-xs" style="color:var(--bad)">Error: '+esc(e.message||e)+'</p>'; }
+}
+async function apFuelMode(mode){
+  _apToggle2('apFuelPend','apFuelAppr',mode);
+  if(mode === 'PENDING') return loadFuelApprovals();
+  const host = $('apFuel'); if(!host) return;
+  host.innerHTML = '<p class="p-3 m-0 text-xs" style="color:var(--muted)">Loading…</p>';
+  try{
+    const { data } = await sb.from('fuel_logs').select('*').in('status',['APPROVED','PAID']).order('log_date',{ascending:false}).limit(200);
+    host.innerHTML = (data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>Employee</th><th>Date</th><th>Distance</th><th>Amount</th><th>Status</th>${isSuper()?'<th></th>':''}</tr></thead><tbody>
+      ${data.map(f=>`<tr><td class="font-semibold text-xs">${esc(f.employee_name||f.employee_code)}</td><td class="text-xs">${fmtDate(f.log_date)}</td><td>${esc(String(f.distance))}km</td><td><b>₹${Number(f.amount).toLocaleString('en-IN')}</b></td><td><span class="chip chip-ok" style="font-size:10px">${esc(f.status)}</span></td>${isSuper()?`<td>${_stepBackBtn('fuel_logs',f.id,'status',"()=>apFuelMode('APPROVED')")}</td>`:''}</tr>`).join('')}
+      </tbody></table></div>` : '<p class="p-4 m-0 text-xs" style="color:var(--muted)">No approved fuel logs.</p>';
+  }catch(e){ host.innerHTML = '<p class="p-3 m-0 text-xs" style="color:var(--bad)">Error: '+esc(e.message||e)+'</p>'; }
+}
+async function fuelDecide(id, approve){
+  let reason = null;
+  if(!approve){ reason = await _askRejectReason('fuel'); if(reason === null) return; }
+  try{
+    await sb.from('fuel_logs').update({ status: approve?'APPROVED':'REJECTED', reject_reason: reason, decided_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', id);
+    notify(approve?'✓ Fuel approved':'Rejected', approve?'success':'info');
+    loadFuelApprovals();
+  }catch(e){ notify('Failed: '+(e.message||e), 'error'); }
 }
 async function loadSupAttApprovals(){
   const host = $('apSupatt'); if(!host) return;
