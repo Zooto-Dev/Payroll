@@ -442,7 +442,7 @@ body.no-confidential .confidential-col{display:none!important}
 <div class="page show" id="page-dashboard">
 
   <!-- KPI ROW -->
-  <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+  <div class="grid grid-cols-2 lg:grid-cols-6 gap-4">
     <div class="kpi" style="cursor:pointer" onclick="showAttList('present')">
       <div class="kpi-ic" style="background:#dcfce7;color:#16a34a"><i class="fa-solid fa-user-check"></i></div>
       <div><div class="kpi-lbl">Present Today</div><div class="kpi-num" id="dPresent">—</div><div class="kpi-sub" id="dPresentPct">—</div></div>
@@ -458,6 +458,10 @@ body.no-confidential .confidential-col{display:none!important}
     <div class="kpi" style="cursor:pointer" onclick="showAttList('night')">
       <div class="kpi-ic" style="background:#e0e7ff;color:#4338ca"><i class="fa-solid fa-moon"></i></div>
       <div><div class="kpi-lbl">Night Shift</div><div class="kpi-num" id="dNight">—</div><div class="kpi-sub">raat waale — din mein absent nahi</div></div>
+    </div>
+    <div class="kpi" style="cursor:pointer" onclick="showTrialList()">
+      <div class="kpi-ic" style="background:#fef9c3;color:#a16207"><i class="fa-solid fa-id-card-clip"></i></div>
+      <div><div class="kpi-lbl">Trial Workers</div><div class="kpi-num" id="dTrial">—</div><div class="kpi-sub" id="dTrialSub">work-pass par</div></div>
     </div>
     <div class="kpi">
       <div class="kpi-ic" style="background:#dbeafe;color:#1f4b9b"><i class="fa-solid fa-users"></i></div>
@@ -2412,6 +2416,44 @@ function showAttList(kind){
   m.classList.add('show');
 }
 function closeAttList(){ const m = document.getElementById('attListModal'); if(m) m.classList.remove('show'); }
+
+// ===== Trial Workers (Work Pass) — dashboard KPI + list =====
+async function updateTrialKpi(){
+  try{
+    const { data } = await sb.rpc('wp_list');
+    const list = (data||[]).filter(w => String(w.status) === 'ACTIVE' || String(w.status) === 'CONVERT_REQUESTED');
+    window._trialList = list;
+    const cameToday = list.filter(w => w.today_in && /[0-9]/.test(String(w.today_in))).length;
+    if($('dTrial')) $('dTrial').innerText = list.length;
+    if($('dTrialSub')) $('dTrialSub').innerText = 'aaj aaye: ' + cameToday;
+  }catch(e){ if($('dTrial')) $('dTrial').innerText = '0'; }
+}
+async function showTrialList(){
+  let list = window._trialList;
+  if(!list){ try{ const { data } = await sb.rpc('wp_list'); list = (data||[]).filter(w => ['ACTIVE','CONVERT_REQUESTED'].includes(String(w.status))); }catch(e){ list = []; } }
+  const rowsHtml = (list||[]).map((w,i) => `<tr>
+      <td style="color:var(--muted)">${i+1}</td>
+      <td><b>${esc(w.name)}</b></td>
+      <td>${esc(w.department||'—')}${w.line?' · '+esc(w.line):''}</td>
+      <td>${esc(w.supervisor||'—')}</td>
+      <td style="text-align:center">Day ${Math.min(w.day_no||1,3)}/3</td>
+      <td style="text-align:center">${esc(String(w.today_in||'').slice(0,5)||'—')}</td>
+      <td style="text-align:center">${esc(String(w.today_out||'').slice(0,5)||'—')}</td>
+      <td>${w.status==='CONVERT_REQUESTED' ? '<span class="chip chip-blue" style="font-size:10px">Convert pending</span>' : '<span class="chip chip-warn" style="font-size:10px">Trial</span>'}</td>
+    </tr>`).join('');
+  const body = (list||[]).length
+    ? `<div style="overflow:auto"><table class="reg" style="font-size:12px;width:100%"><thead><tr><th>#</th><th>Name</th><th>Department</th><th>Supervisor</th><th>Trial</th><th>Today IN</th><th>Today OUT</th><th>Status</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>`
+    : '<p style="color:var(--muted);text-align:center;padding:20px">Koi active trial worker nahi.</p>';
+  let m = document.getElementById('attListModal');
+  if(!m){ m = document.createElement('div'); m.id = 'attListModal'; m.className = 'modal'; document.body.appendChild(m); }
+  m.innerHTML = `<div class="modal-box" style="max-width:820px;max-height:82vh;overflow:auto">
+    <div class="flex items-center justify-between mb-3"><h3 class="display font-bold m-0">Trial Workers (Work Pass) <span class="chip chip-gray">${(list||[]).length}</span></h3>
+    <button class="btn btn-ghost btn-sm" onclick="closeAttList()"><i class="fa-solid fa-xmark"></i></button></div>
+    ${body}
+    <p class="text-[11px] mt-2 mb-0" style="color:var(--muted)">Convert / Reject: Approvals → Work Pass tab se hota hai (jab supervisor 'Employee Banao' bhejta hai).</p>
+  </div>`;
+  m.classList.add('show');
+}
 async function exitFromAbsent(code, name){
   if(!isSuper()) return notify('Sirf Super Admin', 'error');
   const dt = prompt('Exit date (YYYY-MM-DD) for ' + name + ':', todayISO());
@@ -3457,6 +3499,7 @@ async function loadDashboard(){
     });
     window._nightList.sort((a,b)=>String(a.name).localeCompare(String(b.name)));
     if($('dNight')) $('dNight').innerText = window._nightList.length;
+    updateTrialKpi();   // Trial Workers (work-pass) count
     const total = activeEmps().length;
     // aaj working day hai ya off? (Sunday/holiday/OFF-override; WORKING-override sab cancel kar deta hai)
     const _ovToday = (window.DAY_OVERRIDES||[]).find(o => o.date === today);

@@ -1312,7 +1312,10 @@ async function wpEssLoad(){
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span><b>${esc(w.name)}</b> <span class="text-[10px]" style="color:var(--muted)">${esc(w.pass_no||'')} · Day ${Math.min(w.day_no,3)}/3${w.today_in ? ' · IN ' + String(w.today_in).slice(0,5) : ''}${w.today_out ? ' · OUT ' + String(w.today_out).slice(0,5) : ''}</span></span>
           ${pend ? '<span class="chip chip-blue" style="font-size:10px">⏳ HR approval pending</span>'
-            : `<button class="btn btn-sm ${ready?'btn-primary':'btn-ghost'}" ${ready?'':'disabled'} onclick="wpEssConvert(${w.id}, '${esc(w.name)}')" style="${ready?'background:#059669;border-color:#059669':''}">${ready?'👔 Employee Banao':'Trial ' + Math.min(w.day_no,3) + '/3'}</button>`}
+            : `<span style="display:flex;gap:6px;align-items:center">
+                 <button class="btn btn-sm ${ready?'btn-primary':'btn-ghost'}" ${ready?'':'disabled'} onclick="wpEssConvert(${w.id}, '${esc(w.name)}')" style="${ready?'background:#059669;border-color:#059669':''}">${ready?'👔 Employee Banao':'Trial ' + Math.min(w.day_no,3) + '/3'}</button>
+                 <button class="btn btn-sm btn-ghost" onclick="wpEssReject(${w.id}, '${esc(w.name)}')" style="color:#b91c1c;border-color:#fca5a5" title="Trial reject / hataayein">✕ Reject</button>
+               </span>`}
         </div></div>`;
     }).join('');
   }catch(e){ host.innerHTML = '<p class="text-xs m-0" style="color:var(--bad)">' + esc(e.message||e) + ' — V86 SQL chala?</p>'; }
@@ -1324,6 +1327,16 @@ async function wpEssConvert(id, nm){
     if(error) throw error;
     if(data && data.error) return notify(data.error);
     notify('✓ Request HR ko chali gayi — approve hote hi ' + nm + ' payroll mein aa jayega');
+    wpEssLoad();
+  }catch(e){ notify('Failed: ' + (e.message||e)); }
+}
+async function wpEssReject(id, nm){
+  if(!window.confirm(nm + ' ka trial REJECT karein? Ye trial worker hata diya jayega (payroll mein nahi aayega).')) return;
+  try{
+    const { data, error } = await sb.rpc('wp_decide', { p_id: id, p_approve: false });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    notify('✓ ' + nm + ' ka trial reject kar diya');
     wpEssLoad();
   }catch(e){ notify('Failed: ' + (e.message||e)); }
 }
