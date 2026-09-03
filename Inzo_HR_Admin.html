@@ -4412,9 +4412,6 @@ $('epSaveBtn').addEventListener('click', async () => {
       phone: $('epPhone').value, email: $('epEmail').value, father_name: $('epFather').value,
       dob: $('epDOB').value || null, address: $('epAddr').value,
       salary: { earn, ded, wageType: $('epWageType').value, skill: $('epSkill').value, otAllowed: $('epOT').checked, payMode: 'bank', pendingArrear: Number(((PROFILES[$('epCode').value]||{}).salary||{}).pendingArrear)||0 },
-      salary_status: isCEO() ? 'APPROVED' : 'PENDING',
-      salary_submitted_by: ME_EMAIL, salary_submitted_at: new Date().toISOString(),
-      salary_approved_by: isCEO() ? ME_EMAIL : null, salary_approved_at: isCEO() ? new Date().toISOString() : null,
       basic: Number(earn.basic)||0, hra: Number(earn.hra)||0,
       conveyance: Number(earn.conveyance)||0, special_allowance: Number(earn.special_allowance)||0,
       pf_applicable: $('epPF').checked, esi_applicable: $('epESI').checked, pt_applicable: $('epPT').checked,
@@ -4432,6 +4429,19 @@ $('epSaveBtn').addEventListener('click', async () => {
       exit_date: $('epExitDate').value || null, exit_reason: $('epExitReason').value || null,
       ess_attendance: $('epEssAtt').checked
     };
+    // Salary approval sirf TAB reset ho jab salary sach me badli ho.
+    // Warna (naam/phone/shift/status/inactive edit par) purani approval bani rahegi.
+    const _prevSal = (PROFILES[$('epCode').value] || {}).salary || {};
+    const _norm = s => JSON.stringify({ earn: s.earn || {}, ded: s.ded || {}, wageType: s.wageType, skill: s.skill, otAllowed: !!s.otAllowed });
+    const _salaryChanged = _norm(row.salary) !== _norm(_prevSal);
+    const _isNewProfile = !PROFILES[$('epCode').value];
+    if(_salaryChanged || _isNewProfile){
+      row.salary_status = isCEO() ? 'APPROVED' : 'PENDING';
+      row.salary_submitted_by = ME_EMAIL; row.salary_submitted_at = new Date().toISOString();
+      row.salary_approved_by = isCEO() ? ME_EMAIL : null;
+      row.salary_approved_at = isCEO() ? new Date().toISOString() : null;
+    }
+    // (salary same -> salary_status/approval columns row me nahi -> DB me jaisa hai waisa hi rahega)
     const { error } = await sb.from('hr_profiles').upsert(row, { onConflict: 'employee_code' });
     if(error) throw error;
     // if an exit date is set, force status INACTIVE
@@ -4469,7 +4479,8 @@ $('epSaveBtn').addEventListener('click', async () => {
     if(e2) throw e2;
     const empRow = EMP.find(x => x['Employee code'] === $('epCode').value);
     if(empRow) Object.assign(empRow, empUpd);
-    PROFILES[row.employee_code] = row;
+    // merge (replace nahi) -> salary same hone par purani salary_status/approval local me bani rahe
+    PROFILES[row.employee_code] = Object.assign({}, PROFILES[row.employee_code] || {}, row);
     const newLine = ($('epWageType').value === 'custom') ? null : ($('epLine').value || null);
     const empRec = EMP.find(x => x['Employee code'] === row.employee_code);
     if(empRec && (empRec.LINE || null) !== newLine){
