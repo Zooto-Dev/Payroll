@@ -2013,7 +2013,7 @@ function nxConfirm(msg, title){
                 // Punch goes STRAIGHT to the database (SECURITY DEFINER RPC). Success shows only
                 // after the DB confirms. The local queue is now ONLY an emergency net-down backup,
                 // and in that case the screen clearly says OFFLINE — no more silent local-only punches.
-                let dbSaved = false, dbRowId = null, dbWhy = '';
+                let dbSaved = false, dbRowId = null, dbWhy = '', dbAlready = false;
                 if (navigator.onLine && typeof supabaseClient !== 'undefined' && supabaseClient) {
                     try {
                         const rpcP = (punchType === 'IN')
@@ -2024,14 +2024,24 @@ function nxConfirm(msg, title){
                         if (r && r._timeout) { dbWhy = 'network slow (8s timeout)'; }
                         else if (r.error) { dbWhy = (r.error.message || String(r.error)); }
                         else if (r.data && r.data.ok) { dbSaved = true; dbRowId = r.data.id || null; if (typeof r.data.late === 'boolean') isLate = r.data.late; }
-                        else { dbSaved = true; dbWhy = (r.data && r.data.reason) || ''; }   // already_in / no_open_in_row -> done, nothing to queue
+                        else { dbSaved = true; dbAlready = true; dbWhy = (r.data && r.data.reason) || ''; }   // already_in / no_open_in_row -> done, nothing to queue (koi duplicate row nahi banegi)
                     } catch(e) { dbWhy = (e && e.message) || String(e); }
                 }
 
                 setLocalPunch(empCode, punchType === 'IN' ? todayStr : punchDateStr, punchType === 'IN' ? 'in' : 'out', timeStr);
                 lastPunchTime.set(empCode, now);
 
-                if (dbSaved) {
+                if (dbSaved && dbAlready) {
+                    // ===== STATE 1b: aaj pehle hi punch ho chuka hai \u2014 koi duplicate row nahi banegi =====
+                    const alMsg = speakName(empName) + (punchType === 'IN'
+                        ? ", aap aaj pehle hi punch in kar chuke hain."
+                        : ", aap aaj pehle hi punch out kar chuke hain.");
+                    speakText(alMsg);
+                    showSuccessUI(empData, empName, imageBase64, timeStr,
+                        punchType === 'IN' ? "\u2713 AAJ PEHLE HI PUNCH IN HO CHUKA HAI" : "\u2713 AAJ PEHLE HI PUNCH OUT HO CHUKA HAI");
+                    nxSyncBanner('ok', (punchType === 'IN' ? 'Already punched IN' : 'Already punched OUT') + ' \u2014 ' + (empName || empCode));
+                    // duplicate: koi photo attach nahi, koi queue nahi
+                } else if (dbSaved) {
                     // ===== STATE 1: DB tak PAKKA gaya (server se confirm) =====
                     let msg = speakName(empName) + (punchType === 'IN' ? ", aapka punch in safal raha." : ", aapka punch out safal raha.");
                     if(punchType === 'IN' && isLate) msg += " Dhyan rahe, aap late hain.";
