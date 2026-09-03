@@ -1852,6 +1852,34 @@ function nxConfirm(msg, title){
             const lateCutoff = _staff ? "10:00:00" : "09:10:00";
             let isLate = timeStr > lateCutoff;
 
+            // ===== SHIFT-WINDOW GATE (sirf live punch) =====
+            // Night shift: IN sirf 19:30–20:30, OUT sirf subah 10:00 tak. Iske bahar -> BLOCK.
+            // Day/Morning: shift ke bahar punch par sirf message (punch fir bhi record hoga).
+            if(!offlineProcessData){
+                const _sm = (window.NX_SHIFTMAP||{})[String(empCode).toUpperCase()] || {};
+                const _mins = localDate.getHours()*60 + localDate.getMinutes();
+                const _toMin = t => { const m = String(t||'').match(/(\d{1,2}):(\d{2})/); return m ? (+m[1]*60 + +m[2]) : null; };
+                if(_sm.night){
+                    const _inWin  = _mins >= (19*60+30) && _mins <= (20*60+30);   // 19:30–20:30 (IN)
+                    const _outWin = _mins <= (10*60);                             // subah 10:00 tak (OUT)
+                    if(!(_inWin || _outWin)){
+                        showFeedback('spoof', '<i class="fa-solid fa-ban" style="color:#fca5a5"></i>', 'Entry not allowed', 'Night shift: IN raat 7:30–8:30, OUT subah 10:00 tak', 'danger', 4200);
+                        speakText('Kripya apni shift mein aayen. Night shift ka punch raat saade saat se saade aath tak, aur subah das baje tak hi hota hai. Koi samasya ho to H R se sampark karein.');
+                        resumeScanning();
+                        return;
+                    }
+                } else {
+                    const _st = _toMin(_sm.start), _en = _toMin(_sm.end);
+                    const _lo = (_st !== null ? _st : 9*60) - 120;      // shift start se 2 ghante pehle
+                    const _hi = (_en !== null ? _en : 17*60+30) + 180;  // shift end se 3 ghante baad
+                    if(_mins < _lo || _mins > _hi){
+                        notify('Kripya apni shift mein aayen — koi samasya ho to HR se sampark karein.', 'info');
+                        speakText('Kripya apni shift ke samay par aayein. Yadi koi samasya hai to H R se sampark karein.');
+                        // punch fir bhi record hoga (sirf message)
+                    }
+                }
+            }
+
             let imageBase64 = offlineProcessData ? offlineProcessData.imageBase64 : null;
 
             if(!offlineProcessData) {
@@ -1895,7 +1923,9 @@ function nxConfirm(msg, title){
                 // -> ye punch KAL ki attendance ka OUT hai, aaj ka naya IN NahI.
                 // Din-shift waala jo kal OUT karna bhool gaya (kal subah IN tha) -> usko aaj naya IN hi milega.
                 let punchDateStr = todayStr, nightOut = false;
-                if (!lp.in && timeStr.substring(0,5) <= '14:00') {
+                // Next-day OUT sirf NIGHT-SHIFT employee ko. Day/Morning ka kabhi next-day out nahi.
+                const _isNightEmp = !!((window.NX_SHIFTMAP||{})[String(empCode).toUpperCase()]||{}).night;
+                if (_isNightEmp && !lp.in && timeStr.substring(0,5) <= '10:00') {
                     const yD = new Date(todayStr + 'T12:00:00'); yD.setDate(yD.getDate() - 1);
                     const yStr = yD.getFullYear() + '-' + String(yD.getMonth()+1).padStart(2,'0') + '-' + String(yD.getDate()).padStart(2,'0');
                     const looksNight = p => p && p.in && !p.out && String(p.in).substring(0,5) >= '17:00';
