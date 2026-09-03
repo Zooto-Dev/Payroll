@@ -922,7 +922,7 @@ function nxConfirm(msg, title){
                             const smap = {};
                             (prRes.data||[]).forEach(p => {
                                 const sh = p.shift_id ? shById[String(p.shift_id)] : null;
-                                const night = sh ? (!!sh.is_night || (sh.end_time && sh.start_time && String(sh.end_time) < String(sh.start_time))) : false; smap[String(p.employee_code).toUpperCase()] = { night: !!night, start: (sh&&sh.start_time)||'', end: (sh&&sh.end_time)||'', category: String(p.category||'').toUpperCase() };
+                                const night = sh ? (!!sh.is_night || (sh.end_time && sh.start_time && String(sh.end_time) < String(sh.start_time))) : false; smap[String(p.employee_code).toUpperCase()] = { night: !!night, start: (sh&&sh.start_time)||'', end: (sh&&sh.end_time)||'', name: (sh&&sh.name)||'', category: String(p.category||'').toUpperCase() };
                             });
                             window.NX_SHIFTMAP = smap; localStorage.setItem('cached_shiftmap', JSON.stringify(smap));
                         } catch(e){ console.warn('shift map warn', e); }
@@ -1287,6 +1287,7 @@ function nxConfirm(msg, title){
                                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                                 scannerWrapper.classList.remove('active-scan');
                                 _lastPunchActivity = Date.now();
+                                window._lastMatchConf = Math.round(matchConfidence);   // photo overlay ke liye
                                 await recordAttendance(match.label);
                                 return;
                             }
@@ -1906,12 +1907,31 @@ function nxConfirm(msg, title){
                 ctx.scale(-1, 1);
                 ctx.drawImage(video, sx, sy, sw, sh, 0, 0, snapCanvas.width, snapCanvas.height);
                 ctx.setTransform(1, 0, 0, 1, 0, 0);
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-                ctx.fillRect(0, snapCanvas.height - 26, snapCanvas.width, 26);
-                ctx.fillStyle = '#ffffff';
-                ctx.font = '500 10px Inter, sans-serif';
-                ctx.fillText(`${empCode} • ${new Date().toLocaleTimeString()} • Loc: ${currentLocation}`, 6, snapCanvas.height - 9);
-                imageBase64 = snapCanvas.toDataURL('image/jpeg', 0.55);
+                // ===== FULL AUDIT OVERLAY on the snapshot =====
+                const _sm2 = (window.NX_SHIFTMAP||{})[String(empCode).toUpperCase()] || {};
+                const _shiftLbl = _sm2.name
+                    || ((_sm2.start && _sm2.end) ? (String(_sm2.start).slice(0,5) + '-' + String(_sm2.end).slice(0,5)) : (_sm2.night ? 'Night' : 'Day'));
+                const _conf = (window._lastMatchConf != null && !isNaN(window._lastMatchConf)) ? (window._lastMatchConf + '%') : '—';
+                const _co = (window.NX_SETTINGS && window.NX_SETTINGS.name) || 'Zooto Fashion Pvt Ltd';
+                const _ovLines = [
+                    _co,
+                    `${empName} (${empCode})`,
+                    new Date().toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true }),
+                    `Shift: ${_shiftLbl}   Match: ${_conf}`,
+                    `Loc: ${currentLocation}`
+                ];
+                const _fs = Math.max(9, Math.round(snapCanvas.width / 44));   // font size scales with photo
+                const _lh = _fs + 4;                                          // line height
+                const _boxH = _ovLines.length * _lh + 8;
+                ctx.fillStyle = 'rgba(0,0,0,0.62)';
+                ctx.fillRect(0, snapCanvas.height - _boxH, snapCanvas.width, _boxH);
+                ctx.textBaseline = 'alphabetic';
+                _ovLines.forEach((ln, i) => {
+                    ctx.fillStyle = (i === 0) ? '#ffe08a' : '#ffffff';
+                    ctx.font = (i === 0 ? '700 ' : '500 ') + _fs + 'px Inter, Arial, sans-serif';
+                    ctx.fillText(ln, 6, snapCanvas.height - _boxH + _lh * (i + 1));
+                });
+                imageBase64 = snapCanvas.toDataURL('image/jpeg', 0.6);
             }
 
             const saveOfflineTask = async () => {
