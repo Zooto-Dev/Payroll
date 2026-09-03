@@ -5947,6 +5947,18 @@ async function runPayroll(){
     (_revRes.data || []).forEach(x => { lateReviewMap[x.employee_code] = String(x.status || 'PENDING').toUpperCase(); });
     LATE_REVIEWS = lateReviewMap;
 
+    // FNF-settled employees: unka dues alag se Full & Final me chuka diya gaya -> payroll me NA aayein
+    const _fnfRes = await sb.from('exits').select('employee_code, status').eq('status', 'SETTLED');
+    const settledSet = new Set((_fnfRes.data || []).map(x => String(x.employee_code).toUpperCase()));
+    // Us month kaam kiye (attendance) employees ka set
+    const workedThisMonth = new Set(Object.keys(attMap).filter(c => attMap[c] && Object.keys(attMap[c]).length));
+    // Payroll me: ACTIVE YA jinki is month attendance hai; lekin FNF-settled ko chhodo.
+    const payrollEmps = () => EMP.filter(e => {
+      const code = e['Employee code'];
+      if (settledSet.has(String(code).toUpperCase())) return false;         // FNF ho chuka -> skip
+      return String(e.Status).toUpperCase() === 'ACTIVE' || workedThisMonth.has(code);
+    });
+
     const woCount = dayMeta.filter(x => x.isWO).length;
     const hCount = dayMeta.filter(x => x.isH && !x.isWO).length;
 
@@ -5996,9 +6008,9 @@ async function runPayroll(){
     }
 
     const isContractEmp = code => ((PROFILES[code]||{}).employment_type === 'Contract');
-    const _skippedContract = activeEmps().filter(e => isContractEmp(e['Employee code']));
-    const _skippedPending = activeEmps().filter(e => !isContractEmp(e['Employee code']) && !salaryApproved(e['Employee code']));
-    PAY_ROWS = activeEmps().filter(e => !isContractEmp(e['Employee code']) && salaryApproved(e['Employee code'])).map(e => {
+    const _skippedContract = payrollEmps().filter(e => isContractEmp(e['Employee code']));
+    const _skippedPending = payrollEmps().filter(e => !isContractEmp(e['Employee code']) && !salaryApproved(e['Employee code']));
+    PAY_ROWS = payrollEmps().filter(e => !isContractEmp(e['Employee code']) && salaryApproved(e['Employee code'])).map(e => {
       const code = e['Employee code'];
       const p = PROFILES[code] || {};
       const days = attMap[code] || {};
