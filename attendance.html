@@ -2013,7 +2013,7 @@ function nxConfirm(msg, title){
                 // Punch goes STRAIGHT to the database (SECURITY DEFINER RPC). Success shows only
                 // after the DB confirms. The local queue is now ONLY an emergency net-down backup,
                 // and in that case the screen clearly says OFFLINE — no more silent local-only punches.
-                let dbSaved = false, dbRowId = null, dbWhy = '', dbAlready = false;
+                let dbSaved = false, dbRowId = null, dbWhy = '', dbAlready = false, dbRestricted = false;
                 if (navigator.onLine && typeof supabaseClient !== 'undefined' && supabaseClient) {
                     try {
                         const rpcP = (punchType === 'IN')
@@ -2024,8 +2024,20 @@ function nxConfirm(msg, title){
                         if (r && r._timeout) { dbWhy = 'network slow (8s timeout)'; }
                         else if (r.error) { dbWhy = (r.error.message || String(r.error)); }
                         else if (r.data && r.data.ok) { dbSaved = true; dbRowId = r.data.id || null; if (typeof r.data.late === 'boolean') isLate = r.data.late; }
+                        else if (r.data && r.data.restricted) { dbRestricted = true; }   // inactive employee -> punch-in blocked
                         else { dbSaved = true; dbAlready = true; dbWhy = (r.data && r.data.reason) || ''; }   // already_in / no_open_in_row -> done, nothing to queue (koi duplicate row nahi banegi)
                     } catch(e) { dbWhy = (e && e.message) || String(e); }
+                }
+
+                if (dbRestricted) {
+                    // ===== ENTRY RESTRICTED: inactive employee — na local punch, na photo, na queue =====
+                    lastPunchTime.set(empCode, now);   // turant dobara scan na ho
+                    showFeedback('spoof', '<i class="fa-solid fa-ban" style="color:#fca5a5"></i>',
+                        'Entry Restricted', (empName || empCode) + ' — yeh employee inactive hai. Punch allowed nahi, HR se sampark karein.', 'danger', 4500);
+                    speakText(speakName(empName) + ", aapki entry restricted hai. Aap inactive hain, punch nahi ho sakta. Kripya H R se sampark karein.");
+                    nxSyncBanner('err', '⛔ Entry Restricted — inactive employee — ' + (empName || empCode));
+                    resumeScanning();
+                    return;
                 }
 
                 setLocalPunch(empCode, punchType === 'IN' ? todayStr : punchDateStr, punchType === 'IN' ? 'in' : 'out', timeStr);
