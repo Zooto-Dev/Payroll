@@ -8414,9 +8414,10 @@ $('empImportBtn').addEventListener('click', () => {
 });
 
 $('empExportBtn').addEventListener('click', async () => {
-  const showExited = $('empShowExited') && $('empShowExited').checked;
-  const list = EMP.filter(e => showExited || String(e.Status).toUpperCase() === 'ACTIVE');
+  // Export me SAB employees — Active, Inactive aur Exited — (Status column me pata chal jayega).
+  const list = EMP.slice();
   if(!list.length) return notify('No employees to export', 'error');
+  const _cntInactive = list.filter(e => String(e.Status||'').toUpperCase() !== 'ACTIVE').length;
   // which employees have face data registered? (codes only — a tiny query)
   let faceSet = new Set();
   try{
@@ -8446,7 +8447,7 @@ $('empExportBtn').addEventListener('click', async () => {
     lines.push(row.map(q).join(','));
   });
   dlText('Employees_' + todayISO() + '.csv', lines.join('\n'), 'text/csv');
-  notify('Exported ' + list.length + ' employee(s)' + (full ? '' : ' (salary & bank data excluded)'), 'success');
+  notify('Exported ' + list.length + ' employee(s) (' + _cntInactive + ' inactive/exited included)' + (full ? '' : ' — salary & bank data excluded'), 'success');
 });
 $('impTplBtn').addEventListener('click', () => {
   const _u = (SETTINGS.units||[]).map(u => u.code);
