@@ -3648,6 +3648,7 @@ function ctcToGross(ctc){
   return Math.max(0, Math.round(g));
 }
 $('empAddBtn').addEventListener('click', () => {
+  window._convertingWorkPass = null;   // normal add -> koi work-pass conversion context nahi (convertWorkPass isse baad me set karta hai)
   renderLines(); renderUnits(); populateDLs();
   const _units = (getSettings().units || []);
   $('aeUnit').value = _units.length === 1 ? _units[0].code : '';
@@ -3724,6 +3725,23 @@ $('aeSaveBtn').addEventListener('click', async () => {
     }
     await sb.from('hr_profiles').upsert(prof, { onConflict: 'employee_code' });
     PROFILES[code] = Object.assign(PROFILES[code] || {}, prof);
+    // Work Pass conversion: trial attendance sync + pass ko CONVERTED mark karo
+    if(window._convertingWorkPass && window._convertingWorkPass.id){
+      try{
+        const wpc = window._convertingWorkPass;
+        const rows = (wpc.attRows||[]).filter(a => a.in_time).map(a => ({
+          employee_code: code, Name: name, date: a.date,
+          in_time: String(a.in_time).length === 5 ? a.in_time + ':00' : a.in_time,
+          out_time: a.out_time ? (String(a.out_time).length === 5 ? a.out_time + ':00' : a.out_time) : '',
+          is_late: String(a.in_time).slice(0,5) > '09:10'
+        }));
+        if(rows.length){ const { error: eb } = await sb.rpc('nx_bulk_att', { p_rows: rows }); if(eb) notify('Attendance sync issue: ' + eb.message, 'error'); }
+        await sb.rpc('wp_decide', { p_id: Number(wpc.id), p_approve: true, p_emp_code: code });
+        notify(`✓ Work pass converted — ${rows.length} din ki trial attendance sync ho gayi`, 'success');
+      }catch(e){ notify('Work pass convert issue: ' + (e.message || e), 'error'); }
+      window._convertingWorkPass = null;
+      try{ loadApprovals(); }catch(e){}
+    }
     notify(`${name} added` + (salaryAllowed ? ' — now open Profile to set phone, salary and shift' : ' — Accounts will set the salary'), 'success');
     $('addEmpModal').classList.remove('show');
     await loadCore();
@@ -5468,6 +5486,37 @@ async function convertCandidate(id){
     notify('Fill the remaining details and Add. Then mark the candidate as Joined.', 'info');
     window._convertingCandidate = c.id;
   }, 200);
+}
+
+// Work Pass (trial worker) -> Employee: Add Employee form pre-filled kholta hai.
+// Unit choose karte hi code auto ban jaata hai; trial attendance Add ke baad sync hoti hai.
+async function convertWorkPass(id){
+  const w = (window._wpPending || []).find(x => String(x.id) === String(id));
+  if(!w) return notify('Work pass details load nahi hue — Approvals dobara kholein', 'error');
+  if(!(await nxConfirm(`${w.name} ko Employee banayein?\n\nAdd Employee form khulega — Unit choose karte hi code auto ban jayega. Trial attendance apne aap payroll me chali jayegi.`, 'Work Pass → Employee'))) return;
+  // trial attendance abhi utha lo (Add ke baad sync karenge)
+  let attRows = [];
+  try{ const { data: att } = await sb.rpc('wp_att', { p_id: id }); attRows = att || []; }catch(e){}
+  $('empAddBtn').click();   // Add Employee modal khulta hai (units/dept/desig populate)
+  setTimeout(() => {
+    if($('aeName')) $('aeName').value = String(w.name||'').toUpperCase();
+    if($('aePhone')) $('aePhone').value = w.phone || '';
+    if($('aeDOJ') && w.valid_from) $('aeDOJ').value = String(w.valid_from).slice(0,10);   // trial start = DOJ (attendance is date range me rahe)
+    // Department (select): agar option nahi hai to jodo, phir select karo
+    const dep = String(w.department||'').trim().toUpperCase();
+    if(dep && $('aeDept')){
+      if(![...$('aeDept').options].some(o => o.value.toUpperCase() === dep)){
+        $('aeDept').add(new Option(dep, dep));
+      }
+      $('aeDept').value = dep;
+      $('aeDept').dispatchEvent(new Event('input', { bubbles:true }));   // manager list refresh
+    }
+    // Line bhi carry karo (worker ke liye)
+    if(w.line && $('aeLine')) $('aeLine').value = String(w.line).toUpperCase();
+    $('aeEmpType') && ($('aeEmpType').value = 'Probation');
+    notify('Unit choose karo (code auto banega), Designation bharo, phir Add Employee dabao — trial attendance apne aap sync ho jayegi.', 'info');
+    window._convertingWorkPass = { id, name: String(w.name||'').toUpperCase(), attRows };
+  }, 250);
 }
 
 /* ---------------- Work Hours page ---------------- */
@@ -10472,6 +10521,7 @@ async function loadWorkPassApprovals(){
     const { data: wpRaw, error } = await sb.rpc('wp_pending_conversions');
     if(error) throw error;
     const wps = wpRaw || [];
+    window._wpPending = wps;   // convertWorkPass() isse details uthata hai
     if($('apCntWp')) $('apCntWp').innerText = (wps||[]).length;
     if(!(wps||[]).length){ host.innerHTML = '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi work-pass conversion pending nahi.</p>'; return; }
     let out = '';
@@ -10486,12 +10536,10 @@ async function loadWorkPassApprovals(){
           </div>
           <table class="reg" style="font-size:11px;min-width:220px"><thead><tr><th>Date</th><th>IN</th><th>OUT</th></tr></thead><tbody>${attRows || '<tr><td colspan="3" style="text-align:center;color:var(--muted)">koi punch nahi</td></tr>'}</tbody></table>
         </div>
-        <div class="flex gap-2 flex-wrap items-end mt-3">
-          <div><label class="lbl">Employee Code *</label><input class="inp" id="wpCode${w.id}" placeholder="ZM01xxx" style="width:120px;text-transform:uppercase"></div>
-          <div><label class="lbl">Department</label><input class="inp" id="wpDept${w.id}" value="${esc(w.department||'')}" style="width:150px;text-transform:uppercase"></div>
-          <div><label class="lbl">Designation</label><input class="inp" id="wpDesig${w.id}" placeholder="HELPER" style="width:130px;text-transform:uppercase"></div>
-          <button class="btn btn-primary btn-sm" data-act="wp-appr" data-id="${w.id}" data-name="${esc(w.name)}" data-line="${esc(w.line||'')}" data-from="${esc(w.valid_from)}"><i class="fa-solid fa-check"></i> Approve → Employee</button>
-          <button class="btn btn-danger btn-sm" data-act="wp-rej" data-id="${w.id}"><i class="fa-solid fa-xmark"></i></button>
+        <div class="flex gap-2 flex-wrap items-center mt-3">
+          <button class="btn btn-primary btn-sm" onclick="convertWorkPass('${w.id}')"><i class="fa-solid fa-user-check"></i> Approve → Add Employee</button>
+          <button class="btn btn-danger btn-sm" data-act="wp-rej" data-id="${w.id}"><i class="fa-solid fa-xmark"></i> Reject</button>
+          <span class="text-[11px]" style="color:var(--muted)">Approve karte hi Add Employee form khulega — Unit choose karo (code auto banega), aur trial attendance apne aap sync ho jayegi.</span>
         </div>
       </div>`;
     }
