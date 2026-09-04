@@ -6291,8 +6291,15 @@ async function runPayroll(){
       // -> counts as 2 days' absence (1 day already unpaid + 1 extra day LOP). Policy.
       const todayIso_ = todayISO();
       // Employment window: DOJ se pehle aur exit ke baad ke din — na paid, na penalty (rule)
-      const _doj = (e.DOJ || e['DOJ'] || (PROFILES[code]||{}).doj || '') && String(e.DOJ || (PROFILES[code]||{}).doj || '').slice(0,10);
-      const _exit = ((PROFILES[code]||{}).exit_date || '') && String((PROFILES[code]||{}).exit_date || '').slice(0,10);
+      // SAFETY: sirf VALID YYYY-MM-DD hi maanenge. Galat/typo date (jaise "20226-06-08")
+      // ko IGNORE karenge — warna woh poore mahine ko "employment ke bahar" bana kar
+      // employee ki salary 0 kar deta (bahut bada risk).
+      const _validDate = d => /^\d{4}-\d{2}-\d{2}$/.test(String(d||'')) &&
+                              String(d) >= '2000-01-01' && String(d) <= '2099-12-31';
+      const _dojRaw  = String(e.DOJ || e['DOJ'] || (PROFILES[code]||{}).doj || '').slice(0,10);
+      const _exitRaw = String((PROFILES[code]||{}).exit_date || '').slice(0,10);
+      const _doj  = _validDate(_dojRaw)  ? _dojRaw  : '';
+      const _exit = _validDate(_exitRaw) ? _exitRaw : '';
       const inEmployment = iso => {
         if(_doj && iso < _doj) return false;   // joining se pehle
         if(_exit && iso > _exit) return false;  // exit ke baad
