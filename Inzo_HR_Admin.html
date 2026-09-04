@@ -6243,6 +6243,11 @@ async function runPayroll(){
       // leave) around it — not by a single present day in the whole month.
       const leaveISOs = new Set();
       myLeaves.forEach(L => { Object.keys(expandLeave(L)).forEach(iso => { if(!days[iso]) leaveISOs.add(iso); }); });
+      // LWP (Leave Without Pay): APPROVED leave hai -> UNPAID (paid leave me nahi), lekin
+      // "bina soochna gairhaazri" (2x penalty) NAHI. Sirf 1 din ka paisa katega, penalty nahi.
+      const lwpISOs = new Set();
+      yearLeaves.filter(L => L.employee_code === code && String(L.leave_type).toUpperCase() === 'LWP')
+        .forEach(L => { Object.keys(expandLeave(L)).forEach(iso => { if(!days[iso]) lwpISOs.add(iso); }); });
       // attended = present OR WFH OR approved gate-pass OR paid leave OR holiday
       // (WFH/gate-pass/leave sab "working credit" dete hain — off-day earning ke liye)
       const attended = iso => {
@@ -6298,17 +6303,18 @@ async function runPayroll(){
       // (unauthorized 2x penalty SIRF tab jab absence ke baad WAPAS aaya ho)
       let lastActiveIso = '';
       dayMeta.forEach(x => {
-        if(days[x.iso] || leaveISOs.has(x.iso) || (apprReqDays[code]||new Set()).has(x.iso)){
+        if(days[x.iso] || leaveISOs.has(x.iso) || lwpISOs.has(x.iso) || (apprReqDays[code]||new Set()).has(x.iso)){
           if(x.iso <= todayIso_ && x.iso > lastActiveIso) lastActiveIso = x.iso;
         }
       });
-      let unauthAbs = 0, outsideDays = 0, trailingAbs = 0;
+      let unauthAbs = 0, outsideDays = 0, trailingAbs = 0, lwpDays = 0;
       dayMeta.forEach(x => {
         if(x.isWO || x.isH) return;
         if(x.iso > todayIso_) return;                    // future nahi
         if(!inEmployment(x.iso)){ outsideDays++; return; }   // DOJ se pehle / exit ke baad — penalty nahi
         if(days[x.iso]) return;                          // present tha
-        if(leaveISOs.has(x.iso)) return;                 // approved leave
+        if(leaveISOs.has(x.iso)) return;                 // approved paid leave
+        if(lwpISOs.has(x.iso)){ lwpDays++; return; }     // approved LWP -> unpaid, par penalty NAHI
         if((apprReqDays[code]||new Set()).has(x.iso)) return;   // approved WFH/gate request
         // aakhri active din ke BAAD ka absent = trailing (continuously gayab) — 2x penalty NAHI
         if(lastActiveIso && x.iso > lastActiveIso){ trailingAbs++; return; }
@@ -6355,7 +6361,7 @@ async function runPayroll(){
       return { code, name: e.Name, dept: e.DEPARTMENT, desig: e.DESIGNATION,
         isContract: isContractEmp(code), contractor: (PROFILES[code]||{}).contractor_name || '',
         dim, present, lates, lateLOP, baseLateLOP, lateFgEligible, lateDecision, usedSL, usedHD,
-        leaveDays, unauthAbs, outsideDays, paidDays: +paidDays.toFixed(1), lop,
+        leaveDays, unauthAbs, outsideDays, lwpDays, paidDays: +paidDays.toFixed(1), lop,
         earnedWO, earnedH, wfhDays,
         shiftName: sh.name, shHrs, perHour,
         basic: Math.round(basic), comps, dedBreak, customDed,
@@ -6904,11 +6910,13 @@ function lopReasonHindi(r){
   const uncovered = Math.max(0, +( (r.dim||0) - (r.present||0) - (r.leaveDays||0) - (r.earnedWO||0) - (r.earnedH||0) ).toFixed(1));
   const outside = +((r.outsideDays||0)).toFixed(1);
   const lopLv   = +((r.lopLeave||0)).toFixed(1);
-  let plainAbs  = +(uncovered - outside - lopLv).toFixed(1);
+  const lwp     = +((r.lwpDays||0)).toFixed(1);
+  let plainAbs  = +(uncovered - outside - lopLv - lwp).toFixed(1);
   if(plainAbs < 0) plainAbs = 0;
   const parts = [];
   if(plainAbs > 0)          parts.push(`${nf(plainAbs)} दिन बिना छुट्टी अनुपस्थित`);
   if((r.unauthAbs||0) > 0)  parts.push(`${nf(r.unauthAbs)} दिन बिना सूचना गैरहाज़िरी की अतिरिक्त कटौती`);
+  if(lwp > 0)               parts.push(`${nf(lwp)} दिन बिना वेतन छुट्टी (LWP)`);
   if((r.lateLOP||0) > 0)    parts.push(`देर से आने के कारण ${nf(r.lateLOP)} दिन कटौती`);
   if(lopLv > 0)             parts.push(`${nf(lopLv)} दिन छुट्टी बैलेंस से अधिक (अवैतनिक)`);
   if(outside > 0)           parts.push(`${nf(outside)} दिन इस माह कार्यरत नहीं (जॉइनिंग/एग्ज़िट अवधि के बाहर)`);
