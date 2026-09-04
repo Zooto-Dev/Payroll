@@ -10467,8 +10467,11 @@ async function loadSupAttApprovals(){
 async function loadWorkPassApprovals(){
   const host = $('apWpass'); if(!host) return;
   try{
-    const { data: wps, error } = await sb.from('work_passes').select('*').eq('status','CONVERT_REQUESTED').order('created_at');
+    // work_passes par RLS policy nahi hai -> direct select block ho jaata tha (0 pending dikhता).
+    // SECURITY DEFINER RPC se saari CONVERT_REQUESTED requests aati hain.
+    const { data: wpRaw, error } = await sb.rpc('wp_pending_conversions');
     if(error) throw error;
+    const wps = wpRaw || [];
     if($('apCntWp')) $('apCntWp').innerText = (wps||[]).length;
     if(!(wps||[]).length){ host.innerHTML = '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi work-pass conversion pending nahi.</p>'; return; }
     let out = '';
