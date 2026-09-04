@@ -6920,16 +6920,16 @@ function lopReasonHindi(r){
 $('payLopBtn').addEventListener('click', () => {
   if(!PAY_ROWS.length) return notify('Pehle payroll calculate karein', 'error');
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
-  const header = ['Employee Name','Employee Code','Total Paid Days','LOP (days)','Reason (Hindi)'];
+  const header = ['Employee Name','Employee Code','Department','Designation','Total Paid Days','LOP (days)','Reason (Hindi)'];
   const lines = [header.join(',')];
   // naam ke hisab se sort
   const rows = PAY_ROWS.slice().sort((a,b) => String(a.name||'').localeCompare(String(b.name||'')));
   let totPaid = 0, totLop = 0;
   rows.forEach(r => {
     totPaid += Number(r.paidDays)||0; totLop += Number(r.lop)||0;
-    lines.push([q(r.name), q(r.code), r.paidDays, r.lop, q(lopReasonHindi(r))].join(','));
+    lines.push([q(r.name), q(r.code), q(r.dept||''), q(r.desig||''), r.paidDays, r.lop, q(lopReasonHindi(r))].join(','));
   });
-  lines.push(['', q('TOTAL — ' + rows.length + ' employees'), (Math.round(totPaid*10)/10), (Math.round(totLop*10)/10), ''].join(','));
+  lines.push(['', q('TOTAL — ' + rows.length + ' employees'), '', '', (Math.round(totPaid*10)/10), (Math.round(totLop*10)/10), ''].join(','));
   // UTF-8 BOM taaki Excel me Hindi sahi dikhe
   dlText('PaidDays_LOP_' + PAY_MONTH + '.csv', String.fromCharCode(0xFEFF) + lines.join('\n'), 'text/csv;charset=utf-8');
   notify('Paid Days / LOP report download ho gaya — ' + rows.length + ' employees', 'success');
