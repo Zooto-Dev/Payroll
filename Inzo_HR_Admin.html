@@ -4495,8 +4495,23 @@ $('epSaveBtn').addEventListener('click', async () => {
     // Salary approval sirf TAB reset ho jab salary sach me badli ho.
     // Warna (naam/phone/shift/status/inactive edit par) purani approval bani rahegi.
     const _prevSal = (PROFILES[$('epCode').value] || {}).salary || {};
-    const _norm = s => JSON.stringify({ earn: s.earn || {}, ded: s.ded || {}, wageType: s.wageType, skill: s.skill, otAllowed: !!s.otAllowed });
-    const _salaryChanged = _norm(row.salary) !== _norm(_prevSal);
+    // ORDER-INDEPENDENT + TYPE-INDEPENDENT salary compare.
+    // (DB me earn/ded keys ka order aur numbers ka type alag ho sakta hai — string "18000" vs 18000,
+    //  {hra,basic} vs {basic,hra} — plain JSON.stringify galat "changed" deta tha, isliye har profile
+    //  edit CEO approval me chala jaata tha. Ab keys sort + Number coerce + zero-drop karke compare.)
+    const _canonSal = s => {
+      s = s || {};
+      const clean = o => {
+        const out = {};
+        Object.keys(o || {}).sort().forEach(k => { const n = Number((o || {})[k]) || 0; if(n !== 0) out[k] = n; });
+        return out;
+      };
+      return JSON.stringify({
+        earn: clean(s.earn), ded: clean(s.ded),
+        wageType: String(s.wageType || ''), skill: String(s.skill || ''), otAllowed: !!s.otAllowed
+      });
+    };
+    const _salaryChanged = _canonSal(row.salary) !== _canonSal(_prevSal);
     const _isNewProfile = !PROFILES[$('epCode').value];
     if(_salaryChanged || _isNewProfile){
       row.salary_status = isCEO() ? 'APPROVED' : 'PENDING';
