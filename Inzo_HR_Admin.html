@@ -821,6 +821,7 @@ body.no-confidential .confidential-col{display:none!important}
     <button id="payUnlockBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-lock-open"></i> Unlock / Edit</button>
     <span id="payLockPill" class="chip hidden"></span>
     <button id="payFinalizeBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-file-invoice-dollar"></i> Finalize &amp; Save All</button>
+    <button id="payLopBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-list-check"></i> Paid Days / LOP Report</button>
     <button id="payPrintAllBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-print"></i> Print All Payslips</button>
     <button id="payBankBtn" class="btn btn-ghost hidden super-only"><i class="fa-solid fa-building-columns"></i> Bank Advice</button>
     <div class="ml-auto text-right">
@@ -6354,7 +6355,7 @@ async function runPayroll(){
       return { code, name: e.Name, dept: e.DEPARTMENT, desig: e.DESIGNATION,
         isContract: isContractEmp(code), contractor: (PROFILES[code]||{}).contractor_name || '',
         dim, present, lates, lateLOP, baseLateLOP, lateFgEligible, lateDecision, usedSL, usedHD,
-        leaveDays, unauthAbs, paidDays: +paidDays.toFixed(1), lop,
+        leaveDays, unauthAbs, outsideDays, paidDays: +paidDays.toFixed(1), lop,
         earnedWO, earnedH, wfhDays,
         shiftName: sh.name, shHrs, perHour,
         basic: Math.round(basic), comps, dedBreak, customDed,
@@ -6373,6 +6374,7 @@ async function runPayroll(){
     renderPayLockUI();     // Lock/Unlock buttons + CEO late-LOP approval panel
     $('payPrintAllBtn').classList.remove('hidden');
     $('payBankBtn').classList.remove('hidden');
+    $('payLopBtn').classList.remove('hidden');
     if(CONTRACT_ROWS.length){
       notify(CONTRACT_ROWS.length + ' contract employee(s) shown separately below (paid by contractor)', 'info');
     }
@@ -6894,6 +6896,43 @@ $('payBankBtn').addEventListener('click', () => {
        const e = EMP.find(x => x['Employee code'] === r.code);
        return [r.code, '"' + r.name + '"', '"' + ((e && e.DEPARTMENT) || '') + '"', '"' + (p.bank_name||'') + '"', p.account_no||'', p.ifsc||'', netOf(r)].join(','); })].join('\n'), 'text/csv');
   notify('Bank advice exported' + (missing.length ? ' — ' + missing.length + ' employee(s) have no account number on file' : ''), missing.length ? 'error' : 'success');
+});
+/* LOP ka Hindi reason — components: bina-chhutti absent + late + bina-soochna gairhaazri + chhutti balance se zyada + non-employed din */
+function lopReasonHindi(r){
+  const nf = n => { const x = Math.round((Number(n)||0)*10)/10; return (x % 1 === 0) ? String(x) : String(x); };
+  if(!(r.lop > 0)) return 'कोई LOP नहीं — पूरा भुगतान';
+  const uncovered = Math.max(0, +( (r.dim||0) - (r.present||0) - (r.leaveDays||0) - (r.earnedWO||0) - (r.earnedH||0) ).toFixed(1));
+  const outside = +((r.outsideDays||0)).toFixed(1);
+  const lopLv   = +((r.lopLeave||0)).toFixed(1);
+  let plainAbs  = +(uncovered - outside - lopLv).toFixed(1);
+  if(plainAbs < 0) plainAbs = 0;
+  const parts = [];
+  if(plainAbs > 0)          parts.push(`${nf(plainAbs)} दिन बिना छुट्टी अनुपस्थित`);
+  if((r.unauthAbs||0) > 0)  parts.push(`${nf(r.unauthAbs)} दिन बिना सूचना गैरहाज़िरी की अतिरिक्त कटौती`);
+  if((r.lateLOP||0) > 0)    parts.push(`देर से आने के कारण ${nf(r.lateLOP)} दिन कटौती`);
+  if(lopLv > 0)             parts.push(`${nf(lopLv)} दिन छुट्टी बैलेंस से अधिक (अवैतनिक)`);
+  if(outside > 0)           parts.push(`${nf(outside)} दिन इस माह कार्यरत नहीं (जॉइनिंग/एग्ज़िट अवधि के बाहर)`);
+  // agar CEO ne late maaf kiya ho to note
+  if(r.lateFgEligible && r.lateDecision === 'APPROVED' && (r.baseLateLOP||0) > 0)
+    parts.push(`(देर की ${nf(r.baseLateLOP)} दिन कटौती CEO द्वारा माफ़)`);
+  return parts.length ? parts.join('; ') : `${nf(r.lop)} दिन कटौती`;
+}
+$('payLopBtn').addEventListener('click', () => {
+  if(!PAY_ROWS.length) return notify('Pehle payroll calculate karein', 'error');
+  const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
+  const header = ['Employee Name','Employee Code','Total Paid Days','LOP (days)','Reason (Hindi)'];
+  const lines = [header.join(',')];
+  // naam ke hisab se sort
+  const rows = PAY_ROWS.slice().sort((a,b) => String(a.name||'').localeCompare(String(b.name||'')));
+  let totPaid = 0, totLop = 0;
+  rows.forEach(r => {
+    totPaid += Number(r.paidDays)||0; totLop += Number(r.lop)||0;
+    lines.push([q(r.name), q(r.code), r.paidDays, r.lop, q(lopReasonHindi(r))].join(','));
+  });
+  lines.push(['', q('TOTAL — ' + rows.length + ' employees'), (Math.round(totPaid*10)/10), (Math.round(totLop*10)/10), ''].join(','));
+  // UTF-8 BOM taaki Excel me Hindi sahi dikhe
+  dlText('PaidDays_LOP_' + PAY_MONTH + '.csv', String.fromCharCode(0xFEFF) + lines.join('\n'), 'text/csv;charset=utf-8');
+  notify('Paid Days / LOP report download ho gaya — ' + rows.length + ' employees', 'success');
 });
 $('payPrintAllBtn').addEventListener('click', () => {
   const rows = PAY_ROWS.filter(r => r.hasSalary && r.hasPay !== false);
