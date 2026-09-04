@@ -839,6 +839,25 @@ body.no-confidential .confidential-col{display:none!important}
     </div>
   </div>
 
+  <!-- Contract employees report (paid by contractor) — separate from company payroll -->
+  <div class="card mt-4 hidden" id="contractReport" style="padding:0;overflow:hidden">
+    <div class="flex items-center justify-between flex-wrap gap-2 p-3" style="background:#fffbeb;border-bottom:1px solid #fde68a">
+      <h3 class="display font-bold m-0" style="color:#92400e"><i class="fa-solid fa-handshake"></i> Contract Employees <span class="text-[11px] font-normal">— paid by contractor (NOT in company payroll)</span></h3>
+      <div class="text-right">
+        <p class="lbl m-0">Total Contractor Amount</p>
+        <div class="stat-num money" style="color:#92400e" id="contractTotal">₹0</div>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="tbl" id="contractTable">
+        <thead><tr>
+          <th>Employee</th><th>Contractor</th><th>Paid Days</th><th>Present / Late</th><th>OT Hrs</th><th>Amount</th><th></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- CEO late-LOP approval panel (Staff only, excl PRODUCTION/STORE) -->
   <div class="card mt-4 hidden" id="lateApprovalPanel">
     <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
@@ -2042,7 +2061,8 @@ let EMP = [];            // employees (from attendance app table)
 let PROFILES = {};       // hr_profiles keyed by employee_code
 let SETTINGS = {};       // company_settings.data
 let HOLIDAYS = [];       // [{date,name}]
-let PAY_ROWS = [];       // current payroll calculation
+let PAY_ROWS = [];       // current payroll calculation (company payroll)
+let CONTRACT_ROWS = [];  // contract employees (paid by contractor) — separate report
 let PAY_MONTH = "";
 let PAY_LOCK = null;      // payroll_locks row for PAY_MONTH (null = not locked)
 let LATE_REVIEWS = {};    // employee_code -> 'PENDING'|'APPROVED'|'REJECTED' (CEO late-LOP decision)
@@ -6062,9 +6082,13 @@ async function runPayroll(){
     }
 
     const isContractEmp = code => ((PROFILES[code]||{}).employment_type === 'Contract');
-    const _skippedContract = payrollEmps().filter(e => isContractEmp(e['Employee code']));
     const _skippedPending = payrollEmps().filter(e => !isContractEmp(e['Employee code']) && !salaryApproved(e['Employee code']));
-    PAY_ROWS = payrollEmps().filter(e => !isContractEmp(e['Employee code']) && salaryApproved(e['Employee code'])).map(e => {
+    // Non-contract (approved) AUR contract (contractor-paid) — dono ke liye SAME calculation chalega.
+    // Baad me split: PAY_ROWS = company payroll table, CONTRACT_ROWS = contractor report (payroll ke niche).
+    const _payAll = payrollEmps().filter(e => {
+      const c = e['Employee code'];
+      return isContractEmp(c) || salaryApproved(c);
+    }).map(e => {
       const code = e['Employee code'];
       const p = PROFILES[code] || {};
       const days = attMap[code] || {};
@@ -6264,6 +6288,7 @@ async function runPayroll(){
       const perHour = fullGross > 0 ? fullGross / (dim * shHrs) : 0;
 
       return { code, name: e.Name, dept: e.DEPARTMENT, desig: e.DESIGNATION,
+        isContract: isContractEmp(code), contractor: (PROFILES[code]||{}).contractor_name || '',
         dim, present, lates, lateLOP, baseLateLOP, lateFgEligible, lateDecision, usedSL, usedHD,
         leaveDays, unauthAbs, paidDays: +paidDays.toFixed(1), lop,
         earnedWO, earnedH, wfhDays,
@@ -6277,12 +6302,15 @@ async function runPayroll(){
         advDed: Math.round(advDed), advRefs: advs.map(a => a.id),
         otherDed: 0, bonus: 0, fullGross: Math.round(fullGross), hasSalary: fullGross > 0 };
     });
+    PAY_ROWS = _payAll.filter(r => !r.isContract);       // company payroll
+    CONTRACT_ROWS = _payAll.filter(r => r.isContract);   // contractor-paid (separate report)
     renderPayTable();
+    renderContractTable(); // contract employees report (payroll ke niche) — with total
     renderPayLockUI();     // Lock/Unlock buttons + CEO late-LOP approval panel
     $('payPrintAllBtn').classList.remove('hidden');
     $('payBankBtn').classList.remove('hidden');
-    if(_skippedContract.length){
-      notify(_skippedContract.length + ' contract employee(s) excluded from payroll (paid by contractor)', 'info');
+    if(CONTRACT_ROWS.length){
+      notify(CONTRACT_ROWS.length + ' contract employee(s) shown separately below (paid by contractor)', 'info');
     }
     if(_skippedPending.length){
       notify(_skippedPending.length + ' employee(s) skipped — salary pending CEO approval: ' + _skippedPending.slice(0,5).map(e=>e.Name).join(', ') + (_skippedPending.length>5?' +more':''), 'error');
@@ -6350,6 +6378,31 @@ function renderPayTable(){
     <td class="money">${fmtINR(T.adv)}</td><td></td><td></td>
     <td class="money" style="color:var(--brand)">${fmtINR(T.net)}</td><td></td></tr>`;
   $('payTotal').innerText = fmtINR(total);
+}
+
+/* Contract employees report (paid by contractor) — shown below company payroll, with a total */
+function renderContractTable(){
+  const card = $('contractReport'); if(!card) return;
+  if(!CONTRACT_ROWS.length){ card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  const tb = $('contractTable').querySelector('tbody');
+  let totalAmt = 0;
+  tb.innerHTML = CONTRACT_ROWS.map((r, i) => {
+    const amt = Math.round(r.earnedGross || 0); totalAmt += amt;
+    const warn = r.hasSalary ? '' : ' <span class="chip chip-bad">No rate set</span>';
+    return `<tr>
+      <td><div class="font-semibold">${esc(r.name)}${warn}</div><div class="text-[10px]" style="color:var(--muted)">${esc(r.code)} • ${esc(r.shiftName)}</div></td>
+      <td>${esc(r.contractor || '—')}</td>
+      <td class="money">${r.paidDays}/${r.dim}</td>
+      <td class="money">${r.present}P / ${r.lates}L</td>
+      <td class="money">${r.otHours||0}</td>
+      <td class="money font-bold" style="color:#92400e">${fmtINR(amt)}</td>
+      <td><button class="btn btn-ghost btn-sm" data-act="view-cslip" data-i="${i}"><i class="fa-solid fa-receipt"></i></button></td>
+    </tr>`;
+  }).join('') + `<tr style="background:#fffbeb;font-weight:700;border-top:2px solid #fde68a">
+    <td>TOTAL — ${CONTRACT_ROWS.length} contract employee(s)</td><td></td><td></td><td></td><td></td>
+    <td class="money" style="color:#92400e">${fmtINR(totalAmt)}</td><td></td></tr>`;
+  $('contractTotal').innerText = fmtINR(totalAmt);
 }
 $('payTable').addEventListener('input', e => {
   const inp = e.target;
@@ -6744,6 +6797,11 @@ function slipHTML(r){
 }
 function openSlip(i){
   const r = PAY_ROWS[i]; if(!r) return;
+  $('slipPaper').innerHTML = slipHTML(Object.assign({}, r, { month: PAY_MONTH }));
+  $('slipModal').classList.add('show');
+}
+function openContractSlip(i){
+  const r = CONTRACT_ROWS[i]; if(!r) return;
   $('slipPaper').innerHTML = slipHTML(Object.assign({}, r, { month: PAY_MONTH }));
   $('slipModal').classList.add('show');
 }
@@ -7325,6 +7383,7 @@ document.body.addEventListener('click', async e => {
   const act = el.dataset.act;
   if(act === 'edit-emp') openEmpModal(el.dataset.code);
   if(act === 'view-slip') openSlip(Number(el.dataset.i));
+  if(act === 'view-cslip') openContractSlip(Number(el.dataset.i));
   if(act === 'close-adv'){
     if(!(await nxConfirm('Mark this advance as fully settled?', 'Settle Advance'))) return;
     await sb.from('advances').update({ balance: 0, status: 'CLOSED' }).eq('id', el.dataset.id);
@@ -8370,7 +8429,8 @@ $('empExportBtn').addEventListener('click', async () => {
   // same columns and order as the import template (round-trippable for the super admin)
   const baseHeader = ['Employee Code','Name','DOJ','Department','Designation','Phone','Email',"Father's Name",'Date of Birth','Gender','Address','Emergency Contact','Employment Type','Reporting Manager'];
   const confHeader = ['Gross Salary','Bank Name','Account No','IFSC','PAN','UAN','ESI No'];
-  const header = (full ? baseHeader.concat(confHeader) : baseHeader).concat(['Face Registered']);
+  const header = (full ? baseHeader.concat(confHeader) : baseHeader).concat(['Status','Face Registered']);
+  const statusLabel = s => { const v = String(s||'').toUpperCase(); return v === 'ACTIVE' ? 'Active' : v === 'EXITED' ? 'Exited' : v ? 'Inactive' : 'Active'; };
   const lines = [header.join(',')];
   list.forEach(e => {
     const code = e['Employee code']; const p = PROFILES[code] || {};
@@ -8381,6 +8441,7 @@ $('empExportBtn').addEventListener('click', async () => {
       const gross = salaryApproved(code) ? Object.values(empSalary(code)).reduce((a,b)=>a+b,0) : Object.values((function(){const s={};getSettings().earnComps.forEach(c=>s[c.k]=Number((sal.earn||{})[c.k])||0);return s;})()).reduce((a,b)=>a+b,0);
       row.push(gross, p.bank_name, p.account_no, p.ifsc, p.pan, p.uan, p.esi_no);
     }
+    row.push(statusLabel(e.Status));              // Status (Active / Inactive / Exited)
     row.push(faceSet.has(code) ? 'YES' : 'NO');   // Face Registered
     lines.push(row.map(q).join(','));
   });
