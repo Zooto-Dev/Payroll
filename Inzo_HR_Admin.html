@@ -5733,17 +5733,31 @@ $('faRunBtn').addEventListener('click', async () => {
 
     // fetch punches with photos in range
     $('faProgTxt').innerText = 'Fetching punches…';
-    const { data: rows, error } = await sb.from('attendance')
-      .select('employee_code, Name, date, in_time, out_time, in_photo_url, out_photo_url')
-      .gte('date', d1).lte('date', d2)
-      .order('date', { ascending:false });
-    if(error) throw error;
+    // PAGINATED — Supabase ek query me ~1000 rows tak deta hai; warna records chhoot jate.
+    let rows = [];
+    for(let pf=0; pf<500000; pf+=1000){
+      const { data: pg, error } = await sb.from('attendance')
+        .select('employee_code, Name, date, in_time, out_time, in_photo_url, out_photo_url')
+        .gte('date', d1).lte('date', d2)
+        .order('date', { ascending:false }).range(pf, pf+999);
+      if(error) throw error;
+      rows = rows.concat(pg||[]);
+      if(!pg || pg.length < 1000) break;
+    }
 
     // Compare the IN photo vs the OUT photo of the SAME record. If they are two different
     // people, someone else punched in or out under this employee's code.
     const _nm = c => { const e = (typeof EMP!=='undefined'?EMP:[]).find(x => x['Employee code'] === c); return e ? e.Name : c; };
-    const recs = (rows||[]).filter(r => r.in_photo_url && r.out_photo_url);
-    if(!recs.length){ $('faProgTxt').innerText = 'No records with BOTH in & out photos in this range.'; btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-play"></i> Run Audit'; _faRunning=false; return; }
+    // Ab kam se kam EK photo wale sab records check honge (pehle sirf dono-photo wale hote the).
+    const recs = (rows||[]).filter(r => r.in_photo_url || r.out_photo_url);
+    if(!recs.length){ $('faProgTxt').innerText = 'Is range me kisi punch par photo nahi mili.'; btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-play"></i> Run Audit'; _faRunning=false; return; }
+
+    // kisi chehre se sabse milta-julta REGISTERED employee kaun (khud ko chhod kar)
+    const _nearest = (desc, exceptCode) => {
+      let nn='', nd=999;
+      for(const code in descMap){ if(code===exceptCode) continue; const dd = faceapi.euclideanDistance(desc, descMap[code]); if(dd<nd){ nd=dd; nn=code; } }
+      return { code:nn, dist:nd };
+    };
 
     let checked=0, mismatch=0, review=0, skip=0;
     const flagged = [];
@@ -5752,23 +5766,36 @@ $('faRunBtn').addEventListener('click', async () => {
       $('faBar').style.width = Math.round((i/recs.length)*100) + '%';
       $('faProgTxt').innerText = `Checking ${i+1} / ${recs.length} — ${r.Name||_nm(r.employee_code)} (${r.date})`;
       let dIn=null, dOut=null;
-      try{ dIn = await _faDescribe(r.in_photo_url); }catch(e){}
-      try{ dOut = await _faDescribe(r.out_photo_url); }catch(e){}
-      if(!dIn || !dOut){ skip++; await new Promise(res=>setTimeout(res,0)); continue; }  // couldn't read a face in one photo
-      const dist = faceapi.euclideanDistance(dIn, dOut);
+      if(r.in_photo_url){ try{ dIn = await _faDescribe(r.in_photo_url); }catch(e){} }
+      if(r.out_photo_url){ try{ dOut = await _faDescribe(r.out_photo_url); }catch(e){} }
+      if(!dIn && !dOut){ skip++; await new Promise(res=>setTimeout(res,0)); continue; }  // koi readable chehra nahi
       checked++;
-      let verdict = dist > thr ? 'MISMATCH' : (dist > revThr ? 'REVIEW' : null);
-      if(verdict){
-        // which photo is the odd one out? compare each to the registered face if we have it
-        let culprit = '';
-        const stored = descMap[r.employee_code];
-        if(stored){
-          const inD = faceapi.euclideanDistance(dIn, stored);
-          const outD = faceapi.euclideanDistance(dOut, stored);
-          culprit = (Math.abs(inD-outD) < 0.05) ? 'Both differ from registered face' : (inD < outD ? 'OUT photo is a different person' : 'IN photo is a different person');
+      let verdict=null, culprit='', looksLike='', dist=0;
+      // 1) IN vs OUT (dono photo ho to) — kisi aur ne in ya out kiya?
+      if(dIn && dOut){
+        const d = faceapi.euclideanDistance(dIn, dOut);
+        if(d > thr){ verdict='MISMATCH'; culprit='IN aur OUT me alag-alag log hain'; }
+        else if(d > revThr){ verdict='REVIEW'; culprit='IN/OUT thoda alag lagte hain'; }
+        dist = Math.max(dist, d);
+      }
+      // 2) photo vs REGISTERED face — poora punch kisi aur ka to nahi (Pankaj-as-Ajay wala case)
+      const stored = descMap[r.employee_code];
+      if(stored){
+        const cands = []; if(dIn) cands.push(faceapi.euclideanDistance(dIn, stored)); if(dOut) cands.push(faceapi.euclideanDistance(dOut, stored));
+        const best = Math.min.apply(null, cands);   // sabse kareeb photo bhi registered se kitni door
+        if(best > thr){
+          verdict='MISMATCH';
+          const nn = _nearest(dIn || dOut, r.employee_code);
+          looksLike = (nn.code && nn.dist < thr) ? (_nm(nn.code)+' ('+nn.code+')') : '';
+          culprit = 'Chehra "' + (r.Name||_nm(r.employee_code)) + '" ka nahi lagta' + (looksLike ? (' — lagta hai: ' + looksLike) : ' (kisi registered se match nahi)');
+          dist = Math.max(dist, best);
+        } else if(best > revThr && !verdict){
+          verdict='REVIEW'; culprit='Registered face se thoda alag'; dist = Math.max(dist, best);
         }
+      }
+      if(verdict){
         if(verdict==='MISMATCH') mismatch++; else review++;
-        flagged.push({ code:r.employee_code, name:r.Name||_nm(r.employee_code), date:r.date, inUrl:r.in_photo_url, outUrl:r.out_photo_url, inTime:cleanInTime(r), outTime:(r.out_time?String(r.out_time).substring(0,5):''), dist, verdict, culprit });
+        flagged.push({ code:r.employee_code, name:r.Name||_nm(r.employee_code), date:r.date, inUrl:r.in_photo_url, outUrl:r.out_photo_url, inTime:cleanInTime(r), outTime:(r.out_time?String(r.out_time).substring(0,5):''), dist, verdict, culprit, looksLike });
       }
       await new Promise(res=>setTimeout(res,0));
     }
@@ -5796,8 +5823,8 @@ $('faRunBtn').addEventListener('click', async () => {
           const bd = isMis?'var(--bad)':'var(--warn)';
           return `<div class="card" style="padding:11px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
             <div style="display:flex;gap:8px">
-              <div style="text-align:center"><img src="${esc(f.inUrl)}" loading="lazy" class="fa-thumb" data-full="${esc(f.inUrl)}" style="width:56px;height:56px;border-radius:9px;object-fit:cover;border:2px solid ${bd};cursor:pointer" alt=""><div style="font-size:9px;color:var(--muted);margin-top:2px">IN ${esc(f.inTime||'')}</div></div>
-              <div style="text-align:center"><img src="${esc(f.outUrl)}" loading="lazy" class="fa-thumb" data-full="${esc(f.outUrl)}" style="width:56px;height:56px;border-radius:9px;object-fit:cover;border:2px solid ${bd};cursor:pointer" alt=""><div style="font-size:9px;color:var(--muted);margin-top:2px">OUT ${esc(f.outTime||'')}</div></div>
+              ${f.inUrl?`<div style="text-align:center"><img src="${esc(f.inUrl)}" loading="lazy" class="fa-thumb" data-full="${esc(f.inUrl)}" style="width:56px;height:56px;border-radius:9px;object-fit:cover;border:2px solid ${bd};cursor:pointer" alt=""><div style="font-size:9px;color:var(--muted);margin-top:2px">IN ${esc(f.inTime||'')}</div></div>`:''}
+              ${f.outUrl?`<div style="text-align:center"><img src="${esc(f.outUrl)}" loading="lazy" class="fa-thumb" data-full="${esc(f.outUrl)}" style="width:56px;height:56px;border-radius:9px;object-fit:cover;border:2px solid ${bd};cursor:pointer" alt=""><div style="font-size:9px;color:var(--muted);margin-top:2px">OUT ${esc(f.outTime||'')}</div></div>`:''}
             </div>
             <div style="flex:1;min-width:120px">
               <div style="font-weight:600;color:var(--ink)">${esc(f.name)} <span style="color:var(--muted);font-weight:400;font-size:12px">${esc(f.code)}</span></div>
@@ -5809,11 +5836,11 @@ $('faRunBtn').addEventListener('click', async () => {
             </div>
           </div>`;
         }).join('')}</div>
-        <p class="text-[11px] mt-3 mb-0" style="color:var(--muted)"><i class="fa-solid fa-circle-info"></i> IN aur OUT photo ka chehra alag hai = kisi aur ne punch kiya. Photo pe click karke bada dekho. Confirm hone par us din ka punch <b>Manual Punch / Fix</b> se theek karo, aur us employee ko <b>dobara register</b> karo.</p>`;
+        <p class="text-[11px] mt-3 mb-0" style="color:var(--muted)"><i class="fa-solid fa-circle-info"></i> Do check hote hain: (1) IN vs OUT alag chehra = kisi aur ne in/out kiya; (2) chehra us employee ke <b>registered face</b> se match nahi — "lagta hai: X" batata hai ki asal me kaun hai (jaise Pankaj ki jagah Ajay). Photo pe click karke bada dekho. Confirm hone par us din ka punch <b>Manual Punch / Fix</b> se sahi employee par karo, aur dono logon ko <b>dobara register</b> karo (taaki aage confuse na ho).</p>`;
       $('faResults').querySelectorAll('.fa-thumb').forEach(img => img.addEventListener('click', () => whPhoto(img.dataset.full)));
       $('faCsvBtn').addEventListener('click', ()=>{
-        const head = 'Code,Name,Date,Verdict,Distance,Note,In Photo,Out Photo\n';
-        const body = flagged.map(f=>[f.code,'"'+String(f.name).replace(/"/g,'""')+'"',f.date,f.verdict,f.dist.toFixed(3),'"'+(f.culprit||'')+'"',f.inUrl,f.outUrl].join(',')).join('\n');
+        const head = 'Code,Name,Date,Verdict,Distance,Looks Like,Note,In Photo,Out Photo\n';
+        const body = flagged.map(f=>[f.code,'"'+String(f.name).replace(/"/g,'""')+'"',f.date,f.verdict,f.dist.toFixed(3),'"'+(f.looksLike||'')+'"','"'+String(f.culprit||'').replace(/"/g,'""')+'"',f.inUrl||'',f.outUrl||''].join(',')).join('\n');
         const blob = new Blob([head+body],{type:'text/csv'}); const a=document.createElement('a');
         a.href=URL.createObjectURL(blob); a.download=`face_mismatch_${d1}_to_${d2}.csv`; a.click();
       });
