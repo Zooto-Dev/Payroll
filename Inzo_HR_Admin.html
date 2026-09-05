@@ -6329,8 +6329,10 @@ async function runPayroll(){
       dayMeta.forEach(x => {
         if(!x.isWO && !x.isH) return;
         if(x.isH){ earnedH += attendedAroundH(x.iso) ? 1 : 0; return; }
-        const before = winStats(x.iso, -6, -1);
-        const ok = before.workable > 0 ? earnCheck(before) : earnCheck(winStats(x.iso, 1, 6));
+        // Week-off tab earn ho jab uske aas-paas (PEHLE YA BAAD kisi bhi taraf) kaafi attendance ho.
+        // Pehle sirf "pehle wala hafta" dekhta tha -> mahine ka pehla Sunday (jiska pichhla hafta
+        // load hi nahi hota) kabhi earn nahi hota tha, chahe bande ne poora mahina kaam kiya ho.
+        const ok = earnCheck(winStats(x.iso, -6, -1)) || earnCheck(winStats(x.iso, 1, 6));
         if(ok) earnedWO++;
       });
       // Unauthorised absence penalty: working day, no attendance, no approved leave/request
