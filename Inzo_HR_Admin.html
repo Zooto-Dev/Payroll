@@ -6294,47 +6294,7 @@ async function runPayroll(){
       const lwpISOs = new Set();
       yearLeaves.filter(L => L.employee_code === code && String(L.leave_type).toUpperCase() === 'LWP')
         .forEach(L => { Object.keys(expandLeave(L)).forEach(iso => { if(!days[iso]) lwpISOs.add(iso); }); });
-      // attended = present OR WFH OR approved gate-pass OR paid leave OR holiday
-      // (WFH/gate-pass/leave sab "working credit" dete hain — off-day earning ke liye)
-      const attended = iso => {
-        const m = dayMetaMap[iso];
-        if(!m || m.isWO) return false;
-        return m.isH || !!days[iso] || leaveISOs.has(iso)
-            || myWfh.has(iso)                                  // approved WFH
-            || (apprReqDays[code] || new Set()).has(iso);      // approved gate-pass / request
-      };
-      const winStats = (iso, from, to) => {
-        let credit = 0, workable = 0;
-        for(let k = from; k <= to; k++){
-          const d2 = isoAdd(iso, k);
-          const m = dayMetaMap[d2];
-          if(m && !m.isWO){ workable++; if(attended(d2)) credit++; }
-        }
-        return { credit, workable };
-      };
-      const minWO = Math.max(1, Number(S.minWO) || 4);
-      const earnCheck = st => st.workable > 0 && st.credit >= Math.min(minWO, st.workable);
-      // holiday earn ke liye: aas-paas ACTUAL present/WFH/leave chahiye
-      // (doosra holiday/off ko "attended" NAHI maano — warna holiday khud ko earn kara deta hai)
-      const reallyWorked = iso => {
-        const m = dayMetaMap[iso];
-        if(!m || m.isWO || m.isH) return false;   // WO/holiday khud attended nahi
-        return !!days[iso] || leaveISOs.has(iso) || myWfh.has(iso) || (apprReqDays[code] || new Set()).has(iso);
-      };
-      function attendedAroundH(iso){
-        for(let k = -3; k <= 3; k++){ if(k !== 0 && reallyWorked(isoAdd(iso, k))) return true; }
-        return false;
-      }
-      let earnedWO = 0, earnedH = 0;
-      dayMeta.forEach(x => {
-        if(!x.isWO && !x.isH) return;
-        if(x.isH){ earnedH += attendedAroundH(x.iso) ? 1 : 0; return; }
-        // Week-off tab earn ho jab uske aas-paas (PEHLE YA BAAD kisi bhi taraf) kaafi attendance ho.
-        // Pehle sirf "pehle wala hafta" dekhta tha -> mahine ka pehla Sunday (jiska pichhla hafta
-        // load hi nahi hota) kabhi earn nahi hota tha, chahe bande ne poora mahina kaam kiya ho.
-        const ok = earnCheck(winStats(x.iso, -6, -1)) || earnCheck(winStats(x.iso, 1, 6));
-        if(ok) earnedWO++;
-      });
+      // (Sunday/Holiday earning ab CONTINUITY rule se hoti hai — inEmployment ke baad neeche compute hota hai)
       // Unauthorised absence penalty: working day, no attendance, no approved leave/request
       // -> counts as 2 days' absence (1 day already unpaid + 1 extra day LOP). Policy.
       const todayIso_ = todayISO();
@@ -6353,6 +6313,32 @@ async function runPayroll(){
         if(_exit && iso > _exit) return false;  // exit ke baad
         return true;
       };
+      // === Sunday/Holiday CONTINUITY rule (purana "week me itne din" wala rule hata diya) ===
+      // Off-day (WO/holiday) tabhi EARN hoga jab woh employee ke LAGATAAR kaam wale span ke ANDAR ho:
+      // off-days skip karke jo pehla WORKING day PEHLE aur AGLA aata hai, dono par woh "accounted" ho
+      // (present / paid-leave / WFH / gate-pass / LWP). Isse:
+      //   • join se pehle ke off-days nahi milte    • exit/chhodne ke baad ke nahi milte
+      //   • beech ke gap (jaise 16–24 absent) ke off-days nahi milte
+      //   • sirf 1 din (isolated) aane par aas-paas ke off-days nahi milte; continuous aane par milte hain
+      const _accounted = iso => (!!days[iso] || leaveISOs.has(iso) || lwpISOs.has(iso)
+                                 || myWfh.has(iso) || (apprReqDays[code] || new Set()).has(iso));
+      const _sideOk = (fromIso, step) => {
+        let iso = isoAdd(fromIso, step);
+        for(let g = 0; g < 45; g++){
+          if(!inEmployment(iso)) return false;                       // DOJ se pehle / exit ke baad
+          const m = dayMetaMap[iso];
+          if(!m) return false;                                        // month ke bahar (data nahi) -> confirm nahi
+          if(m.isWO || m.isH){ iso = isoAdd(iso, step); continue; }   // doosra off-day skip
+          return _accounted(iso);                                     // pehla working day accounted hai?
+        }
+        return false;
+      };
+      let earnedWO = 0, earnedH = 0;
+      dayMeta.forEach(x => {
+        if(!x.isWO && !x.isH) return;
+        // dono taraf ka nearest working day accounted -> off-day span ke andar hai -> earned
+        if(_sideOk(x.iso, -1) && _sideOk(x.iso, +1)){ if(x.isH) earnedH++; else earnedWO++; }
+      });
       // days jab employee employed tha lekin working day pe absent (bina leave/pass) = unauthorized
       // AAKHRI attendance/activity ka din nikaalo — uske baad ke absent = "continuously gayab"
       // (unauthorized 2x penalty SIRF tab jab absence ke baad WAPAS aaya ho)
