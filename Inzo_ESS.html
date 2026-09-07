@@ -434,7 +434,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <h3 class="display font-bold mt-0 mb-3 text-sm"><i class="fa-solid fa-comments" style="color:var(--brand)"></i> Grievance / Suggestion / Kaizen</h3>
         <label class="lbl">Type</label>
         <select id="fbType" class="inp mb-3">
-          <option value="GRIEVANCE">Grievance — salary or any other issue</option>
+          <option value="SALARY">Salary Grievance — paise/attendance galat</option>
+          <option value="GRIEVANCE">Grievance — koi aur issue</option>
           <option value="SUGGESTION">Suggestion — a problem you see + your solutions</option>
           <option value="KAIZEN">Kaizen — improvement idea (reward if approved)</option>
         </select>
@@ -460,6 +461,21 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <input id="kzAttach" type="file" accept="image/*" class="inp mb-3">
           <label class="lbl">Additional Remarks</label>
           <textarea id="kzRemarks" class="inp mb-3" rows="2" placeholder="Aur kuch kehna ho…"></textarea>
+        </div>
+
+        <!-- Salary Grievance structured fields -->
+        <div id="fbSalaryWrap" class="hidden">
+          <div class="text-[11px] mb-2 p-2 rounded" style="background:#fef2f2;color:#991b1b;line-height:1.5">Apni salary/attendance ki dikkat yahan bharein — HR check karega.</div>
+          <label class="lbl">Kis month ki salary?</label>
+          <input id="sgMonth" type="month" class="inp mb-3">
+          <label class="lbl">Kitne paise kam aaye? (₹)</label>
+          <input id="sgAmount" type="number" class="inp mb-3" placeholder="e.g. 1500">
+          <label class="lbl">Kitne absent galat lage hain? (din)</label>
+          <input id="sgAbsentCount" type="number" class="inp mb-3" placeholder="e.g. 2">
+          <label class="lbl">Kaun se din ke absent galat hain?</label>
+          <input id="sgAbsentDays" class="inp mb-3" placeholder="e.g. 5, 12, 19 August">
+          <label class="lbl">Aur kuch batana ho</label>
+          <textarea id="sgNote" class="inp mb-3" rows="2" placeholder="Extra detail…"></textarea>
         </div>
 
         <!-- Grievance/Suggestion details -->
@@ -2200,11 +2216,18 @@ $('exBtn').addEventListener('click', async () => {
 $('fbType').addEventListener('change', () => {
   const t = $('fbType').value;
   const isKz = t === 'KAIZEN';
+  const isSal = t === 'SALARY';
   $('fbKaizenWrap').classList.toggle('hidden', !isKz);
-  $('fbDetailsWrap').classList.toggle('hidden', isKz);        // kaizen uses its own problem/solution fields
-  $('fbSolWrap').classList.toggle('hidden', t === 'GRIEVANCE' || isKz);
+  if($('fbSalaryWrap')) $('fbSalaryWrap').classList.toggle('hidden', !isSal);
+  $('fbDetailsWrap').classList.toggle('hidden', isKz || isSal);   // salary/kaizen ke apne fields hain
+  $('fbSolWrap').classList.toggle('hidden', t === 'GRIEVANCE' || isKz || isSal);
+  // salary grievance me subject apne aap ban jaata hai
+  const subjRow = $('fbSubject') && $('fbSubject').closest('div');
   $('fbSubjLbl').innerText = isKz ? 'Kaizen Title' : 'Subject';
+  $('fbSubjLbl').style.display = isSal ? 'none' : '';
+  if($('fbSubject')) $('fbSubject').style.display = isSal ? 'none' : '';
 });
+try{ $('fbType').dispatchEvent(new Event('change')); }catch(e){}
 async function loadMyAssets(){
   const host = $('assetBox'); if(!host) return;
   const codeU = String(CODE || '').trim().toUpperCase();
@@ -2270,6 +2293,34 @@ async function loadFeedback(){
   }catch(e){}
 }
 $('fbBtn').addEventListener('click', async () => {
+  // Salary Grievance — structured fields, GRIEVANCE type me bhejo taaki HR ki grievance list me dikhe
+  if($('fbType').value === 'SALARY'){
+    const month = $('sgMonth').value || '', amt = ($('sgAmount').value||'').trim(),
+          absC = ($('sgAbsentCount').value||'').trim(), absD = $('sgAbsentDays').value.trim(), note = $('sgNote').value.trim();
+    if(!month && !amt && !absC && !absD && !note) return notify('Kuch detail to bharein');
+    const subject = 'Salary Grievance' + (month ? ' — ' + month : '');
+    const details = [
+      month ? 'Month: ' + month : '',
+      amt  ? 'Paise kam aaye: ₹' + amt : '',
+      absC ? 'Galat absent (din): ' + absC : '',
+      absD ? 'Kaun se din galat: ' + absD : '',
+      note ? 'Note: ' + note : ''
+    ].filter(Boolean).join('\n');
+    const b = $('fbBtn'); b.innerHTML = '<div class="loader-ring"></div> Submitting…'; b.disabled = true;
+    try{
+      const { data, error } = await sb.rpc('ess_submit_feedback', {
+        p_code: CODE, p_phone: PHONE, p_type: 'GRIEVANCE', p_subject: subject,
+        p_details: details, p_solutions: '', p_kz_problem: null, p_kz_solution: null,
+        p_kz_benefits: null, p_kz_attachment: null, p_kz_remarks: null });
+      if(error) throw error;
+      if(data && data.error) return notify(data.error);
+      notify('Salary grievance submit ho gayi — HR check karega');
+      $('sgMonth').value=''; $('sgAmount').value=''; $('sgAbsentCount').value=''; $('sgAbsentDays').value=''; $('sgNote').value='';
+      loadFeedback();
+    }catch(err){ notify(err.message); }
+    finally{ b.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit'; b.disabled = false; }
+    return;
+  }
   if(!$('fbSubject').value.trim()) return notify('Enter a subject');
   const btn = $('fbBtn');
   btn.innerHTML = '<div class="loader-ring"></div> Submitting…'; btn.disabled = true;
@@ -2360,14 +2411,23 @@ async function submitFuel(){
 }
 /* ---------- Overtime requests ---------- */
 function renderOT(){
-  // OT ab SABKO — apna OT koi bhi maang sakta hai
+  // OT sabko apna to milta hi hai. Bulk (doosron ka) OT department ke hisaab se:
+  //   • PRODUCTION dept -> sirf APNE department ka
+  //   • PLANNING dept   -> SAARE departments ka
+  //   • baaki sab        -> sirf apna (self)
   $('otCard').classList.remove('hidden');
   if($('tilOT')) $('tilOT').classList.remove('hidden');
-  // "For My Team" sirf tabhi jab is bande ke reportees hon (team_count > 0)
-  const isMgr = (window._essTeamCount || 0) > 0;
+  const _d = String((D && D.employee && (D.employee.DEPARTMENT||D.employee.department))||'').toUpperCase();
+  window._otUserDept = _d;
+  window._otScope = /PLAN/.test(_d) ? 'all' : (/PROD/.test(_d) ? 'own' : 'self');
+  const showTeam = window._otScope !== 'self';
   const teamBtn = $('otModeTeam');
-  if(teamBtn) teamBtn.style.display = isMgr ? '' : 'none';
-  if(!isMgr && typeof otMode === 'function'){ try{ otMode('self'); }catch(e){} }
+  if(teamBtn){
+    teamBtn.style.display = showTeam ? '' : 'none';
+    teamBtn.textContent = window._otScope === 'own' ? 'For My Department (Bulk)'
+                        : window._otScope === 'all' ? 'For Any Department (Bulk)' : 'For My Team (Bulk)';
+  }
+  if(!showTeam) setOtMode('self');
   $('otDate').value = $('otDate').value || new Date().toISOString().slice(0,10);
   const ot = D.ot_requests || [];
   $('otBox').innerHTML = ot.length ? ot.map(o => {
@@ -2389,12 +2449,23 @@ $('otModeSelf').addEventListener('click', () => setOtMode('self'));
 $('otModeTeam').addEventListener('click', () => setOtMode('team'));
 async function loadWorkers(){
   $('otWorkers').innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Loading workers…</p>';
-  const { data, error } = await sb.rpc('ess_get_workers', { p_code: CODE, p_phone: PHONE, p_team_only: true });
+  // scope: 'own' (production) -> apna dept, 'all' (planning) -> saare. Dono ke liye poori list laao, phir filter.
+  const { data, error } = await sb.rpc('ess_get_workers', { p_code: CODE, p_phone: PHONE, p_team_only: false });
   if(error || (data && data.error)){ $('otWorkers').innerHTML = '<p class="m-0 text-xs" style="color:var(--bad)">' + esc((data && data.error) || error.message) + '</p>'; return; }
-  WORKERS = data.rows || [];
-  // department filter options
-  const depts = [...new Set((WORKERS||[]).map(w => String(w.dept||'').trim()).filter(Boolean))].sort();
-  $('otDept').innerHTML = '<option value="">All departments</option>' + depts.map(d => `<option>${esc(d)}</option>`).join('');
+  let rows = data.rows || [];
+  if(window._otScope === 'own'){
+    rows = rows.filter(w => String(w.dept||'').trim().toUpperCase() === String(window._otUserDept||'').toUpperCase());
+  }
+  WORKERS = rows;
+  if(window._otScope === 'own'){
+    // Production: sirf apna department, filter locked
+    $('otDept').innerHTML = `<option value="${esc(window._otUserDept)}">${esc(window._otUserDept)}</option>`;
+    $('otDept').value = window._otUserDept; $('otDept').disabled = true;
+  } else {
+    const depts = [...new Set((WORKERS||[]).map(w => String(w.dept||'').trim()).filter(Boolean))].sort();
+    $('otDept').innerHTML = '<option value="">All departments</option>' + depts.map(d => `<option>${esc(d)}</option>`).join('');
+    $('otDept').disabled = false;
+  }
   renderWorkers('');
 }
 function renderWorkers(q){
@@ -2402,7 +2473,7 @@ function renderWorkers(q){
   const dept = $('otDept') ? $('otDept').value : '';
   $('otWorkers').innerHTML = (WORKERS||[])
     .filter(w => w.code !== CODE)
-    .filter(w => !dept || String(w.dept||'').trim() === dept)
+    .filter(w => !dept || String(w.dept||'').trim().toUpperCase() === String(dept).trim().toUpperCase())
     .filter(w => !q || [w.name, w.code, w.dept, w.line].join(' ').toLowerCase().includes(q))
     .map(w => `<label class="flex items-center gap-2 p-2 rounded-lg text-sm" style="background:#f8fafc">
       <input type="checkbox" class="otw-chk" value="${esc(w.code)}">
