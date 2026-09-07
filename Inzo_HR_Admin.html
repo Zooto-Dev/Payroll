@@ -6334,12 +6334,21 @@ async function runPayroll(){
         return false;
       };
       let earnedWO = 0, earnedH = 0;
+      const offNotEarned = [];   // { iso, isH, why } — kaun se off-day nahi mile aur kyon
       dayMeta.forEach(x => {
         if(!x.isWO && !x.isH) return;
         // employee ne is off-day pe khud punch kiya (kaam kiya) -> hamesha earned
         const workedOff = !!days[x.iso];
+        const okB = _sideOk(x.iso, -1), okA = _sideOk(x.iso, +1);
         // ya dono taraf ka nearest working day accounted -> off-day span ke andar hai -> earned
-        if(workedOff || (_sideOk(x.iso, -1) && _sideOk(x.iso, +1))){ if(x.isH) earnedH++; else earnedWO++; }
+        if(workedOff || (okB && okA)){ if(x.isH) earnedH++; else earnedWO++; return; }
+        // nahi mila -> reason
+        let why;
+        if(!inEmployment(x.iso))        why = 'joining/exit avdhi ke bahar';
+        else if(!okB && !okA)           why = 'dono taraf koi kaam ka din nahi';
+        else if(!okB)                   why = 'pichla kaam ka din absent';
+        else                            why = 'agla kaam ka din absent';
+        offNotEarned.push({ iso: x.iso, isH: x.isH, why });
       });
       // days jab employee employed tha lekin working day pe absent (bina leave/pass) = unauthorized
       // AAKHRI attendance/activity ka din nikaalo — uske baad ke absent = "continuously gayab"
@@ -6407,7 +6416,7 @@ async function runPayroll(){
         isContract: isContractEmp(code), contractor: (PROFILES[code]||{}).contractor_name || '',
         dim, present, lates, lateLOP, baseLateLOP, lateFgEligible, lateDecision, usedSL, usedHD,
         leaveDays, unauthAbs, unauthApplied, outsideDays, lwpDays, paidDays: +paidDays.toFixed(1), lop,
-        earnedWO, earnedH, wfhDays,
+        earnedWO, earnedH, wfhDays, offNotEarned, absentWorking: (unauthAbs + trailingAbs), trailingAbs,
         shiftName: sh.name, shHrs, perHour,
         basic: Math.round(basic), comps, dedBreak, customDed,
         earnedGross: Math.round(earnedGross), pf, esi, pt, lwf,
@@ -6971,19 +6980,44 @@ function lopReasonHindi(r){
     parts.push(`(देर की ${nf(r.baseLateLOP)} दिन कटौती CEO द्वारा माफ़)`);
   return parts.length ? parts.join('; ') : `${nf(r.lop)} दिन कटौती`;
 }
+/* Kaun se week-off/holiday NAHI mile + kyon — Hindi detail (dates ke saath) */
+function offNotEarnedHindi(r){
+  const arr = r.offNotEarned || [];
+  if(!arr.length) return '';
+  const typeHi = o => o.isH ? 'छुट्टी' : 'रवि';
+  const dd = iso => String(iso).slice(8,10).replace(/^0/,'');
+  const whyHi = {
+    'agla kaam ka din absent':'अगला कार्यदिवस अनुपस्थित',
+    'pichla kaam ka din absent':'पिछला कार्यदिवस अनुपस्थित',
+    'dono taraf koi kaam ka din nahi':'आस-पास कोई कार्यदिवस नहीं',
+    'joining/exit avdhi ke bahar':'जॉइनिंग/एग्ज़िट अवधि के बाहर'
+  };
+  const g = {};
+  arr.forEach(o => { (g[o.why] = g[o.why] || []).push(dd(o.iso) + ' ' + typeHi(o)); });
+  return Object.keys(g).map(w => g[w].join(', ') + ' — ' + (whyHi[w] || w)).join('; ');
+}
 $('payLopBtn').addEventListener('click', () => {
   if(!PAY_ROWS.length) return notify('Pehle payroll calculate karein', 'error');
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
-  const header = ['Employee Name','Employee Code','Department','Designation','Total Paid Days','LOP (days)','Reason (Hindi)'];
+  const header = ['Employee Name','Employee Code','Department','Designation',
+    'Total Days (month)','Present Days','Paid Leave Days','Earned Week-Off','Earned Holiday',
+    'Absent Days','Off-days Not Earned (count)','Total Paid Days','LOP (days)',
+    'Off-days Not Earned (detail — Hindi)','Reason (Hindi)'];
   const lines = [header.join(',')];
   // naam ke hisab se sort
   const rows = PAY_ROWS.slice().sort((a,b) => String(a.name||'').localeCompare(String(b.name||'')));
   let totPaid = 0, totLop = 0;
   rows.forEach(r => {
     totPaid += Number(r.paidDays)||0; totLop += Number(r.lop)||0;
-    lines.push([q(r.name), q(r.code), q(r.dept||''), q(r.desig||''), r.paidDays, r.lop, q(lopReasonHindi(r))].join(','));
+    lines.push([
+      q(r.name), q(r.code), q(r.dept||''), q(r.desig||''),
+      r.dim, r.present, (r.leaveDays||0), (r.earnedWO||0), (r.earnedH||0),
+      (r.absentWorking||0), (r.offNotEarned||[]).length, r.paidDays, r.lop,
+      q(offNotEarnedHindi(r)), q(lopReasonHindi(r))
+    ].join(','));
   });
-  lines.push(['', q('TOTAL — ' + rows.length + ' employees'), '', '', (Math.round(totPaid*10)/10), (Math.round(totLop*10)/10), ''].join(','));
+  lines.push(['', q('TOTAL — ' + rows.length + ' employees'), '','','','','','','','','',
+    (Math.round(totPaid*10)/10), (Math.round(totLop*10)/10), '', ''].join(','));
   // UTF-8 BOM taaki Excel me Hindi sahi dikhe
   dlText('PaidDays_LOP_' + PAY_MONTH + '.csv', String.fromCharCode(0xFEFF) + lines.join('\n'), 'text/csv;charset=utf-8');
   notify('Paid Days / LOP report download ho gaya — ' + rows.length + ' employees', 'success');
