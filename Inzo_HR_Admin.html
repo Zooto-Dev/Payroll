@@ -6397,23 +6397,26 @@ async function runPayroll(){
         }
         return false;
       };
+      // active span = pehli haaziri se aakhri haaziri tak (present / paid-leave / WFH / LWP / approved-req)
+      let spanFirst = '', spanLast = '';
+      dayMeta.forEach(x => {
+        if(!inEmployment(x.iso) || x.iso > todayIso_) return;
+        if(_accounted(x.iso)){ if(!spanFirst) spanFirst = x.iso; spanLast = x.iso; }
+      });
       let earnedWO = 0, earnedH = 0;
       const offNotEarned = [];   // { iso, isH, why } — kaun se off-day nahi mile aur kyon
       dayMeta.forEach(x => {
         if(!x.isWO && !x.isH) return;
-        const inEmp = inEmployment(x.iso);
-        const workedOff = !!days[x.iso];                                  // khud us din kaam kiya -> hamesha
-        const okB = _sideOk(x.iso, -1), okA = _sideOk(x.iso, +1);        // aas-paas ka nearest kaam-din accounted?
-        // SANDWICH rule (company-standard): off-day tabhi NAHI milta jab uske aas-paas ke DONO nearest
-        // kaam-din absent hon (ya off-day joining/exit avdhi ke bahar ho). Ek taraf bhi present/paid-leave/
-        // WFH/gate-pass -> mil jaata hai. Khud us din kaam kiya -> hamesha milta hai.
-        //   • join se pehle / exit ke baad -> inEmp false -> nahi milta
-        //   • lambe gap (dono taraf absent) ke off-days -> nahi milte
-        //   • ek din bhi adjacent present -> milta hai (1-2 din ki chhutti se off nahi katega)
-        if(workedOff || (inEmp && x.iso <= todayIso_ && (okB || okA))){ if(x.isH) earnedH++; else earnedWO++; return; }
+        const workedOff = !!days[x.iso];                                  // khud us din kaam kiya
+        const inSpan = spanFirst && x.iso >= spanFirst && x.iso <= spanLast;
+        const okB = _sideOk(x.iso, -1), okA = _sideOk(x.iso, +1);
+        // off-day milta hai jab woh active span (pehli–aakhri haaziri) ke andar ho aur ek taraf bhi accounted ho
+        if(workedOff || (inSpan && (okB || okA))){ if(x.isH) earnedH++; else earnedWO++; return; }
         let why;
-        if(!inEmp)  why = 'joining/exit avdhi ke bahar';
-        else        why = 'dono taraf gair-haazir (absence gap ke andar)';
+        if(!inEmployment(x.iso))                  why = 'joining/exit avdhi ke bahar';
+        else if(!spanFirst || x.iso < spanFirst)  why = 'pehli haaziri se pehle';
+        else if(x.iso > spanLast)                 why = 'aakhri haaziri ke baad (chhod diya)';
+        else                                      why = 'dono taraf gair-haazir (absence gap ke andar)';
         offNotEarned.push({ iso: x.iso, isH: x.isH, why });
       });
       // days jab employee employed tha lekin working day pe absent (bina leave/pass) = unauthorized
