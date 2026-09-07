@@ -1423,6 +1423,16 @@ body.no-confidential .confidential-col{display:none!important}
   </div>
 </div>
 <div class="page" id="page-settings">
+  <div class="card mb-4" id="rmBulkCard">
+    <h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-user-tie" style="color:var(--brand)"></i> Reporting Manager — Bulk Set by Department</h3>
+    <p class="text-xs mt-0 mb-3" style="color:var(--muted)">Kisi department ke sabhi active employees ka reporting manager ek saath badlo. Jinka koi manager set nahi, unka default <b>KARTIK POPLY (CEO)</b> hai.</p>
+    <div class="flex items-end gap-3 flex-wrap">
+      <div><label class="lbl">Department</label><select id="rmbDept" class="inp" style="min-width:200px"></select></div>
+      <div><label class="lbl">New Reporting Manager</label><select id="rmbMgr" class="inp" style="min-width:260px"></select></div>
+      <button id="rmbApplyBtn" class="btn btn-primary"><i class="fa-solid fa-people-arrows"></i> Apply to Department</button>
+    </div>
+    <div id="rmbInfo" class="text-xs mt-2" style="color:var(--muted)"></div>
+  </div>
   <div class="grid lg:grid-cols-2 gap-4">
     <div class="card">
       <h3 class="display font-bold mt-0 mb-4">Company Profile <span class="text-[10px] font-normal" style="color:var(--muted)">(printed on letters & payslips)</span></h3>
@@ -3023,8 +3033,45 @@ function fillEmpSelects(){
   $('asFilter').innerHTML = '<option value="">All employees</option>' + opts;
   $('idEmp').innerHTML = '<option value="ALL">— All Active Employees —</option>' + opts;
   if($('idiEmp')) $('idiEmp').innerHTML = '<option value="">— Select employee —</option>' + opts;
+  if($('rmbDept')){
+    const _depts = [...new Set(activeEmps().map(e => String(e.DEPARTMENT||'').trim()).filter(Boolean))].sort();
+    $('rmbDept').innerHTML = _depts.map(d => `<option>${esc(d)}</option>`).join('');
+  }
+  if($('rmbMgr')){
+    $('rmbMgr').innerHTML = '<option value="__KARTIK__">KARTIK POPLY (CEO — default)</option>' +
+      activeEmps().map(e => `<option value="${esc(e['Employee code'])}">${esc(e.Name)} (${esc(e['Employee code'])})${e.DESIGNATION ? ' — ' + esc(e.DESIGNATION) : ''}</option>`).join('');
+  }
   $('epShift').innerHTML = SHIFTS.map(s => `<option value="${s.id}">${esc(s.name)} (${esc(s.start_time)}–${esc(s.end_time)})</option>`).join('');
 }
+
+/* ---- Reporting Manager — bulk set by department (Settings, super admin) ---- */
+function rmbUpdateInfo(){
+  const dept = $('rmbDept') ? $('rmbDept').value : '';
+  const n = activeEmps().filter(e => String(e.DEPARTMENT||'').trim() === dept).length;
+  if($('rmbInfo')) $('rmbInfo').textContent = dept ? (dept + ' me ' + n + ' active employee(s) — inka reporting manager badlega.') : '';
+}
+$('rmbDept') && $('rmbDept').addEventListener('change', rmbUpdateInfo);
+$('rmbApplyBtn') && $('rmbApplyBtn').addEventListener('click', async () => {
+  const dept = $('rmbDept').value, mgrVal = $('rmbMgr').value;
+  if(!dept) return notify('Department chunein', 'error');
+  if(!mgrVal) return notify('Reporting manager chunein', 'error');
+  const mgrStore = (mgrVal === '__KARTIK__') ? 'KARTIK POPLY' : mgrVal;
+  const mgrLabel = (mgrVal === '__KARTIK__') ? 'KARTIK POPLY (CEO)' : (((EMP.find(e => e['Employee code'] === mgrVal)||{}).Name) || mgrVal);
+  const codes = activeEmps().filter(e => String(e.DEPARTMENT||'').trim() === dept)
+    .map(e => e['Employee code']).filter(c => c !== mgrVal);   // manager khud ko report na kare
+  if(!codes.length) return notify('Is department me koi employee nahi (ya sirf chuna manager hi hai)', 'error');
+  if(!(await nxConfirm(`${dept} ke ${codes.length} employee(s) ka reporting manager "${mgrLabel}" set karein?`, 'Bulk Reporting Manager'))) return;
+  const btn = $('rmbApplyBtn'); btn.disabled = true; btn.innerHTML = '<div class="loader-ring"></div> Applying…';
+  try{
+    const rows = codes.map(c => ({ employee_code: c, reporting_manager: mgrStore }));
+    const { error } = await sb.from('hr_profiles').upsert(rows, { onConflict: 'employee_code' });
+    if(error) throw error;
+    codes.forEach(c => { PROFILES[c] = Object.assign(PROFILES[c] || { employee_code: c }, { reporting_manager: mgrStore }); });
+    notify(`${codes.length} employee(s) ka reporting manager "${mgrLabel}" ho gaya`, 'success');
+    rmbUpdateInfo();
+  }catch(err){ notify(err.message, 'error'); }
+  finally{ btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-people-arrows"></i> Apply to Department'; }
+});
 
 /* ---------------- Router ---------------- */
 const TITLES = { mis:'MIS Report', dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', ctccalc:'CTC Calculator', adminctl:'Admin Control Panel' };

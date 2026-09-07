@@ -1913,8 +1913,9 @@ async function renderReportingInfo(){
   const box = $('rmBox'); if(!box) return;
   const p = D.profile || {};
   const rm = String(p.reporting_manager || '').trim();
-  let mgrHtml = '<span style="color:var(--muted)">Set nahi hai — HR se sampark karein</span>';
-  if(rm){
+  // default manager = KARTIK POPLY (CEO) — blank ya KARTIK POPLY dono me yahi dikhega
+  let mgrHtml = '<b>KARTIK POPLY</b> — CEO <span class="text-[10px]" style="color:var(--muted)">(default)</span>';
+  if(rm && rm.toUpperCase().indexOf('KARTIK') === -1){
     // reporting_manager code, naam, ya "Naam (CODE)" format me ho sakta hai — dono se resolve karo
     const cm = rm.match(/\(([^)]+)\)\s*$/);
     const rmCode = (cm ? cm[1] : rm).trim();
