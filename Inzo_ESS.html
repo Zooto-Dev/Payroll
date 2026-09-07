@@ -548,6 +548,10 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm">My Details</h3><div id="meBox"></div>
         <button id="pwOpenBtn" class="btn btn-ghost btn-sm mt-3"><i class="fa-solid fa-key"></i> Change Password</button></div>
       <div class="card">
+        <h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-user-tie" style="color:var(--brand)"></i> Reporting Manager &amp; Approvals</h3>
+        <div id="rmBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div>
+      </div>
+      <div class="card">
         <h3 class="display font-bold mt-0 mb-2 text-sm">Update Contact Details</h3>
         <label class="lbl">Address</label><input id="upAddr" class="inp mb-3">
         <label class="lbl">Email</label><input id="upEmail" type="email" class="inp mb-4">
@@ -1902,6 +1906,41 @@ function render(){
   ];
   $('meBox').innerHTML = rows.map(r => `<div class="row"><span class="k">${r[0]}</span><span style="text-align:right">${esc(r[1] || '—')}</span></div>`).join('');
   $('upAddr').value = p.address || ''; $('upEmail').value = p.email || '';
+  renderReportingInfo();
+}
+/* ---------- Reporting Manager + who approves what ---------- */
+async function renderReportingInfo(){
+  const box = $('rmBox'); if(!box) return;
+  const p = D.profile || {};
+  const rm = String(p.reporting_manager || '').trim();
+  let mgrHtml = '<span style="color:var(--muted)">Set nahi hai — HR se sampark karein</span>';
+  if(rm){
+    // reporting_manager code, naam, ya "Naam (CODE)" format me ho sakta hai — dono se resolve karo
+    const cm = rm.match(/\(([^)]+)\)\s*$/);
+    const rmCode = (cm ? cm[1] : rm).trim();
+    const rmName = rm.replace(/\s*\([^)]*\)\s*$/, '').trim();
+    let m = null;
+    try{
+      let r1 = await sb.from('employees').select('*').ilike('Employee code', rmCode).limit(1);
+      if(r1.data && r1.data[0]) m = r1.data[0];
+      if(!m && rmName){ let r2 = await sb.from('employees').select('*').ilike('Name', rmName).limit(1); if(r2.data && r2.data[0]) m = r2.data[0]; }
+    }catch(e){}
+    if(m) mgrHtml = `<b>${esc(m.Name)}</b>${m.DESIGNATION ? ' — ' + esc(m.DESIGNATION) : ''}<br><span class="text-[10px]" style="color:var(--muted)">${esc(m['Employee code']||'')}${m.DEPARTMENT ? ' • ' + esc(m.DEPARTMENT) : ''}</span>`;
+    else mgrHtml = `<b>${esc(rm)}</b>`;
+  }
+  const approves = [
+    ['Leave', 'Reporting Manager'],
+    ['Field Duty / WFH / Gate Pass', 'Reporting Manager'],
+    ['Attendance Correction', 'Reporting Manager'],
+    ['Overtime (OT)', 'CEO / Management'],
+    ['Advance / Loan', 'Accounts / CEO'],
+    ['Expense Claim', 'Accounts'],
+    ['Salary / CTC', 'CEO']
+  ];
+  box.innerHTML =
+    `<div class="row" style="align-items:flex-start"><span class="k">Reporting Manager</span><span style="text-align:right">${mgrHtml}</span></div>
+     <div class="text-[11px] mt-3 mb-1" style="color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Kaun si request kaun approve karega</div>` +
+    approves.map(a => `<div class="row"><span class="k">${esc(a[0])}</span><span style="text-align:right;font-weight:600">${esc(a[1])}</span></div>`).join('');
 }
 /* ---------- Attendance calendar ---------- */
 let CAL_YM = new Date().toISOString().slice(0,7);
