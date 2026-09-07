@@ -6475,10 +6475,13 @@ async function runPayroll(){
         tds, arrears, reward, encash, encashDays, lopLeave, otApprovedMode: otApproved[code] !== undefined,
         erPF, erESI, erLWF,
         advDed: Math.round(advDed), advRefs: advs.map(a => a.id),
-        otherDed: 0, bonus: 0, fullGross: Math.round(fullGross), hasSalary: fullGross > 0 };
+        otherDed: 0, bonus: 0, fullGross: Math.round(fullGross), hasSalary: fullGross > 0,
+        hasActivity: (present + leaveDays + (lwpDays||0) + (wfhDays||0)) > 0 };
     });
-    PAY_ROWS = _payAll.filter(r => !r.isContract);       // company payroll
-    CONTRACT_ROWS = _payAll.filter(r => r.isContract);   // contractor-paid (separate report)
+    // 0 attendance wale (na present, na paid-leave, na WFH/LWP) -> payroll se hata do
+    const _zeroAtt = _payAll.filter(r => !r.hasActivity);
+    PAY_ROWS = _payAll.filter(r => !r.isContract && r.hasActivity);       // company payroll
+    CONTRACT_ROWS = _payAll.filter(r => r.isContract && r.hasActivity);   // contractor-paid (separate report)
     renderPayTable();
     renderContractTable(); // contract employees report (payroll ke niche) — with total
     renderPayLockUI();     // Lock/Unlock buttons + CEO late-LOP approval panel
@@ -6487,6 +6490,9 @@ async function runPayroll(){
     $('payLopBtn').classList.remove('hidden');
     if(CONTRACT_ROWS.length){
       notify(CONTRACT_ROWS.length + ' contract employee(s) shown separately below (paid by contractor)', 'info');
+    }
+    if(_zeroAtt.length){
+      notify(_zeroAtt.length + ' employee(s) 0 attendance ki wajah se payroll se hata diye gaye', 'info');
     }
     if(_skippedPending.length){
       notify(_skippedPending.length + ' employee(s) skipped — salary pending CEO approval: ' + _skippedPending.slice(0,5).map(e=>e.Name).join(', ') + (_skippedPending.length>5?' +more':''), 'error');
