@@ -2579,13 +2579,9 @@ document.addEventListener('click', async (e) => {
   const { id, code } = _kzScoreTarget;
   const btn = $('kzScoreSave'); btn.innerHTML = '<div class="loader-ring"></div> Saving…'; btn.disabled = true;
   try{
-    await sb.from('feedback').update({ kz_stage:'COMPLETED', kz_completed_at: new Date().toISOString(), reward: amt, impact: impact, kz_score: total, admin_note: gradeNote, reward_credited: amt > 0 }).eq('id', id);
-    if(amt > 0){
-      const p = PROFILES[code] || {};
-      const sal = Object.assign({}, p.salary || {}, { pendingReward: (Number((p.salary||{}).pendingReward)||0) + amt });
-      await sb.from('hr_profiles').upsert({ employee_code: code, salary: sal }, { onConflict: 'employee_code' });
-      if(PROFILES[code]) PROFILES[code].salary = sal; else PROFILES[code] = { employee_code: code, salary: sal };
-    }
+    // Reward SIRF feedback table me store hota hai (reward_paid_month=null => next payroll me milega).
+    // salary.pendingReward me NAHI likhte — woh profile save par ud jaata tha (reward gayab ho jaata tha).
+    await sb.from('feedback').update({ kz_stage:'COMPLETED', kz_completed_at: new Date().toISOString(), reward: amt, impact: impact, kz_score: total, admin_note: gradeNote, reward_credited: amt > 0, reward_paid_month: null }).eq('id', id);
     $('kzScoreModal').classList.remove('show');
     notify(amt > 0 ? `Kaizen completed — ${gr.grade}, ${fmtINR(amt)} reward in next payroll` : `Kaizen completed — ${gr.grade} (recognition)`, 'success');
     loadVoice();
@@ -6148,6 +6144,25 @@ async function runPayroll(){
     // ===== Payroll lock state + CEO late-LOP decisions for this month =====
     const _lockRes = await sb.from('payroll_locks').select('*').eq('month', ym).limit(1);
     PAY_LOCK = (_lockRes.data && _lockRes.data[0]) || null;
+    // ===== FINALIZED month -> saved (frozen) payslips dikhao, DOBARA calculate MAT karo =====
+    // Finalize par payslips snapshot save hota hai. Woh permanent record hai — usi ko dikhana hai
+    // (reward/arrear samet exactly jaisa pay hua). Edit karne ke liye pehle Unlock karna hoga.
+    if(PAY_LOCK && String(PAY_LOCK.status).toUpperCase() === 'FINALIZED'){
+      const _snap = await sb.from('payslips').select('data').eq('month', ym);
+      const _rows = (_snap.data || []).map(x => x && x.data).filter(Boolean);
+      if(_rows.length){
+        PAY_ROWS = _rows.filter(r => !r.isContract);
+        CONTRACT_ROWS = _rows.filter(r => r.isContract);
+        renderPayTable();
+        renderContractTable();
+        renderPayLockUI();
+        $('payPrintAllBtn').classList.remove('hidden');
+        $('payBankBtn').classList.remove('hidden');
+        $('payLopBtn').classList.remove('hidden');
+        notify(`${monthLabel(ym)} FINALIZED hai — saved (frozen) payslips dikha rahe hain, dobara calculate nahi kiya. Badalna ho to Unlock karein.`, 'info');
+        return;   // finally block button reset kar dega
+      }
+    }
     const _revRes = await sb.from('payroll_late_reviews').select('employee_code, status').eq('month', ym);
     const lateReviewMap = {};
     (_revRes.data || []).forEach(x => { lateReviewMap[x.employee_code] = String(x.status || 'PENDING').toUpperCase(); });
@@ -6188,6 +6203,12 @@ async function runPayroll(){
     window._wfhMap = wfhMap;
     const LDEC = ldRes.data || [];
     const yearLeaves = yearLvRes.data || [];
+    // Kaizen rewards: SOURCE = feedback table (salary.pendingReward fragile hai — profile save par ud jaata hai).
+    // COMPLETED + reward>0 + credited + abhi tak kisi payroll me pay nahi hua (reward_paid_month null).
+    const rewardMap = {};
+    const _rwRes = await sb.from('feedback').select('employee_code, reward')
+      .gt('reward', 0).eq('reward_credited', true).is('reward_paid_month', null);
+    (_rwRes.data || []).forEach(f => { rewardMap[f.employee_code] = (rewardMap[f.employee_code]||0) + (Number(f.reward)||0); });
     const otApproved = {};
     const otApprovedDays = {};   // employee_code -> Set of approved OT dates (for Sunday/holiday work OT)
     (otRes.data || []).forEach(o => {
@@ -6434,7 +6455,7 @@ async function runPayroll(){
       const erESI = esi > 0 ? Math.ceil(earnedGross * 3.25 / 100) : 0;
       const erLWF = (p.lwf_applicable !== false) ? lwfER(earnedGross) : 0;
       const arrears = Math.round(Number((p.salary || {}).pendingArrear) || 0);
-      const reward = Math.round(Number((p.salary || {}).pendingReward) || 0);
+      const reward = Math.round((rewardMap[code] || 0) + (Number((p.salary || {}).pendingReward) || 0));
 
       const advs = advMap[code] || [];
       const advDed = advs.reduce((a,x) => a + Math.min(Number(x.emi)||0, Number(x.balance)||0), 0);
@@ -6762,11 +6783,15 @@ $('payFinalizeBtn').addEventListener('click', async () => {
         await sb.from('leave_decisions').update({ paid: true })
           .eq('employee_code', r.code).eq('action', 'ENCASH').eq('paid', false);
       }
-      if(r.arrears > 0 || r.reward > 0){
+      if(r.arrears > 0){
         const p = PROFILES[r.code] || {};
-        const sal = Object.assign({}, p.salary || {}, { pendingArrear: 0, pendingReward: 0 });
+        const sal = Object.assign({}, p.salary || {}, { pendingArrear: 0 });
         await sb.from('hr_profiles').update({ salary: sal }).eq('employee_code', r.code);
         if(PROFILES[r.code]) PROFILES[r.code].salary = sal;
+      }
+      if(r.reward > 0){   // kaizen reward consume -> feedback rows ko is month me "paid" mark karo (dobara na mile)
+        await sb.from('feedback').update({ reward_paid_month: PAY_MONTH })
+          .eq('employee_code', r.code).gt('reward', 0).eq('reward_credited', true).is('reward_paid_month', null);
       }
     }
     // mark month FINALIZED (lock state)
