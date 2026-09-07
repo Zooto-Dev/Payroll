@@ -3870,20 +3870,26 @@ function ctcPartsFromCTC(monthlyCTC, f){
   monthlyCTC = Number(monthlyCTC)||0;
   f = f || { pf: true, esi: true, lwf: true, tds: false };
   const S = getSettings();
-  const basic = Math.round(monthlyCTC * 0.5);                       // Basic = CTC ka 50%
-  const pfBase = Number(S.pfCap) > 0 ? Math.min(basic, Number(S.pfCap)) : basic;
-  const erPF = f.pf ? Math.round(pfBase * Number(S.pfPct) / 100) : 0;
-  const erLWF = f.lwf ? lwfER(monthlyCTC) : 0;
-  // gross = CTC - employer PF - employer LWF - employer ESI ; ESI gross par depend karta hai -> 1-2 iteration
-  let gross = monthlyCTC - erPF - erLWF;
-  let erESI = 0;
-  for(let i=0;i<6;i++){
-    erESI = (f.esi && gross>0 && gross <= Number(S.esiLimit)) ? Math.ceil(gross * 3.25/100) : 0;
-    const ng = monthlyCTC - erPF - erLWF - erESI;
-    if(Math.abs(ng-gross)<1){ gross=ng; break; }
+  // Basic = GROSS ka 50% (payslip jaisa). gross khud CTC par depend karta hai (CTC - employer PF/LWF/ESI)
+  // aur PF basic par -> iteration se solve karo taaki PF wahi aaye jo payslip me deta hai.
+  const pfCap = Number(S.pfCap)||0, pfPct = Number(S.pfPct)||0;
+  let gross = monthlyCTC;
+  for(let i=0;i<12;i++){
+    const b = Math.round(gross * 0.5);
+    const pfb = pfCap > 0 ? Math.min(b, pfCap) : b;
+    const _erPF = f.pf ? Math.round(pfb * pfPct / 100) : 0;
+    const _erLWF = f.lwf ? lwfER(monthlyCTC) : 0;
+    const _erESI = (f.esi && gross>0 && gross <= Number(S.esiLimit)) ? Math.ceil(gross * 3.25/100) : 0;
+    const ng = monthlyCTC - _erPF - _erLWF - _erESI;
+    if(Math.abs(ng-gross) < 1){ gross = ng; break; }
     gross = ng;
   }
   gross = Math.round(gross);
+  const basic = Math.round(gross * 0.5);                            // Basic = GROSS ka 50%
+  const pfBase = pfCap > 0 ? Math.min(basic, pfCap) : basic;
+  const erPF = f.pf ? Math.round(pfBase * pfPct / 100) : 0;
+  const erLWF = f.lwf ? lwfER(monthlyCTC) : 0;
+  const erESI = (f.esi && gross>0 && gross <= Number(S.esiLimit)) ? Math.ceil(gross * 3.25/100) : 0;
   // employee side
   const eePF  = f.pf  ? Math.round(pfBase * Number(S.pfPct)/100) : 0;
   const eeESI = (f.esi && gross>0 && gross <= Number(S.esiLimit)) ? Math.ceil(gross * Number(S.esiPct)/100) : 0;
