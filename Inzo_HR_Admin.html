@@ -6336,8 +6336,10 @@ async function runPayroll(){
       let earnedWO = 0, earnedH = 0;
       dayMeta.forEach(x => {
         if(!x.isWO && !x.isH) return;
-        // dono taraf ka nearest working day accounted -> off-day span ke andar hai -> earned
-        if(_sideOk(x.iso, -1) && _sideOk(x.iso, +1)){ if(x.isH) earnedH++; else earnedWO++; }
+        // employee ne is off-day pe khud punch kiya (kaam kiya) -> hamesha earned
+        const workedOff = !!days[x.iso];
+        // ya dono taraf ka nearest working day accounted -> off-day span ke andar hai -> earned
+        if(workedOff || (_sideOk(x.iso, -1) && _sideOk(x.iso, +1))){ if(x.isH) earnedH++; else earnedWO++; }
       });
       // days jab employee employed tha lekin working day pe absent (bina leave/pass) = unauthorized
       // AAKHRI attendance/activity ka din nikaalo — uske baad ke absent = "continuously gayab"
