@@ -2418,10 +2418,13 @@ function renderOT(){
   //   • baaki sab        -> sirf apna (self)
   $('otCard').classList.remove('hidden');
   if($('tilOT')) $('tilOT').classList.remove('hidden');
+  //   • PLANNING dept   -> SAARE employees   • PRODUCTION dept -> sirf apna department
+  //   • baaki           -> apne reportees (jinke reporting manager wo hain) — warna sirf self
   const _d = String((D && D.employee && (D.employee.DEPARTMENT||D.employee.department))||'').toUpperCase();
   window._otUserDept = _d;
-  window._otScope = /PLAN/.test(_d) ? 'all' : (/PROD/.test(_d) ? 'own' : 'self');
-  const showTeam = window._otScope !== 'self';
+  window._otScope = /PLAN/.test(_d) ? 'all' : (/PROD/.test(_d) ? 'own' : 'team');
+  const isMgr = (window._essTeamCount || 0) > 0;
+  const showTeam = window._otScope === 'all' || window._otScope === 'own' || (window._otScope === 'team' && isMgr);
   const teamBtn = $('otModeTeam');
   if(teamBtn){
     teamBtn.style.display = showTeam ? '' : 'none';
@@ -2450,8 +2453,9 @@ $('otModeSelf').addEventListener('click', () => setOtMode('self'));
 $('otModeTeam').addEventListener('click', () => setOtMode('team'));
 async function loadWorkers(){
   $('otWorkers').innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Loading workers…</p>';
-  // scope: 'own' (production) -> apna dept, 'all' (planning) -> saare. Dono ke liye poori list laao, phir filter.
-  const { data, error } = await sb.rpc('ess_get_workers', { p_code: CODE, p_phone: PHONE, p_team_only: false });
+  // scope: 'team' -> sirf apne reportees; 'own' (production) -> apna dept; 'all' (planning) -> saare.
+  const _teamOnly = (window._otScope === 'team');
+  const { data, error } = await sb.rpc('ess_get_workers', { p_code: CODE, p_phone: PHONE, p_team_only: _teamOnly });
   if(error || (data && data.error)){ $('otWorkers').innerHTML = '<p class="m-0 text-xs" style="color:var(--bad)">' + esc((data && data.error) || error.message) + '</p>'; return; }
   let rows = data.rows || [];
   if(window._otScope === 'own'){
