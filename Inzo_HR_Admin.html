@@ -2228,12 +2228,15 @@ function isSuper(){
   const sup = (SETTINGS.superAdmins || []).map(s => s.toLowerCase());
   return !sup.length || sup.includes(ME_EMAIL);
 }
+// "Admin" role = super-admin jaisa access, SIWAY teen cheezein: System Settings, salary approval, OT approval
+function isAdminRole(){ return !isSuper() && !!(SETTINGS.adminPerms || {})[ME_EMAIL]; }
 function normPerm(v){
-  if(Array.isArray(v)) return { pages: v, approve: { leave:true, ot:true, expense:true, advance:true }, finalize: false, confidential: false };
-  return Object.assign({ pages: ALL_PAGES.filter(x => x !== 'settings'), approve: { leave:true, ot:true, expense:true, advance:true }, finalize: false, confidential: false, manualAtt: false, dept: '', desig: '' }, v || {});
+  // Admin template: near-super — salary/bank dikhega, payroll finalize kar sakta hai, par OT approve NAHI
+  if(Array.isArray(v)) return { pages: v, approve: { leave:true, ot:false, expense:true, advance:true }, finalize: true, confidential: true };
+  return Object.assign({ pages: ALL_PAGES.filter(x => x !== 'settings'), approve: { leave:true, ot:false, expense:true, advance:true }, finalize: true, confidential: true, manualAtt: true, dept: '', desig: '' }, v || {});
 }
 function canSeeConfidential(){
-  if(isSuper()) return true;
+  if(isSuper() || isAdminRole()) return true;   // Admin role = super jaisa: salary/bank data dikhega
   if(adminRoleOf(ME_EMAIL).dept.includes('ACCOUNT')) return true;
   if(!(SETTINGS.adminPerms || {})[ME_EMAIL]) return false;
   return myPerm().confidential === true;
@@ -2276,8 +2279,8 @@ function isCEO(){
 function roleCEO(){ const r = myEmpRole().desig; return isSuper() || r.includes('CEO') || r.includes('CHIEF EXECUTIVE') || r.includes('MANAGING DIRECTOR'); }
 // Accounts Manager only
 function roleAcctMgr(){ const r = myEmpRole(); return isSuper() || r.dept.includes('ACCOUNT') || canSeeConfidential(); }
-function canFinalize(){ return isSuper() || ((SETTINGS.adminPerms || {})[ME_EMAIL] ? myPerm().finalize === true : true); }
-function canManualAtt(){ return isSuper() || ((SETTINGS.adminPerms || {})[ME_EMAIL] ? myPerm().manualAtt === true : true); }
+function canFinalize(){ return isSuper() || isAdminRole() || !((SETTINGS.adminPerms || {})[ME_EMAIL]); }
+function canManualAtt(){ return isSuper() || isAdminRole() || !((SETTINGS.adminPerms || {})[ME_EMAIL]); }
 function applyPerms(){
   document.body.classList.toggle('not-super', !isSuper());   // export buttons are super-admin only
   const allowed = allowedPages();
@@ -2786,7 +2789,9 @@ document.addEventListener('change', async e => {
       SETTINGS.superAdmins.push(em);
       delete SETTINGS.adminPerms[em];       // supers need no per-page rules
     } else if(role === 'admin'){
-      if(!SETTINGS.adminPerms[em]) SETTINGS.adminPerms[em] = normPerm(null);
+      // Admin = near-super template (salary/bank dikhega, finalize haan, OT approval NAHI) — custom pages preserve
+      const prev = SETTINGS.adminPerms[em];
+      SETTINGS.adminPerms[em] = normPerm(prev && Array.isArray(prev.pages) ? { pages: prev.pages } : null);
     } else { // user
       delete SETTINGS.adminPerms[em];
     }
@@ -3269,6 +3274,7 @@ function renderSalaryApprovals(){
   </div>`;
 }
 async function approveSelectedSalaries(){
+  if(!isCEO()) return notify('Only the CEO can approve salaries', 'error');
   const codes = Array.from(document.querySelectorAll('.sal-cb:checked')).map(c => c.value);
   if(!codes.length) return notify('Select at least one employee (tick the boxes)', 'error');
   const ok = await nxConfirm('Approve salary for ' + codes.length + ' selected employee(s)?', 'Approve Selected');
@@ -3279,12 +3285,14 @@ async function approveSelectedSalaries(){
   renderSalaryApprovals();
 }
 async function approveSalary(code){
+  if(!isCEO()) return notify('Only the CEO can approve salaries', 'error');
   await sb.from('hr_profiles').update({ salary_status:'APPROVED', salary_approved_by: ME_EMAIL, salary_approved_at: new Date().toISOString() }).eq('employee_code', code);
   if(PROFILES[code]) PROFILES[code].salary_status = 'APPROVED';
   notify('Salary approved', 'success');
   renderSalaryApprovals(); renderNoSalaryCard && renderNoSalaryCard();
 }
 async function approveAllSalaries(){
+  if(!isCEO()) return notify('Only the CEO can approve salaries', 'error');
   const pend = activeEmps().filter(e => String((PROFILES[e['Employee code']]||{}).salary_status||'').toUpperCase() === 'PENDING');
   if(!pend.length) return;
   const ok = await nxConfirm('Approve salary for all ' + pend.length + ' pending employee(s)?', 'Bulk Approve');
@@ -4337,10 +4345,23 @@ function setWageTypeUI(){
 }
 function buildSalaryInputs(code){
   const S = getSettings();
-  const sal = empSalary(code), ded = empDeductions(code);
+  let sal = empSalary(code); const ded = empDeductions(code);
+  // CTC Calculator se feed kiya CTC hai par salary breakup khaali/zero -> CTC se auto-fill karo
+  const _ctcA = Number((PROFILES[code] || {}).ctc_annual) || 0;
+  const _allZero = Object.values(sal).every(v => !Number(v));
+  let _autoFromCtc = false;
+  if(_allZero && _ctcA > 0){
+    try{ const pl = ctcApprovePayload(code); if(pl && pl.salary && pl.salary.earn){ sal = Object.assign({}, sal, pl.salary.earn); _autoFromCtc = true; } }catch(e){}
+  }
   $('epSalWrap').innerHTML = S.earnComps.map(c =>
     `<div><label class="lbl">${esc(c.name)}${c.pf ? ' <i class="fa-solid fa-shield-halved" title="PF wages" style="color:var(--brand)"></i>' : ''}</label>
      <input type="number" class="inp sal-part" data-comp="${esc(c.k)}" value="${sal[c.k]||0}"></div>`).join('');
+  if(_autoFromCtc){
+    const hint = document.getElementById('epSalCtcHint');
+    const msg = `<i class="fa-solid fa-wand-magic-sparkles" style="color:var(--brand)"></i> CTC Calculator ke Annual CTC ₹${_ctcA.toLocaleString('en-IN')} se salary breakup auto-bhara gaya hai — <b>Save</b> karke pakka karein (zaroorat ho to CEO approval jayega).`;
+    if(hint){ hint.innerHTML = msg; hint.classList.remove('hidden'); }
+    else $('epSalWrap').insertAdjacentHTML('beforebegin', `<div id="epSalCtcHint" class="text-xs mb-2" style="color:var(--muted);background:var(--brand-soft,#eef2ff);border:1px solid #c7d2fe;border-radius:8px;padding:6px 10px">${msg}</div>`);
+  } else { const hint = document.getElementById('epSalCtcHint'); if(hint) hint.classList.add('hidden'); }
   $('epDedWrap').innerHTML = S.dedComps.length ? S.dedComps.map(c =>
     `<div><label class="lbl">${esc(c.name)} (₹/mo)</label>
      <input type="number" class="inp" data-dcomp="${esc(c.k)}" value="${ded[c.k]||0}"></div>`).join('') : '';
@@ -7608,7 +7629,7 @@ document.body.addEventListener('click', async e => {
     const r = await nxPrompt('Reject reason' + (what?' ('+what+')':'') + ' — ye employee ko ESS mein dikhega:', 'Reject');
     return (r === null) ? null : (String(r||'').trim() || 'Not specified');
   });
-  if((act === 'appr-leave' || act === 'rej-leave') && !(canApprove('leave') && roleCEO())) return notify('Only the CEO can approve leaves', 'error');
+  if((act === 'appr-leave' || act === 'rej-leave') && !(canApprove('leave') && (roleCEO() || isAdminRole()))) return notify('You are not allowed to approve leaves', 'error');
   if((act === 'ot-appr-grp' || act === 'ot-rej-grp') && !(canApprove('ot') && roleCEO())) return notify('Only the CEO can approve overtime', 'error');
   if((act === 'appr-exp' || act === 'rej-exp' || act === 'appr-ex' || act === 'rej-ex') && !(canApprove('expense') && roleAcctMgr())) return notify('Only the Accounts team can approve expenses', 'error');
   if(act === 'appr-leave'){
