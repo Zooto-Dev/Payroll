@@ -1305,6 +1305,20 @@ body.no-confidential .confidential-col{display:none!important}
     <p class="text-[11px] m-0 ml-auto" style="color:var(--muted)">Photo comes from the employee's PHOTO document — upload one here or in Employees → Profile → Documents. Card size: CR80 (54 × 85.6 mm), front & back.</p>
   </div>
   <div class="paper-desk hidden" id="idDesk" style="padding:20px"><div id="idWrap" class="flex flex-wrap gap-4 justify-center"></div></div>
+
+  <div class="card mt-4" id="idIssueCard">
+    <h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-id-badge" style="color:var(--brand)"></i> Issue ID Card <span class="text-[10px] font-normal" style="color:var(--muted)">register — validity se pehle dobara issue par ₹100 fine (correction par nahi)</span></h3>
+    <div class="flex items-end gap-3 flex-wrap mt-3">
+      <div><label class="lbl">Employee</label><select id="idiEmp" class="inp" style="min-width:240px"></select></div>
+      <div><label class="lbl">Issued Date</label><input id="idiIssued" type="date" class="inp"></div>
+      <div><label class="lbl">Validity Date</label><input id="idiValid" type="date" class="inp"></div>
+      <label class="flex items-center gap-2 text-sm" style="margin-bottom:7px"><input type="checkbox" id="idiCorrection"> Correction (koi fine nahi)</label>
+      <button id="idiIssueBtn" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Issue Card</button>
+      <button id="idiCsvBtn" class="btn btn-ghost"><i class="fa-solid fa-download"></i> CSV</button>
+    </div>
+    <div id="idiWarn" class="text-xs mt-2 hidden" style="color:#b45309"></div>
+    <div style="overflow:auto;margin-top:12px"><table class="reg" id="idiTable" style="font-size:12px;min-width:860px"></table></div>
+  </div>
 </div>
 
 <!-- ================= SETTINGS ================= -->
@@ -3008,6 +3022,7 @@ function fillEmpSelects(){
   $('xEmp').innerHTML = opts;
   $('asFilter').innerHTML = '<option value="">All employees</option>' + opts;
   $('idEmp').innerHTML = '<option value="ALL">— All Active Employees —</option>' + opts;
+  if($('idiEmp')) $('idiEmp').innerHTML = '<option value="">— Select employee —</option>' + opts;
   $('epShift').innerHTML = SHIFTS.map(s => `<option value="${s.id}">${esc(s.name)} (${esc(s.start_time)}–${esc(s.end_time)})</option>`).join('');
 }
 
@@ -3056,6 +3071,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if(page === 'reports') loadReports();
     if(page === 'adminctl'){ NX_AUTH_USERS = null; renderAdminCtl(); }
     if(page === 'ctccalc'){ renderCtcMaster(); }
+    if(page === 'idcards'){ renderIdIssues(); }
     if(page === 'workhours'){ psRefreshBadge(); }
   });
 });
@@ -10246,6 +10262,67 @@ $('annAddBtn').addEventListener('click', async () => {
 
 /* ================= ID CARDS ================= */
 $('idValid').value = (new Date().getFullYear() + 1) + '-03-31';
+
+/* ===== Issue ID Card register — validity se pehle dobara issue par ₹100 fine (correction par nahi) ===== */
+if($('idiIssued')) $('idiIssued').value = todayISO();
+if($('idiValid'))  $('idiValid').value = (new Date().getFullYear() + 1) + '-03-31';
+async function renderIdIssues(){
+  const tb = $('idiTable'); if(!tb) return;
+  if($('idiEmp') && $('idiEmp').options.length <= 1) fillEmpSelects();
+  const { data, error } = await sb.from('id_card_issues').select('*').order('issued_date', { ascending:false });
+  if(error){ tb.innerHTML = '<tbody><tr><td>' + esc(error.message) + '</td></tr></tbody>'; return; }
+  const rows = data || []; let totFine = 0;
+  const body = rows.map(r => {
+    totFine += Number(r.fine)||0;
+    const typ = r.is_correction ? '<span class="chip chip-blue">Correction</span>'
+      : (Number(r.fine)>0 ? '<span class="chip chip-warn">Re-issue</span>' : '<span class="chip chip-ok">New</span>');
+    return `<tr><td class="name-cell">${esc(r.name||r.employee_code)}<br><span class="text-[10px]" style="color:var(--muted)">${esc(r.employee_code)}</span></td>
+      <td>${esc(r.department||'')}</td><td>${esc(r.designation||'')}</td>
+      <td>${fmtDate(r.issued_date)}</td><td>${r.validity_date?fmtDate(r.validity_date):'—'}</td>
+      <td>${typ}</td><td style="text-align:right">${Number(r.fine)>0?('₹'+Number(r.fine).toLocaleString('en-IN')):'—'}</td>
+      <td><button class="btn btn-ghost btn-sm" data-act="idi-del" data-id="${r.id}" title="Delete"><i class="fa-solid fa-trash"></i></button></td></tr>`;
+  }).join('');
+  tb.innerHTML = `<thead><tr><th class="name-cell">Employee</th><th>Department</th><th>Designation</th><th>Issued</th><th>Validity</th><th>Type</th><th style="text-align:right">Fine</th><th></th></tr></thead>
+    <tbody>${body || '<tr><td colspan="8" style="color:var(--muted)">Abhi tak koi ID card issue nahi hua.</td></tr>'}
+    <tr style="font-weight:700;background:#f8fafc"><td colspan="6" style="text-align:right">Total Fine</td><td style="text-align:right">₹${totFine.toLocaleString('en-IN')}</td><td></td></tr></tbody>`;
+}
+$('idiIssueBtn') && $('idiIssueBtn').addEventListener('click', async () => {
+  const code = $('idiEmp').value, issued = $('idiIssued').value, valid = $('idiValid').value, correction = $('idiCorrection').checked;
+  if(!code) return notify('Employee select karein', 'error');
+  if(!issued) return notify('Issued date daalein', 'error');
+  const e = EMP.find(x => x['Employee code'] === code) || {};
+  // pichla card jiski validity abhi khatam nahi hui -> validity se pehle dobara issue -> ₹100 fine (correction chhod kar)
+  const { data: prev } = await sb.from('id_card_issues').select('validity_date,issued_date').eq('employee_code', code).order('issued_date', { ascending:false }).limit(1);
+  let fine = 0, warn = '';
+  const p0 = prev && prev[0];
+  if(p0 && p0.validity_date && issued < p0.validity_date && !correction){
+    fine = 100;
+    warn = `Pichla card ${fmtDate(p0.validity_date)} tak valid tha — validity se pehle dobara issue → ₹100 fine.`;
+  }
+  const { error } = await sb.from('id_card_issues').insert([{ employee_code: code, name: e.Name || code,
+    department: e.DEPARTMENT || '', designation: e.DESIGNATION || '', issued_date: issued,
+    validity_date: valid || null, is_correction: correction, fine }]);
+  if(error) return notify(error.message, 'error');
+  const w = $('idiWarn');
+  if(fine>0){ w.textContent = '⚠ ' + warn; w.classList.remove('hidden'); } else { w.classList.add('hidden'); }
+  notify('ID card issued' + (fine>0 ? ' — ₹100 fine lagaya' : (correction ? ' (correction — no fine)' : '')), fine>0 ? 'error' : 'success');
+  $('idiCorrection').checked = false;
+  renderIdIssues();
+});
+$('idiCsvBtn') && $('idiCsvBtn').addEventListener('click', async () => {
+  const { data } = await sb.from('id_card_issues').select('*').order('issued_date', { ascending:false });
+  const rows = data || []; const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
+  const lines = [['Name','Code','Department','Designation','Issued Date','Validity Date','Type','Fine'].join(',')]; let tot = 0;
+  rows.forEach(r => { tot += Number(r.fine)||0; lines.push([q(r.name),q(r.employee_code),q(r.department),q(r.designation),r.issued_date,r.validity_date||'',(r.is_correction?'Correction':(Number(r.fine)>0?'Re-issue':'New')),Number(r.fine)||0].join(',')); });
+  lines.push(['','','','','','','TOTAL', tot].join(','));
+  dlText('ID_Card_Issues.csv', lines.join('\n'), 'text/csv');
+});
+$('idiTable') && $('idiTable').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-act="idi-del"]'); if(!b) return;
+  if(!(await nxConfirm('Ye ID card issue record delete karein?', 'Delete'))) return;
+  await sb.from('id_card_issues').delete().eq('id', b.dataset.id);
+  renderIdIssues();
+});
 async function photoURL(code){
   try{
     const { data } = await sb.from('hr_documents').select('file_path').eq('employee_code', code).eq('doc_type','PHOTO').order('uploaded_at', { ascending:false }).limit(1);
