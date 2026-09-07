@@ -866,15 +866,15 @@ async function loadTeamApprovals(){
         <div class="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <div class="text-xs"><b>${esc(r.name || r.employee_code)}</b> ${gpTypeLabel(r)}</div>
-            <div class="text-[10px]" style="color:var(--muted)">${fmtDate(r.date)}${r.reason ? ' · ' + esc(r.reason) : ''}${r.proof_path ? ` · <a href="#" onclick="essViewProof('${esc(r.proof_path)}');return false" style="color:var(--brand)">Proof</a>` : ''}</div>
+            <div class="text-[10px]" style="color:var(--muted)">${r.src === 'LEAVE' ? (fmtDate(r.from_date) + ' → ' + fmtDate(r.to_date) + ' (' + r.days + 'd)') : fmtDate(r.date)}${r.reason ? ' · ' + esc(r.reason) : ''}${r.proof_path ? ` · <a href="#" onclick="essViewProof('${esc(r.proof_path)}');return false" style="color:var(--brand)">Proof</a>` : ''}</div>
           </div>
           <div style="white-space:nowrap">
-            <button class="chip chip-ok" style="border:none;cursor:pointer" onclick="teamDecide(${r.id},'APPROVED')"><i class="fa-solid fa-check"></i> Approve</button>
-            <button class="chip chip-bad" style="border:none;cursor:pointer" onclick="teamDecide(${r.id},'REJECTED')"><i class="fa-solid fa-xmark"></i></button>
+            <button class="chip chip-ok" style="border:none;cursor:pointer" onclick="teamDecide(${r.id},'APPROVED','${esc(r.src||'ATT')}')"><i class="fa-solid fa-check"></i> Approve</button>
+            <button class="chip chip-bad" style="border:none;cursor:pointer" onclick="teamDecide(${r.id},'REJECTED','${esc(r.src||'ATT')}')"><i class="fa-solid fa-xmark"></i></button>
           </div>
         </div>
       </div>`;
-    }).join('') : '<p class="text-xs m-0" style="color:var(--muted)">Abhi koi pending request nahi — team ki Field/WFH requests yahan aayengi.</p>';
+    }).join('') : '<p class="text-xs m-0" style="color:var(--muted)">Abhi koi pending request nahi — team ki Leave / Field / WFH / Gate-pass requests yahan aayengi.</p>';
   }catch(e){ _dbg('team-ERROR', e); }
 }
 async function loadTeamToday(){
@@ -897,10 +897,10 @@ async function loadTeamToday(){
     }).join('');
   }catch(e){ _dbg('teamtoday-ERROR', e); }
 }
-async function teamDecide(id, action){
+async function teamDecide(id, action, src){
   try{
     const codeU = String(CODE||'').trim().toUpperCase();
-    const { data, error } = await sb.rpc('ess_team_decide', { p_code: codeU, p_phone: PHONE, p_id: id, p_action: action });
+    const { data, error } = await sb.rpc('ess_team_decide', { p_code: codeU, p_phone: PHONE, p_id: id, p_action: action, p_src: src || 'ATT' });
     if(error) throw error;
     if(data && data.error) throw new Error(data.error);
     notify(action === 'APPROVED' ? 'Approved ✓ — unke ESS par turant dikh jayega' : 'Rejected');
@@ -908,6 +908,7 @@ async function teamDecide(id, action){
   }catch(err){ notify(err.message || 'Failed'); }
 }
 function gpTypeLabel(r){
+  if(r.req_type === 'LEAVE') return '<span class="chip" style="background:#dcfce7;color:#166534;font-size:9px">LEAVE · ' + esc(r.leave_type||'') + '</span>';
   if(r.req_type === 'GATE_HD') return '<span class="chip" style="background:#fef3c7;color:#92400e;font-size:9px">HALF DAY</span>';
   if(r.req_type === 'GATE_SL') return '<span class="chip" style="background:#ccfbf1;color:#115e59;font-size:9px">SHORT LEAVE</span>';
   if(r.req_type === 'WFH') return '<span class="chip" style="background:#f3e8ff;color:#6b21a8;font-size:9px">WFH</span>';
