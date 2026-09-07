@@ -6325,8 +6325,8 @@ async function runPayroll(){
       // CEO late-forgiveness: SIRF Staff, PRODUCTION/STORE dept chhod kar.
       const _catU  = String((p.category) || 'WORKER').toUpperCase();
       const _deptU = String(e.DEPARTMENT || '').toUpperCase();
-      const lateFgEligible = _catU === 'STAFF' && baseLateLOP > 0
-                              && !(_deptU.includes('PROD') || _deptU.includes('STORE'));
+      // Late-maafi approval: har STAFF employee ke liye (department koi bhi ho — PROD/STORE bhi shaamil)
+      const lateFgEligible = _catU === 'STAFF' && baseLateLOP > 0;
       const lateDecision = lateFgEligible ? (lateReviewMap[code] || 'PENDING') : 'NA';
       // APPROVED = late maaf (LOP 0). PENDING/REJECTED/ineligible = LOP count hoga.
       const lateLOP = (lateFgEligible && lateDecision === 'APPROVED') ? 0 : baseLateLOP;
