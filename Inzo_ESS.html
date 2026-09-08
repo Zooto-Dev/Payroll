@@ -1329,17 +1329,39 @@ async function wpEssLoad(){
     host.innerHTML = '<p class="lbl mb-1">MERE WORK PASSES</p>' + list.map(w => {
       const ready = w.day_no >= 3 || w.expired;
       const pend = w.status === 'CONVERT_REQUESTED';
+      // Aaj ki attendance mark karne ka option (trial valid window ke andar)
+      const markBtn = !w.expired
+        ? (!w.today_in
+            ? `<button class="btn btn-sm btn-ghost" onclick="wpEssMark(${w.id},'IN','${esc(w.name)}')" style="color:#059669;border-color:#6ee7b7" title="Aaj ka IN mark karo">✓ IN</button>`
+            : (!w.today_out
+                ? `<button class="btn btn-sm btn-ghost" onclick="wpEssMark(${w.id},'OUT','${esc(w.name)}')" style="color:#059669;border-color:#6ee7b7" title="Aaj ka OUT mark karo">✓ OUT</button>`
+                : `<span class="text-[10px]" style="color:#059669;font-weight:600" title="Aaj IN & OUT dono ho gaye">✓ Aaj poora</span>`))
+        : '';
       return `<div class="row" style="display:block">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span><b>${esc(w.name)}</b> <span class="text-[10px]" style="color:var(--muted)">${esc(w.pass_no||'')} · Day ${Math.min(w.day_no,3)}/3${w.today_in ? ' · IN ' + String(w.today_in).slice(0,5) : ''}${w.today_out ? ' · OUT ' + String(w.today_out).slice(0,5) : ''}</span></span>
-          ${pend ? '<span class="chip chip-blue" style="font-size:10px">⏳ HR approval pending</span>'
-            : `<span style="display:flex;gap:6px;align-items:center">
-                 <button class="btn btn-sm ${ready?'btn-primary':'btn-ghost'}" ${ready?'':'disabled'} onclick="wpEssConvert(${w.id}, '${esc(w.name)}')" style="${ready?'background:#059669;border-color:#059669':''}">${ready?'👔 Employee Banao':'Trial ' + Math.min(w.day_no,3) + '/3'}</button>
-                 <button class="btn btn-sm btn-ghost" onclick="wpEssReject(${w.id}, '${esc(w.name)}')" style="color:#b91c1c;border-color:#fca5a5" title="Trial reject / hataayein">✕ Reject</button>
-               </span>`}
+          <span style="display:flex;gap:6px;align-items:center">
+            ${markBtn}
+            ${pend ? '<span class="chip chip-blue" style="font-size:10px">⏳ HR approval pending</span>'
+              : `<button class="btn btn-sm ${ready?'btn-primary':'btn-ghost'}" ${ready?'':'disabled'} onclick="wpEssConvert(${w.id}, '${esc(w.name)}')" style="${ready?'background:#059669;border-color:#059669':''}">${ready?'👔 Employee Banao':'Trial ' + Math.min(w.day_no,3) + '/3'}</button>
+                 <button class="btn btn-sm btn-ghost" onclick="wpEssReject(${w.id}, '${esc(w.name)}')" style="color:#b91c1c;border-color:#fca5a5" title="Trial reject / hataayein">✕ Reject</button>`}
+          </span>
         </div></div>`;
     }).join('');
   }catch(e){ host.innerHTML = '<p class="text-xs m-0" style="color:var(--bad)">' + esc(e.message||e) + ' — V86 SQL chala?</p>'; }
+}
+async function wpEssMark(id, kind, nm){
+  const now = new Date();
+  const def = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  const t = window.prompt(nm + ' — aaj ka ' + kind + ' time (HH:MM):', def);
+  if(t === null) return;
+  try{
+    const { data, error } = await sb.rpc('wp_sup_mark', { p_id: id, p_kind: kind, p_time: (t||'').trim() });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    notify('✓ ' + nm + ' ka ' + data.action + ' mark ho gaya (' + String(data.time).slice(0,5) + ')');
+    wpEssLoad();
+  }catch(e){ notify('Failed: ' + (e.message||e)); }
 }
 async function wpEssConvert(id, nm){
   if(!window.confirm(nm + ' ko Employee banane ki request HR ko bhejein?')) return;

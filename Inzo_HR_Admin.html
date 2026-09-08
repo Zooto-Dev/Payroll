@@ -2476,7 +2476,22 @@ async function updateTrialKpi(){
     const cameToday = list.filter(w => w.today_in && /[0-9]/.test(String(w.today_in))).length;
     if($('dTrial')) $('dTrial').innerText = list.length;
     if($('dTrialSub')) $('dTrialSub').innerText = 'aaj aaye: ' + cameToday;
-  }catch(e){ if($('dTrial')) $('dTrial').innerText = '0'; }
+    window._trialCameToday = cameToday;   // Present Today KPI me trial worker bhi jodne ke liye
+    if(typeof applyPresentTotal === 'function') applyPresentTotal();
+  }catch(e){ if($('dTrial')) $('dTrial').innerText = '0'; window._trialCameToday = 0; }
+}
+// Present Today = regular employees present + trial workers (work-pass) jo aaj aaye
+function applyPresentTotal(){
+  const emp = window._empPresentCount || 0;
+  const trial = window._trialCameToday || 0;
+  const total = window._empTotalCount || 0;
+  const tot = emp + trial;
+  if($('dPresent')) $('dPresent').innerText = tot;
+  if($('dPresentPct')){
+    const base = total + trial;
+    const pct = base ? Math.round(tot / base * 100) : 0;
+    $('dPresentPct').innerText = pct + '% of ' + base + (trial ? ' (incl. ' + trial + ' trial)' : '');
+  }
 }
 async function showTrialList(){
   let list = window._trialList;
@@ -3603,13 +3618,13 @@ async function loadDashboard(){
     window._todayAtt = rows; // for the click-through lists
     // monthly late board uses is_late
     if(window._monthLateRows === undefined) window._monthLateRows = (monthRes.data||[]).filter(isRowLate);
-    $('dPresent').innerText = rows.length;
+    window._empPresentCount = rows.length;   // sirf regular employees
+    window._empTotalCount = total;
+    applyPresentTotal();                      // present = employees + trial workers
     $('dLate').innerText = late;
     $('dAbsent').innerText = absentReal;
 
     // KPI extras
-    const presentPct = total ? Math.round(rows.length / total * 100) : 0;
-    if($('dPresentPct')) $('dPresentPct').innerText = presentPct + '% of ' + total;
     if($('dAbsentPct')) $('dAbsentPct').innerText = window._todayIsOff ? 'Holiday / Off day' : ((total ? Math.round(absentReal/total*100) : 0) + '% of ' + total);
     if($('dTotal')) $('dTotal').innerText = total;
     const deptSet = new Set(activeEmps().map(e => e.DEPARTMENT).filter(Boolean));
