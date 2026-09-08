@@ -6344,6 +6344,24 @@ async function runPayroll(){
     if($('payNoDblChk')) $('payNoDblChk').checked = noDblPenalty;
     if($('payNoDblWrap')) $('payNoDblWrap').classList.remove('hidden');
     const rows = await fetchMonthAttendance(ym);
+    // ===== NEXT-MONTH activity (trailing off-day rule) =====
+    // Jis employee ne is month ke aakhir me off-days ke baad kaam chhod diya lagta hai,
+    // lekin AGLE month attendance hai (aur koi exit date nahi) -> matlab chhoda nahi, sirf
+    // aakhri din(o) miss kiye. Aise logon ko un trailing off-days ka credit milega.
+    const _nextActiveCodes = new Set();
+    try{
+      const [_yy, _mm] = ym.split('-').map(Number);
+      const _isoD = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+      const _nmStart = _isoD(new Date(_yy, _mm, 1));       // next month 1st (_mm 1-based -> 0-based index = next month)
+      const _nmEnd   = _isoD(new Date(_yy, _mm+1, 1));      // month-after-next 1st
+      for(let pf=0; pf<300000; pf+=1000){
+        const { data:_pg } = await sb.from('attendance').select('employee_code')
+          .gte('date', _nmStart).lt('date', _nmEnd).range(pf, pf+999);
+        (_pg||[]).forEach(r => _nextActiveCodes.add(String(r.employee_code||'').toUpperCase()));
+        if(!_pg || _pg.length < 1000) break;
+      }
+    }catch(e){ /* next month data na mile to trailing off-days conservatively nahi milenge */ }
+    window._nextActiveCodes = _nextActiveCodes;
     const { attMap, dayMeta, dim } = buildDayStatus(ym, rows);
     const { data: advData } = await sb.from('advances').select('*').eq('status', 'OPEN');
     const advMap = {};
@@ -6591,17 +6609,25 @@ async function runPayroll(){
       });
       let earnedWO = 0, earnedH = 0;
       const offNotEarned = [];   // { iso, isH, why } — kaun se off-day nahi mile aur kyon
+      // Trailing off-day rule: aakhri haaziri ke baad ke off-days tabhi milenge jab
+      //   (a) employment ke andar hon, (b) last work-stretch se jude hon (pehle wala din present),
+      //   (c) koi exit date NA ho, aur (d) employee AGLE month aaya ho (chhoda nahi, sirf miss kiya).
+      const _nextMonthActive = (window._nextActiveCodes || new Set()).has(String(code).toUpperCase());
       dayMeta.forEach(x => {
         if(!x.isWO && !x.isH) return;
         const workedOff = !!days[x.iso];                                  // khud us din kaam kiya
         const inSpan = spanFirst && x.iso >= spanFirst && x.iso <= spanLast;
         const okB = _sideOk(x.iso, -1), okA = _sideOk(x.iso, +1);
-        // off-day milta hai jab woh active span (pehli–aakhri haaziri) ke andar ho aur ek taraf bhi accounted ho
-        if(workedOff || (inSpan && (okB || okA))){ if(x.isH) earnedH++; else earnedWO++; return; }
+        // trailing (aakhri haaziri ke baad) off-day — sirf tab jab exit nahi aur next month aaya
+        const trailingEarn = spanFirst && x.iso > spanLast && inEmployment(x.iso)
+                             && okB && !_exit && _nextMonthActive;
+        // off-day milta hai jab woh active span ke andar ho aur ek taraf accounted ho, YA trailing-earn ho
+        if(workedOff || (inSpan && (okB || okA)) || trailingEarn){ if(x.isH) earnedH++; else earnedWO++; return; }
         let why;
         if(!inEmployment(x.iso))                  why = 'joining/exit avdhi ke bahar';
         else if(!spanFirst || x.iso < spanFirst)  why = 'pehli haaziri se pehle';
-        else if(x.iso > spanLast)                 why = 'aakhri haaziri ke baad (chhod diya)';
+        else if(x.iso > spanLast)                 why = (_exit ? 'exit/aakhri haaziri ke baad'
+                                                               : 'aakhri haaziri ke baad (agle month bhi nahi aaya)');
         else                                      why = 'dono taraf gair-haazir (absence gap ke andar)';
         offNotEarned.push({ iso: x.iso, isH: x.isH, why });
       });
