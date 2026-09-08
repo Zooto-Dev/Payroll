@@ -648,32 +648,36 @@ async function nxCheckProofDuplicate(file, kind){
   }catch(e){ return { blocked: false }; }
 }
 function nxLoadConfig(){
-
-  return new Promise((resolve, reject) => {
-    const cached = (() => { try { return JSON.parse(localStorage.getItem('nx_cfg') || 'null'); } catch(e){ return null; } })();
-    let settled = false;
-    const cb = 'nxCfg' + Math.floor(Math.random() * 1e6);
-    const timer = setTimeout(() => {
-      if(settled) return; settled = true;
-      delete window[cb];
-      if(cached && cached.url) resolve(cached);           // offline / GAS down -> last known config
-      else reject(new Error('GAS ne 8 sec mein jawab nahi diya. Wajah: (1) deployment "Who has access" = Anyone nahi hai, (2) /exec URL galat/purana hai, ya (3) network. Test: NX_CONFIG_URL browser mein kholo.'));
-    }, 8000);
-    window[cb] = data => {
-      if(settled) return; settled = true;
-      clearTimeout(timer); delete window[cb];
-      if(data && data.url && data.key){
-        try { localStorage.setItem('nx_cfg', JSON.stringify(data)); } catch(e){}
-        resolve(data);
-      } else if(cached && cached.url) resolve(cached);
-      else reject(new Error(data && data.error ? ('GAS error: ' + data.error) : ('GAS se url/key nahi aayi. GAS ne bheja: ' + JSON.stringify(data).slice(0,180))));
-    };
-    const s = document.createElement('script');
-    s.src = NX_CONFIG_URL + '?callback=' + cb + '&t=' + Date.now();
-    s.onerror = () => { if(settled) return; settled = true; clearTimeout(timer); delete window[cb];
-      if(cached && cached.url) resolve(cached); else reject(new Error('GAS tak pahuncha nahi ja saka (script load fail) — matlab GAS ne login-page/redirect bheja ya URL galat. Fix: Deploy -> Manage deployments -> Edit -> "Who has access" = Anyone (sirf Anyone), "Execute as" = Me -> New version.')); };
-    document.head.appendChild(s);
-  });
+  const cached = (() => { try { return JSON.parse(localStorage.getItem('nx_cfg') || 'null'); } catch(e){ return null; } })();
+  // Ek JSONP attempt (10s timeout). GAS cold-start/transient blip par neeche retry hota hai.
+  function attempt(){
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const cb = 'nxCfg' + Math.floor(Math.random() * 1e6);
+      const timer = setTimeout(() => {
+        if(settled) return; settled = true; delete window[cb]; reject(new Error('GAS ne 10 sec mein jawab nahi diya'));
+      }, 10000);
+      window[cb] = data => {
+        if(settled) return; settled = true; clearTimeout(timer); delete window[cb];
+        if(data && data.url && data.key){
+          try { localStorage.setItem('nx_cfg', JSON.stringify(data)); } catch(e){}
+          resolve(data);
+        } else reject(new Error(data && data.error ? ('GAS error: ' + data.error) : 'GAS se url/key nahi aayi'));
+      };
+      const s = document.createElement('script');
+      s.src = NX_CONFIG_URL + '?callback=' + cb + '&t=' + Date.now();
+      s.onerror = () => { if(settled) return; settled = true; clearTimeout(timer); delete window[cb]; reject(new Error('GAS script load fail (redirect/URL galat)')); };
+      document.head.appendChild(s);
+    });
+  }
+  // 3 tak koshish; fail ho to last-known cached config; warna saaf error.
+  return attempt()
+    .catch(() => attempt())
+    .catch(() => attempt())
+    .catch(err => {
+      if(cached && cached.url) return cached;             // offline / GAS down -> last known config
+      throw new Error('Config load nahi hui (' + (err && err.message || 'fail') + '). Internet check karke thodi der baad dobara try karo. HR: GAS Deploy -> "Who has access" = Anyone, "Execute as" = Me -> New version.');
+    });
 }
 
 let SUPABASE_URL = '', SUPABASE_ANON_KEY = '';
@@ -1847,7 +1851,16 @@ $('loginBtn').addEventListener('click', async () => {
   try{
     // sb abhi ready nahi (slow net par config/library load ho rahi ho) -> wait karo
     if(!sb){ try{ await window._sbReady; }catch(e){} }
-    if(!sb) throw new Error('App abhi load ho raha hai — internet check karke thodi der baad dobara "View My HR" dabao');
+    // page-load attempt fail hua to button dabane par FRESH retry (GAS dobara try)
+    if(!sb){
+      try{
+        const c = await nxLoadConfig();
+        SUPABASE_URL = c.url; SUPABASE_ANON_KEY = c.key;
+        if(typeof supabase !== 'undefined' && supabase && supabase.createClient)
+          sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      }catch(e){ throw new Error(e.message || 'Config load nahi hui'); }
+    }
+    if(!sb) throw new Error('App load nahi ho paya — internet check karke dobara "View My HR" dabao');
     const { data, error } = await sb.rpc('ess_get_data', { p_code: CODE, p_phone: PHONE });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
