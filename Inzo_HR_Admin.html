@@ -3566,7 +3566,15 @@ async function loadDashboard(){
     const ydayStr = yday.toISOString().slice(0,10);
     const [attRes, slipRes, monthRes, lvRes, wfhRes, yAttRes] = await Promise.all([
       sb.from('attendance').select('*').eq('date', today).order('created_at', { ascending:false }),
-      sb.from('payslips').select('net_pay, month').order('created_at', { ascending:false }).limit(200),
+      (async () => {   // saare payslips (paginated) — limit 200 se ek hi month (293 slips) adhoora aa raha tha
+        let all = [];
+        for(let pf=0; pf<300000; pf+=1000){
+          const { data:pg } = await sb.from('payslips').select('net_pay, month').range(pf, pf+999);
+          all = all.concat(pg||[]);
+          if(!pg || pg.length < 1000) break;
+        }
+        return { data: all };
+      })(),
       sbFetchAllAtt('employee_code, Name, in_time, is_late', ym + '-01', _lastDay(ym)).then(d => ({ data: d })).catch(() => ({ data: [] })),
       sb.from('leaves').select('employee_code').eq('status','APPROVED').lte('from_date', today).gte('to_date', today),
       sb.from('ess_att_requests').select('employee_code, req_type').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).eq('date', today),
@@ -3633,7 +3641,7 @@ async function loadDashboard(){
     const slips = slipRes.data || [];
     let lastMonth = null;
     if(slips.length){
-      lastMonth = slips[0].month;
+      lastMonth = slips.reduce((mx, s) => (s.month > mx ? s.month : mx), slips[0].month);  // sabse naya month
       const sum = slips.filter(s => s.month === lastMonth).reduce((a,s) => a + Number(s.net_pay||0), 0);
       if($('dPayroll')) $('dPayroll').innerText = fmtINR(sum);
       if($('dPayrollMonth')) $('dPayrollMonth').innerText = monthLabel ? monthLabel(lastMonth) : lastMonth;
@@ -6316,6 +6324,15 @@ $('deployRefreshBtn').addEventListener('click', loadDeployment);
 /* ---------------- PAYROLL ENGINE ---------------- */
 $('payMonth').value = todayISO().slice(0,7);
 $('payRunBtn').addEventListener('click', runPayroll);
+// FINALIZED month select karte hi saved (frozen) payslips auto-load ho jate hain —
+// Calculate dabane ki zaroorat nahi, aur ye DOBARA calculate nahi karta (sirf snapshot dikhata hai).
+$('payMonth').addEventListener('change', async () => {
+  const ym = $('payMonth').value; if(!ym) return;
+  try{
+    const { data } = await sb.from('payroll_locks').select('status').eq('month', ym).limit(1);
+    if(data && data[0] && String(data[0].status).toUpperCase() === 'FINALIZED') runPayroll();
+  }catch(e){}
+});
 // Per-month double-penalty toggle (unauthorized absence 2x on/off) — persisted per month
 $('payNoDblChk') && $('payNoDblChk').addEventListener('change', async (e) => {
   const ym = PAY_MONTH || $('payMonth').value;
