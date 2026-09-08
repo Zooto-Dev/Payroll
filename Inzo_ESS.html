@@ -695,6 +695,11 @@ window._sbReady = nxLoadConfig().then(c => {
 });
 window._sbReady.catch(err => setTimeout(() => nxInfo('Nexus configuration error: ' + err.message, 'Configuration error'), 900));
 const $ = id => document.getElementById(id);
+// Safe localStorage — kuch phones/browsers (private mode, site-data blocked, in-app WebView)
+// par localStorage access "Access denied" throw karta hai. Guard na ho to poora app crash.
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+function lsRemove(k){ try{ localStorage.removeItem(k); }catch(e){} }
 let D = null, CODE = '', PHONE = '';
 
 const LEAVE_LABELS_ESS = { EL:'Earned Leave', CL:'Casual Leave', SL:'Sick Leave', ML:'Maternity Leave', PL:'Paternity Leave', LWP:'Leave Without Pay' };
@@ -1752,7 +1757,7 @@ function dismissKaizen(id){
   let seen = [];
   try{ seen = JSON.parse(localStorage.getItem('kz_seen_' + CODE) || '[]'); }catch(e){}
   if(!seen.includes(id)) seen.push(id);
-  localStorage.setItem('kz_seen_' + CODE, JSON.stringify(seen));
+  lsSet('kz_seen_' + CODE, JSON.stringify(seen));
   loadKaizenCongrats();
 }
 function nxConfirm(msg, title){
@@ -1882,14 +1887,14 @@ $('loginBtn').addEventListener('click', async () => {
     sb.rpc('ess_line_today', { p_code: CODE, p_phone: PHONE }).then(({ data: ld }) => {
       if(ld && ld.lines && ld.lines.length) $('tabTeam').classList.remove('hidden');
     }).catch(() => {});
-    localStorage.setItem('ess_code', CODE);
-    localStorage.setItem('ess_phone', PHONE);
+    lsSet('ess_code', CODE);
+    lsSet('ess_phone', PHONE);
     render();
   }catch(err){ notify(err.message || 'Could not sign in'); }
   finally{ btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> View My HR'; btn.disabled = false; }
 });
 $('logoutBtn').addEventListener('click', () => {
-  localStorage.removeItem('ess_code'); localStorage.removeItem('ess_phone');
+  lsRemove('ess_code'); lsRemove('ess_phone');
   location.reload();
 });
 
@@ -2802,7 +2807,7 @@ $('pwSaveBtn').addEventListener('click', async () => {
   if(error) return notify(error.message);
   if(data && data.error) return notify(data.error);
   PHONE = $('pwNew').value;
-  localStorage.setItem('ess_phone', PHONE);
+  lsSet('ess_phone', PHONE);
   $('pwModal').classList.remove('show');
   notify('Password changed ✓');
 });
@@ -2928,7 +2933,7 @@ window.addEventListener('unhandledrejection', function(e){ _dbg('PROMISE-ERROR',
 
 window.addEventListener('load', () => {
   if(location.hash === '#feedback'){ showPublicFeedback(); return; }
-  const c = localStorage.getItem('ess_code'), p = localStorage.getItem('ess_phone');
+  const c = lsGet('ess_code'), p = lsGet('ess_phone');
   if(c && p){ $('inCode').value = c; $('inPhone').value = p; $('loginBtn').click(); }
 });
 
