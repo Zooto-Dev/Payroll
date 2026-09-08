@@ -678,13 +678,18 @@ function nxLoadConfig(){
 
 let SUPABASE_URL = '', SUPABASE_ANON_KEY = '';
 let sb = null;
-nxLoadConfig().then(c => {
+// sbReady: config + supabase client ban jaane par resolve hota hai. Login isi ka intezaar karta hai
+// taaki slow network par (jab library/config abhi load nahi hui) "rpc of null" na aaye.
+window._sbReady = nxLoadConfig().then(c => {
   SUPABASE_URL = c.url; SUPABASE_ANON_KEY = c.key;
+  if(typeof supabase === 'undefined' || !supabase || !supabase.createClient)
+    throw new Error('Supabase library load nahi hui — internet check karke page refresh karo');
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   // valid last day of a month (September/April/June/Nov have 30, Feb 28/29 — never use '-31')
   window._lastDay = function(ym){ const p = String(ym).split('-'); const y = +p[0], m = +p[1]; return `${ym}-${String(new Date(y, m, 0).getDate()).padStart(2,'0')}`; };
-
-}).catch(err => setTimeout(() => nxInfo('Nexus configuration error: ' + err.message, 'Configuration error'), 900));
+  return sb;
+});
+window._sbReady.catch(err => setTimeout(() => nxInfo('Nexus configuration error: ' + err.message, 'Configuration error'), 900));
 const $ = id => document.getElementById(id);
 let D = null, CODE = '', PHONE = '';
 
@@ -1840,6 +1845,9 @@ $('loginBtn').addEventListener('click', async () => {
   const btn = $('loginBtn');
   btn.innerHTML = '<div class="loader-ring"></div> Checking…'; btn.disabled = true;
   try{
+    // sb abhi ready nahi (slow net par config/library load ho rahi ho) -> wait karo
+    if(!sb){ try{ await window._sbReady; }catch(e){} }
+    if(!sb) throw new Error('App abhi load ho raha hai — internet check karke thodi der baad dobara "View My HR" dabao');
     const { data, error } = await sb.rpc('ess_get_data', { p_code: CODE, p_phone: PHONE });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
