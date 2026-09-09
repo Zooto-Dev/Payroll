@@ -2294,6 +2294,11 @@ function adminRoleOf(email){
 }
 function myEmpRole(){ return adminRoleOf(ME_EMAIL); }
 function isHRAdmin(){ const d = adminRoleOf(ME_EMAIL).dept; return isSuper() || d.includes('ADMIN') || d.includes('HR') || d.includes('HUMAN'); }
+// Absent Today ke actions permission-toggle se control hote hain (department se nahi):
+//  • Mark Present (attendance correction) -> "MANUAL ATTENDANCE" toggle
+//  • Exit -> "Exit & Full-Final" page ka access
+function canMarkAtt(){ const perm = (SETTINGS.adminPerms || {})[ME_EMAIL]; return isSuper() || !perm || myPerm().manualAtt !== false; }
+function canExitEmp(){ const perm = (SETTINGS.adminPerms || {})[ME_EMAIL]; return isSuper() || !perm || (myPerm().pages || []).includes('exits'); }
 // Only the CEO can approve salaries: designation "Chief Executive Officer" OR kartik@zootofashion.com
 function isCEO(){
   if(isSuper()) return true;   // super admin (system owner) can also approve salaries
@@ -2420,17 +2425,17 @@ function showAttList(kind){
   const shChip = sh => sh ? `<span class="chip" style="font-size:10px;${/night/i.test(sh)?'background:#e0e7ff;color:#4338ca':''}">${esc(sh)}</span>` : '<span style="color:var(--faint);font-size:11px">—</span>';
   let head, rowsHtml;
   if(kind === 'absent'){
-    const _canFix = isHRAdmin();   // Super admin + HR/Admin department ko Mark Present + Exit dikhe
-    head = _canFix
-      ? `<tr><th>#</th><th>Employee</th><th>Code</th><th>Department</th><th>Shift</th><th>Mobile</th><th>Mark Present</th><th>Exit</th></tr>`
-      : `<tr><th>#</th><th>Employee</th><th>Code</th><th>Department</th><th>Shift</th><th>Mobile</th></tr>`;
+    // har action apne permission toggle se: Mark Present <- Manual Attendance; Exit <- Exit & Full-Final page
+    const _canMark = canMarkAtt();
+    const _canExit = canExitEmp();
+    head = `<tr><th>#</th><th>Employee</th><th>Code</th><th>Department</th><th>Shift</th><th>Mobile</th>${_canMark?'<th>Mark Present</th>':''}${_canExit?'<th>Exit</th>':''}</tr>`;
     rowsHtml = list.map((x,i) => `<tr>
       <td style="color:var(--muted)">${i+1}</td>
       <td><b>${esc(x.name)}</b></td><td>${esc(x.code)}</td><td>${esc(x.dept||'—')}</td>
       <td>${shChip(x.shift)}</td>
       <td>${x.phone ? '📱 '+esc(x.phone) : '<span style="color:var(--faint)">—</span>'}</td>
-      ${_canFix ? `<td style="white-space:nowrap"><input type="time" id="mkIn_${esc(x.code)}" class="inp" style="width:90px;padding:3px 5px;font-size:12px"> <button class="btn btn-primary btn-sm" onclick="markPresentNow('${esc(x.code)}','${esc(x.name).replace(/'/g,"\\'")}')" title="Present laga do"><i class="fa-solid fa-check"></i></button></td>
-      <td><button class="btn btn-danger btn-sm" onclick="exitFromAbsent('${esc(x.code)}','${esc(x.name).replace(/'/g,"\\'")}')" title="Exit date daalo"><i class="fa-solid fa-right-from-bracket"></i></button></td>` : ''}
+      ${_canMark ? `<td style="white-space:nowrap"><input type="time" id="mkIn_${esc(x.code)}" class="inp" style="width:90px;padding:3px 5px;font-size:12px"> <button class="btn btn-primary btn-sm" onclick="markPresentNow('${esc(x.code)}','${esc(x.name).replace(/'/g,"\\'")}')" title="Present laga do"><i class="fa-solid fa-check"></i></button></td>` : ''}
+      ${_canExit ? `<td><button class="btn btn-danger btn-sm" onclick="exitFromAbsent('${esc(x.code)}','${esc(x.name).replace(/'/g,"\\'")}')" title="Exit date daalo"><i class="fa-solid fa-right-from-bracket"></i></button></td>` : ''}
     </tr>`).join('');
   } else if(kind === 'night'){
     head = `<tr><th>#</th><th>Employee</th><th>Code</th><th>Department</th><th>Shift</th><th>Status</th><th></th></tr>`;
@@ -2520,7 +2525,7 @@ async function showTrialList(){
   m.classList.add('show');
 }
 async function exitFromAbsent(code, name){
-  if(!isHRAdmin()) return notify('Sirf HR / Admin / Super Admin', 'error');
+  if(!canExitEmp()) return notify('Exit ke liye "Exit & Full-Final" page ka access chahiye', 'error');
   const dt = prompt('Exit date (YYYY-MM-DD) for ' + name + ':', todayISO());
   if(!dt) return;
   if(!/^\d{4}-\d{2}-\d{2}$/.test(dt.trim())) return notify('Date format galat — YYYY-MM-DD', 'error');
@@ -2536,7 +2541,7 @@ async function exitFromAbsent(code, name){
   }catch(err){ notify('Failed: '+(err.message||err), 'error'); }
 }
 async function markPresentNow(code, name){
-  if(!isHRAdmin()) return notify('Sirf HR / Admin / Super Admin attendance correction kar sakta hai', 'error');
+  if(!canMarkAtt()) return notify('Attendance correction ke liye "Manual Attendance" permission chahiye', 'error');
   const t = (($('mkIn_'+code)||{}).value || '').trim();
   if(!t) return notify('Pehle IN time daalo', 'error');
   const inT = t.length === 5 ? t + ':00' : t;
