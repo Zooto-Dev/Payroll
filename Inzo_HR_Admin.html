@@ -2420,7 +2420,7 @@ function showAttList(kind){
   const shChip = sh => sh ? `<span class="chip" style="font-size:10px;${/night/i.test(sh)?'background:#e0e7ff;color:#4338ca':''}">${esc(sh)}</span>` : '<span style="color:var(--faint);font-size:11px">—</span>';
   let head, rowsHtml;
   if(kind === 'absent'){
-    const _canFix = isSuper();
+    const _canFix = isHRAdmin();   // Super admin + HR/Admin department ko Mark Present + Exit dikhe
     head = _canFix
       ? `<tr><th>#</th><th>Employee</th><th>Code</th><th>Department</th><th>Shift</th><th>Mobile</th><th>Mark Present</th><th>Exit</th></tr>`
       : `<tr><th>#</th><th>Employee</th><th>Code</th><th>Department</th><th>Shift</th><th>Mobile</th></tr>`;
@@ -2520,7 +2520,7 @@ async function showTrialList(){
   m.classList.add('show');
 }
 async function exitFromAbsent(code, name){
-  if(!isSuper()) return notify('Sirf Super Admin', 'error');
+  if(!isHRAdmin()) return notify('Sirf HR / Admin / Super Admin', 'error');
   const dt = prompt('Exit date (YYYY-MM-DD) for ' + name + ':', todayISO());
   if(!dt) return;
   if(!/^\d{4}-\d{2}-\d{2}$/.test(dt.trim())) return notify('Date format galat — YYYY-MM-DD', 'error');
@@ -2536,7 +2536,7 @@ async function exitFromAbsent(code, name){
   }catch(err){ notify('Failed: '+(err.message||err), 'error'); }
 }
 async function markPresentNow(code, name){
-  if(!isSuper()) return notify('Sirf Super Admin attendance correction kar sakta hai', 'error');
+  if(!isHRAdmin()) return notify('Sirf HR / Admin / Super Admin attendance correction kar sakta hai', 'error');
   const t = (($('mkIn_'+code)||{}).value || '').trim();
   if(!t) return notify('Pehle IN time daalo', 'error');
   const inT = t.length === 5 ? t + ':00' : t;
