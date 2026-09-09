@@ -1619,6 +1619,9 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">Father's Name</label><input id="epFather" class="inp"></div>
       <div><label class="lbl">Date of Birth</label><input id="epDOB" type="date" class="inp"></div>
       <div><label class="lbl">Gender</label><select id="epGender" class="inp"><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+      <div><label class="lbl">Marital Status</label><select id="epMarital" class="inp"><option value="">—</option><option>Single</option><option>Married</option><option>Widowed</option><option>Divorced</option></select></div>
+      <div><label class="lbl">Aadhaar Number</label><input id="epAadhaar" class="inp"></div>
+      <div><label class="lbl">ID <span class="text-[10px]" style="color:var(--muted)">(Voter/DL/other)</span></label><input id="epIdNo" class="inp"></div>
       <div class="col-span-2"><label class="lbl">Address</label><input id="epAddr" class="inp"></div>
     </div>
     </div><!-- /BASIC pane -->
@@ -1641,8 +1644,12 @@ body.no-confidential .confidential-col{display:none!important}
       <div id="epLineWrap"><label class="lbl">Production Line</label><select id="epLine" class="inp"></select></div>
       <div><label class="lbl">Reporting Manager</label><input id="epManager" class="inp" list="mgrDL"></div>
       <datalist id="mgrDL"></datalist>
+      <div><label class="lbl">Section</label><input id="epSection" class="inp" placeholder="Dept ke andar section"></div>
       <div><label class="lbl">Emergency Contact</label><input id="epEmName" class="inp" placeholder="Name"></div>
       <div><label class="lbl">Emergency Phone</label><input id="epEmPhone" class="inp"></div>
+      <div><label class="lbl">Emergency Relation</label><input id="epEmRel" class="inp" placeholder="Father / Spouse…"></div>
+      <div><label class="lbl">Nominee Name</label><input id="epNomName" class="inp"></div>
+      <div><label class="lbl">Nominee Relation</label><input id="epNomRel" class="inp"></div>
       <div><label class="lbl">Status</label><select id="epStatus" class="inp"><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive / Exited</option></select></div>
       <div><label class="lbl">Exit Date <span class="text-[10px]" style="color:var(--muted)">(set to offboard)</span></label><input id="epExitDate" type="date" class="inp"></div>
       <div class="col-span-1"><label class="lbl">Exit Reason</label><input id="epExitReason" class="inp" placeholder="Resigned / Terminated…"></div>
@@ -3941,6 +3948,13 @@ async function openEmpModal(code){
   renderLines(); $('epLine').value = e.LINE || '';
   $('epManager').value = p.reporting_manager || '';
   $('epEmName').value = p.emergency_name || ''; $('epEmPhone').value = p.emergency_phone || '';
+  if($('epMarital')) $('epMarital').value = p.marital_status || '';
+  if($('epAadhaar')) $('epAadhaar').value = p.aadhaar || '';
+  if($('epIdNo')) $('epIdNo').value = p.id_number || '';
+  if($('epSection')) $('epSection').value = p.section || '';
+  if($('epEmRel')) $('epEmRel').value = p.emergency_relation || '';
+  if($('epNomName')) $('epNomName').value = p.nominee_name || '';
+  if($('epNomRel')) $('epNomRel').value = p.nominee_relation || '';
   loadDocs(code);
   updateGrossPreview();
   $('empModal').classList.add('show');
@@ -4623,6 +4637,13 @@ $('epSaveBtn').addEventListener('click', async () => {
       contractor_phone: ($('epType').value === 'Contract' ? (($('epContractorPh').value||'').replace(/\D/g,'') || null) : null),
       reporting_manager: $('epManager').value,
       emergency_name: $('epEmName').value, emergency_phone: $('epEmPhone').value,
+      emergency_relation: ($('epEmRel')||{}).value || null,
+      nominee_name: ($('epNomName')||{}).value || null,
+      nominee_relation: ($('epNomRel')||{}).value || null,
+      marital_status: ($('epMarital')||{}).value || null,
+      aadhaar: ($('epAadhaar')||{}).value || null,
+      id_number: ($('epIdNo')||{}).value || null,
+      section: ($('epSection')||{}).value || null,
       gender: $('epGender').value || null,
       exit_date: $('epExitDate').value || null, exit_reason: $('epExitReason').value || null,
       ess_attendance: $('epEssAtt').checked
@@ -8922,36 +8943,25 @@ $('empExportBtn').addEventListener('click', async () => {
   const list = EMP.slice();
   if(!list.length) return notify('No employees to export', 'error');
   const _cntInactive = list.filter(e => String(e.Status||'').toUpperCase() !== 'ACTIVE').length;
-  // which employees have face data registered? (codes only — a tiny query)
-  let faceSet = new Set();
-  try{
-    const { data: fr } = await sb.from('employees').select('"Employee code"').not('Descriptor', 'is', null);
-    (fr || []).forEach(r => faceSet.add(r['Employee code']));
-  }catch(e){}
-  const full = isSuper();   // only the super admin gets salary + bank & statutory columns
+  const full = canSeeConfidential();   // bank/statutory (Acc/IFSC/ESIC/UAN/PAN/Aadhaar/ID) sirf confidential-access wale ko
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
   const fmtD = d => d ? String(d).split('-').reverse().join('/') : '';   // yyyy-mm-dd -> dd/mm/yyyy
-  // same columns and order as the import template (round-trippable for the super admin)
-  const baseHeader = ['Employee Code','Name','DOJ','Department','Designation','Phone','Email',"Father's Name",'Date of Birth','Gender','Address','Emergency Contact','Employment Type','Reporting Manager'];
-  const confHeader = ['Gross Salary','Bank Name','Account No','IFSC','PAN','UAN','ESI No'];
-  const header = (full ? baseHeader.concat(confHeader) : baseHeader).concat(['Status','Face Registered']);
-  const statusLabel = s => { const v = String(s||'').toUpperCase(); return v === 'ACTIVE' ? 'Active' : v === 'EXITED' ? 'Exited' : v ? 'Inactive' : 'Active'; };
+  const mask = v => full ? (v==null?'':v) : '';   // confidential column — blank if no permission
+  // === FIXED FORMAT (jaisa HR ne maanga) ===
+  const header = ['S.No','Emp Code','Employee Name','Designation','DOJ','DOB','Reporting Manager','Department','Section','Gender','Accounts No.','IFSC Code','ESIC No','UAN No','PAN Card','Adhaar Number','ID','Mobile No','Address','Marital Status','E-Mail ID','Emergency Contact Name','Number','Relation','Nominee Name','Relation'];
   const lines = [header.join(',')];
-  list.forEach(e => {
+  list.forEach((e, i) => {
     const code = e['Employee code']; const p = PROFILES[code] || {};
-    const sal = (p.salary || {});
-    const row = [code, e.Name, fmtD(e.DOJ), e.DEPARTMENT, e.DESIGNATION, p.phone, p.email,
-      p.father_name, fmtD(p.dob), p.gender, p.address, p.emergency_phone, p.employment_type, p.reporting_manager];
-    if (full) {
-      const gross = salaryApproved(code) ? Object.values(empSalary(code)).reduce((a,b)=>a+b,0) : Object.values((function(){const s={};getSettings().earnComps.forEach(c=>s[c.k]=Number((sal.earn||{})[c.k])||0);return s;})()).reduce((a,b)=>a+b,0);
-      row.push(gross, p.bank_name, p.account_no, p.ifsc, p.pan, p.uan, p.esi_no);
-    }
-    row.push(statusLabel(e.Status));              // Status (Active / Inactive / Exited)
-    row.push(faceSet.has(code) ? 'YES' : 'NO');   // Face Registered
+    const row = [
+      i + 1, code, e.Name, e.DESIGNATION, fmtD(e.DOJ), fmtD(p.dob), p.reporting_manager, e.DEPARTMENT, p.section, p.gender,
+      mask(p.account_no), mask(p.ifsc), mask(p.esi_no), mask(p.uan), mask(p.pan), mask(p.aadhaar), mask(p.id_number),
+      p.phone, p.address, p.marital_status, p.email,
+      p.emergency_name, p.emergency_phone, p.emergency_relation, p.nominee_name, p.nominee_relation
+    ];
     lines.push(row.map(q).join(','));
   });
   dlText('Employees_' + todayISO() + '.csv', lines.join('\n'), 'text/csv');
-  notify('Exported ' + list.length + ' employee(s) (' + _cntInactive + ' inactive/exited included)' + (full ? '' : ' — salary & bank data excluded'), 'success');
+  notify('Exported ' + list.length + ' employee(s) (' + _cntInactive + ' inactive/exited included)' + (full ? '' : ' — confidential columns blank (no permission)'), 'success');
 });
 $('impTplBtn').addEventListener('click', () => {
   const _u = (SETTINGS.units||[]).map(u => u.code);
