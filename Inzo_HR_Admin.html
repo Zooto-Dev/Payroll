@@ -846,9 +846,12 @@ body.no-confidential .confidential-col{display:none!important}
   <div class="card mt-4 hidden" id="contractReport" style="padding:0;overflow:hidden">
     <div class="flex items-center justify-between flex-wrap gap-2 p-3" style="background:#fffbeb;border-bottom:1px solid #fde68a">
       <h3 class="display font-bold m-0" style="color:#92400e"><i class="fa-solid fa-handshake"></i> Contract Employees <span class="text-[11px] font-normal">— paid by contractor (NOT in company payroll)</span></h3>
+      <div class="flex items-center gap-3">
+      <button id="contractCsvBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-file-csv"></i> Download CSV</button>
       <div class="text-right">
         <p class="lbl m-0">Total Contractor Amount</p>
         <div class="stat-num money" style="color:#92400e" id="contractTotal">₹0</div>
+      </div>
       </div>
     </div>
     <div style="overflow-x:auto">
@@ -6863,6 +6866,27 @@ function renderContractTable(){
     <td class="money" style="color:#92400e">${fmtINR(totalAmt)}</td><td></td></tr>`;
   $('contractTotal').innerText = fmtINR(totalAmt);
 }
+$('contractCsvBtn') && $('contractCsvBtn').addEventListener('click', () => {
+  if(!CONTRACT_ROWS.length) return notify('Koi contract employee nahi (pehle payroll calculate karo)', 'error');
+  const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
+  const n = v => Math.round(Number(v)||0);
+  const header = ['S.No','Emp Code','Employee Name','Contractor','Contractor Phone','Department','Designation','Shift',
+    'Month Days','Present','Paid Days','Late','OT Hrs','Amount (payable to contractor)'];
+  const rows = CONTRACT_ROWS.slice().sort((a,b)=>String(a.contractor||'').localeCompare(String(b.contractor||'')) || String(a.name||'').localeCompare(String(b.name||'')));
+  const lines = [header.join(',')];
+  let tot = 0;
+  rows.forEach((r,i) => {
+    const amt = n(r.earnedGross); tot += amt;
+    const ph = (PROFILES[r.code]||{}).contractor_phone || '';
+    lines.push([ i+1, q(r.code), q(r.name), q(r.contractor||''), q(ph), q(r.dept||''), q(r.desig||''), q(r.shiftName||''),
+      n(r.dim), n(r.present), r.paidDays, n(r.lates), n(r.otHours), amt ].join(','));
+  });
+  const t = new Array(header.length).fill('');
+  t[1] = q('TOTAL — '+rows.length+' contract employee(s)'); t[13] = tot;
+  lines.push(t.join(','));
+  dlText('Contractor_Payroll_'+PAY_MONTH+'.csv', String.fromCharCode(0xFEFF)+lines.join('\n'), 'text/csv;charset=utf-8');
+  notify('Contractor payroll sheet download ho gaya — '+rows.length+' employees', 'success');
+});
 $('payTable').addEventListener('input', e => {
   const inp = e.target;
   if(!inp.dataset.pay) return;
