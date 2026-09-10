@@ -823,6 +823,7 @@ body.no-confidential .confidential-col{display:none!important}
     <span id="payLockPill" class="chip hidden"></span>
     <button id="payFinalizeBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-file-invoice-dollar"></i> Finalize &amp; Save All</button>
     <button id="payLopBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-list-check"></i> Paid Days / LOP Report</button>
+    <button id="payDetailBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-file-excel"></i> Detailed Salary Report</button>
     <button id="payPrintAllBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-print"></i> Print All Payslips</button>
     <button id="payBankBtn" class="btn btn-ghost hidden super-only"><i class="fa-solid fa-building-columns"></i> Bank Advice</button>
     <div class="ml-auto text-right">
@@ -6428,6 +6429,7 @@ async function runPayroll(){
         $('payPrintAllBtn').classList.remove('hidden');
         $('payBankBtn').classList.remove('hidden');
         $('payLopBtn').classList.remove('hidden');
+    $('payDetailBtn').classList.remove('hidden');
         notify(`${monthLabel(ym)} FINALIZED hai — saved (frozen) payslips dikha rahe hain, dobara calculate nahi kiya. Badalna ho to Unlock karein.`, 'info');
         return;   // finally block button reset kar dega
       }
@@ -6762,6 +6764,7 @@ async function runPayroll(){
     $('payPrintAllBtn').classList.remove('hidden');
     $('payBankBtn').classList.remove('hidden');
     $('payLopBtn').classList.remove('hidden');
+    $('payDetailBtn').classList.remove('hidden');
     if(CONTRACT_ROWS.length){
       notify(CONTRACT_ROWS.length + ' contract employee(s) shown separately below (paid by contractor)', 'info');
     }
@@ -7355,6 +7358,46 @@ $('payLopBtn').addEventListener('click', () => {
   // UTF-8 BOM taaki Excel me Hindi sahi dikhe
   dlText('PaidDays_LOP_' + PAY_MONTH + '.csv', String.fromCharCode(0xFEFF) + lines.join('\n'), 'text/csv;charset=utf-8');
   notify('Paid Days / LOP report download ho gaya — ' + rows.length + ' employees', 'success');
+});
+$('payDetailBtn').addEventListener('click', () => {
+  if(!PAY_ROWS.length) return notify('Pehle payroll calculate karein', 'error');
+  const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
+  const n = v => Math.round(Number(v)||0);
+  const comp = (r,k) => { const c=(r.comps||[]).find(x=>x.k===k); return c?n(c.amt):0; };
+  const header = ['S.No','Emp Code','Employee Name','Department','Designation','Category',
+    'Month Days','Present','Paid Leave','Earned Week-Off','Earned Holiday','Absent (LOP days)','Paid Days',
+    'Full Gross','Earned Gross','Basic','HRA','Conveyance','Special Allowance',
+    'OT Pay','Bonus','Arrears','Kaizen Reward','Leave Encash','Total Earnings',
+    'PF','ESI','Prof. Tax','LWF','TDS','Advance/Loan EMI','Other Deduction','Total Deductions',
+    'NET PAY','Employer PF','Employer ESI','Employer LWF','Status'];
+  const rows = PAY_ROWS.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  const lines = [header.join(',')];
+  let T = { eg:0, earn:0, ded:0, net:0, erpf:0, eresi:0, erlwf:0 };
+  rows.forEach((r,i) => {
+    const otPay=n(r.otPay), bonus=n(r.bonus), arrears=n(r.arrears), reward=n(r.reward), encash=n(r.encash);
+    const totalEarn = n(r.earnedGross)+otPay+bonus+arrears+reward+encash;
+    const pf=n(r.pf), esi=n(r.esi), pt=n(r.pt), lwf=n(r.lwf), tds=n(r.tds), adv=n(r.advDed), oth=n(r.customDed)+n(r.otherDed);
+    const totalDed = pf+esi+pt+lwf+tds+adv+oth;
+    const net = (r.net!=null? n(r.net) : (totalEarn-totalDed));
+    T.eg+=n(r.earnedGross); T.earn+=totalEarn; T.ded+=totalDed; T.net+=net;
+    T.erpf+=n(r.erPF); T.eresi+=n(r.erESI); T.erlwf+=n(r.erLWF);
+    const stU = String((EMP.find(e=>e['Employee code']===r.code)||{}).Status||'ACTIVE').toUpperCase();
+    lines.push([
+      i+1, q(r.code), q(r.name), q(r.dept||''), q(r.desig||''), q(r.category||''),
+      n(r.dim), n(r.present), n(r.leaveDays), n(r.earnedWO), n(r.earnedH), n(r.absentWorking), r.paidDays,
+      n(r.fullGross), n(r.earnedGross), comp(r,'basic'), comp(r,'hra'), comp(r,'conveyance'), comp(r,'special_allowance'),
+      otPay, bonus, arrears, reward, encash, totalEarn,
+      pf, esi, pt, lwf, tds, adv, oth, totalDed,
+      net, n(r.erPF), n(r.erESI), n(r.erLWF), q(stU==='ACTIVE'?'Active':stU==='EXITED'?'Exited':'Inactive')
+    ].join(','));
+  });
+  const tot = new Array(header.length).fill('');
+  tot[1] = q('TOTAL — '+rows.length+' employees');
+  tot[14] = T.eg; tot[24] = T.earn; tot[32] = T.ded; tot[33] = T.net;
+  tot[34] = T.erpf; tot[35] = T.eresi; tot[36] = T.erlwf;
+  lines.push(tot.join(','));
+  dlText('Payroll_Detailed_'+PAY_MONTH+'.csv', String.fromCharCode(0xFEFF)+lines.join('\n'), 'text/csv;charset=utf-8');
+  notify('Detailed salary report download ho gaya — '+rows.length+' employees', 'success');
 });
 $('payPrintAllBtn').addEventListener('click', () => {
   const rows = PAY_ROWS.filter(r => r.hasSalary && r.hasPay !== false);
