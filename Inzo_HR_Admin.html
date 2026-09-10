@@ -7054,10 +7054,13 @@ $('payFinalizeBtn').addEventListener('click', async () => {
   const btn = $('payFinalizeBtn');
   btn.innerHTML = '<div class="loader-ring loader-dark"></div> Saving…'; btn.disabled = true;
   try{
-    const slips = PAY_ROWS.filter(r => r.hasSalary).map(r => ({
-      employee_code: r.code, month: PAY_MONTH, net_pay: netOf(r),
-      data: Object.assign({}, r, { net: netOf(r), settings: getSettings(), finalizedAt: new Date().toISOString() })
-    }));
+    // Company payroll + contract employees (dono save honge taaki finalized month me contractor sheet bhi dikhe)
+    const _allToSave = PAY_ROWS.filter(r => r.hasSalary).concat(CONTRACT_ROWS.filter(r => r.hasSalary));
+    const slips = _allToSave.map(r => {
+      const nt = r.isContract ? Math.round(r.earnedGross||0) : netOf(r);   // contract = amount payable to contractor
+      return { employee_code: r.code, month: PAY_MONTH, net_pay: nt,
+        data: Object.assign({}, r, { net: nt, settings: getSettings(), finalizedAt: new Date().toISOString() }) };
+    });
     const { error } = await sb.from('payslips').upsert(slips, { onConflict: 'employee_code,month' });
     if(error) throw error;
     // permanent employer-side contribution record
