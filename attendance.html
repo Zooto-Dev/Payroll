@@ -2188,8 +2188,15 @@ function nxConfirm(msg, title){
                     // ---- NIGHT SHIFT: only for employees whose assigned shift is a night shift ----
                     const _myShift = (window.NX_SHIFTMAP || {})[String(empCode).toUpperCase()];
                     const _isNightEmp = _myShift && _myShift.night;
-                    // open punch from YESTERDAY (in, no out) within 16h -> this punch is the OUT
-                    if (!offlineProcessData && _isNightEmp) {
+                    // ---- DAY SHIFT OVERRUN: day worker jo raat bhar ruka, agle din 05:00 baje TAK
+                    //      punch kare to wo KAL ka OUT hai (naya IN nahi). 05:00 ke baad = fresh IN,
+                    //      taaki jo kal jaldi gaye par out bhool gaye unka data kharab na ho.
+                    let _earlyMorning = false;
+                    try { const _hm = String(timeStr).split(':'); const _h = +_hm[0], _mn = +(_hm[1]||0); _earlyMorning = (_h < 5) || (_h === 5 && _mn === 0); } catch(e){}
+                    const _tryYestOut = _isNightEmp || _earlyMorning;   // night emp: hamesha; day emp: sirf 05:00 tak
+                    const _maxGapH = _isNightEmp ? 16 : 22;             // day overrun ~20h ho sakta hai
+                    // open punch from YESTERDAY (in, no out) -> this punch is the OUT
+                    if (!offlineProcessData && _tryYestOut) {
                         try {
                             const _y = new Date(localDate.getTime() - 24*3600*1000);
                             const _yStr = `${_y.getFullYear()}-${String(_y.getMonth()+1).padStart(2,'0')}-${String(_y.getDate()).padStart(2,'0')}`;
@@ -2198,14 +2205,14 @@ function nxConfirm(msg, title){
                                 const _rec = _yr.data[0];
                                 const _inMs = new Date(`${_yStr}T${String(_rec.in_time).substring(0,8)}`).getTime();
                                 const _gapH = (localDate.getTime() - _inMs) / 3600000;
-                                if (_gapH > 1 && _gapH < 16) {
+                                if (_gapH > 1 && _gapH < _maxGapH) {
                                     const _tot = localDate.getTime() - _inMs;
                                     const _totStr = `${String(Math.floor(_tot/3600000)).padStart(2,'0')}:${String(Math.floor((_tot%3600000)/60000)).padStart(2,'0')}:00`;
                                     const _u = await supabaseClient.from('attendance').update({ out_time: timeStr, out_photo_url: photoUrl, total_hours: _totStr }).eq('id', _rec.id);
-                                    if (!_u.error) { _nightOut = true; punchType = "OUT"; successMessage = speakName(empName) + ", aapka night shift punch out safal raha."; }
+                                    if (!_u.error) { _nightOut = true; punchType = "OUT"; successMessage = speakName(empName) + (_isNightEmp ? ", aapka night shift punch out safal raha." : ", aapka kal ka punch out safal raha."); }
                                 }
                             }
-                        } catch(e){ console.warn('night-shift out check skipped', e); }
+                        } catch(e){ console.warn('overnight out check skipped', e); }
                     }
                     if(!_nightOut){
                     // ---- Line manpower capacity check (IN punch only) ----
