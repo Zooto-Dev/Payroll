@@ -675,6 +675,35 @@ body.no-confidential .confidential-col{display:none!important}
       </table>
     </div>
   </div>
+
+  <!-- ============ ROSTER / SHIFT CHANGE ============ -->
+  <div class="card" id="rosterCard" style="padding:0;overflow:hidden;margin-top:16px">
+    <div class="p-4 border-b" style="border-color:var(--line)">
+      <div class="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h3 class="display font-bold m-0"><i class="fa-solid fa-people-roof" style="color:var(--brand)"></i> Roster &amp; Shift Change</h3>
+          <p class="text-[11px] mt-1 mb-0" style="color:var(--muted)">Har employee ka assigned shift + uska asli median IN→OUT saath dikhta hai. Mismatch 🔴 turant pakdo, dropdown se shift badlo, phir <b>Save Changes</b>.</p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <select id="rosDept" class="inp" style="max-width:200px"></select>
+          <input type="month" id="rosMonth" class="inp" style="max-width:150px">
+          <label class="flex items-center gap-1 text-xs" style="white-space:nowrap"><input type="checkbox" id="rosMisOnly"> Sirf mismatch</label>
+          <button id="rosRefreshBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate"></i> Refresh</button>
+          <button id="rosSaveBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk"></i> Save Changes <span id="rosDirty" class="chip" style="background:#fee2e2;color:#991b1b;display:none">0</span></button>
+        </div>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="tbl" id="rosTable">
+        <thead><tr>
+          <th>#</th><th style="text-align:left">Name</th><th>Code</th><th>Dept</th>
+          <th title="September asli punch — median">Actual (median)</th><th>Days</th>
+          <th>Suggested</th><th style="text-align:left">Assigned Shift</th>
+        </tr></thead>
+        <tbody><tr><td colspan="8" class="text-center py-8" style="color:var(--muted)">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <!-- ================= LEAVES ================= -->
@@ -3143,6 +3172,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if(page === 'voice') loadVoice();
     if(page === 'attendance') loadDeployment();
     if(page === 'workhours') whInit();
+    if(page === 'shifts') loadRoster();
     if(page === 'hiring') loadHiring();
     if(page === 'expenses') loadExpenses();
     if(page === 'assets') loadAssets();
@@ -9536,6 +9566,118 @@ $('shSaveBtn').addEventListener('click', async () => {
     notify('Shift saved', 'success');
   }catch(err){ notify(err.message, 'error'); }
 });
+
+/* ---------------- ROSTER / SHIFT CHANGE ---------------- */
+let ROS_ATT = {};     // UPPERCASE code -> {ins:[min], outs:[min], days}
+let ROS_DIRTY = {};   // raw code -> new shift_id (string; '' = unassigned)
+function _rosToMin(t){ const m=String(t||'').match(/(\d{1,2}):(\d{2})/); return m? (+m[1]*60 + +m[2]) : null; }
+function _rosMed(arr){ if(!arr||!arr.length) return null; const a=arr.slice().sort((x,y)=>x-y),n=a.length; return n%2? a[(n-1)/2] : Math.round((a[n/2-1]+a[n/2])/2); }
+function _rosFmt(m){ if(m==null) return '—'; m=((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+function _rosIsNightShift(s){ return !!s.is_night || (_rosToMin(s.start_time)||0) >= 16*60; }
+function _rosSuggest(medIn, medOut){
+  if(medIn==null) return null;
+  const isNight = medIn >= (16*60+30) || (medOut!=null && medOut < medIn - 60);
+  let best=null, gap=1e9;
+  (SHIFTS||[]).forEach(s=>{
+    const sn=_rosToMin(s.start_time); if(sn==null) return;
+    if(_rosIsNightShift(s)!==isNight) return;   // day worker ko day shift, night ko night
+    const g=Math.abs(sn-medIn); if(g<gap){ gap=g; best=s; }
+  });
+  return best;
+}
+async function loadRoster(){
+  if(!$('rosMonth').value) $('rosMonth').value = todayISO().slice(0,7);
+  const depts=[...new Set((EMP||[]).map(e=>String(e.DEPARTMENT||'').trim()).filter(Boolean))].sort();
+  const cur=$('rosDept').value;
+  $('rosDept').innerHTML='<option value="">— All departments —</option>'+depts.map(d=>`<option>${esc(d)}</option>`).join('');
+  if(cur) $('rosDept').value=cur;
+  const ym=$('rosMonth').value;
+  const tb=$('rosTable').querySelector('tbody');
+  tb.innerHTML='<tr><td colspan="8" class="text-center py-8" style="color:var(--muted)">Loading attendance…</td></tr>';
+  ROS_ATT={};
+  try{
+    const { data } = await sb.from('attendance').select('employee_code,in_time,out_time')
+      .gte('date', ym+'-01').lte('date', _lastDay(ym)).limit(60000);
+    (data||[]).forEach(r=>{
+      const c=String(r.employee_code||'').toUpperCase(); if(!c) return;
+      const o=ROS_ATT[c]||(ROS_ATT[c]={ins:[],outs:[],days:0});
+      const im=_rosToMin(r.in_time), om=_rosToMin(r.out_time);
+      if(im!=null){ o.ins.push(im); o.days++; }
+      if(om!=null) o.outs.push(om);
+    });
+  }catch(err){ notify('Roster attendance load failed: '+err.message,'error'); }
+  renderRoster();
+}
+function renderRoster(){
+  const tb=$('rosTable').querySelector('tbody');
+  const dept=$('rosDept').value, misOnly=$('rosMisOnly').checked;
+  let list=(EMP||[]).filter(e=>{
+    const st=String(e.Status||e.STATUS||'').toUpperCase();
+    if(st && (st.includes('EXIT')||st.includes('INACTIVE')||st.includes('RESIGN')||st.includes('LEFT'))) return false;
+    if(dept && String(e.DEPARTMENT||'').trim()!==dept) return false;
+    return true;
+  }).sort((a,b)=>String(a.Name||'').localeCompare(String(b.Name||'')));
+  const rows=[]; let n=0;
+  list.forEach(e=>{
+    const raw=e['Employee code']; if(!raw) return;
+    const up=String(raw).toUpperCase();
+    const p=PROFILES[raw]||PROFILES[up]||{};
+    const curShift = ROS_DIRTY[raw]!=null ? ROS_DIRTY[raw] : (p.shift_id!=null? String(p.shift_id):'');
+    const att=ROS_ATT[up];
+    const medIn=att?_rosMed(att.ins):null, medOut=att?_rosMed(att.outs):null, days=att?att.days:0;
+    const sug=(days>=3)?_rosSuggest(medIn,medOut):null;
+    const mismatch=sug && String(sug.id)!==String(curShift||'');
+    if(misOnly && !mismatch) return;
+    n++;
+    const dirty=ROS_DIRTY[raw]!=null;
+    rows.push(`<tr${dirty?' style="background:#fef9c3"':''}>
+      <td style="text-align:center;color:var(--muted)">${n}</td>
+      <td style="font-weight:600">${mismatch?'🔴 ':''}${esc(e.Name||'')}</td>
+      <td>${esc(raw)}</td>
+      <td>${esc(e.DEPARTMENT||'—')}</td>
+      <td class="money">${_rosFmt(medIn)} → ${_rosFmt(medOut)}</td>
+      <td style="text-align:center">${days||'—'}</td>
+      <td>${sug? `<span class="chip ${mismatch?'chip-blue':''}">${esc(sug.name)}</span>`:'—'}</td>
+      <td><select class="inp ros-sel" data-code="${esc(raw)}" style="min-width:170px;padding:4px 8px">
+        <option value=""${!curShift?' selected':''}>— Unassigned —</option>
+        ${(SHIFTS||[]).map(s=>`<option value="${s.id}"${String(s.id)===String(curShift)?' selected':''}>${esc(s.name)} (${esc(s.start_time)}–${esc(s.end_time)})</option>`).join('')}
+      </select></td>
+    </tr>`);
+  });
+  tb.innerHTML=rows.length?rows.join(''):'<tr><td colspan="8" class="text-center py-8" style="color:var(--muted)">Koi employee nahi mila.</td></tr>';
+  const dc=Object.keys(ROS_DIRTY).length, b=$('rosDirty'); if(b){ b.style.display=dc?'':'none'; b.textContent=dc; }
+}
+$('rosTable').addEventListener('change', e=>{
+  const sel=e.target.closest('.ros-sel'); if(!sel) return;
+  const code=sel.dataset.code;
+  const orig=(PROFILES[code]||{}).shift_id;
+  const origStr=orig!=null?String(orig):'';
+  if(String(sel.value)===origStr) delete ROS_DIRTY[code]; else ROS_DIRTY[code]=sel.value;
+  const tr=sel.closest('tr'); if(tr) tr.style.background=ROS_DIRTY[code]!=null?'#fef9c3':'';
+  const dc=Object.keys(ROS_DIRTY).length, b=$('rosDirty'); b.style.display=dc?'':'none'; b.textContent=dc;
+});
+$('rosSaveBtn').addEventListener('click', async ()=>{
+  const entries=Object.entries(ROS_DIRTY);
+  if(!entries.length) return notify('Koi shift change nahi hai','info');
+  if(!confirm(entries.length+' employee ki shift change hogi. Confirm karein?')) return;
+  let ok=0,fail=0;
+  for(const [code,val] of entries){
+    try{
+      const sid=val?Number(val):null;
+      const { error } = await sb.from('hr_profiles').update({shift_id:sid}).eq('employee_code',code);
+      if(error) throw error;
+      if(PROFILES[code]) PROFILES[code].shift_id=sid; else PROFILES[code]={employee_code:code,shift_id:sid};
+      ok++;
+    }catch(err){ fail++; }
+  }
+  ROS_DIRTY={};
+  notify(`Shift updated: ${ok} ✓${fail?(', '+fail+' fail'):''}`, fail?'error':'success');
+  renderShifts(); renderRoster();
+});
+$('rosRefreshBtn').addEventListener('click', loadRoster);
+$('rosDept').addEventListener('change', renderRoster);
+$('rosMisOnly').addEventListener('change', renderRoster);
+$('rosMonth').addEventListener('change', loadRoster);
 
 /* ---------------- LEAVES ---------------- */
 $('lvMonth').value = todayISO().slice(0,7);
