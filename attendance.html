@@ -1945,16 +1945,15 @@ function nxConfirm(msg, title){
                 let punchDateStr = todayStr, nightOut = false;
                 // Next-day OUT sirf NIGHT-SHIFT employee ko. Day/Morning ka kabhi next-day out nahi.
                 const _isNightEmp = !!((window.NX_SHIFTMAP||{})[String(empCode).toUpperCase()]||{}).night;
-                if (_isNightEmp && !lp.in && timeStr.substring(0,5) <= '10:00') {
+                // NIGHT SHIFT: subah/dopahar (14:00 se pehle) ka KOI BHI punch = pichhli raat ki
+                // shift ka OUT hai — aaj ka naya IN kabhi nahi. Ye ek missing punch se poori night
+                // chain ke IN<->OUT swap ko rokta hai. Kal ka open row local me na dikhe to bhi:
+                // server (nx_punch_out -> nx_close_night_out) khud pichhle 2 din me open night-IN
+                // dhoondh kar sahi din par close kar deta hai — device/cache par depend nahi.
+                if (_isNightEmp && timeStr.substring(0,5) < '14:00') {
                     const yD = new Date(todayStr + 'T12:00:00'); yD.setDate(yD.getDate() - 1);
-                    const yStr = yD.getFullYear() + '-' + String(yD.getMonth()+1).padStart(2,'0') + '-' + String(yD.getDate()).padStart(2,'0');
-                    const looksNight = p => p && p.in && !p.out && String(p.in).substring(0,5) >= '17:00';
-                    let yp = getLocalPunch(empCode, yStr);
-                    if (!looksNight(yp)) {
-                        const sv = await serverPunchCheck(empCode, yStr);   // ~200 bytes, sirf is halat mein
-                        if (sv) { applyServerRow(empCode, yStr, sv); yp = getLocalPunch(empCode, yStr); }
-                    }
-                    if (looksNight(yp)) { nightOut = true; punchDateStr = yStr; }
+                    punchDateStr = yD.getFullYear() + '-' + String(yD.getMonth()+1).padStart(2,'0') + '-' + String(yD.getDate()).padStart(2,'0');
+                    nightOut = true;
                 }
                 for (let pass = 0; pass < 2 && !nightOut; pass++) {
                     punchType = null; refuseMsg = null; refuseSpeak = null;
