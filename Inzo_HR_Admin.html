@@ -10633,15 +10633,16 @@ function fnfSheet(){
       <p style="margin:2px 0 0;font-size:10.5px;color:#475569">${S.phone ? 'Ph: ' + esc(S.phone) : ''}${S.phone && S.email ? ' &nbsp;•&nbsp; ' : ''}${S.email ? 'Email: ' + esc(S.email) : ''}${S.cin ? ' &nbsp;•&nbsp; CIN: ' + esc(S.cin) : ''}</p>
     </div>`;
   const refbar = (r) => `<div style="display:flex;justify-content:space-between;font-size:11px;color:#334155;margin:6px 0 2px"><span><b>Ref:</b> ${esc(r)}</span><span><b>Date:</b> ${today}</span></div>`;
-  // CEO / authorised signatory block (approval sign)
-  const ceoSign = `<div style="text-align:left">
-      <p style="margin:0 0 30px;font-size:11px;color:#475569">For <b>${esc(S.name)}</b></p>
-      <img src="signature.png" alt="" style="height:42px;width:auto;display:block;margin:0 0 -2px" onerror="this.style.display='none'">
-      <p style="margin:0;border-top:1px solid #94a3b8;padding-top:5px;display:inline-block"><b>${esc(S.hr || 'Authorised Signatory')}</b><br><span style="font-size:11px;color:#64748b">${esc(S.hrDesig || 'Authorised Signatory')} — Approved</span></p>
+  // CEO / authorised signatory block (approval sign) — no underline, clean alignment
+  const ceoSign = `<div style="min-width:180px">
+      <p style="margin:0 0 4px;font-size:10.5px;color:#64748b">Approved by</p>
+      <div style="height:48px"><img src="signature.png" alt="" style="height:46px;width:auto;display:block" onerror="this.style.display='none'"></div>
+      <p style="margin:0;font-size:12px"><b>${esc(S.hr || 'Authorised Signatory')}</b><br><span style="font-size:10.5px;color:#64748b">${esc(S.hrDesig || 'Authorised Signatory')}, ${esc(S.name)}</span></p>
     </div>`;
-  const empSign = `<div style="text-align:right">
-      <p style="margin:0 0 30px;font-size:11px;color:#475569">Received in full &amp; final settlement</p>
-      <p style="margin:0;border-top:1px solid #94a3b8;padding-top:5px;display:inline-block;font-size:11px;color:#64748b">${esc(name)}<br>Employee Signature &amp; Date</p>
+  const empSign = `<div style="min-width:180px">
+      <p style="margin:0 0 4px;font-size:10.5px;color:#64748b">Received by (Employee)</p>
+      <div style="height:48px"></div>
+      <p style="margin:0;font-size:12px"><b>${esc(name)}</b><br><span style="font-size:10.5px;color:#64748b">Signature &amp; Date</span></p>
     </div>`;
 
   const row = (l, sub, amt, neg) => (Math.round(amt) !== 0)
@@ -10687,8 +10688,12 @@ function fnfSheet(){
     </div>
     <p style="font-size:10.5px;color:#64748b;margin:10px 0 0">The employee confirms that the above is a correct and complete settlement of all dues, and that ${esc(name)} has no further claim of any nature whatsoever against ${esc(S.name)}. Payment will be released via bank transfer to the registered account after completion of clearance.</p>
 
-    <div style="margin-top:40px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px">
-      <div style="text-align:left;font-size:11px;color:#64748b"><p style="margin:0 0 34px">Prepared by</p><p style="margin:0;border-top:1px solid #94a3b8;padding-top:5px;display:inline-block">HR Department</p></div>
+    <div style="margin-top:46px;display:flex;justify-content:space-between;align-items:flex-start;gap:24px">
+      <div style="min-width:180px">
+        <p style="margin:0 0 4px;font-size:10.5px;color:#64748b">Prepared by</p>
+        <div style="height:48px"></div>
+        <p style="margin:0;font-size:12px"><b>HR Department</b></p>
+      </div>
       ${ceoSign}
       ${empSign}
     </div>
