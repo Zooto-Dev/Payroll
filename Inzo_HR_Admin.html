@@ -1666,6 +1666,8 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">Category</label><select id="epCatSel" class="inp"><option value="STAFF">Staff</option><option value="WORKER">Worker</option></select></div>
       <div><label class="lbl">Employment Type</label>
         <select id="epType" class="inp" onchange="epContractorToggle()"><option>Permanent</option><option>Contract</option><option>Probation</option><option>Trainee</option><option>Piece Rate</option></select></div>
+      <div><label class="lbl">Roll Type</label>
+        <select id="epRoll" class="inp"><option value="">—</option><option value="ONR">On-Roll (ONR)</option><option value="OFR">Off-Roll (OFR)</option></select></div>
       <div id="epContractorWrap" class="hidden col-span-2"><div class="grid grid-cols-2 gap-3 p-2 rounded-lg" style="background:#fffbeb;border:1px solid #fde68a">
         <div class="col-span-2 text-[11px]" style="color:#92400e"><i class="fa-solid fa-triangle-exclamation"></i> <b>Contract employee</b> — paid by the contractor, excluded from company payroll.</div>
         <div class="col-span-2"><label class="lbl">Pick from Contractor Master</label><select id="epContractorSel" class="inp" onchange="ctrPick('epContractorSel','epContractor','epContractorPh')"></select></div>
@@ -4019,6 +4021,7 @@ async function openEmpModal(code){
   $('epPAN').value = p.pan || ''; $('epUAN').value = p.uan || ''; $('epESINo').value = p.esi_no || '';
   if(p.shift_id) $('epShift').value = p.shift_id;
   $('epGrade').value = p.grade || ''; $('epType').value = p.employment_type || 'Permanent';
+  if($('epRoll')) $('epRoll').value = p.roll_type || '';
   $('epCatSel').value = (p.category === 'WORKER') ? 'WORKER' : 'STAFF';
   $('epContractor').value = p.contractor_name || ''; $('epContractorPh').value = p.contractor_phone || '';
   epContractorToggle();
@@ -4710,7 +4713,7 @@ $('epSaveBtn').addEventListener('click', async () => {
       bank_name: $('epBank').value, account_no: $('epAcc').value, ifsc: $('epIFSC').value,
       pan: $('epPAN').value, uan: $('epUAN').value, esi_no: $('epESINo').value,
       shift_id: Number($('epShift').value) || null,
-      grade: $('epGrade').value, category: $('epCatSel').value, employment_type: $('epType').value,
+      grade: $('epGrade').value, category: $('epCatSel').value, employment_type: $('epType').value, roll_type: (($('epRoll')||{}).value)||null,
       contractor_name: ($('epType').value === 'Contract' ? ($('epContractor').value.trim() || null) : null),
       contractor_phone: ($('epType').value === 'Contract' ? (($('epContractorPh').value||'').replace(/\D/g,'') || null) : null),
       reporting_manager: $('epManager').value,
@@ -9003,28 +9006,30 @@ $('empFormBtn').addEventListener('click', () => {
       <td>
         <div style="font-size:19px;font-weight:800">${esc(S.name || '')}</div>
         <div style="font-size:10px;color:#444;margin-top:2px">${esc(S.addr || '')}</div>
-        <div style="font-size:14px;font-weight:700;margin-top:10px;letter-spacing:.08em">EMPLOYEE JOINING FORM <span style="font-weight:400">/ कर्मचारी नियुक्ति फॉर्म</span></div>
-        <div style="font-size:9.5px;color:#555;margin-top:3px">कृपया साफ अक्षरों में CAPITAL LETTERS में भरें • Please fill in CAPITAL letters</div>
+        <div style="font-size:14px;font-weight:700;margin-top:6px;letter-spacing:.08em">EMPLOYEE JOINING FORM <span style="font-weight:400">/ कर्मचारी नियुक्ति फॉर्म</span></div>
+        <div style="font-size:9px;color:#555;margin-top:2px">कृपया साफ अक्षरों में CAPITAL LETTERS में भरें • Please fill in CAPITAL letters</div>
       </td>
-      <td style="width:110px;vertical-align:top;text-align:right">
-        <div style="width:96px;height:118px;border:1.5px solid #475569;display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:#666;text-align:center;line-height:1.6">पासपोर्ट<br>फोटो<br>PHOTO</div>
+      <td style="width:100px;vertical-align:top;text-align:right">
+        <div style="width:84px;height:100px;border:1.5px solid #475569;display:inline-flex;align-items:center;justify-content:center;font-size:8px;color:#666;text-align:center;line-height:1.5">पासपोर्ट<br>फोटो<br>PHOTO</div>
       </td>
     </tr></table>
 
     ${SEC('1','PERSONAL DETAILS','व्यक्तिगत जानकारी')}
-    ${F('Full Name','पूरा नाम', line())}
-    ${F("Father's / Husband's Name","पिता / पति का नाम", line())}
+    <table style="width:100%"><tr>
+      <td style="width:50%;padding-right:14px">${F('Full Name','पूरा नाम', line())}</td>
+      <td>${F("Father's / Husband's Name","पिता / पति का नाम", line())}</td>
+    </tr></table>
     <table style="width:100%"><tr>
       <td style="width:34%;padding-right:14px">${F('Date of Birth','जन्म तिथि', '<div style="display:flex;align-items:center;gap:6px">' + boxes(2) + '<b>/</b>' + boxes(2) + '<b>/</b>' + boxes(4) + '</div>')}</td>
       <td style="width:30%;padding-right:14px">${F('Gender','लिंग', CB(['Male / पुरुष','Female / महिला']))}</td>
       <td>${F('Marital Status','वैवाहिक स्थिति', CB(['Married / विवाहित','Single / अविवाहित']))}</td>
     </tr></table>
-    ${F('Mobile Number','मोबाइल नंबर', boxes(10))}
     <table style="width:100%"><tr>
-      <td style="width:62%;padding-right:14px">${F('Email','ईमेल', line())}</td>
+      <td style="width:38%;padding-right:14px">${F('Mobile Number','मोबाइल नंबर', boxes(10))}</td>
+      <td style="width:42%;padding-right:14px">${F('Email','ईमेल', line())}</td>
       <td>${F('Blood Group','ब्लड ग्रुप', line())}</td>
     </tr></table>
-    ${F('Full Address','पूरा पता', line() + '<div style="height:8px"></div>' + line())}
+    ${F('Full Address','पूरा पता', line())}
 
     ${SEC('2','BANK DETAILS','बैंक विवरण')} 
     <div style="font-size:9.5px;color:#555;margin:-6px 0 8px">कैंसिल चेक या पासबुक की कॉपी साथ लगाएँ • Attach cancelled cheque / passbook copy</div>
@@ -9047,14 +9052,14 @@ $('empFormBtn').addEventListener('click', () => {
     </tr></table>
 
     ${SEC('5','NOMINEE DETAILS (PF / Gratuity)','नामिती विवरण (पी.एफ. / ग्रेच्युटी)')}
-    ${F('Nominee Name','नामिती का नाम', line())}
     <table style="width:100%"><tr>
-      <td style="width:30%;padding-right:14px">${F('Relation','रिश्ता', line())}</td>
-      <td style="width:34%;padding-right:14px">${F('Date of Birth','जन्म तिथि', '<div style="display:flex;align-items:center;gap:6px">' + boxes(2) + '<b>/</b>' + boxes(2) + '<b>/</b>' + boxes(4) + '</div>')}</td>
+      <td style="width:48%;padding-right:14px">${F('Nominee Name','नामिती का नाम', line())}</td>
+      <td style="width:27%;padding-right:14px">${F('Relation','रिश्ता', line())}</td>
       <td>${F('Share %','हिस्सा %', line())}</td>
     </tr></table>
     <table style="width:100%"><tr>
-      <td style="width:55%;padding-right:14px">${F('Nominee Aadhaar','नामिती आधार', boxes(12))}</td>
+      <td style="width:30%;padding-right:14px">${F('Date of Birth','जन्म तिथि', '<div style="display:flex;align-items:center;gap:6px">' + boxes(2) + '<b>/</b>' + boxes(2) + '<b>/</b>' + boxes(4) + '</div>')}</td>
+      <td style="width:40%;padding-right:14px">${F('Nominee Aadhaar','नामिती आधार', boxes(12))}</td>
       <td>${F('Nominee Mobile','नामिती मोबाइल', boxes(10))}</td>
     </tr></table>
 
@@ -9080,7 +9085,8 @@ $('empFormBtn').addEventListener('click', () => {
         <td style="padding-right:12px;padding-top:6px">Skill Level${line()}</td>
         <td style="padding-top:6px">Production Line${line()}</td>
       </tr><tr>
-        <td style="padding-right:12px;padding-top:6px" colspan="2">Employment Type${line()}</td>
+        <td style="padding-right:12px;padding-top:6px">Employment Type${line()}</td>
+        <td style="padding-right:12px;padding-top:6px">Offered Salary / CTC (₹)${line()}</td>
         <td style="padding-top:6px;vertical-align:bottom" colspan="2">Roll Type: &nbsp; <span style="display:inline-block;width:12px;height:12px;border:1.3px solid #111;vertical-align:-2px"></span> On-Roll (ONR) &nbsp;&nbsp; <span style="display:inline-block;width:12px;height:12px;border:1.3px solid #111;vertical-align:-2px"></span> Off-Roll (OFR)</td>
       </tr></table>
       <div style="font-size:9.5px;margin-top:6px">Documents received / प्राप्त दस्तावेज़: &nbsp; Aadhaar ☐ &nbsp; Bank Proof ☐ &nbsp; Photos ☐ &nbsp; PAN ☐ &nbsp; Experience Letter ☐</div>

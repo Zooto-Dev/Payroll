@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Nexus — Live Face Verify</title>
+<link rel="icon" href="nexus-icon-180.png">
+<style>
+  :root{ --bg:#0b1220; --card:#111a2e; --line:#1e293b; --muted:#93a4c4; --ok:#22c55e; --bad:#f87171; --warn:#fbbf24; --brand:#3b82f6; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:#fff;min-height:100vh}
+  header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line)}
+  header h1{font-size:16px;margin:0;letter-spacing:.02em}
+  header .sub{font-size:11px;color:var(--muted)}
+  .wrap{max-width:560px;margin:0 auto;padding:14px}
+  .stage{position:relative;width:100%;aspect-ratio:3/4;max-height:62vh;background:#000;border-radius:18px;overflow:hidden;border:1px solid var(--line)}
+  video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  video{transform:scaleX(-1)}
+  canvas{transform:scaleX(-1)}
+  .result{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;text-align:center;transition:border-color .2s}
+  .result.match{border-color:var(--ok)}
+  .result.nomatch{border-color:var(--bad)}
+  .rname{font-size:24px;font-weight:800;margin:2px 0}
+  .rmeta{font-size:13px;color:var(--muted)}
+  .bar{height:8px;border-radius:6px;background:#22314f;margin:12px 0 4px;overflow:hidden}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,#f87171,#fbbf24,#22c55e);width:0;transition:width .2s}
+  .conf{font-size:12px;color:var(--muted)}
+  .row{display:flex;gap:10px;margin-top:12px}
+  .btn{flex:1;background:#1b263f;color:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn:active{transform:scale(.98)}
+  .btn.brand{background:var(--brand);border-color:var(--brand)}
+  .status{font-size:12px;color:var(--muted);text-align:center;margin-top:10px;min-height:16px}
+  .loader{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:50;text-align:center;padding:24px}
+  .ring{width:44px;height:44px;border:4px solid #22314f;border-top-color:var(--brand);border-radius:50%;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .pill{display:inline-block;font-size:11px;color:var(--muted);background:#16223b;border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+  .slider{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:12px;color:var(--muted)}
+  input[type=range]{flex:1}
+</style>
+</head>
+<body>
+<div class="loader" id="loader">
+  <div class="ring"></div>
+  <div id="loadMsg" style="font-size:14px">Starting…</div>
+  <div style="font-size:11px;color:var(--muted)">Nexus Live Face Verify</div>
+</div>
+
+<header>
+  <div><h1>Live Face Verify</h1><div class="sub">Camera se employee pehchaano — attendance mark nahi hoti</div></div>
+  <span class="pill" id="faceCount">0 faces</span>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="overlay"></canvas>
+  </div>
+
+  <div class="result" id="result">
+    <div class="rname" id="rName">—</div>
+    <div class="rmeta" id="rMeta">Chehra camera ke saamne laayein</div>
+    <div class="bar"><i id="rBar"></i></div>
+    <div class="conf" id="rConf">Match confidence: —</div>
+  </div>
+
+  <div class="slider">
+    <span>Strict</span>
+    <input type="range" id="thr" min="35" max="65" value="50">
+    <span>Loose</span>
+    <span id="thrVal" style="min-width:34px;text-align:right">0.50</span>
+  </div>
+
+  <div class="row">
+    <button class="btn" id="flipBtn">🔄 Flip Camera</button>
+    <button class="btn brand" id="reloadBtn">↻ Reload Faces</button>
+  </div>
+  <div class="status" id="status"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script>
+const NX_CONFIG_URL = 'https://script.google.com/macros/s/AKfycbyLyxuzYzGZ1odibF_-ORvn314hFY_zKg4595HpDZrhMObhqbcAh_LIw60sTc4b_dPI/exec';
+const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+const $ = id => document.getElementById(id);
+let sb, labeled = [], empMap = {}, matcher = null, running = false, facing = 'user', stream = null, threshold = 0.50;
+
+function setLoad(m){ $('loadMsg').textContent = m; }
+function status(m){ $('status').textContent = m || ''; }
+
+// ---- GAS config (JSONP) ----
+function loadConfig(){
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const cb = 'nxCfg' + Math.floor(Math.random()*1e6);
+    const t = setTimeout(() => { if(done) return; done = true; delete window[cb]; reject(new Error('Config timeout — net check')); }, 10000);
+    window[cb] = data => {
+      if(done) return; done = true; clearTimeout(t); delete window[cb];
+      if(data && data.url && data.key) resolve(data); else reject(new Error((data && data.error) || 'Config error'));
+    };
+    const s = document.createElement('script');
+    s.src = NX_CONFIG_URL + '?callback=' + cb + '&t=' + Date.now();
+    s.onerror = () => { if(done) return; done = true; clearTimeout(t); delete window[cb]; reject(new Error('Config load fail')); };
+    document.head.appendChild(s);
+  });
+}
+
+async function loadModels(){
+  setLoad('Loading face models…');
+  if(!faceapi.nets.tinyFaceDetector.isLoaded)   await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+  if(!faceapi.nets.faceLandmark68Net.isLoaded)  await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+  if(!faceapi.nets.faceRecognitionNet.isLoaded) await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+}
+
+async function loadFaces(){
+  setLoad('Loading registered faces…');
+  const { data, error } = await sb.from('employees')
+    .select('"Employee code",Name,DEPARTMENT,DESIGNATION,Status,Descriptor');
+  if(error) throw error;
+  labeled = []; empMap = {};
+  (data||[]).forEach(emp => {
+    try{
+      if(!emp.Descriptor) return;
+      const parsed = JSON.parse(emp.Descriptor);
+      const descList = (Array.isArray(parsed) && Array.isArray(parsed[0]))
+        ? parsed.map(d => new Float32Array(d))
+        : [new Float32Array(parsed)];
+      labeled.push(new faceapi.LabeledFaceDescriptors(emp['Employee code'], descList));
+      empMap[emp['Employee code']] = emp;
+    }catch(e){}
+  });
+  if(!labeled.length) throw new Error('No registered face data found');
+  matcher = new faceapi.FaceMatcher(labeled, threshold);
+  $('faceCount').textContent = labeled.length + ' faces';
+}
+
+async function startCamera(){
+  if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing }, audio: false });
+    $('video').srcObject = stream;
+    await $('video').play().catch(()=>{});
+  }catch(e){ status('Camera access nahi mila: ' + (e.message||e)); }
+}
+
+function showResult(code, distance){
+  const res = $('result');
+  if(code && code !== 'unknown' && empMap[code]){
+    const e = empMap[code];
+    const conf = Math.max(0, Math.round((1 - distance) * 100));
+    res.className = 'result match';
+    $('rName').textContent = e.Name || code;
+    $('rMeta').innerHTML = '<b>' + code + '</b> · ' + (e.DEPARTMENT || '—') + (e.DESIGNATION ? ' · ' + e.DESIGNATION : '') +
+       (String(e.Status||'').toUpperCase() && String(e.Status||'').toUpperCase()!=='ACTIVE' ? ' · <span style="color:var(--warn)">'+e.Status+'</span>' : '');
+    $('rBar').style.width = conf + '%';
+    $('rConf').textContent = 'Match confidence: ' + conf + '%  (distance ' + distance.toFixed(2) + ')';
+  } else {
+    res.className = 'result nomatch';
+    $('rName').textContent = 'No match';
+    $('rMeta').textContent = code === 'unknown' ? 'Ye chehra kisi registered employee se match nahi hua' : 'Chehra dhundh rahe…';
+    $('rBar').style.width = '0';
+    $('rConf').textContent = distance != null ? ('Closest distance ' + distance.toFixed(2) + ' (threshold ' + threshold.toFixed(2) + ')') : 'Match confidence: —';
+  }
+}
+
+async function loop(){
+  if(!running) return;
+  const v = $('video'), cv = $('overlay');
+  if(v.readyState >= 2 && v.videoWidth){
+    cv.width = v.videoWidth; cv.height = v.videoHeight;
+    const ctx = cv.getContext('2d'); ctx.clearRect(0,0,cv.width,cv.height);
+    try{
+      const det = await faceapi.detectSingleFace(v, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 }))
+        .withFaceLandmarks().withFaceDescriptor();
+      if(det){
+        const best = matcher.findBestMatch(det.descriptor);
+        const box = det.detection.box;
+        const matched = best.label !== 'unknown';
+        ctx.strokeStyle = matched ? '#22c55e' : '#f87171';
+        ctx.lineWidth = Math.max(2, cv.width/220);
+        ctx.strokeRect(box.x, box.y, box.width, box.height);
+        showResult(best.label, best.distance);
+      } else {
+        showResult(null, null);
+      }
+    }catch(e){}
+  }
+  setTimeout(() => requestAnimationFrame(loop), 220);   // ~4/sec
+}
+
+$('thr').addEventListener('input', e => {
+  threshold = Number(e.target.value)/100;
+  $('thrVal').textContent = threshold.toFixed(2);
+  if(labeled.length) matcher = new faceapi.FaceMatcher(labeled, threshold);
+});
+$('flipBtn').addEventListener('click', async () => { facing = (facing === 'user') ? 'environment' : 'user'; await startCamera(); });
+$('reloadBtn').addEventListener('click', async () => { status('Reloading faces…'); try{ await loadFaces(); status('Faces reloaded ✓'); }catch(e){ status(e.message); } });
+
+(async function init(){
+  try{
+    if(!navigator.mediaDevices || !window.isSecureContext){ setLoad('Camera ke liye HTTPS zaroori hai'); }
+    setLoad('Connecting…');
+    const cfg = await loadConfig();
+    sb = window.supabase.createClient(cfg.url, cfg.key);
+    await loadModels();
+    await loadFaces();
+    await startCamera();
+    $('loader').style.display = 'none';
+    running = true;
+    requestAnimationFrame(loop);
+    status(labeled.length + ' registered faces loaded — camera live');
+  }catch(e){
+    setLoad('Error: ' + (e.message || e));
+    status(String(e.message||e));
+  }
+})();
+</script>
+</body>
+</html>

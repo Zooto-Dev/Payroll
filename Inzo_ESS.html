@@ -615,12 +615,13 @@ async function essSendApprovalEmail(kind, id, title, rows){
       const cb = 'nxMailCb_' + Date.now();
       window[cb] = (res) => { try{ delete window[cb]; sc.remove(); }catch(e2){}
         console.log('[ESS] email result:', res);
-        if(res && res.ok) notify('✉ Approval email bhej di gayi');
-        else notify('✉ Email nahi gayi: ' + ((res && (res.reason||res.error)) || 'unknown'));
+        if(res && res.ok) notify('✉ Notification manager/HR ko bhej di gayi');
+        // fail hone par bhi user ko scary error NAHI — request to submit ho hi chuki hai
+        else console.warn('[ESS] notification email skipped:', (res && (res.reason||res.error)) || 'unknown');
         resolve(); };
       const sc = document.createElement('script');
       sc.src = url + '&callback=' + cb;
-      sc.onerror = () => { try{ delete window[cb]; sc.remove(); }catch(e3){} console.warn('[ESS] email JSONP error'); notify('✉ Email trigger fail — net check karo'); resolve(); };
+      sc.onerror = () => { try{ delete window[cb]; sc.remove(); }catch(e3){} console.warn('[ESS] email JSONP error (request phir bhi submit ho chuki hai)'); resolve(); };
       document.head.appendChild(sc);
       setTimeout(resolve, 8000);
     });
@@ -2558,6 +2559,27 @@ function renderOT(){
     const chip = o.status === 'APPROVED' ? 'chip-ok' : (o.status === 'PENDING' ? 'chip-warn' : 'chip-bad');
     return `<div class="row"><span>${fmtDate(o.ot_date)} — <b>${o.hours} hrs</b>${o.reason ? ' • ' + esc(o.reason) : ''}</span><span class="chip ${chip}">${esc(o.status)}</span></div>`;
   }).join('') : '';
+  loadMyTeamOt();   // team ke liye bheji OT ka status bhi dikhao
+}
+// Supervisor ne jo OT DOOSRON ke liye bheji, uska status
+async function loadMyTeamOt(){
+  try{
+    const { data } = await sb.rpc('ess_team_ot', { p_code: CODE, p_phone: PHONE });
+    if(!data || data.error || !data.rows) return;
+    const meU = String(CODE||'').toUpperCase();
+    const rows = data.rows.filter(r => String(r.employee_code||'').toUpperCase() !== meU);   // self alag list me hai
+    if(!rows.length) return;
+    const groups = {};
+    rows.forEach(r => { const k = r.group_id || ('id'+r.id); (groups[k] = groups[k] || []).push(r); });
+    let html = '<p class="lbl mt-3 mb-1" style="color:var(--muted)">MERI BHEJI OT (TEAM) — STATUS</p>';
+    Object.keys(groups).forEach(k => {
+      const g = groups[k], r0 = g[0];
+      const chip = r0.status === 'APPROVED' ? 'chip-ok' : (r0.status === 'PENDING' ? 'chip-warn' : 'chip-bad');
+      const names = g.map(x => esc(x.name)).slice(0,4).join(', ') + (g.length > 4 ? ' +' + (g.length - 4) : '');
+      html += `<div class="row"><span>${fmtDate(r0.ot_date)} — <b>${r0.hours} hrs</b> · ${g.length} worker: ${names}</span><span class="chip ${chip}">${esc(r0.status)}</span></div>`;
+    });
+    $('otBox').insertAdjacentHTML('beforeend', html);
+  }catch(e){}
 }
 let OT_MODE = 'self', WORKERS = null;
 function setOtMode(m){
