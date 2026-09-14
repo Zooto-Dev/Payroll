@@ -2258,8 +2258,25 @@ function renderResign(){
   }
 }
 $('exDate').value = new Date().toISOString().slice(0,10);
+// Expense: sirf pichhle 7 din tak ki hi claim — 7 din se purani ya future date allowed nahi
+(function(){
+  const _t = new Date();
+  const _maxD = _t.toISOString().slice(0,10);
+  const _minD = new Date(_t.getTime() - 7*86400000).toISOString().slice(0,10);
+  const el = $('exDate'); if(el){ el.min = _minD; el.max = _maxD; }
+})();
 $('exBtn').addEventListener('click', async () => {
   if(!Number($('exAmt').value)) return notify('Enter a valid amount');
+  // 7-DIN WINDOW: 7 din se purani expense claim allowed nahi (aur future date bhi nahi)
+  {
+    const _sel = $('exDate').value;
+    if(!_sel) return notify('Expense ki date daalein');
+    const _today0 = new Date(new Date().toISOString().slice(0,10) + 'T00:00:00');
+    const _lim0   = new Date(_today0.getTime() - 7*86400000);
+    const _selD   = new Date(_sel + 'T00:00:00');
+    if(_selD < _lim0) return notify('7 din se purani expense claim allowed nahi — sirf pichhle 7 din tak ki hi apply kar sakte ho.');
+    if(_selD > _today0) return notify('Future date ki expense allowed nahi.');
+  }
   if(!window._editExpId && !(($('exFiles').files || []).length)) return notify('Bill/receipt ki photo attach karna zaroori hai — bina bill claim nahi hoga');
   const btn = $('exBtn');
   btn.innerHTML = '<div class="loader-ring"></div> Submitting…'; btn.disabled = true;
@@ -2404,6 +2421,10 @@ $('fbBtn').addEventListener('click', async () => {
       if(error) throw error;
       if(data && data.error) return notify(data.error);
       notify('Salary grievance submit ho gayi — HR check karega');
+      // Grievance -> reporting manager ko bhi notify
+      essSendApprovalEmail('grievance', (data&&data.id)||'', 'Salary Grievance — ' + ((D.employee&&D.employee.Name)||CODE), [
+        ['Employee', (D.employee&&D.employee.Name)||CODE], ['Type', 'Salary Grievance'], ['Details', details.replace(/\n/g,' | ')]
+      ]);
       $('sgMonth').value=''; $('sgAmount').value=''; $('sgAbsentCount').value=''; $('sgAbsentDays').value=''; $('sgNote').value='';
       loadFeedback();
     }catch(err){ notify(err.message); }
@@ -2441,6 +2462,13 @@ $('fbBtn').addEventListener('click', async () => {
     if(error) throw error;
     if(data && data.error) return notify(data.error);
     notify(isKz ? 'Kaizen submitted — reward on approval!' : 'Submitted — HR will review it');
+    // Grievance / Suggestion -> reporting manager ko bhi notify (Kaizen chhod ke)
+    if(!isKz){
+      essSendApprovalEmail($('fbType').value.toLowerCase(), (data&&data.id)||'',
+        ($('fbType').value === 'SUGGESTION' ? 'Suggestion' : 'Grievance') + ' — ' + ((D.employee&&D.employee.Name)||CODE), [
+        ['Employee', (D.employee&&D.employee.Name)||CODE], ['Type', $('fbType').value], ['Subject', $('fbSubject').value||'—']
+      ]);
+    }
     $('fbSubject').value = ''; $('fbDetails').value = ''; $('fbSolutions').value = '';
     if(isKz){ $('kzProblem').value=''; $('kzSolution').value=''; $('kzRemarks').value=''; $('kzAttach').value=''; document.querySelectorAll('.kz-benefit').forEach(c=>c.checked=false); }
     loadFeedback();
@@ -2593,12 +2621,22 @@ $('otBtn').addEventListener('click', async () => {
       if(error) throw error;
       if(data && data.error) return notify(data.error);
       notify(`OT requested for ${data.inserted} worker(s)` + (data.skipped ? ` — ${data.skipped} already had OT for this date` : '') + ' — pending approval');
+      // OT request -> CEO ko approval email
+      essSendApprovalEmail('ot', (data&&data.group_id)||'', 'Overtime Request — ' + ((D.employee&&D.employee.Name)||CODE), [
+        ['Requested by', (D.employee&&D.employee.Name)||CODE], ['Date', $('otDate').value],
+        ['Hours', $('otHours').value], ['Workers', data.inserted], ['Reason', $('otReason').value||'—']
+      ]);
       document.querySelectorAll('.otw-chk').forEach(c => c.checked = false); updateOtCount();
     } else {
       const { data, error } = await sb.rpc('ess_apply_ot', { p_code: CODE, p_phone: PHONE, p_date: $('otDate').value, p_hours: Number($('otHours').value), p_reason: $('otReason').value });
       if(error) throw error;
       if(data && data.error) return notify(data.error);
       notify('OT request submitted — pending approval');
+      // OT request -> CEO ko approval email
+      essSendApprovalEmail('ot', (data&&data.id)||'', 'Overtime Request — ' + ((D.employee&&D.employee.Name)||CODE), [
+        ['Employee', (D.employee&&D.employee.Name)||CODE], ['Date', $('otDate').value],
+        ['Hours', $('otHours').value], ['Reason', $('otReason').value||'—']
+      ]);
       D.ot_requests = [{ ot_date: $('otDate').value, hours: Number($('otHours').value), reason: $('otReason').value, status: 'PENDING' }].concat(D.ot_requests || []);
       renderOT();
     }
