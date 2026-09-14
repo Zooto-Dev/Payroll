@@ -2212,8 +2212,9 @@ function empDeductions(code){
 }
 function salaryApproved(code){
   const p = PROFILES[code] || {};
-  // treat missing status as approved (legacy), only 'PENDING' blocks
-  return String(p.salary_status || 'APPROVED').toUpperCase() !== 'PENDING';
+  // treat missing status as approved (legacy); PENDING and REJECTED both block payroll
+  const st = String(p.salary_status || 'APPROVED').toUpperCase();
+  return st !== 'PENDING' && st !== 'REJECTED';
 }
 function grossOf(code){
   if(!salaryApproved(code)) return 0;   // unapproved salary = not counted (kept out of payroll)
@@ -3361,8 +3362,15 @@ function renderSalaryApprovals(){
   const host = document.getElementById('dashSalaryApprovals');
   if(!host) return;
   if(!isCEO()){ host.innerHTML = ''; return; }   // only the CEO sees/acts on approvals
-  const pend = activeEmps().filter(e => String((PROFILES[e['Employee code']]||{}).salary_status||'').toUpperCase() === 'PENDING');
+  // Sirf PENDING + jinki gross > 0 (0-value wale bilkul nahi dikhenge)
+  const pend = activeEmps().filter(e => {
+    const p = PROFILES[e['Employee code']]||{};
+    if(String(p.salary_status||'').toUpperCase() !== 'PENDING') return false;
+    const s = empSalary(e['Employee code']); const gross = Object.values(s).reduce((a,b)=>a+(Number(b)||0),0);
+    return gross > 0;
+  });
   if(!pend.length){ host.innerHTML = ''; return; }
+  const _fmtWhen = t => { if(!t) return '—'; try{ return new Date(t).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); }catch(e){ return '—'; } };
   host.innerHTML = `<div class="card" style="border-left:3px solid var(--brand)">
     <div class="flex items-center justify-between mb-2">
       <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-indian-rupee-sign" style="color:var(--brand)"></i> Salary Approvals Pending <span class="chip chip-warn">${pend.length}</span></h3>
@@ -3373,10 +3381,10 @@ function renderSalaryApprovals(){
     </div>
     <div style="max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:12px">
       <table class="tbl" style="font-size:12px;margin:0">
-        <thead><tr><th style="width:30px"><input type="checkbox" id="salSelAll" onclick="document.querySelectorAll('.sal-cb').forEach(c=>c.checked=this.checked)"></th><th>Code</th><th>Name</th><th>Department</th><th>Gross (₹)</th><th>Submitted by</th><th></th></tr></thead>
+        <thead><tr><th style="width:30px"><input type="checkbox" id="salSelAll" onclick="document.querySelectorAll('.sal-cb').forEach(c=>c.checked=this.checked)"></th><th>Code</th><th>Name</th><th>Department</th><th>Gross (₹)</th><th>Updated by</th><th>Updated on</th><th></th></tr></thead>
         <tbody>${pend.map(e => {
           const code = e['Employee code']; const p = PROFILES[code]||{};
-          const s = empSalary(code); const gross = Object.values(s).reduce((a,b)=>a+b,0);
+          const s = empSalary(code); const gross = Object.values(s).reduce((a,b)=>a+(Number(b)||0),0);
           return `<tr>
             <td><input type="checkbox" class="sal-cb" value="${esc(code)}"></td>
             <td class="font-mono">${esc(code)}</td>
@@ -3384,15 +3392,26 @@ function renderSalaryApprovals(){
             <td>${esc(e.DEPARTMENT||'—')}</td>
             <td class="money">₹${gross.toLocaleString('en-IN')}</td>
             <td class="text-[11px]">${esc(p.salary_submitted_by||'—')}</td>
+            <td class="text-[11px]" style="color:var(--muted);white-space:nowrap">${_fmtWhen(p.salary_submitted_at)}</td>
             <td class="flex gap-1">
-              <button class="btn btn-primary btn-sm" data-act="sal-approve" data-code="${esc(code)}"><i class="fa-solid fa-check"></i> Approve</button>
-              <button class="btn btn-ghost btn-sm" data-act="sal-view" data-code="${esc(code)}"><i class="fa-solid fa-eye"></i></button>
+              <button class="btn btn-primary btn-sm" data-act="sal-approve" data-code="${esc(code)}" title="Approve"><i class="fa-solid fa-check"></i></button>
+              <button class="btn btn-danger btn-sm" data-act="sal-reject" data-code="${esc(code)}" title="Reject"><i class="fa-solid fa-xmark"></i></button>
+              <button class="btn btn-ghost btn-sm" data-act="sal-view" data-code="${esc(code)}" title="View"><i class="fa-solid fa-eye"></i></button>
             </td>
           </tr>`;
         }).join('')}</tbody>
       </table>
     </div>
   </div>`;
+}
+async function rejectSalary(code){
+  if(!isCEO()) return notify('Only the CEO can reject salaries', 'error');
+  const nm = (EMP.find(e => e['Employee code'] === code)||{}).Name || code;
+  if(!(await nxConfirm(nm + ' ki submitted salary REJECT karein? Ye payroll me nahi jayegi — HR ko dobara sahi salary daalni hogi.', 'Reject Salary'))) return;
+  await sb.from('hr_profiles').update({ salary_status:'REJECTED', salary_approved_by: ME_EMAIL, salary_approved_at: new Date().toISOString() }).eq('employee_code', code);
+  if(PROFILES[code]) PROFILES[code].salary_status = 'REJECTED';
+  notify(nm + ' ki salary reject kar di', 'success');
+  renderSalaryApprovals(); renderNoSalaryCard && renderNoSalaryCard();
 }
 async function approveSelectedSalaries(){
   if(!isCEO()) return notify('Only the CEO can approve salaries', 'error');
@@ -8379,6 +8398,7 @@ document.body.addEventListener('click', async e => {
   }
   if(act === 'ex-paid'){ await sb.from('expenses').update({ status:'PAID' }).eq('id', el.dataset.id); notify('Reimbursement marked paid', 'success'); loadExpenses(); }
   if(act === 'sal-approve'){ await approveSalary(el.dataset.code); return; }
+  if(act === 'sal-reject'){ await rejectSalary(el.dataset.code); return; }
   if(act === 'sal-view'){ openEmpModal(el.dataset.code); return; }
   if(act === 'em-revoke'){
     const ok = await nxConfirm('Revoke this email/account?\nIt will be marked REVOKED (record kept).', 'Revoke Email');
