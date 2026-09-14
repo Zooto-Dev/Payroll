@@ -35,8 +35,8 @@
   video{transform:scaleX(-1)}
   canvas{transform:scaleX(-1)}
   .hint{position:absolute;left:0;right:0;bottom:0;padding:8px 12px;font-size:13px;font-weight:600;text-align:center;background:linear-gradient(180deg,transparent,rgba(0,0,0,.75));z-index:2}
-  .dots{display:flex;gap:8px;justify-content:center;margin:12px 0 2px}
-  .dot{width:26px;height:8px;border-radius:6px;background:#22314f}
+  .dots{display:flex;gap:5px;justify-content:center;flex-wrap:wrap;margin:12px 0 2px}
+  .dot{width:20px;height:8px;border-radius:6px;background:#22314f}
   .dot.on{background:var(--ok)}
   .row{display:flex;gap:10px;margin-top:12px}
   .btn{flex:1;background:#1b263f;color:#fff;border:1px solid var(--line);border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
@@ -121,8 +121,10 @@
 <script>
 const NX_CONFIG_URL = 'https://script.google.com/macros/s/AKfycbyLyxuzYzGZ1odibF_-ORvn314hFY_zKg4595HpDZrhMObhqbcAh_LIw60sTc4b_dPI/exec';
 const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
-const NEED_SAMPLES = 5;          // itne accha samples chahiye
-const MIN_GAP_MS = 550;          // do samples ke beech gap
+const NEED_SAMPLES = 10;         // kam se kam itne CLEAR samples zaroori (verification ke liye)
+const MIN_GAP_MS = 500;          // do samples ke beech gap
+const MIN_SCORE = 0.90;          // sirf HIGH-confidence (saaf) face hi capture ho
+const MAX_SPREAD = 0.42;         // 10 samples aapas me consistent (ek hi insaan) hone chahiye
 const $ = id => document.getElementById(id);
 let sb, EMPS = [], selected = null, running = false, facing = 'user', stream = null;
 let samples = [], lastCapAt = 0, lastQualityOk = false;
@@ -213,7 +215,7 @@ function resetSamples(){
   samples = []; lastCapAt = 0;
   renderDots();
   $('saveBtn').disabled = true;
-  $('capMsg').textContent = 'Face ko frame ke beech me laayein — accha frame apne aap capture hoga.';
+  $('capMsg').textContent = '10 clear samples chahiye — face ko frame ke beech, saaf roshni me laayein. Sirf high-confidence (saaf) frame hi capture hoga.';
 }
 function renderDots(){
   $('dots').innerHTML = Array.from({length: NEED_SAMPLES}, (_,i) =>
@@ -235,9 +237,9 @@ async function startCamera(){
 function quality(det, iw, ih){
   const box = det.detection.box, score = det.detection.score;
   const ratio = box.width / iw;
-  if(ratio < 0.18) return { ok:false, msg:'Thoda paas aaiye — face bada dikhna chahiye' };
+  if(ratio < 0.22) return { ok:false, msg:'Thoda paas aaiye — face bada/saaf dikhna chahiye' };
   if(ratio > 0.85) return { ok:false, msg:'Thoda peeche jaayein' };
-  if(score < 0.72) return { ok:false, msg:'Face saaf nahi — roshni theek karein, mask/cap hataayein' };
+  if(score < MIN_SCORE) return { ok:false, msg:'Face saaf nahi — roshni tez karein, mask/cap/chashma hataayein, seedha dekhein' };
   const cx = (box.x + box.width/2)/iw, cy = (box.y + box.height/2)/ih;
   if(cx < 0.15 || cx > 0.85 || cy < 0.12 || cy > 0.9) return { ok:false, msg:'Face ko frame ke beech me laayein' };
   try{
@@ -254,9 +256,11 @@ function captureNow(det){
   samples.push(Array.from(det.descriptor));
   lastCapAt = Date.now();
   renderDots();
-  $('capMsg').textContent = samples.length + '/' + NEED_SAMPLES + ' sample capture ho gaya' + (samples.length < NEED_SAMPLES ? ' — thoda sar hilaayein (halka left/right)' : ' — ab Register dabaayein');
-  if(samples.length >= 1) $('saveBtn').disabled = false;
-  if(samples.length >= NEED_SAMPLES) toast('Kaafi samples ho gaye — ab "Face Register / Update" dabaayein', 'ok');
+  // Register SIRF tab jab 10 saaf samples ho jaayein (high-confidence)
+  const done = samples.length >= NEED_SAMPLES;
+  $('capMsg').textContent = samples.length + '/' + NEED_SAMPLES + ' clear sample' + (done ? ' — ab "Face Register / Update" dabaayein' : ' — halka sar hilaayein (left/right/upar/neeche)');
+  $('saveBtn').disabled = !done;
+  if(done) toast('10 clear samples ho gaye — ab "Face Register / Update" dabaayein', 'ok');
 }
 
 async function loop(){
@@ -289,9 +293,23 @@ async function loop(){
   setTimeout(() => requestAnimationFrame(loop), 200);
 }
 
+function _dist(a, b){ let s = 0; for(let i=0;i<a.length;i++){ const d = a[i]-b[i]; s += d*d; } return Math.sqrt(s); }
+// 10 samples aapas me kitne consistent hain (ek hi saaf chehra) — high-confidence check
+function samplesConsistent(list){
+  if(list.length < NEED_SAMPLES) return { ok:false, msg:'Kam se kam ' + NEED_SAMPLES + ' clear samples chahiye' };
+  const n = list.length, dim = list[0].length;
+  const mean = new Array(dim).fill(0);
+  list.forEach(v => { for(let i=0;i<dim;i++) mean[i] += v[i]/n; });
+  let maxD = 0; list.forEach(v => { const d = _dist(v, mean); if(d > maxD) maxD = d; });
+  if(maxD > MAX_SPREAD) return { ok:false, msg:'Photos consistent nahi (dhundhli/alag lag rahi) — saaf roshni me dobara try karein' };
+  return { ok:true };
+}
 async function saveFace(){
   if(!selected) return toast('Pehle employee choose karein', 'bad');
-  if(!samples.length) return toast('Kam se kam 1 accha sample chahiye', 'bad');
+  if(samples.length < NEED_SAMPLES) return toast(NEED_SAMPLES + ' clear samples zaroori hain (' + samples.length + '/' + NEED_SAMPLES + ')', 'bad');
+  // HIGH-CONFIDENCE gate: dhundhli/inconsistent photo par register bilkul na ho
+  const cons = samplesConsistent(samples);
+  if(!cons.ok){ resetSamples(); return toast(cons.msg, 'bad'); }
   const btn = $('saveBtn');
   btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = 'Saving…';
   try{
