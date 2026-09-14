@@ -2636,8 +2636,8 @@ $('otBtn').addEventListener('click', async () => {
       if(error) throw error;
       if(data && data.error) return notify(data.error);
       notify('OT request submitted — pending approval');
-      // OT request -> CEO ko approval email
-      essSendApprovalEmail('ot', (data&&data.id)||'', 'Overtime Request — ' + ((D.employee&&D.employee.Name)||CODE), [
+      // OT request -> CEO ko approval email (single OT bhi group_id return karta hai)
+      essSendApprovalEmail('ot', (data&&data.group_id)||'', 'Overtime Request — ' + ((D.employee&&D.employee.Name)||CODE), [
         ['Employee', (D.employee&&D.employee.Name)||CODE], ['Date', $('otDate').value],
         ['Hours', $('otHours').value], ['Reason', $('otReason').value||'—']
       ]);
