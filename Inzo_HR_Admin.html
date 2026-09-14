@@ -1667,7 +1667,7 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">Employment Type</label>
         <select id="epType" class="inp" onchange="epContractorToggle()"><option>Permanent</option><option>Contract</option><option>Probation</option><option>Trainee</option><option>Piece Rate</option></select></div>
       <div><label class="lbl">Roll Type</label>
-        <select id="epRoll" class="inp"><option value="">—</option><option value="ONR">On-Roll (ONR)</option><option value="OFR">Off-Roll (OFR)</option></select></div>
+        <select id="epRoll" class="inp"><option value="">—</option><option value="ONR">ONR</option><option value="OFR">OFR</option></select></div>
       <div id="epContractorWrap" class="hidden col-span-2"><div class="grid grid-cols-2 gap-3 p-2 rounded-lg" style="background:#fffbeb;border:1px solid #fde68a">
         <div class="col-span-2 text-[11px]" style="color:#92400e"><i class="fa-solid fa-triangle-exclamation"></i> <b>Contract employee</b> — paid by the contractor, excluded from company payroll.</div>
         <div class="col-span-2"><label class="lbl">Pick from Contractor Master</label><select id="epContractorSel" class="inp" onchange="ctrPick('epContractorSel','epContractor','epContractorPh')"></select></div>
@@ -1835,7 +1835,7 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">Designation</label><select id="aeDesig" class="inp"></select></div>
       <div><label class="lbl">Date of Joining</label><input id="aeDOJ" type="date" class="inp"></div>
       <div><label class="lbl">Employment Type</label><select id="aeEmpType" class="inp" onchange="aeContractorToggle()"><option>Permanent</option><option>Contract</option><option>Probation</option><option>Trainee</option><option>Intern</option><option>Piece Rate</option></select></div>
-      <div><label class="lbl">Roll Type</label><select id="aeRoll" class="inp"><option value="">—</option><option value="ONR">On-Roll (ONR)</option><option value="OFR">Off-Roll (OFR)</option></select></div>
+      <div><label class="lbl">Roll Type</label><select id="aeRoll" class="inp"><option value="">—</option><option value="ONR">ONR</option><option value="OFR">OFR</option></select></div>
       <div id="aeContractorWrap" class="hidden col-span-2"><div class="grid grid-cols-2 gap-3 p-2 rounded-lg" style="background:#fffbeb;border:1px solid #fde68a">
         <div class="col-span-2 text-[11px]" style="color:#92400e"><i class="fa-solid fa-triangle-exclamation"></i> <b>Contract employee</b> — paid by the contractor, will NOT appear in company payroll.</div>
         <div class="col-span-2"><label class="lbl">Pick from Contractor Master</label><select id="aeContractorSel" class="inp" onchange="ctrPick('aeContractorSel','aeContractor','aeContractorPh')"></select></div>
@@ -3927,9 +3927,18 @@ $('aeSaveBtn').addEventListener('click', async () => {
       window._convertingWorkPass = null;
       try{ loadApprovals(); }catch(e){}
     }
-    notify(`${name} added` + (salaryAllowed ? ' — now open Profile to set phone, salary and shift' : ' — Accounts will set the salary'), 'success');
+    notify(`${name} added` + (salaryAllowed ? ' — Profile khul gaya, yahan shift/face/salary set kar sakte ho' : ' — Accounts will set the salary'), 'success');
     $('addEmpModal').classList.remove('show');
     await loadCore();
+    // GUARANTEE: abhi-add kiya employee + uska data second (Profile) screen me pakka dikhe
+    if(!EMP.find(x => String(x['Employee code']||'').toUpperCase() === String(code).toUpperCase())){
+      EMP.push({ 'Employee code': code, Name: name, Status: 'Active',
+        DEPARTMENT: String($('aeDept').value||'').trim().toUpperCase(),
+        DESIGNATION: String($('aeDesig').value||'').trim().toUpperCase(),
+        DOJ: $('aeDOJ').value, UNIT: ($('aeUnit')&&$('aeUnit').value)||'',
+        LINE: ($('aeCat').value==='mgmt') ? '' : String($('aeLine').value||'').trim().toUpperCase() });
+    }
+    PROFILES[code] = Object.assign(PROFILES[code] || {}, prof);   // profile data bhi retain
     openEmpModal(code);
   }catch(err){ notify(err.message, 'error'); }
   finally{ btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Add Employee'; btn.disabled = false; }
@@ -8800,7 +8809,7 @@ $('letterGenBtn').addEventListener('click', async () => {
         <li>This offer is contingent upon satisfactory verification of your documents and background.</li>
       </ol>
       <p>Please sign and return a copy of this letter as a token of your acceptance. We look forward to welcoming you to the team.</p>
-      ${annexureHTML(gross, null)}`);
+      ${annexureCTC_HTML(gross, { pf:true, esi: gross <= 21000, lwf:true, tds:false })}`);
   } else {
     const code = $('letterEmp').value;
     const e = EMP.find(x => x['Employee code'] === code);
@@ -8823,7 +8832,7 @@ $('letterGenBtn').addEventListener('click', async () => {
         </ol>
         <p>Please sign the duplicate copy of this letter as a token of your acceptance of the above terms.</p>
         <p>We welcome you to <b>${esc(S.name)}</b> and wish you a long and successful career with us.</p>
-        ${annexureHTML(gross, code)}`);
+        ${annexureCTC_HTML(gross, { pf: !!p.pf_applicable, esi: !!p.esi_applicable, lwf: !!p.lwf_applicable, tds:false })}`);
     }
     if(t === 'experience'){
       const lwd = $('relLWD').value;
@@ -9063,7 +9072,27 @@ $('empFormBtn').addEventListener('click', () => {
       <td>${F('Nominee Mobile','नामिती मोबाइल', boxes(10))}</td>
     </tr></table>
 
-    <div style="border:1.3px solid #475569;padding:6px 12px;margin-top:8px">
+    <div style="border:1.3px dashed #64748b;padding:6px 12px;margin-top:8px;background:#faf8f4">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;margin-bottom:5px">FOR OFFICE USE ONLY / केवल कार्यालय उपयोग हेतु</div>
+      <table style="width:100%;font-size:9.5px"><tr>
+        <td style="width:25%;padding-right:12px">Employee Code${line()}</td>
+        <td style="width:25%;padding-right:12px">Unit / Location${line()}</td>
+        <td style="width:25%;padding-right:12px">Department${line()}</td>
+        <td style="width:25%">Designation${line()}</td>
+      </tr><tr>
+        <td style="padding-right:12px;padding-top:6px">Date of Joining${line()}</td>
+        <td style="padding-right:12px;padding-top:6px">Category (Worker/Staff)${line()}</td>
+        <td style="padding-right:12px;padding-top:6px">Skill Level${line()}</td>
+        <td style="padding-top:6px">Production Line${line()}</td>
+      </tr><tr>
+        <td style="padding-right:12px;padding-top:6px">Employment Type${line()}</td>
+        <td style="padding-right:12px;padding-top:6px">Offered Salary / CTC (₹)${line()}</td>
+        <td style="padding-top:6px;vertical-align:bottom" colspan="2">Roll Type: &nbsp; <span style="display:inline-block;width:12px;height:12px;border:1.3px solid #111;vertical-align:-2px"></span> ONR &nbsp;&nbsp; <span style="display:inline-block;width:12px;height:12px;border:1.3px solid #111;vertical-align:-2px"></span> OFR</td>
+      </tr></table>
+      <div style="font-size:9.5px;margin-top:6px">Documents received / प्राप्त दस्तावेज़: &nbsp; Aadhaar ☐ &nbsp; Bank Proof ☐ &nbsp; Photos ☐ &nbsp; PAN ☐ &nbsp; Experience Letter ☐</div>
+    </div>
+
+    <div style="border:1.3px solid #475569;padding:6px 12px;margin-top:6px">
       <div style="font-size:9.5px;line-height:1.5"><b>घोषणा / Declaration:</b> मैं घोषणा करता/करती हूँ कि ऊपर दी गई जानकारी सत्य है। मैं कंपनी के नियमों का पालन करूँगा/करूँगी। •
       I declare that the above information is true and I agree to follow the company's rules.</div>
       <table style="width:100%;margin-top:16px"><tr>
@@ -9080,26 +9109,6 @@ $('empFormBtn').addEventListener('click', () => {
           <div style="border-top:1.2px solid #111;margin:0 12px;padding-top:4px;font-size:9.5px">HR / अधिकृत हस्ताक्षर</div>
         </td>
       </tr></table>
-    </div>
-
-    <div style="border:1.3px dashed #64748b;padding:6px 12px;margin-top:6px;background:#faf8f4">
-      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;margin-bottom:5px">FOR OFFICE USE ONLY / केवल कार्यालय उपयोग हेतु</div>
-      <table style="width:100%;font-size:9.5px"><tr>
-        <td style="width:25%;padding-right:12px">Employee Code${line()}</td>
-        <td style="width:25%;padding-right:12px">Unit / Location${line()}</td>
-        <td style="width:25%;padding-right:12px">Department${line()}</td>
-        <td style="width:25%">Designation${line()}</td>
-      </tr><tr>
-        <td style="padding-right:12px;padding-top:6px">Date of Joining${line()}</td>
-        <td style="padding-right:12px;padding-top:6px">Category (Worker/Staff)${line()}</td>
-        <td style="padding-right:12px;padding-top:6px">Skill Level${line()}</td>
-        <td style="padding-top:6px">Production Line${line()}</td>
-      </tr><tr>
-        <td style="padding-right:12px;padding-top:6px">Employment Type${line()}</td>
-        <td style="padding-right:12px;padding-top:6px">Offered Salary / CTC (₹)${line()}</td>
-        <td style="padding-top:6px;vertical-align:bottom" colspan="2">Roll Type: &nbsp; <span style="display:inline-block;width:12px;height:12px;border:1.3px solid #111;vertical-align:-2px"></span> On-Roll (ONR) &nbsp;&nbsp; <span style="display:inline-block;width:12px;height:12px;border:1.3px solid #111;vertical-align:-2px"></span> Off-Roll (OFR)</td>
-      </tr></table>
-      <div style="font-size:9.5px;margin-top:6px">Documents received / प्राप्त दस्तावेज़: &nbsp; Aadhaar ☐ &nbsp; Bank Proof ☐ &nbsp; Photos ☐ &nbsp; PAN ☐ &nbsp; Experience Letter ☐</div>
     </div>
   </div>`;
   setTimeout(() => { window.print(); $('printArea').innerHTML = ''; }, 150);
