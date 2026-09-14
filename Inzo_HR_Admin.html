@@ -853,6 +853,8 @@ body.no-confidential .confidential-col{display:none!important}
     <button id="payFinalizeBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-file-invoice-dollar"></i> Finalize &amp; Save All</button>
     <button id="payLopBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-list-check"></i> Paid Days / LOP Report</button>
     <button id="payDetailBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-file-excel"></i> Detailed Salary Report</button>
+    <button id="payDetailOnrBtn" class="btn btn-ghost hidden" title="Sirf ONR (On-Roll) list"><i class="fa-solid fa-file-excel"></i> Report — ONR</button>
+    <button id="payDetailOfrBtn" class="btn btn-ghost hidden" title="Sirf OFR (Off-Roll) list"><i class="fa-solid fa-file-excel"></i> Report — OFR</button>
     <button id="payPrintAllBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-print"></i> Print All Payslips</button>
     <button id="payBankBtn" class="btn btn-ghost hidden super-only"><i class="fa-solid fa-building-columns"></i> Bank Advice</button>
     <div class="ml-auto text-right">
@@ -1426,33 +1428,9 @@ body.no-confidential .confidential-col{display:none!important}
     <div id="calcOut"></div>
   </div>
 
-  <div class="card">
-    <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
-      <h3 class="display font-bold m-0"><i class="fa-solid fa-money-check-dollar" style="color:var(--brand)"></i> Salary Structure Master</h3>
-      <div class="flex gap-2 items-center flex-wrap">
-        <div class="seg">
-          <button class="seg-btn active" data-ctcfilter="ALL" onclick="ctcMasterFilter('ALL',this)">All</button>
-          <button class="seg-btn" data-ctcfilter="STAFF" onclick="ctcMasterFilter('STAFF',this)">Staff</button>
-          <button class="seg-btn" data-ctcfilter="WORKER" onclick="ctcMasterFilter('WORKER',this)">Worker</button>
-        </div>
-        <input id="ctcSearch" class="inp" placeholder="🔍 naam / code" style="width:180px" oninput="renderCtcMaster()">
-        <button class="btn btn-ghost btn-sm" onclick="ctcCsvDownload()" title="Current data CSV mein"><i class="fa-solid fa-download"></i> CSV</button>
-        <button id="ctcApproveAllBtn" class="btn btn-primary btn-sm" onclick="ctcBulkApprove(false)" style="display:none" title="Saari CEO-pending salary ek saath approve"><i class="fa-solid fa-check-double"></i> Approve All Pending <span id="ctcPendCount" class="chip chip-warn" style="font-size:10px;margin-left:4px">0</span></button>
-        <label class="btn btn-ghost btn-sm" style="cursor:pointer" title="CSV se bulk CTC update"><i class="fa-solid fa-upload"></i> Upload
-          <input type="file" id="ctcCsvFile" accept=".csv" style="display:none" onchange="ctcCsvUpload(this)">
-        </label>
-      </div>
-    </div>
-    <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Annual CTC edit karo → <b>Lock &amp; CEO ko bhejo</b> → CEO approve karega tabhi us employee ki salary set hogi. Row ke ▸ se poora breakup.</p>
-    <div id="ctcBulkBar" style="display:none;align-items:center;gap:8px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:8px 12px;margin-bottom:8px;flex-wrap:wrap">
-      <b style="font-size:12px"><span id="ctcBulkCount">0</span> selected</b>
-      <span style="font-size:11px;color:var(--muted)">Set for selected:</span>
-      <button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('pf',true)">PF ✓</button><button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('pf',false)">PF ✗</button>
-      <button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('esi',true)">ESI ✓</button><button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('esi',false)">ESI ✗</button>
-      <button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('lwf',true)">LWF ✓</button><button class="btn btn-ghost btn-sm" onclick="ctcBulkFlag('lwf',false)">LWF ✗</button>
-      <button class="btn btn-primary btn-sm" onclick="ctcBulkApprove(true)" title="Selected CEO-pending approve"><i class="fa-solid fa-check-double"></i> Approve Selected (CEO)</button>
-    </div>
-    <div style="overflow:auto"><table class="reg" id="ctcMasterTbl" style="font-size:12px;min-width:1000px" oninput="if(event.target.id&&event.target.id.indexOf('ctcIn_')===0){_ctcDraft[event.target.id.slice(6)]=Number(event.target.value)||0;clearTimeout(window._ctcRT);window._ctcRT=setTimeout(renderCtcMaster,700);}"></table></div>
+  <div class="card" style="border-left:3px solid var(--brand)">
+    <h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-circle-info" style="color:var(--brand)"></i> Salary edit — ab Profile se</h3>
+    <p class="text-xs mt-0 mb-0" style="color:var(--muted)">Kisi employee ka salary structure change karne ke liye <b>Employees → us employee ka Profile → Salary</b> section use karein. Yahan wala Quick CTC Calculator sirf ek helper hai (kisi employee par apply nahi karta). CEO approval Dashboard ke "Salary Approvals Pending" se hota hai.</p>
   </div>
 </div>
 <div class="page" id="page-settings">
@@ -3808,7 +3786,10 @@ function ctcToGross(ctc){
   }
   return Math.max(0, Math.round(g));
 }
-$('empAddBtn').addEventListener('click', () => {
+// Manual "Add Employee" -> sidha Profile (second) screen new-employee mode me khulti hai.
+// (candidate / work-pass conversion abhi bhi purani Add-form use karte hain -> openAddEmpForm)
+$('empAddBtn').addEventListener('click', () => openNewEmpModal());
+function openAddEmpForm(){
   window._convertingWorkPass = null;   // normal add -> koi work-pass conversion context nahi (convertWorkPass isse baad me set karta hai)
   renderLines(); renderUnits(); populateDLs();
   const _units = (getSettings().units || []);
@@ -3826,7 +3807,80 @@ $('empAddBtn').addEventListener('click', () => {
   const showSal = canSeeConfidential();
   if($('aeSalaryBlock')) $('aeSalaryBlock').style.display = showSal ? '' : 'none';
   $('addEmpModal').classList.add('show');
-});
+}
+// ===== NEW EMPLOYEE — sidha Profile (second) screen, ek hi jagah saari details =====
+function openNewEmpModal(){
+  window._convertingWorkPass = null;
+  window._convertingCandidate = null;
+  window._epNewMode = true;
+  _wireExitAuto(); _wireEpTabs(); epSwitchTab('basic');
+  populateDLs(); renderLines();
+  const units = (SETTINGS && SETTINGS.units) || (getSettings().units || []);
+  // header
+  $('epCode').value = '';
+  $('epAvatar').innerHTML = '+'; $('epAvatar').style.overflow = 'hidden';
+  $('epNameShow').innerText = 'New Employee';
+  $('epMetaShow').innerText = 'Saari details bharo, phir Save Profile — code Unit choose karte hi auto banega';
+  // Unit -> auto code (blank first, taaki conscious choice ho)
+  $('epUnitSel').innerHTML = '<option value="">— Select Unit / Location —</option>' +
+    units.map(u => `<option value="${esc(u.code)}">${esc(u.code)} — ${esc(u.name||'')}</option>`).join('');
+  window._epOrigUnit = '';
+  $('epCodeChg').classList.add('hidden'); $('epCodeChgChk').checked = false;
+  $('epUnitSel').onchange = () => {
+    const nu = $('epUnitSel').value;
+    $('epCode').value = nu ? nextCodeFor(nu) : '';
+    window._epOrigUnit = nu;
+    $('epMetaShow').innerText = nu ? ('New Employee • code ' + $('epCode').value) : 'Saari details bharo, phir Save Profile — code Unit choose karte hi auto banega';
+  };
+  // Dept / Desig (blank -> mandatory choose)
+  $('epDeptSel').innerHTML = window.nxDeptOpts('');
+  $('epDesigSel').innerHTML = window.nxDesigOpts('');
+  // BASIC — blank
+  $('epName').value = ''; $('epDOJ').value = todayISO();
+  $('epPhone').value = ''; $('epEmail').value = '';
+  $('epFather').value = ''; $('epDOB').value = ''; $('epGender').value = '';
+  if($('epMarital')) $('epMarital').value = '';
+  if($('epAadhaar')) $('epAadhaar').value = '';
+  if($('epIdNo')) $('epIdNo').value = '';
+  $('epAddr').value = '';
+  // JOB — defaults
+  $('epStatus').value = 'ACTIVE';
+  $('epExitDate').value = ''; $('epExitReason').value = '';
+  $('epGrade').value = ''; $('epType').value = 'Permanent';
+  if($('epRoll')) $('epRoll').value = '';
+  $('epCatSel').value = 'STAFF';
+  $('epContractor').value = ''; $('epContractorPh').value = ''; epContractorToggle();
+  $('epSkill').value = '';
+  $('epLine').value = '';
+  $('epManager').value = '';
+  $('mgrDL').innerHTML = EMP.filter(x => /MANAGER|EXECUTIVE|INCHARGE|SUPERVISOR|CEO|DIRECTOR/i.test(String(x.DESIGNATION||'')) && String(x.Status).toUpperCase()==='ACTIVE')
+    .map(x => `<option value="${esc(x.Name)} (${esc(x['Employee code'])})">${esc(x.DESIGNATION||'')}</option>`).join('');
+  $('epEmName').value = ''; $('epEmPhone').value = '';
+  if($('epEmRel')) $('epEmRel').value = '';
+  if($('epNomName')) $('epNomName').value = '';
+  if($('epNomRel')) $('epNomRel').value = '';
+  if($('epSection')) $('epSection').value = '';
+  // SALARY — blank structure
+  buildSalaryInputs('__new__');
+  const showSal = canSeeConfidential();
+  if($('epSalarySection')) $('epSalarySection').classList.toggle('hidden', !showSal);
+  if($('epSalaryHidden')) $('epSalaryHidden').classList.toggle('hidden', showSal);
+  $('epPF').checked = true; $('epESI').checked = true; $('epPT').checked = true; $('epLWF').checked = true;
+  $('epRegime').value = 'none'; $('epDecl').value = 0;
+  $('epOT').checked = false; $('epEssAtt').checked = false;
+  if($('epSalStatus')) $('epSalStatus').innerHTML = '';
+  if($('epRevList')) $('epRevList').innerHTML = '<div class="text-xs" style="color:var(--muted)">Save ke baad Salary Revision History yahan dikhegi</div>';
+  if($('epCTC')) $('epCTC').value = '';
+  // BANK
+  $('epBank').value = ''; $('epAcc').value = ''; $('epIFSC').value = '';
+  $('epPAN').value = ''; $('epUAN').value = ''; $('epESINo').value = '';
+  // FACE / DOCS — code milne ke baad (Save ke baad)
+  if($('epFaceStatus')){ $('epFaceStatus').className = 'chip chip-gray'; $('epFaceStatus').textContent = 'Save ke baad face register hoga'; }
+  if($('epFaceFile')) $('epFaceFile').value = '';
+  if($('docList')) $('docList').innerHTML = '<div class="text-xs" style="color:var(--muted)">Save ke baad documents upload kar sakte ho</div>';
+  updateGrossPreview();
+  $('empModal').classList.add('show');
+}
 $('aeSaveBtn').addEventListener('click', async () => {
   const name = $('aeName').value.trim().toUpperCase();
   if(!$('aeUnit').value) return notify('Select the Unit / Location first — the employee code comes from it', 'error');
@@ -3958,6 +4012,7 @@ function _wireEpTabs(){
   document.querySelectorAll('.ep-tab').forEach(t => t.addEventListener('click', () => epSwitchTab(t.dataset.eptab)));
 }
 async function openEmpModal(code){
+  window._epNewMode = false;   // ye existing employee edit hai (new-employee mode band)
   _wireExitAuto();
   _wireEpTabs();
   epSwitchTab('basic');   // hamesha pehle tab se shuru
@@ -4704,6 +4759,48 @@ $('epCTCBtn').addEventListener('click', () => epBuildFromCTC(false));
 
 $('epSaveBtn').addEventListener('click', async () => {
   const btn = $('epSaveBtn');
+  // ===== NEW EMPLOYEE mode: pehle master row insert karo, phir normal profile save =====
+  const _isNew = window._epNewMode === true;
+  if(_isNew){
+    // saare zaroori fields — bina bhare save nahi
+    const name0 = $('epName').value.trim().toUpperCase();
+    const _req = [
+      ['epUnitSel','Unit / Location'], ['epName','Full Name'], ['epFather',"Father's Name"],
+      ['epDOB','Date of Birth'], ['epGender','Gender'], ['epPhone','Phone'], ['epEmail','Email'],
+      ['epEmPhone','Emergency Phone'], ['epAddr','Address'], ['epDeptSel','Department'],
+      ['epDesigSel','Designation'], ['epDOJ','Date of Joining'], ['epType','Employment Type'],
+      ['epRoll','Roll Type (ONR/OFR)'], ['epManager','Reporting Manager'], ['epBank','Bank Name'],
+      ['epAcc','Account No'], ['epIFSC','IFSC'], ['epPAN','PAN']
+    ];
+    for(let i=0;i<_req.length;i++){ const el=$(_req[i][0]); if(!el || !String(el.value||'').trim()){ epSwitchTab(/^(epUnitSel|epName|epFather|epDOB|epGender|epPhone|epEmail|epEmPhone|epAddr|epDeptSel|epDesigSel|epDOJ)$/.test(_req[i][0])?'basic':(/^(epBank|epAcc|epIFSC|epPAN)$/.test(_req[i][0])?'bank':'job')); return notify(_req[i][1] + ' bharna zaroori hai', 'error'); } }
+    if(($('epPhone').value||'').replace(/\D/g,'').length < 10) return notify('Phone sahi 10-digit hona chahiye', 'error');
+    if(($('epEmPhone').value||'').replace(/\D/g,'').length < 10) return notify('Emergency Phone sahi 10-digit hona chahiye', 'error');
+    if(($('epEmail').value||'').indexOf('@') < 1) return notify('Sahi Email daalein', 'error');
+    if(($('epPAN').value||'').trim().length !== 10) return notify('PAN 10-character ka hona chahiye', 'error');
+    const unit0 = $('epUnitSel').value;
+    let code0 = ($('epCode').value||'').trim().toUpperCase() || nextCodeFor(unit0);
+    // race-safe: agar ye code kisi wajah se already hai to next le lo
+    while(EMP.some(x => String(x['Employee code']).toUpperCase() === code0)) code0 = nextCodeFor(unit0);
+    $('epCode').value = code0;
+    btn.innerHTML = '<div class="loader-ring"></div> Adding…'; btn.disabled = true;
+    try{
+      const { error: eIns } = await sb.from('employees').insert([{
+        Name: name0, 'Employee code': code0, Status: 'Active',
+        DEPARTMENT: String($('epDeptSel').value||'').trim().toUpperCase() || null,
+        DESIGNATION: String($('epDesigSel').value||'').trim().toUpperCase() || null,
+        DOJ: $('epDOJ').value || null, UNIT: unit0 || null,
+        LINE: (($('epCatSel').value === 'WORKER') ? (String($('epLine').value||'').trim().toUpperCase() || null) : null)
+      }]);
+      if(eIns) throw eIns;
+      EMP.push({ 'Employee code': code0, Name: name0, Status: 'Active',
+        DEPARTMENT: String($('epDeptSel').value||'').trim().toUpperCase(),
+        DESIGNATION: String($('epDesigSel').value||'').trim().toUpperCase(),
+        DOJ: $('epDOJ').value, UNIT: unit0,
+        LINE: ($('epCatSel').value === 'WORKER') ? String($('epLine').value||'').trim().toUpperCase() : '' });
+    }catch(err){ btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Profile'; btn.disabled = false; return notify('Add fail: ' + (err.message||err), 'error'); }
+    // ab ye normal edit ban gaya — neeche ka upsert/update chalega
+    window._epNewMode = false;
+  }
   btn.innerHTML = '<div class="loader-ring"></div> Saving…'; btn.disabled = true;
   try{
     const earn = {}, ded = {};
@@ -4812,8 +4909,15 @@ $('epSaveBtn').addEventListener('click', async () => {
       empRec.LINE = newLine;
     }
     renderEmployees($('empSearch').value);
-    notify('Profile saved', 'success');
-    $('empModal').classList.remove('show');
+    if(_isNew){
+      const _nc = $('epCode').value;
+      notify('Naya employee add ho gaya (' + _nc + ') — ab Face/Documents bhi laga sakte ho', 'success');
+      await loadCore();
+      openEmpModal(_nc);   // ab edit-mode me khula rahe (Face/Docs tabs kaam karein)
+    } else {
+      notify('Profile saved', 'success');
+      $('empModal').classList.remove('show');
+    }
   }catch(err){ notify(err.message, 'error'); }
   finally{ btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Profile'; btn.disabled = false; }
 });
@@ -5704,7 +5808,7 @@ async function convertCandidate(id){
   if(!c) return;
   if(!(await nxConfirm(`Convert ${c.name} into an employee? This opens the Add Employee form pre-filled.`, 'Convert to Employee'))) return;
   $('candModal').classList.remove('show');
-  $('empAddBtn').click();
+  openAddEmpForm();
   setTimeout(() => {
     if($('aeName')) $('aeName').value = c.name;
     if($('aePhone')) $('aePhone').value = c.phone||'';
@@ -5725,7 +5829,7 @@ async function convertWorkPass(id){
   // trial attendance abhi utha lo (Add ke baad sync karenge)
   let attRows = [];
   try{ const { data: att } = await sb.rpc('wp_att', { p_id: id }); attRows = att || []; }catch(e){}
-  $('empAddBtn').click();   // Add Employee modal khulta hai (units/dept/desig populate)
+  openAddEmpForm();   // Add Employee modal khulta hai (units/dept/desig populate)
   setTimeout(() => {
     if($('aeName')) $('aeName').value = String(w.name||'').toUpperCase();
     if($('aePhone')) $('aePhone').value = w.phone || '';
@@ -6519,6 +6623,7 @@ async function runPayroll(){
         $('payBankBtn').classList.remove('hidden');
         $('payLopBtn').classList.remove('hidden');
     $('payDetailBtn').classList.remove('hidden');
+    $('payDetailOnrBtn').classList.remove('hidden'); $('payDetailOfrBtn').classList.remove('hidden');
         notify(`${monthLabel(ym)} FINALIZED hai — saved (frozen) payslips dikha rahe hain, dobara calculate nahi kiya. Badalna ho to Unlock karein.`, 'info');
         return;   // finally block button reset kar dega
       }
@@ -6854,6 +6959,7 @@ async function runPayroll(){
     $('payBankBtn').classList.remove('hidden');
     $('payLopBtn').classList.remove('hidden');
     $('payDetailBtn').classList.remove('hidden');
+    $('payDetailOnrBtn').classList.remove('hidden'); $('payDetailOfrBtn').classList.remove('hidden');
     if(CONTRACT_ROWS.length){
       notify(CONTRACT_ROWS.length + ' contract employee(s) shown separately below (paid by contractor)', 'info');
     }
@@ -7472,18 +7578,21 @@ $('payLopBtn').addEventListener('click', () => {
   dlText('PaidDays_LOP_' + PAY_MONTH + '.csv', String.fromCharCode(0xFEFF) + lines.join('\n'), 'text/csv;charset=utf-8');
   notify('Paid Days / LOP report download ho gaya — ' + rows.length + ' employees', 'success');
 });
-$('payDetailBtn').addEventListener('click', () => {
+function downloadPayrollReport(rollFilter){   // '' = all, 'ONR', 'OFR'
   if(!PAY_ROWS.length) return notify('Pehle payroll calculate karein', 'error');
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
   const n = v => Math.round(Number(v)||0);
   const comp = (r,k) => { const c=(r.comps||[]).find(x=>x.k===k); return c?n(c.amt):0; };
-  const header = ['S.No','Emp Code','Employee Name','Department','Designation','Category',
+  const rollOf = code => String((PROFILES[code]||{}).roll_type||'').toUpperCase();
+  const header = ['S.No','Emp Code','Employee Name','Department','Designation','Category','Roll Type',
     'Month Days','Present','Paid Leave','Earned Week-Off','Earned Holiday','Absent (LOP days)','Paid Days',
     'Full Gross','Earned Gross','Basic','HRA','Conveyance','Special Allowance',
     'OT Pay','Bonus','Arrears','Kaizen Reward','Leave Encash','Total Earnings',
     'PF','ESI','Prof. Tax','LWF','TDS','Advance/Loan EMI','Other Deduction','Total Deductions',
     'NET PAY','Employer PF','Employer ESI','Employer LWF','Status'];
-  const rows = PAY_ROWS.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  let rows = PAY_ROWS.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  if(rollFilter) rows = rows.filter(r => rollOf(r.code) === rollFilter);
+  if(!rows.length) return notify('Is Roll Type ('+rollFilter+') ka koi employee nahi mila', 'error');
   const lines = [header.join(',')];
   let T = { eg:0, earn:0, ded:0, net:0, erpf:0, eresi:0, erlwf:0 };
   rows.forEach((r,i) => {
@@ -7496,7 +7605,7 @@ $('payDetailBtn').addEventListener('click', () => {
     T.erpf+=n(r.erPF); T.eresi+=n(r.erESI); T.erlwf+=n(r.erLWF);
     const stU = String((EMP.find(e=>e['Employee code']===r.code)||{}).Status||'ACTIVE').toUpperCase();
     lines.push([
-      i+1, q(r.code), q(r.name), q(r.dept||''), q(r.desig||''), q(r.category||''),
+      i+1, q(r.code), q(r.name), q(r.dept||''), q(r.desig||''), q(r.category||''), q(rollOf(r.code)||'—'),
       n(r.dim), n(r.present), n(r.leaveDays), n(r.earnedWO), n(r.earnedH), n(r.absentWorking), r.paidDays,
       n(r.fullGross), n(r.earnedGross), comp(r,'basic'), comp(r,'hra'), comp(r,'conveyance'), comp(r,'special_allowance'),
       otPay, bonus, arrears, reward, encash, totalEarn,
@@ -7506,12 +7615,16 @@ $('payDetailBtn').addEventListener('click', () => {
   });
   const tot = new Array(header.length).fill('');
   tot[1] = q('TOTAL — '+rows.length+' employees');
-  tot[14] = T.eg; tot[24] = T.earn; tot[32] = T.ded; tot[33] = T.net;
-  tot[34] = T.erpf; tot[35] = T.eresi; tot[36] = T.erlwf;
+  tot[15] = T.eg; tot[25] = T.earn; tot[33] = T.ded; tot[34] = T.net;
+  tot[35] = T.erpf; tot[36] = T.eresi; tot[37] = T.erlwf;
   lines.push(tot.join(','));
-  dlText('Payroll_Detailed_'+PAY_MONTH+'.csv', String.fromCharCode(0xFEFF)+lines.join('\n'), 'text/csv;charset=utf-8');
-  notify('Detailed salary report download ho gaya — '+rows.length+' employees', 'success');
-});
+  const suffix = rollFilter ? ('_'+rollFilter) : '';
+  dlText('Payroll_Detailed'+suffix+'_'+PAY_MONTH+'.csv', String.fromCharCode(0xFEFF)+lines.join('\n'), 'text/csv;charset=utf-8');
+  notify('Detailed salary report'+(rollFilter?(' ('+rollFilter+')'):'')+' download ho gaya — '+rows.length+' employees', 'success');
+}
+$('payDetailBtn').addEventListener('click', () => downloadPayrollReport(''));
+$('payDetailOnrBtn').addEventListener('click', () => downloadPayrollReport('ONR'));
+$('payDetailOfrBtn').addEventListener('click', () => downloadPayrollReport('OFR'));
 $('payPrintAllBtn').addEventListener('click', () => {
   const rows = PAY_ROWS.filter(r => r.hasSalary && r.hasPay !== false);
   if(!rows.length) return notify('No payslips to print (all filtered employees have zero attendance this month)', 'error');
@@ -9105,8 +9218,8 @@ $('empFormBtn').addEventListener('click', () => {
           <div style="border-top:1.2px solid #111;margin:0 12px;padding-top:4px;font-size:9.5px">Employee / Candidate<br>हस्ताक्षर व तिथि</div>
         </td>
         <td style="text-align:center;width:33.33%;vertical-align:bottom">
-          <div style="height:40px"><img src="signature.png" alt="" style="height:38px;width:auto;display:inline-block" onerror="this.style.display='none'"></div>
-          <div style="border-top:1.2px solid #111;margin:0 12px;padding-top:4px;font-size:9.5px">HR / अधिकृत हस्ताक्षर</div>
+          <div style="height:40px"></div>
+          <div style="border-top:1.2px solid #111;margin:0 12px;padding-top:4px;font-size:9.5px">HR<br>हस्ताक्षर व तिथि</div>
         </td>
       </tr></table>
     </div>
