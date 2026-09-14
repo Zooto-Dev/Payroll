@@ -3808,6 +3808,28 @@ $('empAddBtn').addEventListener('click', () => {
 $('aeSaveBtn').addEventListener('click', async () => {
   const name = $('aeName').value.trim().toUpperCase();
   if(!$('aeUnit').value) return notify('Select the Unit / Location first — the employee code comes from it', 'error');
+  // ===== MANDATORY: har field bharna zaroori — bina bhare save nahi hoga =====
+  const _req = [
+    ['aeName','Full Name'], ['aeFather',"Father's Name"], ['aeDOB','Date of Birth'], ['aeGender','Gender'],
+    ['aePhone','Phone'], ['aeEmail','Email'], ['aeEmergency','Emergency Contact'], ['aeAddress','Address'],
+    ['aeDept','Department'], ['aeDesig','Designation'], ['aeDOJ','Date of Joining'], ['aeEmpType','Employment Type'],
+    ['aeMgr','Reporting Manager'], ['aeBank','Bank Name'], ['aeAcc','Account No'], ['aeIFSC','IFSC'], ['aePAN','PAN']
+  ];
+  for(let _i=0;_i<_req.length;_i++){ const el=$(_req[_i][0]); if(!el || !String(el.value||'').trim()) return notify(_req[_i][1] + ' bharna zaroori hai', 'error'); }
+  // Line — management ke alawa sabke liye zaroori
+  if($('aeCat').value !== 'mgmt' && !String(($('aeLine')||{}).value||'').trim()) return notify('Production Line bharna zaroori hai', 'error');
+  // Contractor fields — sirf Contract type par
+  if($('aeEmpType').value === 'Contract'){
+    if(!String($('aeContractor').value||'').trim()) return notify('Contractor Name bharna zaroori hai', 'error');
+    if(!String($('aeContractorPh').value||'').trim()) return notify('Contractor Phone bharna zaroori hai', 'error');
+  }
+  // format checks
+  if(($('aePhone').value||'').replace(/\D/g,'').length < 10) return notify('Phone sahi 10-digit hona chahiye', 'error');
+  if(($('aeEmergency').value||'').replace(/\D/g,'').length < 10) return notify('Emergency Contact sahi 10-digit hona chahiye', 'error');
+  if(($('aeEmail').value||'').indexOf('@') < 1) return notify('Sahi Email daalein', 'error');
+  if(($('aePAN').value||'').trim().length !== 10) return notify('PAN 10-character ka hona chahiye', 'error');
+  // salary (agar dikhta hai): management -> CTC zaroori
+  if(canSeeConfidential() && $('aeCat').value === 'mgmt' && !(Number($('aeCTC').value) > 0)) return notify('Monthly CTC bharna zaroori hai', 'error');
   const code = $('aeCode').value.trim().toUpperCase() || nextCodeFor($('aeUnit').value);
   if(name && code){
     var aeOTAllowed = await nxConfirm('Kya "' + name + '" ko overtime allowed hai?\n\nOK = YES (OT milega)\nCancel = NO (OT kabhi nahi)', 'Overtime Allowed?');
@@ -8975,6 +8997,10 @@ $('empFormBtn').addEventListener('click', () => {
       <td>${F('Marital Status','वैवाहिक स्थिति', CB(['Married / विवाहित','Single / अविवाहित']))}</td>
     </tr></table>
     ${F('Mobile Number','मोबाइल नंबर', boxes(10))}
+    <table style="width:100%"><tr>
+      <td style="width:62%;padding-right:14px">${F('Email','ईमेल', line())}</td>
+      <td>${F('Blood Group','ब्लड ग्रुप', line())}</td>
+    </tr></table>
     ${F('Full Address','पूरा पता', line() + '<div style="height:8px"></div>' + line())}
 
     ${SEC('2','BANK DETAILS','बैंक विवरण')} 
@@ -8995,6 +9021,18 @@ $('empFormBtn').addEventListener('click', () => {
       <td style="width:45%;padding-right:14px">${F('Name','नाम', line())}</td>
       <td style="width:22%;padding-right:14px">${F('Relation','रिश्ता', line())}</td>
       <td>${F('Mobile','मोबाइल', boxes(10))}</td>
+    </tr></table>
+
+    ${SEC('5','NOMINEE DETAILS (PF / Gratuity)','नामिती विवरण (पी.एफ. / ग्रेच्युटी)')}
+    ${F('Nominee Name','नामिती का नाम', line())}
+    <table style="width:100%"><tr>
+      <td style="width:30%;padding-right:14px">${F('Relation','रिश्ता', line())}</td>
+      <td style="width:34%;padding-right:14px">${F('Date of Birth','जन्म तिथि', '<div style="display:flex;align-items:center;gap:6px">' + boxes(2) + '<b>/</b>' + boxes(2) + '<b>/</b>' + boxes(4) + '</div>')}</td>
+      <td>${F('Share %','हिस्सा %', line())}</td>
+    </tr></table>
+    <table style="width:100%"><tr>
+      <td style="width:55%;padding-right:14px">${F('Nominee Aadhaar','नामिती आधार', boxes(12))}</td>
+      <td>${F('Nominee Mobile','नामिती मोबाइल', boxes(10))}</td>
     </tr></table>
 
     <div style="border:1.3px solid #475569;padding:9px 12px;margin-top:14px">

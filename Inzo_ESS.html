@@ -1322,8 +1322,12 @@ async function supSubmit(imgData){
 async function wpEssCreate(){
   const nm = ($('wpeName').value||'').trim();
   if(!nm) return notify('Worker ka naam bharo');
+  // Mobile number MANDATORY + valid 10-digit (verify)
+  let dig = (($('wpePhone').value||'').trim()).replace(/[^0-9]/g,'');
+  if(dig.length===12 && dig.slice(0,2)==='91') dig = dig.slice(2);
+  if(dig.length!==10) return notify('Sahi 10-digit mobile number zaroori hai — bina number ke pass nahi banega');
   try{
-    const { data, error } = await sb.rpc('wp_create', { p_name: nm, p_phone: ($('wpePhone').value||'').trim(), p_dept: ($('wpeDept').value||'').trim(), p_line: ($('wpeLine').value||'').trim(), p_sup: _wpSupTag() });
+    const { data, error } = await sb.rpc('wp_create', { p_name: nm, p_phone: dig, p_dept: ($('wpeDept').value||'').trim(), p_line: ($('wpeLine').value||'').trim(), p_sup: _wpSupTag() });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
     notify('✓ Work Pass ban gaya: ' + data.pass_no + ' (3 din valid) — worker ab VMS kiosk par IN/OUT karega');
