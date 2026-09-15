@@ -822,14 +822,16 @@ body.no-confidential .confidential-col{display:none!important}
 
 <!-- ================= TRIAL WORKERS (WORK PASS) ================= -->
 <div class="page" id="page-trial">
+  <div class="ap-tabs">
+    <button class="ap-tab active" data-trtab="conv"><i class="fa-solid fa-user-check"></i> Convert Requests <span class="ap-cnt" id="trCntConv">0</span></button>
+    <button class="ap-tab" data-trtab="active"><i class="fa-solid fa-id-card-clip"></i> Active Trial Workers <span class="ap-cnt" id="trCntActive">0</span></button>
+    <button class="ap-tab" data-trtab="att"><i class="fa-solid fa-calendar-days"></i> Daily Attendance <span class="ap-cnt" id="trCntAtt">0</span></button>
+    <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="loadTrialPage()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+  </div>
   <div class="card" style="padding:0;overflow:hidden">
-    <div class="p-3 border-b flex items-center gap-3 flex-wrap" style="border-color:var(--line)">
-      <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-id-card-clip" style="color:var(--brand)"></i> Trial Workers (Work Pass)</h3>
-      <span class="chip chip-blue">Convert: <b id="trialCntConv">0</b></span>
-      <span class="chip chip-warn">Active: <b id="trialCntActive">0</b></span>
-      <button class="btn btn-ghost btn-sm ml-auto" onclick="loadTrialPage()"><i class="fa-solid fa-rotate"></i> Refresh</button>
-    </div>
-    <div id="trialWrap" class="text-sm" style="padding:0"><p class="p-4 m-0 text-xs" style="color:var(--muted)">Loading…</p></div>
+    <div class="tr-panel" id="trPanel-conv"><div id="trConv" class="text-sm" style="padding:0"><p class="p-4 m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
+    <div class="tr-panel hidden" id="trPanel-active"><div id="trActive" class="text-sm" style="padding:0"></div></div>
+    <div class="tr-panel hidden" id="trPanel-att"><div id="trAtt" class="text-sm" style="padding:0"></div></div>
   </div>
 </div>
 
@@ -11602,19 +11604,17 @@ async function loadSupAttApprovals(){
     </div>`).join('');
   }catch(e){ host.innerHTML = `<p class="p-4 m-0 text-xs" style="color:var(--bad)">Error: ${esc(e.message||e)} — V89 SQL chalaya?</p>`; }
 }
-// ===== Trial Workers page — supervisor ke banaye passes + convert requests + daily attendance =====
+// ===== Trial Workers page — 3 tabs: Convert Requests | Active Trial Workers | Daily Attendance =====
 async function loadTrialPage(){
-  const host = $('trialWrap'); if(!host) return;
-  host.innerHTML = '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Loading…</p>';
+  const cHost = $('trConv'), aHost = $('trActive'), attHost = $('trAtt');
+  if(!cHost) return;
+  cHost.innerHTML = '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Loading…</p>';
   try{
     const { data } = await sb.rpc('wp_list');
     const list = (data||[]).filter(w => ['ACTIVE','CONVERT_REQUESTED'].includes(String(w.status)));
     const conv = list.filter(w => String(w.status) === 'CONVERT_REQUESTED');
     const active = list.filter(w => String(w.status) === 'ACTIVE');
     window._wpPending = conv;   // convertWorkPass() isse details uthata hai
-    if($('trialCntConv')) $('trialCntConv').innerText = conv.length;
-    if($('trialCntActive')) $('trialCntActive').innerText = active.length;
-    if($('trialBadge')){ const n = conv.length; $('trialBadge').innerText = n; $('trialBadge').classList.toggle('hidden', !n); }
     // har worker ki daily attendance (parallel)
     const attMap = {};
     await Promise.all(list.map(async w => { try{ const { data: att } = await sb.rpc('wp_att', { p_id: w.id }); attMap[w.id] = att||[]; }catch(e){ attMap[w.id] = []; } }));
@@ -11633,14 +11633,38 @@ async function loadTrialPage(){
         <span class="text-[11px]" style="color:var(--muted)">Approve karte hi Add Employee form khulega — trial attendance apne aap sync ho jayegi.</span>
       </div>` : ''}
     </div>`;
-    let out = '';
-    out += `<div class="p-3 text-xs font-bold" style="background:var(--brand-soft);border-bottom:1px solid var(--line)"><i class="fa-solid fa-user-check" style="color:var(--brand)"></i> Convert Requests (${conv.length}) — supervisor ne "Employee Banao" bheja</div>`;
-    out += conv.length ? conv.map(w => card(w, true)).join('') : '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi convert request pending nahi.</p>';
-    out += `<div class="p-3 text-xs font-bold" style="background:#faf8f4;border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><i class="fa-solid fa-id-card-clip"></i> Active Trial Workers (${active.length}) — supervisor ke banaye, daily attendance ke saath</div>`;
-    out += active.length ? active.map(w => card(w, false)).join('') : '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi active trial worker nahi.</p>';
-    host.innerHTML = out;
-  }catch(e){ host.innerHTML = `<p class="p-4 m-0 text-xs" style="color:var(--bad)">Error: ${esc(e.message||e)}</p>`; }
+
+    // Tab 1 — Convert Requests
+    cHost.innerHTML = conv.length ? conv.map(w => card(w, true)).join('') : '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi convert request pending nahi.</p>';
+    // Tab 2 — Active Trial Workers
+    if(aHost) aHost.innerHTML = active.length ? active.map(w => card(w, false)).join('') : '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi active trial worker nahi.</p>';
+    // Tab 3 — Daily Attendance (saare trial workers ki, date-wise)
+    const attRows = [];
+    list.forEach(w => (attMap[w.id]||[]).forEach(a => attRows.push({ w, a })));
+    attRows.sort((x, y) => String(y.a.date).localeCompare(String(x.a.date)) || String(x.w.name).localeCompare(String(y.w.name)));
+    if(attHost) attHost.innerHTML = attRows.length ? `<div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>Date</th><th>Name</th><th>Pass</th><th>Supervisor</th><th>IN</th><th>OUT</th></tr></thead><tbody>
+      ${attRows.map(({w, a}) => `<tr>
+        <td class="text-xs">${esc(a.date)}</td>
+        <td class="font-semibold">${esc(w.name)} <span class="chip ${String(w.status)==='CONVERT_REQUESTED'?'chip-blue':'chip-warn'}" style="font-size:9px">${String(w.status)==='CONVERT_REQUESTED'?'Convert':'Trial'}</span></td>
+        <td class="text-xs">${esc(w.pass_no||'—')}</td>
+        <td class="text-xs">${esc(w.supervisor||'—')}</td>
+        <td>${esc(String(a.in_time||'').slice(0,5)||'—')}${a.in_photo_url?` <a href="${esc(a.in_photo_url)}" target="_blank" title="IN photo">📷</a>`:''}</td>
+        <td>${esc(String(a.out_time||'').slice(0,5)||'—')}</td></tr>`).join('')}
+      </tbody></table></div>` : '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Abhi tak koi trial attendance nahi.</p>';
+
+    // counts
+    if($('trCntConv')) $('trCntConv').innerText = conv.length;
+    if($('trCntActive')) $('trCntActive').innerText = active.length;
+    if($('trCntAtt')) $('trCntAtt').innerText = attRows.length;
+    if($('trialBadge')){ const n = conv.length; $('trialBadge').innerText = n; $('trialBadge').classList.toggle('hidden', !n); }
+  }catch(e){ cHost.innerHTML = `<p class="p-4 m-0 text-xs" style="color:var(--bad)">Error: ${esc(e.message||e)}</p>`; }
 }
+// Trial page tab switching
+document.querySelectorAll('.ap-tab[data-trtab]').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('.ap-tab[data-trtab]').forEach(x => x.classList.toggle('active', x === t));
+  document.querySelectorAll('.tr-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'trPanel-' + t.dataset.trtab));
+}));
 async function loadApprovals(){
   loadSupAttApprovals();
   const [lv, ot, ex, ea] = await Promise.all([
@@ -11871,7 +11895,8 @@ async function apExMode(mode){
     </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing approved yet.</p>';
 }
 document.querySelectorAll('.ap-tab').forEach(t => t.addEventListener('click', () => {
-  document.querySelectorAll('.ap-tab').forEach(x => x.classList.toggle('active', x === t));
+  if(!t.dataset.aptab) return;   // trial-page tabs (data-trtab) ka apna handler hai
+  document.querySelectorAll('.ap-tab[data-aptab]').forEach(x => x.classList.toggle('active', x === t));
   document.querySelectorAll('.ap-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'apPanel-' + t.dataset.aptab));
 }));
 
