@@ -2432,6 +2432,10 @@ function showAttList(kind){
   if(kind === 'present'){
     title = 'Present Today';
     list = rows.map(r => ({ code:r.employee_code, name: r.Name || nameOf(r.employee_code), dept:(EMP.find(e=>e['Employee code']===r.employee_code)||{}).DEPARTMENT||'', shift: shiftNameOf(r.employee_code), time: cleanInTime(r), late: isRowLate(r), photo: r.in_photo_url }));
+    // Trial Workers (Work Pass) jo aaj present hain (today_in) — inhe bhi Present list me jodo
+    (window._trialList||[]).filter(w => w.today_in && /[0-9]/.test(String(w.today_in))).forEach(w => {
+      list.push({ code: w.pass_no || '—', name: w.name, dept: (w.department||'') + (w.line ? ' · ' + w.line : ''), shift: 'TRIAL', time: String(w.today_in||'').slice(0,5), late:false, trial:true });
+    });
   } else if(kind === 'late'){
     title = 'Late Today';
     list = rows.filter(isRowLate).map(r => ({ code:r.employee_code, name: r.Name || nameOf(r.employee_code), dept:(EMP.find(e=>e['Employee code']===r.employee_code)||{}).DEPARTMENT||'', shift: shiftNameOf(r.employee_code), time: cleanInTime(r), late:true, photo: r.in_photo_url }));
@@ -2473,10 +2477,10 @@ function showAttList(kind){
     rowsHtml = list.map((x,i) => `<tr>
       <td style="color:var(--muted)">${i+1}</td>
       <td><b>${esc(x.name)}</b></td><td>${esc(x.code)}</td><td>${esc(x.dept||'—')}</td>
-      <td>${shChip(x.shift)}</td>
+      <td>${x.trial ? '<span class="chip chip-blue" style="font-size:10px">TRIAL</span>' : shChip(x.shift)}</td>
       <td>${esc(x.time||'—')}</td>
-      <td>${x.late ? '<span class="chip chip-warn" style="font-size:10px">LATE</span>' : '<span class="chip chip-green" style="font-size:10px">On time</span>'}</td>
-      <td><button class="btn btn-ghost btn-sm" onclick="closeAttList();openEmpModal('${esc(x.code)}')"><i class="fa-solid fa-user"></i></button></td>
+      <td>${x.trial ? '<span class="chip chip-blue" style="font-size:10px">Trial</span>' : (x.late ? '<span class="chip chip-warn" style="font-size:10px">LATE</span>' : '<span class="chip chip-green" style="font-size:10px">On time</span>')}</td>
+      <td>${x.trial ? '<span style="color:var(--faint)">—</span>' : `<button class="btn btn-ghost btn-sm" onclick="closeAttList();openEmpModal('${esc(x.code)}')"><i class="fa-solid fa-user"></i></button>`}</td>
     </tr>`).join('');
   }
   const body = list.length
@@ -2686,6 +2690,12 @@ function exportAttList(kind){
   } else {
     let src2 = kind === 'late' ? rows.filter(isRowLate) : rows;
     data = src2.map(r => [r.employee_code, r.Name||nameOf(r.employee_code), (EMP.find(e=>e['Employee code']===r.employee_code)||{}).DEPARTMENT||'', shiftNameOf(r.employee_code)||'', cleanInTime(r), isRowLate(r)?'LATE':'ON TIME']);
+    // Present export me Trial Workers (Work Pass) jo aaj aaye — unhe bhi jodo
+    if(kind === 'present'){
+      (window._trialList||[]).filter(w => w.today_in && /[0-9]/.test(String(w.today_in))).forEach(w => {
+        data.push([w.pass_no||'TRIAL', w.name, (w.department||'')+(w.line?' · '+w.line:''), 'TRIAL', String(w.today_in||'').slice(0,5), 'TRIAL']);
+      });
+    }
   }
   const head = kind === 'absent' ? 'Code,Name,Department,Shift,Mobile,Status'
              : kind === 'night' ? 'Code,Name,Department,Shift,Status'
