@@ -3189,39 +3189,51 @@ $('otrLoadBtn').addEventListener('click', async () => {
   const [y, mo] = m.split('-').map(Number);
   const dim = new Date(y, mo, 0).getDate();
   const from = m + '-01', to = m + '-' + String(dim).padStart(2, '0');
-  const { data, error } = await sb.from('ot_requests').select('*').eq('status', 'APPROVED').gte('ot_date', from).lte('ot_date', to);
+  const { data, error } = await sb.from('ot_requests').select('employee_code, ot_date, hours, ot_verified').eq('status', 'APPROVED').gte('ot_date', from).lte('ot_date', to);
   if(error) return notify(error.message, 'error');
+  // attendance out_time per code/date (naya rule: OT 17:50 ke baad, approved hrs tak cap)
+  let att = [];
+  try{ att = await sbFetchAllAtt('employee_code, date, in_time, out_time, total_hours', from, to); }catch(e){ att = []; }
+  const attIdx = {}; (att || []).forEach(r => { (attIdx[r.employee_code] = attIdx[r.employee_code] || {})[r.date] = r; });
+  const OT_START_H = 17 + 50/60;
+  const hrsOf = t => { if(!t) return 0; const q = String(t).split(':').map(Number); return (q[0]||0) + (q[1]||0)/60 + (q[2]||0)/3600; };
   const S = getSettings();
   const byEmp = {};
   (data || []).forEach(o => {
-    byEmp[o.employee_code] = byEmp[o.employee_code] || { hours: 0, vhours: 0, days: 0 };
+    byEmp[o.employee_code] = byEmp[o.employee_code] || { hours: 0, phours: 0, days: 0 };
     const h = Number(o.hours) || 0;
     byEmp[o.employee_code].hours += h;
-    if(o.ot_verified === true) byEmp[o.employee_code].vhours += h;   // sirf security-verified = payable
     byEmp[o.employee_code].days++;
+    if(o.ot_verified !== true) return;                 // gate: sirf approved + guard-verified payable
+    const r = (attIdx[o.employee_code] || {})[o.ot_date];
+    if(!r || !r.out_time) return;                       // punch/out nahi to OT 0
+    const isSun = new Date(o.ot_date + 'T00:00:00').getDay() === 0;
+    const actual = isSun ? (hrsOf(r.total_hours) || Math.max(0, hrsOf(r.out_time) - hrsOf(r.in_time)))
+                         : Math.max(0, hrsOf(r.out_time) - OT_START_H);   // 17:50 ke baad ka
+    byEmp[o.employee_code].phours += Math.min(h, actual);   // approved hrs = CAP
   });
   OTR_ROWS = Object.entries(byEmp).map(([code, v]) => {
     const emp = EMP.find(e => e['Employee code'] === code) || {};
     const gross = grossOf(code) || 0;
     const rate = Math.round((gross / (dim * 8)) * Number(S.otMult || 2));
-    const vh = Math.round(v.vhours * 2) / 2;
+    const ph = Math.round(v.phours * 2) / 2;
     return { code, name: emp.Name || code, dept: emp.DEPARTMENT || '—', days: v.days,
-             hours: Math.round(v.hours * 2) / 2, vhours: vh, rate, amount: Math.round(v.vhours * rate) };
+             hours: Math.round(v.hours * 2) / 2, phours: ph, rate, amount: Math.round(v.phours * rate) };
   }).sort((a, b) => b.amount - a.amount);
   const total = OTR_ROWS.reduce((a, r) => a + r.amount, 0);
   const totalH = OTR_ROWS.reduce((a, r) => a + r.hours, 0);
-  const totalVH = OTR_ROWS.reduce((a, r) => a + r.vhours, 0);
-  $('otrWrap').innerHTML = OTR_ROWS.length ? `<p class="text-[11px] mb-2" style="color:var(--muted)"><i class="fa-solid fa-shield-halved" style="color:var(--brand)"></i> OT paisa sirf <b>security-verified</b> ghanton par milta hai (ViziTrack se verify). "Verified" 0 = abhi tak paid nahi.</p><div style="overflow-x:auto"><table class="tbl">
-    <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Days</th><th>Approved Hrs</th><th>Verified Hrs</th><th>Rate/hr (×${S.otMult || 2})</th><th>OT Amount (verified)</th></tr></thead>
-    <tbody>${OTR_ROWS.map(r => `<tr><td>${esc(r.code)}</td><td class="font-semibold">${esc(r.name)}</td><td>${esc(r.dept)}</td><td>${r.days}</td><td class="money">${r.hours}</td><td class="money" style="color:${r.vhours>0?'var(--ok,#16a34a)':'var(--bad,#dc2626)'}">${r.vhours}</td><td class="money">${fmtINR(r.rate)}</td><td class="money font-semibold">${fmtINR(r.amount)}</td></tr>`).join('')}
-    <tr style="background:#faf8f4"><th colspan="4">TOTAL</th><th class="money">${totalH}</th><th class="money">${totalVH}</th><th></th><th class="money">${fmtINR(total)}</th></tr></tbody>
+  const totalPH = OTR_ROWS.reduce((a, r) => a + r.phours, 0);
+  $('otrWrap').innerHTML = OTR_ROWS.length ? `<p class="text-[11px] mb-2" style="color:var(--muted)"><i class="fa-solid fa-shield-halved" style="color:var(--brand)"></i> OT paisa = <b>17:50 ke baad kiya gaya kaam</b>, approved ghanton tak cap, aur sirf guard-verified. "Payable" 0 = abhi tak paid nahi / verify nahi hua.</p><div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Days</th><th>Approved Hrs</th><th>Payable Hrs</th><th>Rate/hr (×${S.otMult || 2})</th><th>OT Amount</th></tr></thead>
+    <tbody>${OTR_ROWS.map(r => `<tr><td>${esc(r.code)}</td><td class="font-semibold">${esc(r.name)}</td><td>${esc(r.dept)}</td><td>${r.days}</td><td class="money">${r.hours}</td><td class="money" style="color:${r.phours>0?'var(--ok,#16a34a)':'var(--bad,#dc2626)'}">${r.phours}</td><td class="money">${fmtINR(r.rate)}</td><td class="money font-semibold">${fmtINR(r.amount)}</td></tr>`).join('')}
+    <tr style="background:#faf8f4"><th colspan="4">TOTAL</th><th class="money">${totalH}</th><th class="money">${totalPH}</th><th></th><th class="money">${fmtINR(total)}</th></tr></tbody>
   </table></div>` : '<p class="text-xs m-0" style="color:var(--muted)">No approved overtime in this month.</p>';
   $('otrCsvBtn').classList.toggle('hidden', !OTR_ROWS.length);
 });
 $('otrCsvBtn').addEventListener('click', () => {
   dlText('OT_Report_' + $('otrMonth').value + '.csv',
-    ['Code,Name,Department,Days,Approved Hours,Verified Hours,Rate per hour,OT Amount (verified)',
-     ...OTR_ROWS.map(r => [r.code, '"' + r.name + '"', '"' + r.dept + '"', r.days, r.hours, r.vhours, r.rate, r.amount].join(','))].join('\n'), 'text/csv');
+    ['Code,Name,Department,Days,Approved Hours,Payable Hours,Rate per hour,OT Amount',
+     ...OTR_ROWS.map(r => [r.code, '"' + r.name + '"', '"' + r.dept + '"', r.days, r.hours, r.phours, r.rate, r.amount].join(','))].join('\n'), 'text/csv');
 });
 
 /* ---------------- Voice Box QR poster ---------------- */
@@ -6682,9 +6694,12 @@ async function runPayroll(){
     (_rwRes.data || []).forEach(f => { rewardMap[f.employee_code] = (rewardMap[f.employee_code]||0) + (Number(f.reward)||0); });
     const otApproved = {};
     const otApprovedDays = {};   // employee_code -> Set of approved OT dates (for Sunday/holiday work OT)
+    const otApprovedByDate = {}; // employee_code -> { 'YYYY-MM-DD': approved hours } (naya rule: per-din cap)
     (otRes.data || []).forEach(o => {
       otApproved[o.employee_code] = (otApproved[o.employee_code]||0) + Number(o.hours);
       (otApprovedDays[o.employee_code] = otApprovedDays[o.employee_code] || new Set()).add(o.ot_date);
+      (otApprovedByDate[o.employee_code] = otApprovedByDate[o.employee_code] || {});
+      otApprovedByDate[o.employee_code][o.ot_date] = (otApprovedByDate[o.employee_code][o.ot_date]||0) + Number(o.hours);
     });
     const dayMetaMap = {}; dayMeta.forEach(x => dayMetaMap[x.iso] = x);
     const isoAdd = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate()+n); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -6730,17 +6745,32 @@ async function runPayroll(){
           if(isRowLate(r) && !((gateSLMap[code]||new Set()).has(x.iso)) && !(((window._gateHDMap||{})[code]||new Set()).has(x.iso))) lates++;
         }
       });
-      // OT = strictly approval-based (approved by CEO). A normal long day does NOT earn OT.
-      // Two ways to earn OT, both require an approved OT request:
-      //   1) the approved hours entered against that request, and/or
-      //   2) working on a weekly-off (Sunday) or holiday -> that whole shift counts as OT.
-      otHours = otApproved[code] !== undefined ? otApproved[code] : 0;
-      // add Sunday/holiday worked-day OT (only for days that have an approved OT request)
-      const otDays = otApprovedDays[code] || new Set();
-      dayMeta.forEach(x => {
-        if((x.isWO || x.isH) && days[x.iso] && otDays.has(x.iso)){
-          otHours += shHrs; // full shift as overtime for a worked week-off / holiday
+      // ===== OT (NAYA RULE) =====
+      // Approval + guard-verify = sirf ELIGIBILITY + verification (gate). Paisa attendance se banta hai,
+      // approved hours ke CAP tak:
+      //   • Normal din  : OT = 17:50 ke baad ka worked time (out_time − 17:50), approved hrs tak cap.
+      //   • Weekly-off / holiday par kaam: us din ka poora worked time OT, approved hrs tak cap.
+      // Example: Pankaj 09:00 aaya, approval 3h, verified; agar 4h OT kiya to bhi 3h paid (cap);
+      //          agar sirf 2h ruka to 2h paid (actual). Approval amount decide nahi karta, sirf cap karta hai.
+      otHours = 0;
+      const OT_START_H = 17 + 50/60;   // 17:50
+      const _hrsOf = t => { if(!t) return 0; const q = String(t).split(':').map(Number); return (q[0]||0) + (q[1]||0)/60 + (q[2]||0)/3600; };
+      const myOtByDate = otApprovedByDate[code] || {};
+      Object.keys(myOtByDate).forEach(iso => {
+        const appr = Number(myOtByDate[iso]) || 0;
+        if(appr <= 0) return;
+        const r = days[iso];
+        if(!r || !r.out_time) return;              // punch/out nahi to OT nahi
+        const meta = dayMetaMap[iso];
+        let actual;
+        if(meta && (meta.isWO || meta.isH)){
+          // off-day: poora worked time OT
+          actual = _hrsOf(r.total_hours) || Math.max(0, _hrsOf(r.out_time) - _hrsOf(r.in_time));
+        } else {
+          // normal din: sirf 17:50 ke baad ka
+          actual = Math.max(0, _hrsOf(r.out_time) - OT_START_H);
         }
+        otHours += Math.min(appr, actual);         // approved hours = CAP
       });
       if((p.salary || {}).otAllowed === false) otHours = 0; // OT not allowed for this employee
       // leaves this month (skip punched days)
