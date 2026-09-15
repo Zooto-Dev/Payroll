@@ -401,6 +401,7 @@ body.no-confidential .confidential-col{display:none!important}
       <button class="nav-item nxdi" data-page="shifts"><span class="di"><i class="fa-solid fa-clock-rotate-left"></i></span><span style="flex:1"><span class="dt">Shifts</span><span class="ds">Shift master</span></span></button>
       <button class="nav-item nxdi" data-page="leaves"><span class="di"><i class="fa-solid fa-umbrella-beach"></i></span><span style="flex:1"><span class="dt">Leaves</span><span class="ds">Requests & balances</span></span></button>
       <button class="nav-item nxdi" data-page="approvals"><span class="di"><i class="fa-solid fa-clipboard-check"></i></span><span style="flex:1"><span class="dt">Approvals</span><span class="ds">Pending items</span></span><span id="apprBadge2" class="dbg hidden">0</span></button>
+      <button class="nav-item nxdi" data-page="trial"><span class="di"><i class="fa-solid fa-id-card-clip"></i></span><span style="flex:1"><span class="dt">Trial Workers</span><span class="ds">Work pass & conversions</span></span><span id="trialBadge" class="dbg hidden">0</span></button>
       <button class="nav-item nxdi" data-page="voice"><span class="di"><i class="fa-solid fa-comments"></i></span><span style="flex:1"><span class="dt">Voice Box</span><span class="ds">Grievance & kaizen</span></span><span id="voiceBadge" class="dbg hidden">0</span></button>
     </div></div>
   <div class="nxg"><button><i class="fa-solid fa-money-check-dollar li"></i> Payroll &amp; Finance <i class="fa-solid fa-chevron-down ca"></i></button>
@@ -762,7 +763,6 @@ body.no-confidential .confidential-col{display:none!important}
     <button class="ap-tab" data-aptab="gate"><i class="fa-solid fa-door-open"></i> Gate Pass <span class="ap-cnt" id="apCntGate">0</span></button>
     <button class="ap-tab" data-aptab="attfix"><i class="fa-solid fa-clock-rotate-left"></i> Att. Fix <span class="ap-cnt" id="apCntAf">0</span></button>
     <button class="ap-tab" data-aptab="mloan"><i class="fa-solid fa-sack-dollar"></i> Advance / Loan <span class="ap-cnt" id="apCntMl">0</span></button>
-    <button class="ap-tab" data-aptab="wpass"><i class="fa-solid fa-id-card-clip"></i> Work Pass <span class="ap-cnt" id="apCntWp">0</span></button>
     <button class="ap-tab" data-aptab="supatt"><i class="fa-solid fa-user-clock"></i> Supervisor Attendance <span class="ap-cnt" id="apCntSup">0</span></button>
     <button class="ap-tab" data-aptab="fuel"><i class="fa-solid fa-gas-pump"></i> Fuel / Meter <span class="ap-cnt" id="apCntFuel">0</span></button>
   </div>
@@ -805,9 +805,6 @@ body.no-confidential .confidential-col{display:none!important}
       <div class="p-3 border-b flex gap-2" style="border-color:var(--line)"><button class="btn btn-primary btn-sm" id="apMlPend" onclick="apEssMode('mloan','PENDING')">Pending</button><button class="btn btn-ghost btn-sm" id="apMlAppr" onclick="apEssMode('mloan','APPROVED')">Approved</button></div>
       <div id="apMloan" class="text-sm" style="padding:0"></div>
     </div>
-    <div class="ap-panel hidden" id="apPanel-wpass">
-      <div id="apWpass" class="text-sm" style="padding:0"></div>
-    </div>
     <div class="ap-panel hidden" id="apPanel-supatt">
       <div class="p-3 border-b flex gap-2" style="border-color:var(--line)"><button class="btn btn-primary btn-sm" id="apSupPend" onclick="apSupMode('PENDING')">Pending</button><button class="btn btn-ghost btn-sm" id="apSupAppr" onclick="apSupMode('APPROVED')">Approved</button></div>
       <div id="apSupatt" class="text-sm" style="padding:0"></div>
@@ -820,6 +817,19 @@ body.no-confidential .confidential-col{display:none!important}
       </div>
       <div id="apFuel" class="text-sm" style="padding:0"></div>
     </div>
+  </div>
+</div>
+
+<!-- ================= TRIAL WORKERS (WORK PASS) ================= -->
+<div class="page" id="page-trial">
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="p-3 border-b flex items-center gap-3 flex-wrap" style="border-color:var(--line)">
+      <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-id-card-clip" style="color:var(--brand)"></i> Trial Workers (Work Pass)</h3>
+      <span class="chip chip-blue">Convert: <b id="trialCntConv">0</b></span>
+      <span class="chip chip-warn">Active: <b id="trialCntActive">0</b></span>
+      <button class="btn btn-ghost btn-sm ml-auto" onclick="loadTrialPage()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+    </div>
+    <div id="trialWrap" class="text-sm" style="padding:0"><p class="p-4 m-0 text-xs" style="color:var(--muted)">Loading…</p></div>
   </div>
 </div>
 
@@ -2267,7 +2277,7 @@ $('loginBtn').addEventListener('click', async () => {
 $('loginPass').addEventListener('keydown', e => { if(e.key === 'Enter') $('loginBtn').click(); });
 $('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
 
-const ALL_PAGES = ['dashboard','mis','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','letters','ctccalc','idcards','approvals','voice','settings'];
+const ALL_PAGES = ['dashboard','mis','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','letters','ctccalc','idcards','approvals','trial','voice','settings'];
 let ME_EMAIL = '';
 let FACE_CODES = new Set();
 function isSuper(){
@@ -2345,7 +2355,7 @@ function applyPerms(){
   const mb = document.getElementById('attFixBtn');
   if(mb) mb.classList.toggle('hidden', !canManualAtt());
 }
-const PAGE_ICONS = { dashboard:'gauge', mis:'chart-pie', employees:'users', attendance:'calendar-check', workhours:'business-time', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', ctccalc:'calculator', idcards:'id-card', approvals:'clipboard-check', voice:'comments', settings:'gear' };
+const PAGE_ICONS = { dashboard:'gauge', mis:'chart-pie', employees:'users', attendance:'calendar-check', workhours:'business-time', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', ctccalc:'calculator', idcards:'id-card', approvals:'clipboard-check', trial:'id-card-clip', voice:'comments', settings:'gear' };
 function isRowLate(r){ return r.is_late === true || String(r.in_time||'').toUpperCase().includes('LATE'); }
 function cleanInTime(r){ return String(r.in_time||'').replace(/\s*\(?LATE\)?/i,'').trim(); }
 function initials(em){ return em.split('@')[0].replace(/[^a-z0-9]/gi, ' ').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'A'; }
@@ -2546,7 +2556,7 @@ async function showTrialList(){
     <div class="flex items-center justify-between mb-3"><h3 class="display font-bold m-0">Trial Workers (Work Pass) <span class="chip chip-gray">${(list||[]).length}</span></h3>
     <button class="btn btn-ghost btn-sm" onclick="closeAttList()"><i class="fa-solid fa-xmark"></i></button></div>
     ${body}
-    <p class="text-[11px] mt-2 mb-0" style="color:var(--muted)">Convert / Reject: Approvals → Work Pass tab se hota hai (jab supervisor 'Employee Banao' bhejta hai).</p>
+    <p class="text-[11px] mt-2 mb-0" style="color:var(--muted)">Convert / Reject aur daily attendance: <b>Workforce → Trial Workers</b> page se hota hai (jab supervisor 'Employee Banao' bhejta hai).</p>
   </div>`;
   m.classList.add('show');
 }
@@ -3127,7 +3137,7 @@ $('rmbApplyBtn') && $('rmbApplyBtn').addEventListener('click', async () => {
 });
 
 /* ---------------- Router ---------------- */
-const TITLES = { mis:'MIS Report', dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', ctccalc:'CTC Calculator', adminctl:'Admin Control Panel' };
+const TITLES = { mis:'MIS Report', dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', trial:'Trial Workers (Work Pass)', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', ctccalc:'CTC Calculator', adminctl:'Admin Control Panel' };
 /* ---- Topbar dropdown open/close ---- */
 function nxCloseDD(){ document.querySelectorAll('.nxg').forEach(g=>g.classList.remove('open')); }
 const _nxNav = document.querySelector('.nxnav');
@@ -3161,6 +3171,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if(page === 'advances') loadAdvances();
     if(page === 'leaves') loadLeaves();
     if(page === 'approvals') loadApprovals();
+    if(page === 'trial') loadTrialPage();
     if(page === 'voice') loadVoice();
     if(page === 'attendance') loadDeployment();
     if(page === 'workhours') whInit();
@@ -4006,7 +4017,7 @@ $('aeSaveBtn').addEventListener('click', async () => {
         notify(`✓ Work pass converted — ${rows.length} din ki trial attendance sync ho gayi`, 'success');
       }catch(e){ notify('Work pass convert issue: ' + (e.message || e), 'error'); }
       window._convertingWorkPass = null;
-      try{ loadApprovals(); }catch(e){}
+      try{ loadTrialPage(); }catch(e){}
     }
     notify(`${name} added` + (salaryAllowed ? ' — Profile khul gaya, yahan shift/face/salary set kar sakte ho' : ' — Accounts will set the salary'), 'success');
     $('addEmpModal').classList.remove('show');
@@ -8423,14 +8434,14 @@ document.body.addEventListener('click', async e => {
       // 4) pass CONVERTED
       await sb.rpc('wp_decide', { p_id: Number(id), p_approve: true, p_emp_code: code });
       notify(`✓ ${el.dataset.name} ab Employee hai (${code}) — ${rows.length} din ki trial attendance sync ho gayi`, 'success');
-      await loadEmployees(); loadApprovals();
+      await loadEmployees(); loadTrialPage();
     }catch(err){ notify('Failed: ' + (err.message||err), 'error'); }
     return;
   }
   if(act === 'wp-rej'){
     if(!(await nxConfirm('Is work-pass conversion ko REJECT karein?', 'Reject'))) return;
     await sb.rpc('wp_decide', { p_id: Number(el.dataset.id), p_approve: false });
-    notify('Rejected', 'success'); loadApprovals();
+    notify('Rejected', 'success'); loadTrialPage();
     return;
   }
   if(act === 'ml-appr'){
@@ -11591,41 +11602,46 @@ async function loadSupAttApprovals(){
     </div>`).join('');
   }catch(e){ host.innerHTML = `<p class="p-4 m-0 text-xs" style="color:var(--bad)">Error: ${esc(e.message||e)} — V89 SQL chalaya?</p>`; }
 }
-async function loadWorkPassApprovals(){
-  const host = $('apWpass'); if(!host) return;
+// ===== Trial Workers page — supervisor ke banaye passes + convert requests + daily attendance =====
+async function loadTrialPage(){
+  const host = $('trialWrap'); if(!host) return;
+  host.innerHTML = '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Loading…</p>';
   try{
-    // work_passes par RLS policy nahi hai -> direct select block ho jaata tha (0 pending dikhता).
-    // SECURITY DEFINER RPC se saari CONVERT_REQUESTED requests aati hain.
-    const { data: wpRaw, error } = await sb.rpc('wp_pending_conversions');
-    if(error) throw error;
-    const wps = wpRaw || [];
-    window._wpPending = wps;   // convertWorkPass() isse details uthata hai
-    if($('apCntWp')) $('apCntWp').innerText = (wps||[]).length;
-    if(!(wps||[]).length){ host.innerHTML = '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi work-pass conversion pending nahi.</p>'; return; }
+    const { data } = await sb.rpc('wp_list');
+    const list = (data||[]).filter(w => ['ACTIVE','CONVERT_REQUESTED'].includes(String(w.status)));
+    const conv = list.filter(w => String(w.status) === 'CONVERT_REQUESTED');
+    const active = list.filter(w => String(w.status) === 'ACTIVE');
+    window._wpPending = conv;   // convertWorkPass() isse details uthata hai
+    if($('trialCntConv')) $('trialCntConv').innerText = conv.length;
+    if($('trialCntActive')) $('trialCntActive').innerText = active.length;
+    if($('trialBadge')){ const n = conv.length; $('trialBadge').innerText = n; $('trialBadge').classList.toggle('hidden', !n); }
+    // har worker ki daily attendance (parallel)
+    const attMap = {};
+    await Promise.all(list.map(async w => { try{ const { data: att } = await sb.rpc('wp_att', { p_id: w.id }); attMap[w.id] = att||[]; }catch(e){ attMap[w.id] = []; } }));
+    const attTable = rows => `<table class="reg" style="font-size:11px;min-width:210px"><thead><tr><th>Date</th><th>IN</th><th>OUT</th></tr></thead><tbody>${(rows&&rows.length) ? rows.map(a => `<tr><td>${esc(a.date)}</td><td style="text-align:center">${esc(String(a.in_time||'').slice(0,5)||'—')}${a.in_photo_url?` <a href="${esc(a.in_photo_url)}" target="_blank" title="IN photo">📷</a>`:''}</td><td style="text-align:center">${esc(String(a.out_time||'').slice(0,5)||'—')}</td></tr>`).join('') : '<tr><td colspan="3" style="text-align:center;color:var(--muted)">koi punch nahi</td></tr>'}</tbody></table>`;
+    const card = (w, isConv) => `<div class="p-4 border-b" style="border-color:var(--line)">
+      <div class="flex justify-between items-start flex-wrap gap-2">
+        <div>
+          <b>${esc(w.name)}</b> <span class="chip ${isConv?'chip-blue':'chip-warn'}" style="font-size:10px">${isConv?'Convert requested':'Trial'}</span> <span class="chip chip-gray" style="font-size:10px">${esc(w.pass_no||'')}</span><br>
+          <span class="text-xs" style="color:var(--muted)">${esc(w.department||'—')}${w.line?' · '+esc(w.line):''} · Sup: ${esc(w.supervisor||'—')} · 📱 ${esc(w.phone||'—')} · Day ${Math.min(w.day_no||1,3)}/3 · Trial: ${esc(w.valid_from)} se</span>
+        </div>
+        ${attTable(attMap[w.id])}
+      </div>
+      ${isConv ? `<div class="flex gap-2 flex-wrap items-center mt-3">
+        <button class="btn btn-primary btn-sm" onclick="convertWorkPass('${w.id}')"><i class="fa-solid fa-user-check"></i> Approve → Add Employee</button>
+        <button class="btn btn-danger btn-sm" data-act="wp-rej" data-id="${w.id}"><i class="fa-solid fa-xmark"></i> Reject</button>
+        <span class="text-[11px]" style="color:var(--muted)">Approve karte hi Add Employee form khulega — trial attendance apne aap sync ho jayegi.</span>
+      </div>` : ''}
+    </div>`;
     let out = '';
-    for(const w of wps){
-      const { data: att } = await sb.rpc('wp_att', { p_id: w.id });
-      const attRows = (att||[]).map(a => `<tr><td>${esc(a.date)}</td><td style="text-align:center">${esc(String(a.in_time||'').slice(0,5)||'—')}${a.in_photo_url?` <a href="${esc(a.in_photo_url)}" target="_blank" title="IN photo">📷</a>`:''}</td><td style="text-align:center">${esc(String(a.out_time||'').slice(0,5)||'—')}</td></tr>`).join('');
-      out += `<div class="p-4 border-b" style="border-color:var(--line)">
-        <div class="flex justify-between items-start flex-wrap gap-2">
-          <div>
-            <b>${esc(w.name)}</b> <span class="chip chip-warn" style="font-size:10px">${esc(w.pass_no||'')}</span><br>
-            <span class="text-xs" style="color:var(--muted)">${esc(w.department||'—')}${w.line?' · '+esc(w.line):''} · Sup: ${esc(w.supervisor||'—')} · 📱 ${esc(w.phone||'—')} · Trial: ${esc(w.valid_from)} se</span>
-          </div>
-          <table class="reg" style="font-size:11px;min-width:220px"><thead><tr><th>Date</th><th>IN</th><th>OUT</th></tr></thead><tbody>${attRows || '<tr><td colspan="3" style="text-align:center;color:var(--muted)">koi punch nahi</td></tr>'}</tbody></table>
-        </div>
-        <div class="flex gap-2 flex-wrap items-center mt-3">
-          <button class="btn btn-primary btn-sm" onclick="convertWorkPass('${w.id}')"><i class="fa-solid fa-user-check"></i> Approve → Add Employee</button>
-          <button class="btn btn-danger btn-sm" data-act="wp-rej" data-id="${w.id}"><i class="fa-solid fa-xmark"></i> Reject</button>
-          <span class="text-[11px]" style="color:var(--muted)">Approve karte hi Add Employee form khulega — Unit choose karo (code auto banega), aur trial attendance apne aap sync ho jayegi.</span>
-        </div>
-      </div>`;
-    }
+    out += `<div class="p-3 text-xs font-bold" style="background:var(--brand-soft);border-bottom:1px solid var(--line)"><i class="fa-solid fa-user-check" style="color:var(--brand)"></i> Convert Requests (${conv.length}) — supervisor ne "Employee Banao" bheja</div>`;
+    out += conv.length ? conv.map(w => card(w, true)).join('') : '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi convert request pending nahi.</p>';
+    out += `<div class="p-3 text-xs font-bold" style="background:#faf8f4;border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><i class="fa-solid fa-id-card-clip"></i> Active Trial Workers (${active.length}) — supervisor ke banaye, daily attendance ke saath</div>`;
+    out += active.length ? active.map(w => card(w, false)).join('') : '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi active trial worker nahi.</p>';
     host.innerHTML = out;
-  }catch(e){ host.innerHTML = `<p class="p-4 m-0 text-xs" style="color:var(--bad)">Error: ${esc(e.message||e)} — V86 SQL chalaya?</p>`; }
+  }catch(e){ host.innerHTML = `<p class="p-4 m-0 text-xs" style="color:var(--bad)">Error: ${esc(e.message||e)}</p>`; }
 }
 async function loadApprovals(){
-  loadWorkPassApprovals();
   loadSupAttApprovals();
   const [lv, ot, ex, ea] = await Promise.all([
     sb.from('leaves').select('*').eq('status','PENDING').order('created_at'),
@@ -11718,13 +11734,14 @@ async function loadApprovals(){
       <tr class="hidden" id="otg-${esc(gid)}"><td colspan="6" style="background:#faf8f4">
         <div class="text-[11px] space-y-1 p-1">${rows.map(r => `<div class="flex justify-between"><span>${esc(nameOf(r.employee_code))} <span style="color:var(--muted)">(${esc(r.employee_code)})</span></span><span>${r.hours} hrs</span></div>`).join('')}</div></td></tr>`;
     }).join('')}</tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
+  const _fmtTs = ts => { if(!ts) return '—'; try{ return new Date(ts).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}); }catch(e){ return String(ts).slice(0,16); } };
   $('apExp').innerHTML = (ex.data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
-    <thead><tr><th>Employee</th><th>Category</th><th>Amount</th><th>Date</th><th>Note</th><th>Bills</th><th style="text-align:right"></th></tr></thead><tbody>
+    <thead><tr><th>Timestamp</th><th>Employee</th><th>Category</th><th>Amount</th><th>Date</th><th>Note</th><th>Bills</th><th style="text-align:right"></th></tr></thead><tbody>
     ${ex.data.map(x => {
       const bills = (x.bill_files && x.bill_files.length)
         ? x.bill_files.map((p2, ri) => `<button class="btn btn-ghost btn-sm" data-act="ex-receipt" data-path="${esc(p2)}" title="View bill"><i class="fa-solid fa-paperclip"></i>${x.bill_files.length>1?(ri+1):''}</button>`).join(' ')
         : '<span class="text-[10px]" style="color:var(--muted)">None</span>';
-      return `<tr><td class="font-semibold text-xs">${esc(nameOf(x.employee_code))}</td><td class="text-xs">${esc(x.category)}</td>
+      return `<tr><td class="text-xs" style="white-space:nowrap;color:var(--muted)">${esc(_fmtTs(x.created_at))}</td><td class="font-semibold text-xs">${esc(nameOf(x.employee_code))}</td><td class="text-xs">${esc(x.category)}</td>
         <td class="font-semibold">${fmtINR(x.amount)}</td><td class="text-xs">${fmtDate(x.expense_date)}</td>
         <td class="text-xs" style="max-width:180px">${esc(x.note||'—')}</td><td style="white-space:nowrap">${bills}</td>
         <td style="text-align:right;white-space:nowrap">
