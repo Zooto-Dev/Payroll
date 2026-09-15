@@ -656,7 +656,7 @@ body.no-confidential .confidential-col{display:none!important}
 <div class="page" id="page-shifts">
   <div class="grid lg:grid-cols-3 gap-4">
     <div class="card">
-      <h3 class="display font-bold mt-0 mb-3">Add Shift</h3>
+      <h3 class="display font-bold mt-0 mb-3" id="shFormTitle">Add Shift</h3>
       <label class="lbl">Shift Name</label><input id="shName" class="inp mb-3" placeholder="Morning / Evening / Night A">
       <div class="grid grid-cols-2 gap-3">
         <div><label class="lbl">Start Time</label><input id="shStart" type="time" class="inp" value="09:30"></div>
@@ -666,7 +666,8 @@ body.no-confidential .confidential-col{display:none!important}
       <input id="shGrace" type="number" class="inp mb-3" value="10">
       <label class="flex items-center gap-2 text-sm mb-4"><input type="checkbox" id="shNight"> Night shift (ends next day)</label>
       <button id="shSaveBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-plus"></i> Save Shift</button>
-      <p class="text-[11px] mt-3" style="color:var(--muted)">Assign shifts from Employees → Profile. Late is calculated from the assigned shift's start time + grace.</p>
+      <button id="shCancelBtn" class="btn btn-ghost w-full justify-center mt-2 hidden" onclick="cancelShiftEdit()"><i class="fa-solid fa-xmark"></i> Cancel edit</button>
+      <p class="text-[11px] mt-3" style="color:var(--muted)">Assign shifts from Employees → Profile. Late is calculated from the assigned shift's start time + grace. Shift edit karne par sabhi assigned employees par naya timing/grace lag jaayega.</p>
     </div>
     <div class="card lg:col-span-2" style="padding:0;overflow:hidden">
       <div class="p-4 border-b" style="border-color:var(--line)"><h3 class="display font-bold m-0">Shifts</h3></div>
@@ -9005,7 +9006,7 @@ $('letterGenBtn').addEventListener('click', async () => {
         </ol>
         <p>Please sign the duplicate copy of this letter as a token of your acceptance of the above terms.</p>
         <p>We welcome you to <b>${esc(S.name)}</b> and wish you a long and successful career with us.</p>
-        ${annexureCTC_HTML(gross, { pf: !!p.pf_applicable, esi: !!p.esi_applicable, lwf: !!p.lwf_applicable, tds:false })}`);
+        ${annexureCTC_HTML(gross, { pf: !!p.pf_applicable, esi: !!p.esi_applicable, lwf: !!p.lwf_applicable, tds: (String(p.tax_regime||'none').toLowerCase() !== 'none') })}`);
     }
     if(t === 'experience'){
       const lwd = $('relLWD').value;
@@ -9809,23 +9810,55 @@ function renderShifts(){
       <td>${s.grace_mins} min</td>
       <td class="money">${shiftHours(s).toFixed(1)} hrs</td>
       <td>${count > 0 ? `<button class="btn btn-ghost btn-sm" onclick="showShiftEmps('${s.id}')" title="Employees dekho"><i class="fa-solid fa-users"></i> ${count}</button>` : '0'}</td>
-      <td><button class="btn btn-danger btn-sm" data-act="del-shift" data-id="${s.id}"><i class="fa-solid fa-trash"></i></button></td>
+      <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="editShift('${s.id}')" title="Edit shift"><i class="fa-solid fa-pen"></i></button> <button class="btn btn-danger btn-sm" data-act="del-shift" data-id="${s.id}"><i class="fa-solid fa-trash"></i></button></td>
     </tr>`;
   }).join('') : '<tr><td colspan="6" class="text-center py-6" style="color:var(--muted)">No shifts yet — add your first shift.</td></tr>';
+}
+window._shEditId = null;
+function editShift(id){
+  const s = (SHIFTS||[]).find(x => String(x.id) === String(id)); if(!s) return;
+  window._shEditId = s.id;
+  $('shName').value = s.name || '';
+  $('shStart').value = String(s.start_time||'').slice(0,5);
+  $('shEnd').value = String(s.end_time||'').slice(0,5);
+  $('shGrace').value = (s.grace_mins != null ? s.grace_mins : 10);
+  $('shNight').checked = !!s.is_night;
+  if($('shFormTitle')) $('shFormTitle').innerText = 'Edit Shift — ' + (s.name||'');
+  if($('shSaveBtn')) $('shSaveBtn').innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Update Shift';
+  if($('shCancelBtn')) $('shCancelBtn').classList.remove('hidden');
+  try{ $('shName').scrollIntoView({ behavior:'smooth', block:'center' }); $('shName').focus(); }catch(e){}
+}
+function cancelShiftEdit(){
+  window._shEditId = null;
+  $('shName').value = ''; $('shStart').value = '09:30'; $('shEnd').value = '18:00'; $('shGrace').value = 10; $('shNight').checked = false;
+  if($('shFormTitle')) $('shFormTitle').innerText = 'Add Shift';
+  if($('shSaveBtn')) $('shSaveBtn').innerHTML = '<i class="fa-solid fa-plus"></i> Save Shift';
+  if($('shCancelBtn')) $('shCancelBtn').classList.add('hidden');
 }
 $('shSaveBtn').addEventListener('click', async () => {
   const name = $('shName').value.trim();
   if(!name || !$('shStart').value || !$('shEnd').value) return notify('Shift name and timing are required', 'error');
+  const payload = {
+    name, start_time: $('shStart').value, end_time: $('shEnd').value,
+    grace_mins: Number($('shGrace').value)||0, is_night: $('shNight').checked
+  };
   try{
-    const { data, error } = await sb.from('shifts').insert([{
-      name, start_time: $('shStart').value, end_time: $('shEnd').value,
-      grace_mins: Number($('shGrace').value)||0, is_night: $('shNight').checked
-    }]).select();
-    if(error) throw error;
-    SHIFTS.push(data[0]);
-    renderShifts(); fillEmpSelects();
-    $('shName').value = '';
-    notify('Shift saved', 'success');
+    if(window._shEditId){
+      const { data, error } = await sb.from('shifts').update(payload).eq('id', window._shEditId).select();
+      if(error) throw error;
+      const i = SHIFTS.findIndex(x => String(x.id) === String(window._shEditId));
+      if(i >= 0 && data && data[0]) SHIFTS[i] = data[0];
+      cancelShiftEdit();
+      renderShifts(); fillEmpSelects();
+      notify('Shift updated — assigned employees par naya timing/grace lag gaya', 'success');
+    } else {
+      const { data, error } = await sb.from('shifts').insert([payload]).select();
+      if(error) throw error;
+      SHIFTS.push(data[0]);
+      renderShifts(); fillEmpSelects();
+      $('shName').value = '';
+      notify('Shift saved', 'success');
+    }
   }catch(err){ notify(err.message, 'error'); }
 });
 
