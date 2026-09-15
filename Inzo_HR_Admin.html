@@ -2514,7 +2514,8 @@ function closeAttList(){ const m = document.getElementById('attListModal'); if(m
 async function updateTrialKpi(){
   try{
     const { data } = await sb.rpc('wp_list');
-    const list = (data||[]).filter(w => String(w.status) === 'ACTIVE' || String(w.status) === 'CONVERT_REQUESTED');
+    // convert ho chuke / trial khatam (expired ACTIVE) hata do — sirf chal rahe trials + convert requests
+    const list = (data||[]).filter(w => String(w.status) === 'CONVERT_REQUESTED' || (String(w.status) === 'ACTIVE' && !w.expired));
     window._trialList = list;
     const cameToday = list.filter(w => w.today_in && /[0-9]/.test(String(w.today_in))).length;
     if($('dTrial')) $('dTrial').innerText = list.length;
@@ -11613,7 +11614,10 @@ async function loadTrialPage(){
     const { data } = await sb.rpc('wp_list');
     const list = (data||[]).filter(w => ['ACTIVE','CONVERT_REQUESTED'].includes(String(w.status)));
     const conv = list.filter(w => String(w.status) === 'CONVERT_REQUESTED');
-    const active = list.filter(w => String(w.status) === 'ACTIVE');
+    // "Active" = sirf wo trial jinka 3-din wala window abhi chal raha hai. Jinka trial khatam ho
+    // gaya (convert ho gaye / chale gaye) wo apne aap list se hat jaate hain — naam se guess nahi.
+    const active = list.filter(w => String(w.status) === 'ACTIVE' && !w.expired);
+    const shown = conv.concat(active);
     window._wpPending = conv;   // convertWorkPass() isse details uthata hai
     // har worker ki daily attendance (parallel)
     const attMap = {};
@@ -11638,9 +11642,9 @@ async function loadTrialPage(){
     cHost.innerHTML = conv.length ? conv.map(w => card(w, true)).join('') : '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi convert request pending nahi.</p>';
     // Tab 2 — Active Trial Workers
     if(aHost) aHost.innerHTML = active.length ? active.map(w => card(w, false)).join('') : '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi active trial worker nahi.</p>';
-    // Tab 3 — Daily Attendance (saare trial workers ki, date-wise)
+    // Tab 3 — Daily Attendance (sirf current trials + convert requests ki, date-wise)
     const attRows = [];
-    list.forEach(w => (attMap[w.id]||[]).forEach(a => attRows.push({ w, a })));
+    shown.forEach(w => (attMap[w.id]||[]).forEach(a => attRows.push({ w, a })));
     attRows.sort((x, y) => String(y.a.date).localeCompare(String(x.a.date)) || String(x.w.name).localeCompare(String(y.w.name)));
     if(attHost) attHost.innerHTML = attRows.length ? `<div style="overflow-x:auto"><table class="tbl">
       <thead><tr><th>Date</th><th>Name</th><th>Pass</th><th>Supervisor</th><th>IN</th><th>OUT</th></tr></thead><tbody>
