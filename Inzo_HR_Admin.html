@@ -2469,12 +2469,12 @@ function showAttList(kind){
     list = rows.filter(isRowLate).map(r => ({ code:r.employee_code, name: r.Name || nameOf(r.employee_code), dept:(EMP.find(e=>e['Employee code']===r.employee_code)||{}).DEPARTMENT||'', sec:(PROFILES[r.employee_code]||{}).section||'', shift: shiftNameOf(r.employee_code), time: cleanInTime(r), late:true, photo: r.in_photo_url }));
   } else if(kind === 'night'){
     title = 'Night Shift';
-    list = (window._nightList||[]).map(x => ({ code:x.code, name:x.name, dept:(EMP.find(e=>e['Employee code']===x.code)||{}).DEPARTMENT||'', shift: shiftNameOf(x.code), info:x.info, night:true }));
+    list = (window._nightList||[]).map(x => ({ code:x.code, name:x.name, dept:(EMP.find(e=>e['Employee code']===x.code)||{}).DEPARTMENT||'', sec:(PROFILES[x.code]||{}).section||'', shift: shiftNameOf(x.code), info:x.info, night:true }));
   } else {
     title = 'Absent Today';
     const present = new Set(rows.map(r => r.employee_code));
     const _exc = window._todayExcused || new Set();
-    list = activeEmps().filter(e => !present.has(e['Employee code']) && !_exc.has(String(e['Employee code']).toUpperCase())).map(e => ({ code:e['Employee code'], name:e.Name, dept:e.DEPARTMENT, shift: shiftNameOf(e['Employee code']), phone:(PROFILES[e['Employee code']]||{}).phone||'', absent:true }));
+    list = activeEmps().filter(e => !present.has(e['Employee code']) && !_exc.has(String(e['Employee code']).toUpperCase())).map(e => ({ code:e['Employee code'], name:e.Name, dept:e.DEPARTMENT, sec:(PROFILES[e['Employee code']]||{}).section||'', shift: shiftNameOf(e['Employee code']), phone:(PROFILES[e['Employee code']]||{}).phone||'', absent:true }));
   }
   const shChip = sh => sh ? `<span class="chip" style="font-size:10px;${/night/i.test(sh)?'background:#e0e7ff;color:#4338ca':''}">${esc(sh)}</span>` : '<span style="color:var(--faint);font-size:11px">—</span>';
   let head, rowsHtml;
@@ -2482,20 +2482,22 @@ function showAttList(kind){
     // har action apne permission toggle se: Mark Present <- Manual Attendance; Exit <- Exit & Full-Final page
     const _canMark = canMarkAtt();
     const _canExit = canExitEmp();
-    head = `<tr><th>#</th><th>Employee</th><th>Code</th><th>Department</th><th>Shift</th><th>Mobile</th>${_canMark?'<th>Mark Present</th>':''}${_canExit?'<th>Exit</th>':''}</tr>`;
+    head = `<tr><th>#</th><th>Employee</th><th>Code</th><th>Department</th><th>Section</th><th>Shift</th><th>Mobile</th>${_canMark?'<th>Mark Present</th>':''}${_canExit?'<th>Exit</th>':''}</tr>`;
     rowsHtml = list.map((x,i) => `<tr>
       <td style="color:var(--muted)">${i+1}</td>
       <td><b>${esc(x.name)}</b></td><td>${esc(x.code)}</td><td>${esc(x.dept||'—')}</td>
+      <td>${esc(x.sec||'—')}</td>
       <td>${shChip(x.shift)}</td>
       <td>${x.phone ? '📱 '+esc(x.phone) : '<span style="color:var(--faint)">—</span>'}</td>
       ${_canMark ? `<td style="white-space:nowrap"><input type="time" id="mkIn_${esc(x.code)}" class="inp" style="width:90px;padding:3px 5px;font-size:12px"> <button class="btn btn-primary btn-sm" onclick="markPresentNow('${esc(x.code)}','${esc(x.name).replace(/'/g,"\\'")}')" title="Present laga do"><i class="fa-solid fa-check"></i></button></td>` : ''}
       ${_canExit ? `<td><button class="btn btn-danger btn-sm" onclick="exitFromAbsent('${esc(x.code)}','${esc(x.name).replace(/'/g,"\\'")}')" title="Exit date daalo"><i class="fa-solid fa-right-from-bracket"></i></button></td>` : ''}
     </tr>`).join('');
   } else if(kind === 'night'){
-    head = `<tr><th>#</th><th>Employee</th><th>Code</th><th>Department</th><th>Shift</th><th>Status</th><th></th></tr>`;
+    head = `<tr><th>#</th><th>Employee</th><th>Code</th><th>Department</th><th>Section</th><th>Shift</th><th>Status</th><th></th></tr>`;
     rowsHtml = list.map((x,i) => `<tr>
       <td style="color:var(--muted)">${i+1}</td>
       <td><b>${esc(x.name)}</b></td><td>${esc(x.code)}</td><td>${esc(x.dept||'—')}</td>
+      <td>${esc(x.sec||'—')}</td>
       <td>${shChip(x.shift)}</td>
       <td class="text-xs" style="color:var(--muted)">🌙 ${esc(x.info||'')}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="closeAttList();openEmpModal('${esc(x.code)}')"><i class="fa-solid fa-user"></i></button></td>
@@ -2714,9 +2716,9 @@ function exportAttList(kind){
   let data = [];
   if(kind === 'absent'){
     const present = new Set(rows.map(r => r.employee_code));
-    data = activeEmps().filter(e => !present.has(e['Employee code'])).map(e => [e['Employee code'], e.Name, e.DEPARTMENT||'', shiftNameOf(e['Employee code'])||'', (PROFILES[e['Employee code']]||{}).phone||'', 'ABSENT']);
+    data = activeEmps().filter(e => !present.has(e['Employee code'])).map(e => [e['Employee code'], e.Name, e.DEPARTMENT||'', (PROFILES[e['Employee code']]||{}).section||'', shiftNameOf(e['Employee code'])||'', (PROFILES[e['Employee code']]||{}).phone||'', 'ABSENT']);
   } else if(kind === 'night'){
-    data = (window._nightList||[]).map(x => [x.code, x.name, (EMP.find(e=>e['Employee code']===x.code)||{}).DEPARTMENT||'', shiftNameOf(x.code)||'', x.info||'']);
+    data = (window._nightList||[]).map(x => [x.code, x.name, (EMP.find(e=>e['Employee code']===x.code)||{}).DEPARTMENT||'', (PROFILES[x.code]||{}).section||'', shiftNameOf(x.code)||'', x.info||'']);
   } else {
     let src2 = kind === 'late' ? rows.filter(isRowLate) : rows;
     data = src2.map(r => [r.employee_code, r.Name||nameOf(r.employee_code), (EMP.find(e=>e['Employee code']===r.employee_code)||{}).DEPARTMENT||'', (PROFILES[r.employee_code]||{}).section||'', shiftNameOf(r.employee_code)||'', cleanInTime(r), isRowLate(r)?'LATE':'ON TIME']);
@@ -2727,8 +2729,8 @@ function exportAttList(kind){
       });
     }
   }
-  const head = kind === 'absent' ? 'Code,Name,Department,Shift,Mobile,Status'
-             : kind === 'night' ? 'Code,Name,Department,Shift,Status'
+  const head = kind === 'absent' ? 'Code,Name,Department,Section,Shift,Mobile,Status'
+             : kind === 'night' ? 'Code,Name,Department,Section,Shift,Status'
              : 'Code,Name,Department,Section,Shift,In Time,Status';
   const csv = head + '\n' + data.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
@@ -3259,23 +3261,23 @@ $('otrLoadBtn').addEventListener('click', async () => {
     const gross = grossOf(code) || 0;
     const rate = Math.round((gross / (dim * 8)) * Number(S.otMult || 2));
     const ph = Math.round(v.phours * 2) / 2;
-    return { code, name: emp.Name || code, dept: emp.DEPARTMENT || '—', days: v.days,
+    return { code, name: emp.Name || code, dept: emp.DEPARTMENT || '—', sec: (PROFILES[code]||{}).section || '', days: v.days,
              hours: Math.round(v.hours * 2) / 2, phours: ph, rate, amount: Math.round(v.phours * rate) };
   }).sort((a, b) => b.amount - a.amount);
   const total = OTR_ROWS.reduce((a, r) => a + r.amount, 0);
   const totalH = OTR_ROWS.reduce((a, r) => a + r.hours, 0);
   const totalPH = OTR_ROWS.reduce((a, r) => a + r.phours, 0);
   $('otrWrap').innerHTML = OTR_ROWS.length ? `<p class="text-[11px] mb-2" style="color:var(--muted)"><i class="fa-solid fa-shield-halved" style="color:var(--brand)"></i> OT paisa = <b>17:50 ke baad kiya gaya kaam</b>, approved ghanton tak cap, aur sirf guard-verified. "Payable" 0 = abhi tak paid nahi / verify nahi hua.</p><div style="overflow-x:auto"><table class="tbl">
-    <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Days</th><th>Approved Hrs</th><th>Payable Hrs</th><th>Rate/hr (×${S.otMult || 2})</th><th>OT Amount</th></tr></thead>
-    <tbody>${OTR_ROWS.map(r => `<tr><td>${esc(r.code)}</td><td class="font-semibold">${esc(r.name)}</td><td>${esc(r.dept)}</td><td>${r.days}</td><td class="money">${r.hours}</td><td class="money" style="color:${r.phours>0?'var(--ok,#16a34a)':'var(--bad,#dc2626)'}">${r.phours}</td><td class="money">${fmtINR(r.rate)}</td><td class="money font-semibold">${fmtINR(r.amount)}</td></tr>`).join('')}
-    <tr style="background:#faf8f4"><th colspan="4">TOTAL</th><th class="money">${totalH}</th><th class="money">${totalPH}</th><th></th><th class="money">${fmtINR(total)}</th></tr></tbody>
+    <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Section</th><th>Days</th><th>Approved Hrs</th><th>Payable Hrs</th><th>Rate/hr (×${S.otMult || 2})</th><th>OT Amount</th></tr></thead>
+    <tbody>${OTR_ROWS.map(r => `<tr><td>${esc(r.code)}</td><td class="font-semibold">${esc(r.name)}</td><td>${esc(r.dept)}</td><td>${esc(r.sec||'—')}</td><td>${r.days}</td><td class="money">${r.hours}</td><td class="money" style="color:${r.phours>0?'var(--ok,#16a34a)':'var(--bad,#dc2626)'}">${r.phours}</td><td class="money">${fmtINR(r.rate)}</td><td class="money font-semibold">${fmtINR(r.amount)}</td></tr>`).join('')}
+    <tr style="background:#faf8f4"><th colspan="5">TOTAL</th><th class="money">${totalH}</th><th class="money">${totalPH}</th><th></th><th class="money">${fmtINR(total)}</th></tr></tbody>
   </table></div>` : '<p class="text-xs m-0" style="color:var(--muted)">No approved overtime in this month.</p>';
   $('otrCsvBtn').classList.toggle('hidden', !OTR_ROWS.length);
 });
 $('otrCsvBtn').addEventListener('click', () => {
   dlText('OT_Report_' + $('otrMonth').value + '.csv',
-    ['Code,Name,Department,Days,Approved Hours,Payable Hours,Rate per hour,OT Amount',
-     ...OTR_ROWS.map(r => [r.code, '"' + r.name + '"', '"' + r.dept + '"', r.days, r.hours, r.phours, r.rate, r.amount].join(','))].join('\n'), 'text/csv');
+    ['Code,Name,Department,Section,Days,Approved Hours,Payable Hours,Rate per hour,OT Amount',
+     ...OTR_ROWS.map(r => [r.code, '"' + r.name + '"', '"' + r.dept + '"', '"' + (r.sec||'') + '"', r.days, r.hours, r.phours, r.rate, r.amount].join(','))].join('\n'), 'text/csv');
 });
 
 /* ---------------- Voice Box QR poster ---------------- */
@@ -4314,10 +4316,10 @@ function ctcBulkFlag(which, on){
   renderCtcMaster(); notify(`${codes.length} employees: ${which.toUpperCase()} ${on?'ON':'OFF'}`, 'success');
 }
 function ctcCsvDownload(){
-  const rows = [['Employee Code','Name','Department','Category','Annual CTC','PF','ESI','LWF']];
+  const rows = [['Employee Code','Name','Department','Section','Category','Annual CTC','PF','ESI','LWF']];
   activeEmps().forEach(e => {
     const code = e['Employee code']; const ef = ctcFlagsOf(code);
-    rows.push([code, e.Name, e.DEPARTMENT||'', ctcCatOf(code), ctcAnnualOf(code)||'', ef.pf?'Y':'N', ef.esi?'Y':'N', ef.lwf?'Y':'N']);
+    rows.push([code, e.Name, e.DEPARTMENT||'', (PROFILES[code]||{}).section||'', ctcCatOf(code), ctcAnnualOf(code)||'', ef.pf?'Y':'N', ef.esi?'Y':'N', ef.lwf?'Y':'N']);
   });
   const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
@@ -6007,7 +6009,7 @@ async function loadWorkHours(){
       if((!worked || worked<=0) && inT && outT){ let ms = new Date(r.date+'T'+outT+':00') - new Date(r.date+'T'+inT+':00'); if(ms<0) ms+=86400000; worked = ms/3600000; }
       const excess = worked > std ? (worked - std) : 0;
       gTotal += worked; gExcess += excess; if(worked>0) gDays++;
-      return { code, name: emp.Name || r.Name || code, dept: emp.DEPARTMENT || '', desig: emp.DESIGNATION || '', unit: unitNm(code), date: r.date, inT, outT, worked, excess, late: isRowLate(r), inPhoto: r.in_photo_url || '', outPhoto: r.out_photo_url || '' };
+      return { code, name: emp.Name || r.Name || code, dept: emp.DEPARTMENT || '', sec: (PROFILES[code]||{}).section || '', desig: emp.DESIGNATION || '', unit: unitNm(code), date: r.date, inT, outT, worked, excess, late: isRowLate(r), inPhoto: r.in_photo_url || '', outPhoto: r.out_photo_url || '' };
     };
     const items = rows.map(build);
 
@@ -6016,6 +6018,7 @@ async function loadWorkHours(){
       <td class="font-mono">${esc(x.code)}</td>
       <td class="font-semibold">${esc(x.name)}</td>
       <td class="text-xs">${esc(x.dept || '\u2014')}</td>
+      <td class="text-xs">${esc(x.sec || '\u2014')}</td>
       <td class="text-xs">${esc(x.desig || '\u2014')}</td>
       <td class="text-xs">${esc(x.unit || '\u2014')}</td>
       <td>${x.inT || '\u2014'}${x.late && x.inT ? ' <span class="chip c-L" style="font-size:9px">L</span>' : ''}</td>
@@ -6039,7 +6042,7 @@ async function loadWorkHours(){
       <div style="overflow-x:auto;max-height:70vh;overflow-y:auto"><table class="tbl">
         <thead style="position:sticky;top:0;background:#fff;z-index:1"><tr>
           ${multiDay ? '<th>Date</th>' : ''}
-          <th>Employee Code</th><th>Employee Name</th><th>Department</th><th>Designation</th><th>Unit</th><th>In Time</th><th>In Photo</th><th>Out Time</th><th>Out Photo</th><th>Total Hours</th><th>Excess Hours</th>
+          <th>Employee Code</th><th>Employee Name</th><th>Department</th><th>Section</th><th>Designation</th><th>Unit</th><th>In Time</th><th>In Photo</th><th>Out Time</th><th>Out Photo</th><th>Total Hours</th><th>Excess Hours</th>
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table></div>`;
@@ -6049,11 +6052,11 @@ async function loadWorkHours(){
 function exportWorkHours(){
   const d = window._whData; if(!d || !d.items.length) return notify('Load data first', 'error');
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
-  const head = (d.multiDay ? ['Date'] : []).concat(['Employee Code','Employee Name','Department','Designation','Unit','In Time','Out Time','Total Hours','Excess Hours','In Photo URL','Out Photo URL']);
+  const head = (d.multiDay ? ['Date'] : []).concat(['Employee Code','Employee Name','Department','Section','Designation','Unit','In Time','Out Time','Total Hours','Excess Hours','In Photo URL','Out Photo URL']);
   const lines = [head.join(',')];
   d.items.forEach(x => {
     const base = d.multiDay ? [x.date] : [];
-    lines.push(base.concat([x.code, x.name, x.dept||'', x.desig||'', x.unit||'', x.inT||'', x.outT||'', x.worked.toFixed(2), x.excess.toFixed(2), x.inPhoto||'', x.outPhoto||'']).map(q).join(','));
+    lines.push(base.concat([x.code, x.name, x.dept||'', x.sec||'', x.desig||'', x.unit||'', x.inT||'', x.outT||'', x.worked.toFixed(2), x.excess.toFixed(2), x.inPhoto||'', x.outPhoto||'']).map(q).join(','));
   });
   dlText('Work_Hours_'+d.from+(d.multiDay?('_to_'+d.to):'')+'.csv', lines.join('\n'), 'text/csv');
 }
@@ -6391,7 +6394,7 @@ $('bulkTemplBtn').addEventListener('click', async () => {
     }
     const exMap = {}; att.forEach(r => { exMap[String(r.employee_code).toUpperCase() + '|' + r.date] = r; });
     const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
-    const head = ['Employee Code','Employee Name','Department','Designation','Unit','Date','IN (HH:MM)','OUT (HH:MM)'];
+    const head = ['Employee Code','Employee Name','Department','Section','Designation','Unit','Date','IN (HH:MM)','OUT (HH:MM)'];
     const lines = [head.join(',')];
     active.forEach(e => {
       const c = e['Employee code'];
@@ -6399,7 +6402,7 @@ $('bulkTemplBtn').addEventListener('click', async () => {
         const ex = exMap[String(c).toUpperCase() + '|' + dt];
         const inV = ex && ex.in_time ? String(ex.in_time).substring(0,5) : '';
         const outV = ex && ex.out_time ? String(ex.out_time).substring(0,5) : '';
-        lines.push([c, e.Name||'', e.DEPARTMENT||'', e.DESIGNATION||'', unitNm(c), dt, inV, outV].map(q).join(','));
+        lines.push([c, e.Name||'', e.DEPARTMENT||'', (PROFILES[c]||{}).section||'', e.DESIGNATION||'', unitNm(c), dt, inV, outV].map(q).join(','));
       });
     });
     dlText('Attendance_Template_' + dates[0] + '_to_' + dates[dates.length-1] + '.csv', lines.join('\n'), 'text/csv');
@@ -6541,7 +6544,7 @@ async function loadRegister(){
       const lopVal = _pr ? _pr.lop : a;
       const woEarned = _pr && _pr.earnedWO != null ? _pr.earnedWO : '';
       const hEarned  = _pr && _pr.earnedH  != null ? _pr.earnedH  : '';
-      REG_CSV.push([e.Name, code, e.DEPARTMENT||'', sh.name, p, l, wfh, lv, a, woEarned, hEarned, lopVal]);
+      REG_CSV.push([e.Name, code, e.DEPARTMENT||'', (PROFILES[code]||{}).section||'', sh.name, p, l, wfh, lv, a, woEarned, hEarned, lopVal]);
       return `<tr><td class="name-cell">${esc(e.Name)}<br><span class="text-[10px] font-normal" style="color:var(--muted)">${esc(code)} • ${esc(sh.name)}</span></td>${cells}
         <td class="c-P">${p}</td><td class="c-L">${l}</td><td class="c-A">${a}</td></tr>`;
     }).join('');
@@ -6552,7 +6555,7 @@ $('attCsvBtn').addEventListener('click', () => {
   if(!REG_CSV.length) return notify('Load the register first', 'error');
   if(!(PAY_ROWS||[]).length) notify('Note: LOP column ke liye pehle Payroll page pe Calculate karo — abhi LOP = absent din dikhega', 'info');
   const esc2 = v => { const str = String(v==null?'':v); return /[",\n]/.test(str) ? '"'+str.replace(/"/g,'""')+'"' : str; };
-  const header = ['Name','Employee Code','Department','Shift','Present','Late','WFH','Leave','Absent','Week Off (Earned)','Holiday (Earned)','Total LOP (Payroll)'];
+  const header = ['Name','Employee Code','Department','Section','Shift','Present','Late','WFH','Leave','Absent','Week Off (Earned)','Holiday (Earned)','Total LOP (Payroll)'];
   const csv = 'data:text/csv;charset=utf-8,\ufeff' + [header.join(','), ...REG_CSV.map(r => r.map(esc2).join(','))].join('\n');
   const a = document.createElement('a');
   a.href = encodeURI(csv); a.download = `Attendance_Summary_${$('attMonth').value}.csv`;
@@ -7140,7 +7143,7 @@ $('contractCsvBtn') && $('contractCsvBtn').addEventListener('click', () => {
   if(!CONTRACT_ROWS.length) return notify('Koi contract employee nahi (pehle payroll calculate karo)', 'error');
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
   const n = v => Math.round(Number(v)||0);
-  const header = ['S.No','Emp Code','Employee Name','Contractor','Contractor Phone','Department','Designation','Shift',
+  const header = ['S.No','Emp Code','Employee Name','Contractor','Contractor Phone','Department','Section','Designation','Shift',
     'Month Days','Present','Paid Days','Late','OT Hrs','Amount (payable to contractor)'];
   const rows = CONTRACT_ROWS.slice().sort((a,b)=>String(a.contractor||'').localeCompare(String(b.contractor||'')) || String(a.name||'').localeCompare(String(b.name||'')));
   const lines = [header.join(',')];
@@ -7148,11 +7151,11 @@ $('contractCsvBtn') && $('contractCsvBtn').addEventListener('click', () => {
   rows.forEach((r,i) => {
     const amt = n(r.earnedGross); tot += amt;
     const ph = (PROFILES[r.code]||{}).contractor_phone || '';
-    lines.push([ i+1, q(r.code), q(r.name), q(r.contractor||''), q(ph), q(r.dept||''), q(r.desig||''), q(r.shiftName||''),
+    lines.push([ i+1, q(r.code), q(r.name), q(r.contractor||''), q(ph), q(r.dept||''), q((PROFILES[r.code]||{}).section||''), q(r.desig||''), q(r.shiftName||''),
       n(r.dim), n(r.present), r.paidDays, n(r.lates), n(r.otHours), amt ].join(','));
   });
   const t = new Array(header.length).fill('');
-  t[1] = q('TOTAL — '+rows.length+' contract employee(s)'); t[13] = tot;
+  t[1] = q('TOTAL — '+rows.length+' contract employee(s)'); t[14] = tot;
   lines.push(t.join(','));
   dlText('Contractor_Payroll_'+PAY_MONTH+'.csv', String.fromCharCode(0xFEFF)+lines.join('\n'), 'text/csv;charset=utf-8');
   notify('Contractor payroll sheet download ho gaya — '+rows.length+' employees', 'success');
@@ -7585,10 +7588,10 @@ $('payBankBtn').addEventListener('click', () => {
   if(!rows.length) return notify('Run payroll first', 'error');
   const missing = rows.filter(r => !(PROFILES[r.code]||{}).account_no);
   dlText('Bank_Advice_' + PAY_MONTH + '.csv',
-    ['Employee Code,Name,Department,Bank,Account No,IFSC,Amount (Net Pay)',
+    ['Employee Code,Name,Department,Section,Bank,Account No,IFSC,Amount (Net Pay)',
      ...rows.map(r => { const p = PROFILES[r.code]||{};
        const e = EMP.find(x => x['Employee code'] === r.code);
-       return [r.code, '"' + r.name + '"', '"' + ((e && e.DEPARTMENT) || '') + '"', '"' + (p.bank_name||'') + '"', p.account_no||'', p.ifsc||'', netOf(r)].join(','); })].join('\n'), 'text/csv');
+       return [r.code, '"' + r.name + '"', '"' + ((e && e.DEPARTMENT) || '') + '"', '"' + (p.section||'') + '"', '"' + (p.bank_name||'') + '"', p.account_no||'', p.ifsc||'', netOf(r)].join(','); })].join('\n'), 'text/csv');
   notify('Bank advice exported' + (missing.length ? ' — ' + missing.length + ' employee(s) have no account number on file' : ''), missing.length ? 'error' : 'success');
 });
 /* LOP ka Hindi reason — components: bina-chhutti absent + late + bina-soochna gairhaazri + chhutti balance se zyada + non-employed din */
@@ -7633,7 +7636,7 @@ function offNotEarnedHindi(r){
 $('payLopBtn').addEventListener('click', () => {
   if(!PAY_ROWS.length) return notify('Pehle payroll calculate karein', 'error');
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
-  const header = ['Employee Name','Employee Code','Department','Designation',
+  const header = ['Employee Name','Employee Code','Department','Section','Designation',
     'Total Days (month)','Present Days','Paid Leave Days','Earned Week-Off','Earned Holiday',
     'Absent Days','Off-days Not Earned (count)','Total Paid Days','LOP (days)',
     'Off-days Not Earned (detail — Hindi)','Reason (Hindi)'];
@@ -7644,13 +7647,13 @@ $('payLopBtn').addEventListener('click', () => {
   rows.forEach(r => {
     totPaid += Number(r.paidDays)||0; totLop += Number(r.lop)||0;
     lines.push([
-      q(r.name), q(r.code), q(r.dept||''), q(r.desig||''),
+      q(r.name), q(r.code), q(r.dept||''), q((PROFILES[r.code]||{}).section||''), q(r.desig||''),
       r.dim, r.present, (r.leaveDays||0), (r.earnedWO||0), (r.earnedH||0),
       (r.absentWorking||0), (r.offNotEarned||[]).length, r.paidDays, r.lop,
       q(offNotEarnedHindi(r)), q(lopReasonHindi(r))
     ].join(','));
   });
-  lines.push(['', q('TOTAL — ' + rows.length + ' employees'), '','','','','','','','','',
+  lines.push(['', q('TOTAL — ' + rows.length + ' employees'), '','','','','','','','','','',
     (Math.round(totPaid*10)/10), (Math.round(totLop*10)/10), '', ''].join(','));
   // UTF-8 BOM taaki Excel me Hindi sahi dikhe
   dlText('PaidDays_LOP_' + PAY_MONTH + '.csv', String.fromCharCode(0xFEFF) + lines.join('\n'), 'text/csv;charset=utf-8');
@@ -7662,7 +7665,8 @@ function downloadPayrollReport(rollFilter){   // '' = all, 'ONR', 'OFR'
   const n = v => Math.round(Number(v)||0);
   const comp = (r,k) => { const c=(r.comps||[]).find(x=>x.k===k); return c?n(c.amt):0; };
   const rollOf = code => String((PROFILES[code]||{}).roll_type||'').toUpperCase();
-  const header = ['S.No','Emp Code','Employee Name','Department','Designation','Category','Roll Type',
+  const secOf = code => String((PROFILES[code]||{}).section||'');
+  const header = ['S.No','Emp Code','Employee Name','Department','Section','Designation','Category','Roll Type',
     'Month Days','Present','Paid Leave','Earned Week-Off','Earned Holiday','Absent (LOP days)','Paid Days',
     'Full Gross','Earned Gross','Basic','HRA','Conveyance','Special Allowance',
     'OT Pay','Bonus','Arrears','Kaizen Reward','Leave Encash','Total Earnings',
@@ -7683,7 +7687,7 @@ function downloadPayrollReport(rollFilter){   // '' = all, 'ONR', 'OFR'
     T.erpf+=n(r.erPF); T.eresi+=n(r.erESI); T.erlwf+=n(r.erLWF);
     const stU = String((EMP.find(e=>e['Employee code']===r.code)||{}).Status||'ACTIVE').toUpperCase();
     lines.push([
-      i+1, q(r.code), q(r.name), q(r.dept||''), q(r.desig||''), q(r.category||''), q(rollOf(r.code)||'—'),
+      i+1, q(r.code), q(r.name), q(r.dept||''), q(secOf(r.code)), q(r.desig||''), q(r.category||''), q(rollOf(r.code)||'—'),
       n(r.dim), n(r.present), n(r.leaveDays), n(r.earnedWO), n(r.earnedH), n(r.absentWorking), r.paidDays,
       n(r.fullGross), n(r.earnedGross), comp(r,'basic'), comp(r,'hra'), comp(r,'conveyance'), comp(r,'special_allowance'),
       otPay, bonus, arrears, reward, encash, totalEarn,
@@ -7693,8 +7697,8 @@ function downloadPayrollReport(rollFilter){   // '' = all, 'ONR', 'OFR'
   });
   const tot = new Array(header.length).fill('');
   tot[1] = q('TOTAL — '+rows.length+' employees');
-  tot[15] = T.eg; tot[25] = T.earn; tot[33] = T.ded; tot[34] = T.net;
-  tot[35] = T.erpf; tot[36] = T.eresi; tot[37] = T.erlwf;
+  tot[16] = T.eg; tot[26] = T.earn; tot[34] = T.ded; tot[35] = T.net;
+  tot[36] = T.erpf; tot[37] = T.eresi; tot[38] = T.erlwf;
   lines.push(tot.join(','));
   const suffix = rollFilter ? ('_'+rollFilter) : '';
   dlText('Payroll_Detailed'+suffix+'_'+PAY_MONTH+'.csv', String.fromCharCode(0xFEFF)+lines.join('\n'), 'text/csv;charset=utf-8');
@@ -7923,7 +7927,7 @@ async function buildMisDaily(){
     else if(wfhSet.has(c)) status = 'WFH';
     else if(lvSet.has(c)) status = 'LEAVE';
     else if(night) status = 'NIGHT (shift due)';
-    return { code: c, name: e.Name || '', dept: e.DEPARTMENT || '—', desig: e.DESIGNATION || '—',
+    return { code: c, name: e.Name || '', dept: e.DEPARTMENT || '—', sec: p.section || '', desig: e.DESIGNATION || '—',
       unit: unitNm(e.UNIT || String(e['Employee code']||'').slice(0,4)),
       shift: sh ? sh.name : 'Unassigned', night, category: String(p.category||'').toUpperCase() || '—',
       status, inT: a ? String(a.in_time||'').slice(0,5) : '', outT: a ? String(a.out_time||'').slice(0,5) : '',
@@ -7973,10 +7977,10 @@ async function downloadMisDailyCSV(){
   const gsel = ($('mdrGroup') && $('mdrGroup').value) || 'dept';
   const keyFn = { dept: r => r.dept, unit: r => r.unit, shift: r => r.shift, desig: r => r.desig, none: r => '' }[gsel];
   const esc2 = v => '"' + String(v==null?'':v).replace(/"/g,'""') + '"';
-  const head = ['Group','Name','Employee Code','Department','Designation','Unit','Shift','Night Shift','Category','Status','IN','OUT','Late','Total Hours'];
+  const head = ['Group','Name','Employee Code','Department','Section','Designation','Unit','Shift','Night Shift','Category','Status','IN','OUT','Late','Total Hours'];
   const lines = [head.join(',')].concat(
     _MDR_ROWS.sort((a,b)=> keyFn(a).localeCompare(keyFn(b)) || a.name.localeCompare(b.name))
-      .map(r => [keyFn(r), r.name, r.code, r.dept, r.desig, r.unit, r.shift, r.night?'YES':'no', r.category, r.status, r.inT, r.outT, r.late, r.hours].map(esc2).join(',')));
+      .map(r => [keyFn(r), r.name, r.code, r.dept, r.sec||'', r.desig, r.unit, r.shift, r.night?'YES':'no', r.category, r.status, r.inT, r.outT, r.late, r.hours].map(esc2).join(',')));
   const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -8146,7 +8150,7 @@ async function openMisDetail(kind, key){
   const empRows = list => list.map(e => {
     const c = e['Employee code'];
     const p = (PROFILES[c] || {});
-    return [esc(c), esc(e.Name || ''), esc(e.DESIGNATION || e.Designation || '—'), esc(String(e.DEPARTMENT || '—')), esc(p.employment_type || '—'), esc(p.category || '—')];
+    return [esc(c), esc(e.Name || ''), esc(e.DESIGNATION || e.Designation || '—'), esc(String(e.DEPARTMENT || '—')), esc(p.section || '—'), esc(p.employment_type || '—'), esc(p.category || '—')];
   });
   if(['attdept','attloc','attgender','attlate'].includes(kind)){
     const kf = kind === 'attloc' ? (e => S.unitName(e['Employee code'])) : kind === 'attgender' ? (e => S.genderOf(e['Employee code'])) : (e => String(e.DEPARTMENT || '—').toUpperCase());
@@ -8187,7 +8191,7 @@ async function openMisDetail(kind, key){
       : kind === 'mpgrade' ? (e => (PROFILES[e['Employee code']]||{}).grade || 'Not set')
       : (e => ((PROFILES[e['Employee code']]||{}).category === 'WORKER') ? 'WORKER' : 'STAFF');
     const members = S.active.filter(e => kf(e) === key);
-    html = misDetTable(['Code', 'Name', 'Designation', 'Department', 'Type', 'Category'], empRows(members));
+    html = misDetTable(['Code', 'Name', 'Designation', 'Department', 'Section', 'Type', 'Category'], empRows(members));
     title += ` · ${members.length} employee(s)`;
   }
   $('misDetTitle').innerText = title;
@@ -8230,7 +8234,7 @@ $('empNoFaceBtn').addEventListener('click', async () => {
     const noFace = (data || []).filter(e => String(e.Status||'Active').toUpperCase() !== 'INACTIVE')
       .filter(e => !e.Descriptor || String(e.Descriptor).length < 20)
       .sort((a, b) => String(a.DEPARTMENT||'').localeCompare(String(b.DEPARTMENT||'')));
-    window._noFaceRows = [['Code','Name','Department','Designation'], ...noFace.map(e => [e['Employee code'], e.Name, e.DEPARTMENT||'', e.DESIGNATION||''])];
+    window._noFaceRows = [['Code','Name','Department','Section','Designation'], ...noFace.map(e => [e['Employee code'], e.Name, e.DEPARTMENT||'', (PROFILES[e['Employee code']]||{}).section||'', e.DESIGNATION||''])];
     $('noFaceBody').innerHTML = noFace.length ? `<div style="overflow-x:auto"><table class="tbl">
       <thead><tr><th>Code</th><th>Name</th><th>Department</th></tr></thead><tbody>
       ${noFace.map(e => `<tr><td class="font-mono text-xs">${esc(e['Employee code'])}</td><td class="font-semibold">${esc(e.Name)}</td><td class="text-xs">${esc(e.DEPARTMENT||'—')}</td></tr>`).join('')}
@@ -11190,9 +11194,9 @@ $('idiIssueBtn') && $('idiIssueBtn').addEventListener('click', async () => {
 $('idiCsvBtn') && $('idiCsvBtn').addEventListener('click', async () => {
   const { data } = await sb.from('id_card_issues').select('*').order('issued_date', { ascending:false });
   const rows = data || []; const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
-  const lines = [['Name','Code','Department','Designation','Issued Date','Validity Date','Type','Fine'].join(',')]; let tot = 0;
-  rows.forEach(r => { tot += Number(r.fine)||0; lines.push([q(r.name),q(r.employee_code),q(r.department),q(r.designation),r.issued_date,r.validity_date||'',(r.is_correction?'Correction':(Number(r.fine)>0?'Re-issue':'New')),Number(r.fine)||0].join(',')); });
-  lines.push(['','','','','','','TOTAL', tot].join(','));
+  const lines = [['Name','Code','Department','Section','Designation','Issued Date','Validity Date','Type','Fine'].join(',')]; let tot = 0;
+  rows.forEach(r => { tot += Number(r.fine)||0; lines.push([q(r.name),q(r.employee_code),q(r.department),q((PROFILES[r.employee_code]||{}).section||''),q(r.designation),r.issued_date,r.validity_date||'',(r.is_correction?'Correction':(Number(r.fine)>0?'Re-issue':'New')),Number(r.fine)||0].join(',')); });
+  lines.push(['','','','','','','','TOTAL', tot].join(','));
   dlText('ID_Card_Issues.csv', lines.join('\n'), 'text/csv');
 });
 $('idiTable') && $('idiTable').addEventListener('click', async (e) => {
