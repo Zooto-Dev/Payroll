@@ -2444,14 +2444,14 @@ function showAttList(kind){
   let title = '', list = [];
   if(kind === 'present'){
     title = 'Present Today';
-    list = rows.map(r => ({ code:r.employee_code, name: r.Name || nameOf(r.employee_code), dept:(EMP.find(e=>e['Employee code']===r.employee_code)||{}).DEPARTMENT||'', shift: shiftNameOf(r.employee_code), time: cleanInTime(r), late: isRowLate(r), photo: r.in_photo_url }));
+    list = rows.map(r => ({ code:r.employee_code, name: r.Name || nameOf(r.employee_code), dept:(EMP.find(e=>e['Employee code']===r.employee_code)||{}).DEPARTMENT||'', sec:(PROFILES[r.employee_code]||{}).section||'', shift: shiftNameOf(r.employee_code), time: cleanInTime(r), late: isRowLate(r), photo: r.in_photo_url }));
     // Trial Workers (Work Pass) jo aaj present hain (today_in) — inhe bhi Present list me jodo
     (window._trialList||[]).filter(w => w.today_in && /[0-9]/.test(String(w.today_in))).forEach(w => {
-      list.push({ code: w.pass_no || '—', name: w.name, dept: (w.department||'') + (w.line ? ' · ' + w.line : ''), shift: 'TRIAL', time: String(w.today_in||'').slice(0,5), late:false, trial:true });
+      list.push({ code: w.pass_no || '—', name: w.name, dept: (w.department||''), sec:(w.line||''), shift: 'TRIAL', time: String(w.today_in||'').slice(0,5), late:false, trial:true });
     });
   } else if(kind === 'late'){
     title = 'Late Today';
-    list = rows.filter(isRowLate).map(r => ({ code:r.employee_code, name: r.Name || nameOf(r.employee_code), dept:(EMP.find(e=>e['Employee code']===r.employee_code)||{}).DEPARTMENT||'', shift: shiftNameOf(r.employee_code), time: cleanInTime(r), late:true, photo: r.in_photo_url }));
+    list = rows.filter(isRowLate).map(r => ({ code:r.employee_code, name: r.Name || nameOf(r.employee_code), dept:(EMP.find(e=>e['Employee code']===r.employee_code)||{}).DEPARTMENT||'', sec:(PROFILES[r.employee_code]||{}).section||'', shift: shiftNameOf(r.employee_code), time: cleanInTime(r), late:true, photo: r.in_photo_url }));
   } else if(kind === 'night'){
     title = 'Night Shift';
     list = (window._nightList||[]).map(x => ({ code:x.code, name:x.name, dept:(EMP.find(e=>e['Employee code']===x.code)||{}).DEPARTMENT||'', shift: shiftNameOf(x.code), info:x.info, night:true }));
@@ -2486,10 +2486,11 @@ function showAttList(kind){
       <td><button class="btn btn-ghost btn-sm" onclick="closeAttList();openEmpModal('${esc(x.code)}')"><i class="fa-solid fa-user"></i></button></td>
     </tr>`).join('');
   } else {
-    head = `<tr><th>#</th><th>Employee</th><th>Code</th><th>Department</th><th>Shift</th><th>In Time</th><th>Status</th><th></th></tr>`;
+    head = `<tr><th>#</th><th>Employee</th><th>Code</th><th>Department</th><th>Section</th><th>Shift</th><th>In Time</th><th>Status</th><th></th></tr>`;
     rowsHtml = list.map((x,i) => `<tr>
       <td style="color:var(--muted)">${i+1}</td>
       <td><b>${esc(x.name)}</b></td><td>${esc(x.code)}</td><td>${esc(x.dept||'—')}</td>
+      <td>${esc(x.sec||'—')}</td>
       <td>${x.trial ? '<span class="chip chip-blue" style="font-size:10px">TRIAL</span>' : shChip(x.shift)}</td>
       <td>${esc(x.time||'—')}</td>
       <td>${x.trial ? '<span class="chip chip-blue" style="font-size:10px">Trial</span>' : (x.late ? '<span class="chip chip-warn" style="font-size:10px">LATE</span>' : '<span class="chip chip-green" style="font-size:10px">On time</span>')}</td>
@@ -2703,17 +2704,17 @@ function exportAttList(kind){
     data = (window._nightList||[]).map(x => [x.code, x.name, (EMP.find(e=>e['Employee code']===x.code)||{}).DEPARTMENT||'', shiftNameOf(x.code)||'', x.info||'']);
   } else {
     let src2 = kind === 'late' ? rows.filter(isRowLate) : rows;
-    data = src2.map(r => [r.employee_code, r.Name||nameOf(r.employee_code), (EMP.find(e=>e['Employee code']===r.employee_code)||{}).DEPARTMENT||'', shiftNameOf(r.employee_code)||'', cleanInTime(r), isRowLate(r)?'LATE':'ON TIME']);
+    data = src2.map(r => [r.employee_code, r.Name||nameOf(r.employee_code), (EMP.find(e=>e['Employee code']===r.employee_code)||{}).DEPARTMENT||'', (PROFILES[r.employee_code]||{}).section||'', shiftNameOf(r.employee_code)||'', cleanInTime(r), isRowLate(r)?'LATE':'ON TIME']);
     // Present export me Trial Workers (Work Pass) jo aaj aaye — unhe bhi jodo
     if(kind === 'present'){
       (window._trialList||[]).filter(w => w.today_in && /[0-9]/.test(String(w.today_in))).forEach(w => {
-        data.push([w.pass_no||'TRIAL', w.name, (w.department||'')+(w.line?' · '+w.line:''), 'TRIAL', String(w.today_in||'').slice(0,5), 'TRIAL']);
+        data.push([w.pass_no||'TRIAL', w.name, (w.department||''), (w.line||''), 'TRIAL', String(w.today_in||'').slice(0,5), 'TRIAL']);
       });
     }
   }
   const head = kind === 'absent' ? 'Code,Name,Department,Shift,Mobile,Status'
              : kind === 'night' ? 'Code,Name,Department,Shift,Status'
-             : 'Code,Name,Department,Shift,In Time,Status';
+             : 'Code,Name,Department,Section,Shift,In Time,Status';
   const csv = head + '\n' + data.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv' }));
