@@ -246,6 +246,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <button class="req-tile" data-rs="celebrate"><span class="rt-ic" style="background:#ffe4e6;color:#e11d48"><i class="fa-solid fa-cake-candles"></i></span><span>Celebrations</span></button>
         <button class="req-tile" data-rs="voice"><span class="rt-ic" style="background:#e0e7ff;color:#4f46e5"><i class="fa-solid fa-comments"></i></span><span>Voice Box</span></button>
         <button class="req-tile" data-rs="resign"><span class="rt-ic" style="background:#fee2e2;color:#dc2626"><i class="fa-solid fa-person-walking-arrow-right"></i></span><span>Resign</span></button>
+        <button class="req-tile" data-rs="faq"><span class="rt-ic" style="background:#e0e7ff;color:#4338ca"><i class="fa-solid fa-circle-question"></i></span><span>Help / SOP</span></button>
       </div>
       <div class="req-sec hidden" id="rs-attfix">
       <div class="card" style="background:linear-gradient(135deg,#fef2f2,#ffffff);border:1.5px solid #fecaca">
@@ -495,6 +496,14 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div class="card">
         <h3 class="display font-bold mt-0 mb-3 text-sm"><i class="fa-solid fa-person-walking-arrow-right" style="color:var(--bad)"></i> Resignation</h3>
         <div id="resBox"></div>
+      </div>
+      </div>
+      <div class="req-sec hidden" id="rs-faq">
+      <div class="card">
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-circle-question" style="color:#4338ca"></i> Help / SOP — Har cheez ka tarika</h3>
+        <p class="text-[11px] mt-0 mb-2" style="color:var(--muted)">ESS ki har request kaise, kab aur kis rule se hoti hai. Kisi bhi cheez par tap karo. Prepared by <b>Pankaj Kumar</b>.</p>
+        <input id="essFaqSearch" class="inp mb-2" placeholder="🔍 Dhoondo (leave, OT, expense…)" oninput="essRenderFaq()">
+        <div id="essFaqWrap"></div>
       </div>
       </div>
     </div>
@@ -940,8 +949,35 @@ document.querySelectorAll('.req-tile').forEach(t => t.addEventListener('click', 
   const opening = sec.classList.contains('hidden');
   document.querySelectorAll('.req-sec').forEach(s => s.classList.add('hidden'));
   document.querySelectorAll('.req-tile').forEach(x => x.classList.remove('active'));
-  if(opening){ sec.classList.remove('hidden'); t.classList.add('active'); }
+  if(opening){ sec.classList.remove('hidden'); t.classList.add('active'); if(t.dataset.rs === 'faq') essRenderFaq(); }
 }));
+/* ===== ESS Help / SOP ===== */
+var ESS_FAQ = [
+  { t:'Login & Password', b:'Employee Code + password se login. Pehli baar password = aapka registered mobile number. Bhool jao to HR reset karega (dobara mobile number ban jayega). Mobile number HR ke paas update rakho — OTP/approval isi par jaate hain.' },
+  { t:'Leave (CL/SL/EL)', b:'Leave tile → type + dates + reason. Balance live dikhta hai. Advance me daalo; emergency me same-day reason ke saath. Reporting manager approve karta hai, Super Admin ko bhi mail jaati hai. Approved paid leave payroll me present jaisi.' },
+  { t:'Attendance Fix (galat/missed punch)', b:'Att. Fix tile → date + asli IN/OUT time + reason. Camera ne punch miss kiya ya time galat hai to yahin se. HR gate-photo se check karke approve karta hai.' },
+  { t:'Field Duty', b:'Office ke bahar official kaam. Field Duty tile → date + purpose (pehle/us din). Approve hone par present count hoti hai.' },
+  { t:'Gate Pass / Short Leave', b:'Shift ke beech bahar jaana ho. Gate Pass tile → slot (subah/shaam) ya half-day + reason. Approved gate pass = late/early excused, us din ki poori salary.' },
+  { t:'WFH (Work From Home)', b:'WFH tile → date + reason. Approved WFH present jaisa paid, koi face punch nahi chahiye. Din se pehle daalo.' },
+  { t:'Expenses / Reimbursement', b:'Expenses tile → category + amount + bill photo. NOTE: 7 din se purana kharcha claim nahi kar sakte. Manager → Accounts approve karte hain.' },
+  { t:'Advance / Loan', b:'Advance/Loan tile → amount + reason (+ months loan ke liye). Manager/Accounts/CEO approve; salary se recover hota hai, payslip me dikhta hai.' },
+  { t:'Overtime (OT)', b:'OT tile (jise allowed hai). Date + hours + reason; team ke liye supervisor bulk bhej sakta hai. OT sirf 17:50 ke baad ka ginta hai, paid = min(approved, actual). Approval + gate par guard verify dono zaroori. Single rate — double pay nahi.' },
+  { t:'Payslips', b:'Payslip tile → mahine ka payslip dekho/download. Payroll finalize hone ke baad milta hai.' },
+  { t:'My Assets', b:'Company ne jo saaman (laptop, phone…) diya hai wo dikhta hai. Galat ho to HR/Admin ko batao.' },
+  { t:'Voice Box (Grievance / Suggestion)', b:'Voice Box tile → shikayat/suggestion/kaizen. Reporting manager ko jaata hai; confidential bhi bhej sakte ho.' },
+  { t:'Resign', b:'Resign tile se resignation. Notice period policy ke hisaab se; iske baad HR Full & Final (F&F) process shuru karta hai.' },
+  { t:'Supervisor: Work Pass (Trial Worker)', b:'Team page → Work Pass banao (naam + mobile + dept/line). Worker VMS kiosk par 3 din IN/OUT karega. Trial ke baad "Employee Banao" bhejo — HR approve karega to payroll me aa jayega.' },
+  { t:'Supervisor: Team Attendance', b:'Team page → mahine ki team attendance. Koi ABSENT galat dikhe to photo + IN time ke saath present-request bhejo; HR approve karega.' },
+  { t:'Request ka status', b:'Har request Pending/Approved/Rejected me dikhti hai. Pending ko cancel bhi kar sakte ho. Approve hone tak pay effect nahi hota. Backdated/duplicate request reject hoti hai.' },
+];
+function essRenderFaq(){
+  var host = document.getElementById('essFaqWrap'); if(!host) return;
+  var q = String((document.getElementById('essFaqSearch')||{}).value||'').trim().toLowerCase();
+  var items = ESS_FAQ.filter(function(x){ return !q || (x.t+' '+x.b).toLowerCase().indexOf(q) > -1; });
+  host.innerHTML = items.length ? items.map(function(x){
+    return '<details style="border-bottom:1px solid var(--line)"><summary style="cursor:pointer;padding:10px 4px;font-weight:600;font-size:13px;list-style:none">▸ '+esc(x.t)+'</summary><div style="padding:0 6px 12px 16px;font-size:12.5px;color:var(--muted);line-height:1.6">'+esc(x.b)+'</div></details>';
+  }).join('') : '<p class="text-xs" style="color:var(--muted)">Koi match nahi mila.</p>';
+}
 function _cancelChip(kind, id){
   return ` <button class="chip chip-gray" style="border:none;cursor:pointer;font-size:9px" onclick="essCancelReq('${kind}',${id})" title="Cancel request"><i class="fa-solid fa-xmark"></i></button>`;
 }

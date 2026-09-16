@@ -422,6 +422,7 @@ body.no-confidential .confidential-col{display:none!important}
     <div class="nxdd">
       <button class="nav-item nxdi" data-page="ctccalc"><span class="di"><i class="fa-solid fa-calculator"></i></span><span style="flex:1"><span class="dt">CTC Calculator</span><span class="ds">Salary structure banao</span></span></button>
       <button class="nav-item nxdi" data-page="settings"><span class="di"><i class="fa-solid fa-gear"></i></span><span style="flex:1"><span class="dt">Settings</span><span class="ds">Departments, units, shifts</span></span></button>
+      <button class="nav-item nxdi" data-page="faq"><span class="di"><i class="fa-solid fa-circle-question"></i></span><span style="flex:1"><span class="dt">FAQ / SOP</span><span class="ds">Har feature ka SOP</span></span></button>
       <button class="nav-item nxdi hidden" id="navAdminCtl" data-page="adminctl"><span class="di"><i class="fa-solid fa-user-shield"></i></span><span style="flex:1"><span class="dt">Admin Control</span><span class="ds">Users & access</span></span></button>
     </div></div>
   </nav>
@@ -833,6 +834,20 @@ body.no-confidential .confidential-col{display:none!important}
     <div class="tr-panel" id="trPanel-conv"><div id="trConv" class="text-sm" style="padding:0"><p class="p-4 m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
     <div class="tr-panel hidden" id="trPanel-active"><div id="trActive" class="text-sm" style="padding:0"></div></div>
     <div class="tr-panel hidden" id="trPanel-att"><div id="trAtt" class="text-sm" style="padding:0"></div></div>
+  </div>
+</div>
+
+<!-- ================= FAQ / SOP ================= -->
+<div class="page" id="page-faq">
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="p-4 border-b flex items-center gap-3 flex-wrap" style="border-color:var(--line)">
+      <div>
+        <h3 class="display font-bold m-0"><i class="fa-solid fa-circle-question" style="color:var(--brand)"></i> FAQ / SOP — Har Feature ka Guide</h3>
+        <p class="text-[11px] mt-1 mb-0" style="color:var(--muted)">Admin panel ke har module ka Standard Operating Procedure. Kisi bhi cheez par tap karke uska SOP kholo. Prepared by <b>Pankaj Kumar</b>.</p>
+      </div>
+      <input id="faqSearch" class="inp" style="margin-left:auto;max-width:280px" placeholder="🔍 Feature dhoondo (leave, OT, payroll…)">
+    </div>
+    <div id="faqWrap" style="padding:6px 0"></div>
   </div>
 </div>
 
@@ -2280,7 +2295,7 @@ $('loginBtn').addEventListener('click', async () => {
 $('loginPass').addEventListener('keydown', e => { if(e.key === 'Enter') $('loginBtn').click(); });
 $('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
 
-const ALL_PAGES = ['dashboard','mis','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','letters','ctccalc','idcards','approvals','trial','voice','settings'];
+const ALL_PAGES = ['dashboard','mis','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','letters','ctccalc','idcards','approvals','trial','voice','settings','faq'];
 let ME_EMAIL = '';
 let FACE_CODES = new Set();
 function isSuper(){
@@ -2358,7 +2373,7 @@ function applyPerms(){
   const mb = document.getElementById('attFixBtn');
   if(mb) mb.classList.toggle('hidden', !canManualAtt());
 }
-const PAGE_ICONS = { dashboard:'gauge', mis:'chart-pie', employees:'users', attendance:'calendar-check', workhours:'business-time', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', ctccalc:'calculator', idcards:'id-card', approvals:'clipboard-check', trial:'id-card-clip', voice:'comments', settings:'gear' };
+const PAGE_ICONS = { dashboard:'gauge', mis:'chart-pie', employees:'users', attendance:'calendar-check', workhours:'business-time', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', ctccalc:'calculator', idcards:'id-card', approvals:'clipboard-check', trial:'id-card-clip', voice:'comments', settings:'gear', faq:'circle-question' };
 function isRowLate(r){ return r.is_late === true || String(r.in_time||'').toUpperCase().includes('LATE'); }
 function cleanInTime(r){ return String(r.in_time||'').replace(/\s*\(?LATE\)?/i,'').trim(); }
 function initials(em){ return em.split('@')[0].replace(/[^a-z0-9]/gi, ' ').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'A'; }
@@ -3142,7 +3157,7 @@ $('rmbApplyBtn') && $('rmbApplyBtn').addEventListener('click', async () => {
 });
 
 /* ---------------- Router ---------------- */
-const TITLES = { mis:'MIS Report', dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', trial:'Trial Workers (Work Pass)', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', ctccalc:'CTC Calculator', adminctl:'Admin Control Panel' };
+const TITLES = { mis:'MIS Report', dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', trial:'Trial Workers (Work Pass)', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', ctccalc:'CTC Calculator', faq:'FAQ / SOP — Har Feature ka Guide', adminctl:'Admin Control Panel' };
 /* ---- Topbar dropdown open/close ---- */
 function nxCloseDD(){ document.querySelectorAll('.nxg').forEach(g=>g.classList.remove('open')); }
 const _nxNav = document.querySelector('.nxnav');
@@ -3177,6 +3192,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if(page === 'leaves') loadLeaves();
     if(page === 'approvals') loadApprovals();
     if(page === 'trial') loadTrialPage();
+    if(page === 'faq') renderFaq();
     if(page === 'voice') loadVoice();
     if(page === 'attendance') loadDeployment();
     if(page === 'workhours') whInit();
@@ -11703,6 +11719,56 @@ document.querySelectorAll('.ap-tab[data-trtab]').forEach(t => t.addEventListener
   document.querySelectorAll('.ap-tab[data-trtab]').forEach(x => x.classList.toggle('active', x === t));
   document.querySelectorAll('.tr-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'trPanel-' + t.dataset.trtab));
 }));
+/* ================= FAQ / SOP (Admin) ================= */
+const FAQ_SOP = [
+  { c:'Attendance', t:'Dashboard & KPIs', b:'<li>Live snapshot: Present / Late / Absent / Night / Trial Workers Today.</li><li>Kisi bhi KPI par click karke uski list dekho aur CSV export karo.</li><li>Present Today list me regular + trial workers, Department + Section dono aate hain.</li>' },
+  { c:'Attendance', t:'Attendance Register (monthly)', b:'<li>Month choose karo → poora register (har din IN/OUT, late, leave, WO/holiday).</li><li>Punch face-kiosk (attendance.html) se aata hai; galti ho to ESS "Attendance Fix" ya Manual Attendance se theek karo.</li><li>Night shift ka OUT agle din subah aata hai — system apne aap sahi din se joddta hai.</li>' },
+  { c:'Attendance', t:'Present / Late / Absent Today + Export', b:'<li>Dashboard KPI par click → list; upar-right "Export CSV".</li><li>Present me Department + Section, aur aaj aaye trial workers bhi.</li>' },
+  { c:'Attendance', t:'Shifts (Shift Master)', b:'<li>Add Shift: naam, start/end time, grace (mins), night flag.</li><li>Edit: shift ke aage pencil → form me aata hai → "Update Shift". Update karte hi us shift ke sabhi employees par naya timing/grace lag jaata hai.</li><li>Late = shift start + grace ke baad ka IN. Shift assign Profile → Job se hoti hai.</li>' },
+  { c:'Attendance', t:'Roster & Shift Change', b:'<li>Shifts page ke neeche. Har employee ka assigned shift + uska asli median IN→OUT dikhta hai.</li><li>Mismatch 🔴 pakdo, dropdown se shift badlo, phir "Save Changes".</li>' },
+  { c:'Workforce', t:'Employees — Add / Edit / Profile', b:'<li>Add Employee: seedha Profile screen khulti hai — Unit choose karte hi code auto, saare field mandatory.</li><li>Roll Type (ONR/OFR) confidential; Section me line/sub-unit.</li><li>Salary, Shift, Face, Documents sab Profile ke tabs se.</li>' },
+  { c:'Workforce', t:'Face Registration', b:'<li>Profile → Face: clear front photo upload → Detect & Register.</li><li>Live re-register: face-verify.html — employee search karke camera se 10 clear samples, high-confidence par hi register.</li>' },
+  { c:'Workforce', t:'Trial Workers (Work Pass)', b:'<li>Workforce → Trial Workers. 3 tabs: Convert Requests, Active Trial Workers, Daily Attendance.</li><li>Supervisor ESS se pass banata hai; trial worker kiosk se punch karta hai.</li><li>Convert Requests → "Approve → Add Employee" (trial attendance apne aap payroll me sync). Trial khatam hote hi list se hat jaata hai.</li>' },
+  { c:'Workforce', t:'Hiring & Recruitment', b:'<li>Candidates add karo, stage badlo, offer bhejo.</li><li>Candidate ko "Convert to Employee" se Add Employee form pre-filled khulta hai.</li>' },
+  { c:'Approvals', t:'Approvals Inbox', b:'<li>Ek jagah: Leaves, Overtime, Expenses, Field, WFH, Gate Pass, Att. Fix, Advance/Loan, Supervisor Attendance, Fuel.</li><li>Reporting manager / super-admin approve/reject karta hai; mail ke buttons se bhi.</li><li>Expenses tab me Timestamp column (kab submit hua).</li>' },
+  { c:'Approvals', t:'Leaves', b:'<li>ESS se employee leave dalta hai → reporting manager approve; Super Admin ko hamesha mail.</li><li>Approved paid leave payroll me present jaisi count hoti hai (sandwich/half-day auto).</li>' },
+  { c:'Payroll', t:'Overtime (OT) — naya rule', b:'<li>OT sirf 17:50 ke baad ka. Paid = min(approved hours, actual 17:50 ke baad). Single rate — <b>double pay nahi</b>.</li><li>Approval (CEO) + guard verify (ViziTrack) dono zaroori; bina inke 0.</li><li>Poora SOP: OT SOP document.</li>' },
+  { c:'Payroll', t:'Payroll (Salary Sheet)', b:'<li>Month choose → Generate. Present/paid days, lates, OT (verified), deductions sab auto.</li><li>ONR/OFR alag download; combined total bhi.</li><li>Salary tabhi count hoti hai jab CEO ne approve ki ho (pending/rejected skip).</li>' },
+  { c:'Payroll', t:'Income Tax (TDS) & Slabs', b:'<li>Profile → Salary → TDS Regime (New/Old/No TDS). Nexus apne aap TDS nikaalta hai aur payslip me line aati hai.</li><li>New Regime FY25-26: std. deduction ₹75,000; ₹12L taxable tak nil (87A); phir 5/10/15/20/30% + 4% cess; yearly ÷ 12 monthly.</li><li>Appointment letter ke Annexure me bhi regime ke hisaab se TDS dikhta hai.</li>' },
+  { c:'Payroll', t:'Advances & Loans', b:'<li>ESS se request → manager/accounts/CEO approve → salary se recover.</li><li>Advances page par track; payslip me deduction dikhti hai.</li>' },
+  { c:'Payroll', t:'Expenses / Reimbursement', b:'<li>ESS se bill ke saath claim; <b>7 din se purana claim block</b>.</li><li>Manager → Accounts approve; Timestamp record.</li>' },
+  { c:'Payroll', t:'Compliance (PF / ESI / PT / LWF)', b:'<li>Statutory deductions settings ke rates se auto.</li><li>Compliance page se challan/summary nikaalo.</li>' },
+  { c:'Documents', t:'HR Letters', b:'<li>Appointment / Offer / Experience / Relieving / Warning letters.</li><li>Appointment & Offer me Annexure A (Gross, Employer contribution, CTC, deductions incl. TDS).</li>' },
+  { c:'Documents', t:'ID Cards', b:'<li>Employee choose → ID card generate/print (photo + code + department).</li>' },
+  { c:'Documents', t:'Exit & Full-Final (F&F)', b:'<li>Resignation → notice → F&F: pending salary, leave encashment, advances recovery, assets clearance.</li><li>Relieving + Experience + No-Dues bundle CEO approval ke saath.</li>' },
+  { c:'System', t:'Blank Joining Form', b:'<li>Employees page → Blank Form: ek A4 par nominee + saare fields + office-use (Employment Type, Offered Salary, Roll Type) + 3 signature blocks; declaration last me.</li>' },
+  { c:'System', t:'CTC Calculator', b:'<li>Sirf helper: CTC daalo → Basic/HRA/allowances + gross + deductions preview.</li><li>Kisi ka salary structure Profile → Salary se hi change hota hai (CEO approval Dashboard Salary Approvals se).</li>' },
+  { c:'System', t:'Assets', b:'<li>Company assets employee ko issue/return; employee ESS "My Assets" me dekhta hai.</li>' },
+  { c:'System', t:'Voice Box (Grievance / Suggestion / Kaizen)', b:'<li>ESS se aata hai; reporting manager ko mail. Kaizen reward payroll me jodta hai.</li>' },
+  { c:'System', t:'MIS & Analytics', b:'<li>Attendance, expense, manpower trends; department/category deep-dives.</li>' },
+  { c:'System', t:'Settings', b:'<li>Departments, Units (code prefix), Shifts, Salary components, min-wage rates, contractors, holidays/week-offs.</li>' },
+  { c:'System', t:'Admin Control (Users & Access)', b:'<li>Users banao/hataao, page-wise access, confidential (salary) access, approve rights.</li>' },
+];
+function renderFaq(){
+  const host = $('faqWrap'); if(!host) return;
+  const q = String(($('faqSearch')||{}).value||'').trim().toLowerCase();
+  const cats = [...new Set(FAQ_SOP.map(x => x.c))];
+  let out = '';
+  cats.forEach(cat => {
+    const items = FAQ_SOP.filter(x => x.c === cat && (!q || (x.t+' '+x.b+' '+x.c).toLowerCase().includes(q)));
+    if(!items.length) return;
+    out += `<div class="px-4 pt-3 pb-1 text-[11px] font-bold" style="color:var(--brand);letter-spacing:.06em;text-transform:uppercase">${esc(cat)}</div>`;
+    out += items.map(x => `<details class="faq-item" style="border-bottom:1px solid var(--line)">
+      <summary style="cursor:pointer;padding:11px 16px;font-weight:600;font-size:13.5px;list-style:none;display:flex;align-items:center;gap:8px">
+        <i class="fa-solid fa-chevron-right text-[10px]" style="color:var(--muted);transition:transform .15s"></i> ${esc(x.t)}</summary>
+      <ul style="margin:0;padding:0 20px 14px 40px;font-size:13px;color:var(--muted);line-height:1.6">${x.b}</ul>
+    </details>`).join('');
+  });
+  host.innerHTML = out || '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi match nahi mila.</p>';
+}
+document.addEventListener('input', e => { if(e.target && e.target.id === 'faqSearch') renderFaq(); });
+document.addEventListener('toggle', e => { const d = e.target; if(d && d.classList && d.classList.contains('faq-item')){ const ic = d.querySelector('summary i'); if(ic) ic.style.transform = d.open ? 'rotate(90deg)' : 'none'; } }, true);
+
 async function loadApprovals(){
   loadSupAttApprovals();
   const [lv, ot, ex, ea] = await Promise.all([
