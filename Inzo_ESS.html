@@ -417,7 +417,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <button id="otModeTeam" class="chip chip-gray" style="border:none;cursor:pointer;flex:1;justify-content:center;padding:8px">For My Team (Bulk)</button>
         </div>
         <div id="otTeamWrap" class="hidden mb-3">
-          <select id="otDept" class="inp mb-2"><option value="">All departments</option></select>
+          <select id="otDept" class="inp mb-2"><option value="">All sections</option></select>
           <input id="otSearch" class="inp mb-2" placeholder="Search workers…">
           <div class="flex items-center gap-2 mb-2">
             <button id="otAllBtn" class="chip chip-gray" style="border:none;cursor:pointer">Select all shown</button>
@@ -2640,27 +2640,22 @@ async function loadWorkers(){
     rows = rows.filter(w => String(w.dept||'').trim().toUpperCase() === String(window._otUserDept||'').toUpperCase());
   }
   WORKERS = rows;
-  if(window._otScope === 'own'){
-    // Production: sirf apna department, filter locked
-    $('otDept').innerHTML = `<option value="${esc(window._otUserDept)}">${esc(window._otUserDept)}</option>`;
-    $('otDept').value = window._otUserDept; $('otDept').disabled = true;
-  } else {
-    const depts = [...new Set((WORKERS||[]).map(w => String(w.dept||'').trim()).filter(Boolean))].sort();
-    $('otDept').innerHTML = '<option value="">All departments</option>' + depts.map(d => `<option>${esc(d)}</option>`).join('');
-    $('otDept').disabled = false;
-  }
+  // Filter dropdown ab SECTION ke hisaab se (department ki jagah)
+  const secs = [...new Set((WORKERS||[]).map(w => String(w.section||'').trim()).filter(Boolean))].sort();
+  $('otDept').innerHTML = '<option value="">All sections</option>' + secs.map(s => `<option>${esc(s)}</option>`).join('');
+  $('otDept').disabled = false;
   renderWorkers('');
 }
 function renderWorkers(q){
   q = (q||'').toLowerCase();
-  const dept = $('otDept') ? $('otDept').value : '';
+  const sec = $('otDept') ? $('otDept').value : '';
   $('otWorkers').innerHTML = (WORKERS||[])
     .filter(w => w.code !== CODE)
-    .filter(w => !dept || String(w.dept||'').trim().toUpperCase() === String(dept).trim().toUpperCase())
-    .filter(w => !q || [w.name, w.code, w.dept, w.line].join(' ').toLowerCase().includes(q))
+    .filter(w => !sec || String(w.section||'').trim().toUpperCase() === String(sec).trim().toUpperCase())
+    .filter(w => !q || [w.name, w.code, w.dept, w.section].join(' ').toLowerCase().includes(q))
     .map(w => `<label class="flex items-center gap-2 p-2 rounded-lg text-sm" style="background:#f8fafc">
       <input type="checkbox" class="otw-chk" value="${esc(w.code)}">
-      <span><b>${esc(w.name)}</b> <span style="color:var(--muted);font-size:11px">${esc(w.code)}${w.dept ? ' • ' + esc(w.dept) : ''}${w.line ? ' • ' + esc(w.line) : ''}</span></span>
+      <span><b>${esc(w.name)}</b> <span style="color:var(--muted);font-size:11px">${esc(w.code)}${w.dept ? ' • ' + esc(w.dept) : ''}${w.section ? ' • ' + esc(w.section) : ''}</span></span>
     </label>`).join('') || '<p class="m-0 text-xs" style="color:var(--muted)">No workers found.</p>';
   updateOtCount();
 }
