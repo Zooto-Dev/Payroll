@@ -11550,9 +11550,27 @@ async function loadVoice(){
   </div>`;
   const rows = data || [];
   const by = t => rows.filter(f => f.type === t);
-  $('vbGriev').innerHTML = by('GRIEVANCE').map(card).join('') || '<p class="m-0 text-xs" style="color:var(--muted)">No grievances.</p>';
-  $('vbSugg').innerHTML = by('SUGGESTION').map(card).join('') || '<p class="m-0 text-xs" style="color:var(--muted)">No suggestions.</p>';
-  $('vbKaizen').innerHTML = by('KAIZEN').map(card).join('') || '<p class="m-0 text-xs" style="color:var(--muted)">No kaizen ideas.</p>';
+  // closed/done = Grievance/Suggestion RESOLVED|REJECTED; Kaizen REJECTED ya COMPLETED. Baaki sab pending.
+  const isClosed = f => f.type === 'KAIZEN'
+    ? (f.status === 'REJECTED' || f.kz_stage === 'COMPLETED')
+    : (f.status === 'RESOLVED' || f.status === 'REJECTED');
+  const renderCol = (elId, type, emptyMsg) => {
+    const el = $(elId); if(!el) return;
+    const list = by(type);
+    if(!list.length){ el.innerHTML = `<p class="m-0 text-xs" style="color:var(--muted)">${emptyMsg}</p>`; return; }
+    const pend = list.filter(f => !isClosed(f));
+    const done = list.filter(isClosed);
+    let html = pend.length
+      ? `<div class="space-y-2">${pend.map(card).join('')}</div>`
+      : '<p class="m-0 text-xs" style="color:var(--muted)">Koi pending nahi 🎉</p>';
+    if(done.length){
+      html += `<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);padding:8px 4px;border-top:1px dashed var(--line);list-style:none"><i class="fa-solid fa-circle-check" style="color:var(--ok)"></i> Closed / Done (${done.length}) <span style="font-weight:400">— dekhne ke liye click</span></summary><div class="space-y-2" style="margin-top:8px;opacity:.85">${done.map(card).join('')}</div></details>`;
+    }
+    el.innerHTML = html;
+  };
+  renderCol('vbGriev', 'GRIEVANCE', 'No grievances.');
+  renderCol('vbSugg', 'SUGGESTION', 'No suggestions.');
+  renderCol('vbKaizen', 'KAIZEN', 'No kaizen ideas.');
   const open = rows.filter(f => f.status === 'OPEN').length;
   $('voiceBadge').innerText = open;
   $('voiceBadge').classList.toggle('hidden', open === 0);
