@@ -1558,8 +1558,8 @@ body.no-confidential .confidential-col{display:none!important}
       <h3 class="display font-bold mt-6 mb-3">Contractors <span class="text-[10px] font-normal" style="color:var(--muted)">contract employees link to these & stay OUT of company payroll</span></h3>
       <div id="ctrList" class="space-y-2 mb-2"></div>
       <div class="flex gap-2 flex-wrap items-center">
-        <input id="ctrName" class="inp" style="flex:1;min-width:140px" placeholder="Contractor name *">
-        <input id="ctrFirm" class="inp" style="max-width:160px" placeholder="Firm">
+        <input id="ctrName" class="inp" style="flex:1;min-width:140px" placeholder="Contractor / Firm name *">
+        <input id="ctrContact" class="inp" style="max-width:160px" placeholder="Contact person">
         <input id="ctrPhone" class="inp" style="max-width:130px" placeholder="Phone">
         <input id="ctrGst" class="inp" style="max-width:150px" placeholder="GSTIN">
         <input id="ctrAddr" class="inp" style="max-width:200px" placeholder="Address">
@@ -9614,14 +9614,14 @@ function renderContractors(){
   Object.keys(PROFILES).forEach(c => { const n = String((PROFILES[c]||{}).contractor_name||'').trim().toUpperCase(); if(n) cnt[n] = (cnt[n]||0)+1; });
   host.innerHTML = CONTRACTORS.length ? CONTRACTORS.map(c => `
     <div class="flex items-center justify-between p-2 rounded-lg text-sm flex-wrap gap-1" style="background:#faf8f4">
-      <span><b>${esc(c.name)}</b>${c.firm?` <span class="chip chip-blue">${esc(c.firm)}</span>`:''}${c.phone?` <span class="text-xs" style="color:var(--muted)"><i class="fa-solid fa-phone"></i> ${esc(c.phone)}</span>`:''}
+      <span><b>${esc(c.name)}</b>${c.contact_person?` <span class="chip chip-blue" title="Contact person"><i class="fa-solid fa-user"></i> ${esc(c.contact_person)}</span>`:''}${c.firm?` <span class="chip chip-gray">${esc(c.firm)}</span>`:''}${c.phone?` <span class="text-xs" style="color:var(--muted)"><i class="fa-solid fa-phone"></i> ${esc(c.phone)}</span>`:''}
         <span class="chip chip-gray">${cnt[String(c.name).trim().toUpperCase()]||0} employees</span>
         ${c.gstin?`<span class="text-[10px]" style="color:var(--muted)">GST: ${esc(c.gstin)}</span>`:''}</span>
       <button class="btn btn-danger btn-sm" data-act="del-ctr" data-id="${c.id}"><i class="fa-solid fa-trash"></i></button>
     </div>`).join('') : '<p class="text-xs m-0" style="color:var(--muted)">No contractors yet — add below.</p>';
 }
 function fillContractorSelects(){
-  const opts = '<option value="">— Select Contractor —</option>' + CONTRACTORS.map(c => `<option value="${esc(c.name)}" data-phone="${esc(c.phone||'')}">${esc(c.name)}${c.firm?' — '+esc(c.firm):''}</option>`).join('');
+  const opts = '<option value="">— Select Contractor —</option>' + CONTRACTORS.map(c => `<option value="${esc(c.name)}" data-phone="${esc(c.phone||'')}">${esc(c.name)}${c.contact_person?' ('+esc(c.contact_person)+')':''}</option>`).join('');
   if($('aeContractorSel')) $('aeContractorSel').innerHTML = opts;
   if($('epContractorSel')) $('epContractorSel').innerHTML = opts;
 }
@@ -9634,10 +9634,10 @@ function ctrPick(selId, nameId, phoneId){
 $('ctrAddBtn').addEventListener('click', async () => {
   const name = $('ctrName').value.trim().toUpperCase();
   if(!name) return notify('Contractor name is required', 'error');
-  const row = { name, firm: $('ctrFirm').value.trim()||null, phone: ($('ctrPhone').value||'').replace(/\D/g,'')||null, gstin: $('ctrGst').value.trim().toUpperCase()||null, address: $('ctrAddr').value.trim()||null };
+  const row = { name, contact_person: $('ctrContact').value.trim()||null, phone: ($('ctrPhone').value||'').replace(/\D/g,'')||null, gstin: $('ctrGst').value.trim().toUpperCase()||null, address: $('ctrAddr').value.trim()||null };
   const { error } = await sb.from('contractors').insert([row]);
   if(error) return notify(error.message, 'error');
-  ['ctrName','ctrFirm','ctrPhone','ctrGst','ctrAddr'].forEach(id => $(id).value = '');
+  ['ctrName','ctrContact','ctrPhone','ctrGst','ctrAddr'].forEach(id => $(id).value = '');
   notify('Contractor added', 'success');
   loadContractors();
 });
