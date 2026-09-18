@@ -3951,11 +3951,10 @@ $('aeSaveBtn').addEventListener('click', async () => {
     ['aePhone','Phone'], ['aeEmail','Email'], ['aeEmergency','Emergency Contact'], ['aeAddress','Address'],
     ['aeDept','Department'], ['aeDesig','Designation'], ['aeDOJ','Date of Joining'], ['aeEmpType','Employment Type'],
     ['aeRoll','Roll Type (On-Roll/Off-Roll)'],
-    ['aeMgr','Reporting Manager'], ['aeBank','Bank Name'], ['aeAcc','Account No'], ['aeIFSC','IFSC'], ['aePAN','PAN']
+    ['aeMgr','Reporting Manager'], ['aeBank','Bank Name'], ['aeAcc','Account No'], ['aeIFSC','IFSC']
   ];
   for(let _i=0;_i<_req.length;_i++){ const el=$(_req[_i][0]); if(!el || !String(el.value||'').trim()) return notify(_req[_i][1] + ' bharna zaroori hai', 'error'); }
-  // Line — management ke alawa sabke liye zaroori
-  if($('aeCat').value !== 'mgmt' && !String(($('aeLine')||{}).value||'').trim()) return notify('Production Line bharna zaroori hai', 'error');
+  // Line aur PAN ab optional hain — mandatory nahi
   // Contractor fields — sirf Contract type par
   if($('aeEmpType').value === 'Contract'){
     if(!String($('aeContractor').value||'').trim()) return notify('Contractor Name bharna zaroori hai', 'error');
@@ -3965,7 +3964,7 @@ $('aeSaveBtn').addEventListener('click', async () => {
   if(($('aePhone').value||'').replace(/\D/g,'').length < 10) return notify('Phone sahi 10-digit hona chahiye', 'error');
   if(($('aeEmergency').value||'').replace(/\D/g,'').length < 10) return notify('Emergency Contact sahi 10-digit hona chahiye', 'error');
   if(($('aeEmail').value||'').indexOf('@') < 1) return notify('Sahi Email daalein', 'error');
-  if(($('aePAN').value||'').trim().length !== 10) return notify('PAN 10-character ka hona chahiye', 'error');
+  if(($('aePAN').value||'').trim() && ($('aePAN').value||'').trim().length !== 10) return notify('PAN 10-character ka hona chahiye', 'error');
   // salary (agar dikhta hai): management -> CTC zaroori
   if(canSeeConfidential() && $('aeCat').value === 'mgmt' && !(Number($('aeCTC').value) > 0)) return notify('Monthly CTC bharna zaroori hai', 'error');
   const code = $('aeCode').value.trim().toUpperCase() || nextCodeFor($('aeUnit').value);
@@ -4831,13 +4830,13 @@ $('epSaveBtn').addEventListener('click', async () => {
       ['epEmPhone','Emergency Phone'], ['epAddr','Address'], ['epDeptSel','Department'],
       ['epDesigSel','Designation'], ['epDOJ','Date of Joining'], ['epType','Employment Type'],
       ['epRoll','Roll Type (ONR/OFR)'], ['epManager','Reporting Manager'], ['epBank','Bank Name'],
-      ['epAcc','Account No'], ['epIFSC','IFSC'], ['epPAN','PAN']
+      ['epAcc','Account No'], ['epIFSC','IFSC']
     ];
     for(let i=0;i<_req.length;i++){ const el=$(_req[i][0]); if(!el || !String(el.value||'').trim()){ epSwitchTab(/^(epUnitSel|epName|epFather|epDOB|epGender|epPhone|epEmail|epEmPhone|epAddr|epDeptSel|epDesigSel|epDOJ)$/.test(_req[i][0])?'basic':(/^(epBank|epAcc|epIFSC|epPAN)$/.test(_req[i][0])?'bank':'job')); return notify(_req[i][1] + ' bharna zaroori hai', 'error'); } }
     if(($('epPhone').value||'').replace(/\D/g,'').length < 10) return notify('Phone sahi 10-digit hona chahiye', 'error');
     if(($('epEmPhone').value||'').replace(/\D/g,'').length < 10) return notify('Emergency Phone sahi 10-digit hona chahiye', 'error');
     if(($('epEmail').value||'').indexOf('@') < 1) return notify('Sahi Email daalein', 'error');
-    if(($('epPAN').value||'').trim().length !== 10) return notify('PAN 10-character ka hona chahiye', 'error');
+    if(($('epPAN').value||'').trim() && ($('epPAN').value||'').trim().length !== 10) return notify('PAN 10-character ka hona chahiye', 'error');
     const unit0 = $('epUnitSel').value;
     let code0 = ($('epCode').value||'').trim().toUpperCase() || nextCodeFor(unit0);
     // race-safe: agar ye code kisi wajah se already hai to next le lo
