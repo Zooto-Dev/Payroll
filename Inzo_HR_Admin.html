@@ -11239,6 +11239,7 @@ function idCardHTML(e, photo, validTill){
     <table class="details-table">
       <tr><td>Emp Code</td><td>: ${esc(code)}</td></tr>
       <tr><td>Department</td><td>: ${esc(e.DEPARTMENT || '—')}</td></tr>
+      ${(String(p.category||'').toUpperCase() === 'WORKER' && String(p.section||'').trim()) ? `<tr><td>Section</td><td>: ${esc(p.section)}</td></tr>` : ''}
       <tr><td>Joining Date</td><td>: ${e.DOJ ? fmtDate(e.DOJ) : '—'}</td></tr>
       <tr><td>Valid Till</td><td>: ${fmtDate(validTill)}</td></tr>
       ${emg ? `<tr><td>Emergency</td><td>: ${esc(emg)}</td></tr>` : ''}
