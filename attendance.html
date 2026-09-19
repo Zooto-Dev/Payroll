@@ -1955,6 +1955,22 @@ function nxConfirm(msg, title){
                     punchDateStr = yD.getFullYear() + '-' + String(yD.getMonth()+1).padStart(2,'0') + '-' + String(yD.getDate()).padStart(2,'0');
                     nightOut = true;
                 }
+                // DAY worker + subah <05:00 punch: agar kal ka OUT missing hai to ye KAL ka OUT hai
+                // (naya IN nahi). 05:00 ke baad koi backday check nahi -> normal IN. (Aapka rule.)
+                if (!nightOut && !_isNightEmp && timeStr.substring(0,5) < '05:00'
+                    && navigator.onLine && typeof supabaseClient !== 'undefined' && supabaseClient) {
+                    try {
+                        const yD2 = new Date(todayStr + 'T12:00:00'); yD2.setDate(yD2.getDate() - 1);
+                        const yStr2 = yD2.getFullYear() + '-' + String(yD2.getMonth()+1).padStart(2,'0') + '-' + String(yD2.getDate()).padStart(2,'0');
+                        const { data: _yrows } = await supabaseClient.from('attendance')
+                            .select('id,in_time,out_time').eq('employee_code', empCode).eq('date', yStr2)
+                            .order('created_at', { ascending: false }).limit(1);
+                        const _yr = _yrows && _yrows[0];
+                        if (_yr && _yr.in_time && (!_yr.out_time || String(_yr.out_time).trim() === '')) {
+                            punchDateStr = yStr2; nightOut = true;   // kal ka OUT (OUT path reuse)
+                        }
+                    } catch (e) {}
+                }
                 for (let pass = 0; pass < 2 && !nightOut; pass++) {
                     punchType = null; refuseMsg = null; refuseSpeak = null;
                     if (!lp.in) punchType = 'IN';
