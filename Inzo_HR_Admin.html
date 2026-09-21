@@ -391,6 +391,7 @@ body.no-confidential .confidential-col{display:none!important}
       <button class="nav-item nxdi active" data-page="dashboard"><span class="di"><i class="fa-solid fa-gauge-high"></i></span><span style="flex:1"><span class="dt">Dashboard</span><span class="ds">Live attendance & KPIs</span></span></button>
       <button class="nav-item nxdi" data-page="mis"><span class="di"><i class="fa-solid fa-chart-pie"></i></span><span style="flex:1"><span class="dt">MIS Report</span><span class="ds">Attendance, expense & manpower</span></span></button>
       <button class="nav-item nxdi" data-page="reports"><span class="di"><i class="fa-solid fa-chart-column"></i></span><span style="flex:1"><span class="dt">Analytics</span><span class="ds">Trends & deep dives</span></span></button>
+      <button class="nav-item nxdi" data-page="misspunch"><span class="di"><i class="fa-solid fa-user-clock"></i></span><span style="flex:1"><span class="dt">Miss Punch</span><span class="ds">Missing IN / OUT punches</span></span></button>
     </div></div>
   <div class="nxg"><button><i class="fa-solid fa-users li"></i> Workforce <i class="fa-solid fa-chevron-down ca"></i><span id="apprBadge" class="bdg hidden">0</span></button>
     <div class="nxdd">
@@ -1351,6 +1352,30 @@ body.no-confidential .confidential-col{display:none!important}
 </div>
 
 <!-- ================= ID CARDS ================= -->
+<div class="page" id="page-misspunch">
+  <div class="card">
+    <div class="flex items-end gap-3 flex-wrap">
+      <div><label class="lbl">From</label><input id="mpFrom" type="date" class="inp"></div>
+      <div><label class="lbl">To</label><input id="mpTo" type="date" class="inp"></div>
+      <button id="mpLoadBtn" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Load</button>
+      <span class="chip chip-gray" style="cursor:pointer" id="mpQKal">Kal (default)</span>
+      <span class="chip chip-gray" style="cursor:pointer" id="mpQAaj">Aaj</span>
+      <span class="chip chip-gray" style="cursor:pointer" id="mpQMonth">Current Month</span>
+      <div style="flex:1"></div>
+      <button id="mpCsvBtn" class="btn btn-ghost btn-sm hidden"><i class="fa-solid fa-download"></i> Export CSV</button>
+    </div>
+    <p class="text-[11px] mt-2 mb-0" style="color:var(--muted)">Miss Punch = jis row me IN ya OUT dono me se koi <b>ek</b> missing hai. Missing time yahin bhar sakte ho (Manual Attendance permission chahiye). Note: "Aaj" ke liye OUT abhi aana baaki ho sakta hai — isliye default <b>kal (back date)</b> ka dikhta hai.</p>
+  </div>
+  <div class="card" id="mpWrap"><p class="m-0 text-sm" style="color:var(--muted)">Date chun kar Load dabao.</p></div>
+  <div class="card">
+    <div class="flex items-center justify-between" style="cursor:pointer" onclick="mpToggleLog()">
+      <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-list-check" style="color:var(--brand)"></i> Punch Attempts Log <span class="text-[10px] font-normal" style="color:var(--muted)">— har punch try ka server record (selected dates ka)</span></h3>
+      <i class="fa-solid fa-chevron-down" id="mpLogChev"></i>
+    </div>
+    <div id="mpLogWrap" class="hidden mt-3"><p class="m-0 text-xs" style="color:var(--muted)">—</p></div>
+  </div>
+</div>
+
 <div class="page" id="page-idcards">
   <div class="card mb-4 flex items-end gap-3 flex-wrap">
     <div><label class="lbl">Employee</label><select id="idEmp" class="inp" style="min-width:240px"><option value="ALL">— All Active Employees —</option></select></div>
@@ -2295,7 +2320,7 @@ $('loginBtn').addEventListener('click', async () => {
 $('loginPass').addEventListener('keydown', e => { if(e.key === 'Enter') $('loginBtn').click(); });
 $('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
 
-const ALL_PAGES = ['dashboard','mis','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','letters','ctccalc','idcards','approvals','trial','voice','settings','faq'];
+const ALL_PAGES = ['dashboard','mis','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','misspunch','letters','ctccalc','idcards','approvals','trial','voice','settings','faq'];
 let ME_EMAIL = '';
 let FACE_CODES = new Set();
 function isSuper(){
@@ -2373,7 +2398,7 @@ function applyPerms(){
   const mb = document.getElementById('attFixBtn');
   if(mb) mb.classList.toggle('hidden', !canManualAtt());
 }
-const PAGE_ICONS = { dashboard:'gauge', mis:'chart-pie', employees:'users', attendance:'calendar-check', workhours:'business-time', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', ctccalc:'calculator', idcards:'id-card', approvals:'clipboard-check', trial:'id-card-clip', voice:'comments', settings:'gear', faq:'circle-question' };
+const PAGE_ICONS = { dashboard:'gauge', mis:'chart-pie', employees:'users', attendance:'calendar-check', workhours:'business-time', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', ctccalc:'calculator', idcards:'id-card', approvals:'clipboard-check', trial:'id-card-clip', voice:'comments', settings:'gear', faq:'circle-question', misspunch:'user-clock' };
 function isRowLate(r){ return r.is_late === true || String(r.in_time||'').toUpperCase().includes('LATE'); }
 function cleanInTime(r){ return String(r.in_time||'').replace(/\s*\(?LATE\)?/i,'').trim(); }
 function initials(em){ return em.split('@')[0].replace(/[^a-z0-9]/gi, ' ').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'A'; }
@@ -3159,7 +3184,7 @@ $('rmbApplyBtn') && $('rmbApplyBtn').addEventListener('click', async () => {
 });
 
 /* ---------------- Router ---------------- */
-const TITLES = { mis:'MIS Report', dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', trial:'Trial Workers (Work Pass)', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', ctccalc:'CTC Calculator', faq:'FAQ / SOP — Har Feature ka Guide', adminctl:'Admin Control Panel' };
+const TITLES = { mis:'MIS Report', dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', trial:'Trial Workers (Work Pass)', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', ctccalc:'CTC Calculator', faq:'FAQ / SOP — Har Feature ka Guide', adminctl:'Admin Control Panel', misspunch:'Miss Punch — Missing IN / OUT' };
 /* ---- Topbar dropdown open/close ---- */
 function nxCloseDD(){ document.querySelectorAll('.nxg').forEach(g=>g.classList.remove('open')); }
 const _nxNav = document.querySelector('.nxnav');
@@ -3189,6 +3214,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     $('page-' + page).classList.add('show');
     $('pageTitle').innerText = TITLES[page];
     if(page === 'dashboard') loadDashboard();
+    if(page === 'misspunch') mpInit();
     if(page === 'mis') loadMis();
     if(page === 'advances') loadAdvances();
     if(page === 'leaves') loadLeaves();
@@ -6059,6 +6085,147 @@ function exportWorkHours(){
   });
   dlText('Work_Hours_'+d.from+(d.multiDay?('_to_'+d.to):'')+'.csv', lines.join('\n'), 'text/csv');
 }
+
+/* ================= MISS PUNCH (Overview) ================= */
+let MP_ROWS = [];
+function mpYesterday(){ const d = new Date(); d.setDate(d.getDate()-1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function mpInit(){
+  if(!$('mpFrom').value){ const y = mpYesterday(); $('mpFrom').value = y; $('mpTo').value = y; }
+  loadMissPunch();
+}
+async function loadMissPunch(){
+  const from = $('mpFrom').value, to = $('mpTo').value || from;
+  if(!from) return notify('Date chunein', 'error');
+  const wrap = $('mpWrap');
+  wrap.innerHTML = '<div class="loader-ring"></div>';
+  try{
+    let rows = [];
+    for(let pf = 0; pf < 200000; pf += 1000){
+      const { data: pg, error } = await sb.from('attendance').select('id, employee_code, "Name", date, in_time, out_time, in_photo_url, out_photo_url').gte('date', from).lte('date', to).order('date').range(pf, pf+999);
+      if(error) throw error;
+      rows = rows.concat(pg||[]);
+      if(!pg || pg.length < 1000) break;
+    }
+    const has = v => /[0-9]/.test(String(v||''));
+    MP_ROWS = rows.filter(r => has(r.in_time) !== has(r.out_time));   // exactly EK missing (IN ya OUT)
+    const unitNm = c => { const e = EMP.find(x => x['Employee code']===c)||{}; const u = e.UNIT || String(c||'').slice(0,4); const un = ((SETTINGS&&SETTINGS.units)||[]).find(x=>x.code===u); return un?un.name:(u||''); };
+    const canFix = canMarkAtt();
+    const body = MP_ROWS.map(r => {
+      const e = EMP.find(x => x['Employee code']===r.employee_code)||{};
+      const p = PROFILES[r.employee_code]||{};
+      const inMiss = !has(r.in_time), outMiss = !has(r.out_time);
+      return `<tr>
+        <td class="text-xs">${esc(r.date)}</td>
+        <td class="font-mono text-xs">${esc(r.employee_code)}</td>
+        <td class="font-semibold">${esc(e.Name||r.Name||'')}</td>
+        <td class="text-xs">${esc(e.DEPARTMENT||'—')}</td>
+        <td class="text-xs">${esc(p.section||'—')}</td>
+        <td class="text-xs">${esc(e.DESIGNATION||'—')}</td>
+        <td class="text-xs">${esc(unitNm(r.employee_code))}</td>
+        <td>${inMiss ? (canFix ? `<span style="white-space:nowrap"><input type="time" id="mpIn_${r.id}" class="inp" style="width:96px;padding:3px 5px;font-size:12px"> <button class="btn btn-primary btn-sm" onclick="mpFix(${r.id},'in')" title="IN bharo"><i class="fa-solid fa-check"></i></button></span>` : '<span class="chip chip-bad" style="font-size:10px">MISSING</span>') : esc(String(r.in_time).slice(0,5))}</td>
+        <td>${whThumb(r.in_photo_url,'IN')}</td>
+        <td>${outMiss ? (canFix ? `<span style="white-space:nowrap"><input type="time" id="mpOut_${r.id}" class="inp" style="width:96px;padding:3px 5px;font-size:12px"> <button class="btn btn-primary btn-sm" onclick="mpFix(${r.id},'out')" title="OUT bharo"><i class="fa-solid fa-check"></i></button></span>` : '<span class="chip chip-bad" style="font-size:10px">MISSING</span>') : esc(String(r.out_time).slice(0,5))}</td>
+        <td>${whThumb(r.out_photo_url,'OUT')}</td>
+      </tr>`;
+    }).join('');
+    wrap.innerHTML = `
+      <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+        <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-user-clock" style="color:#dc2626"></i> Miss Punch · ${esc(from)}${to!==from?' → '+esc(to):''} <span class="chip chip-bad">${MP_ROWS.length}</span></h3>
+      </div>
+      ${MP_ROWS.length ? `<div style="overflow-x:auto;max-height:70vh;overflow-y:auto"><table class="tbl">
+        <thead style="position:sticky;top:0;background:#fff;z-index:1"><tr><th>Date</th><th>Employee Code</th><th>Employee Name</th><th>Department</th><th>Section</th><th>Designation</th><th>Unit</th><th>In Time</th><th>In Photo</th><th>Out Time</th><th>Out Photo</th></tr></thead>
+        <tbody>${body}</tbody></table></div>` : '<p class="m-0 text-sm" style="color:var(--ok)">✓ Is period me koi miss punch nahi.</p>'}`;
+    $('mpCsvBtn').classList.toggle('hidden', !MP_ROWS.length);
+    if(!$('mpLogWrap').classList.contains('hidden')) mpLoadLog();
+  }catch(err){ wrap.innerHTML = `<p style="color:var(--bad)">Error: ${esc(err.message||err)}</p>`; }
+}
+function mpLateCalc(code, t, dateStr){
+  try{ if(new Date(dateStr+'T12:00:00').getDay() === 0) return false; }catch(e){}
+  const p = PROFILES[code]||{}; const emp = EMP.find(x=>x['Employee code']===code)||{};
+  const sh = p.shift_id ? (SHIFTS||[]).find(s=>String(s.id)===String(p.shift_id)) : null;
+  let cutoff;
+  if(sh && String(sh.name||'').toUpperCase() !== 'GENERAL' && sh.start_time){
+    const parts = String(sh.start_time).split(':').map(Number);
+    const tot = parts[0]*60 + (parts[1]||0) + (Number(sh.grace_mins)||10);
+    cutoff = String(Math.floor(tot/60)).padStart(2,'0')+':'+String(tot%60).padStart(2,'0');
+  } else {
+    const cat = String(p.category||'WORKER').toUpperCase();
+    const dept = String(emp.DEPARTMENT||'').toUpperCase();
+    cutoff = (cat==='STAFF' && !dept.includes('PROD') && !dept.includes('STORE')) ? '10:00' : '09:10';
+  }
+  return t > cutoff;
+}
+async function mpFix(id, kind){
+  if(!canMarkAtt()) return notify('"Manual Attendance" permission chahiye', 'error');
+  const t = (($(kind==='in'?('mpIn_'+id):('mpOut_'+id))||{}).value||'').trim();
+  if(!t) return notify('Pehle time daalo', 'error');
+  const r = MP_ROWS.find(x => x.id === id); if(!r) return;
+  const val = t.length===5 ? t+':00' : t;
+  const upd = {};
+  if(kind === 'in'){
+    upd.in_time = val;
+    upd.is_late = mpLateCalc(r.employee_code, t, r.date);
+  } else {
+    upd.out_time = val;
+    const inT = String(r.in_time||'').slice(0,8);
+    if(/[0-9]/.test(inT)){
+      let ms = new Date(r.date+'T'+val) - new Date(r.date+'T'+(inT.length===5?inT+':00':inT));
+      if(ms < 0) ms += 86400000;
+      upd.total_hours = String(Math.floor(ms/3600000)).padStart(2,'0')+':'+String(Math.floor((ms%3600000)/60000)).padStart(2,'0')+':00';
+    }
+  }
+  try{
+    const { error } = await sb.from('attendance').update(upd).eq('id', id);
+    if(error) throw error;
+    notify('✓ '+(kind==='in'?'IN':'OUT')+' set — '+r.employee_code+' ('+r.date+' '+t+')', 'success');
+    loadMissPunch();
+  }catch(e){ notify('Failed: '+(e.message||e), 'error'); }
+}
+function mpCsv(){
+  if(!MP_ROWS.length) return;
+  const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
+  const unitNm = c => { const e = EMP.find(x => x['Employee code']===c)||{}; const u = e.UNIT || String(c||'').slice(0,4); const un = ((SETTINGS&&SETTINGS.units)||[]).find(x=>x.code===u); return un?un.name:(u||''); };
+  const lines = ['Date,Employee Code,Employee Name,Department,Section,Designation,Unit,In Time,In Photo,Out Time,Out Photo'];
+  MP_ROWS.forEach(r => {
+    const e = EMP.find(x => x['Employee code']===r.employee_code)||{};
+    const p = PROFILES[r.employee_code]||{};
+    lines.push([r.date, q(r.employee_code), q(e.Name||r.Name||''), q(e.DEPARTMENT||''), q(p.section||''), q(e.DESIGNATION||''), q(unitNm(r.employee_code)), q(String(r.in_time||'').slice(0,5)), q(r.in_photo_url||''), q(String(r.out_time||'').slice(0,5)), q(r.out_photo_url||'')].join(','));
+  });
+  dlText('Miss_Punch_'+$('mpFrom').value+($('mpTo').value!==$('mpFrom').value?'_to_'+$('mpTo').value:'')+'.csv', lines.join('\n'), 'text/csv');
+}
+function mpToggleLog(){
+  const w = $('mpLogWrap'); w.classList.toggle('hidden');
+  $('mpLogChev').className = 'fa-solid ' + (w.classList.contains('hidden') ? 'fa-chevron-down' : 'fa-chevron-up');
+  if(!w.classList.contains('hidden')) mpLoadLog();
+}
+async function mpLoadLog(){
+  const from = $('mpFrom').value, to = $('mpTo').value || from;
+  const w = $('mpLogWrap');
+  w.innerHTML = '<div class="loader-ring"></div>';
+  try{
+    const { data, error } = await sb.from('punch_attempts').select('*').gte('punch_date', from).lte('punch_date', to).order('created_at', { ascending:false }).limit(2000);
+    if(error) throw error;
+    const chip = s => ({saved_in:'chip-ok',saved_out:'chip-ok',prev_out:'chip-blue',night_out:'chip-blue',already_in:'chip-gray',already_out:'chip-gray'})[s]||'chip-bad';
+    const fmtT = ts => { try{ return new Date(ts).toLocaleString('en-IN',{hour12:false,day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',second:'2-digit'}); }catch(e){ return String(ts||''); } };
+    w.innerHTML = (data&&data.length) ? `<div style="overflow-x:auto;max-height:50vh;overflow-y:auto"><table class="tbl">
+      <thead style="position:sticky;top:0;background:#fff"><tr><th>Time</th><th>Punch Date</th><th>Code</th><th>Name</th><th>Kind</th><th>Result</th></tr></thead>
+      <tbody>${data.map(a => `<tr>
+        <td class="text-xs">${esc(fmtT(a.created_at))}</td>
+        <td class="text-xs">${esc(a.punch_date||'')}</td>
+        <td class="font-mono text-xs">${esc(a.employee_code||'')}</td>
+        <td class="text-xs">${esc(a.emp_name||'')}</td>
+        <td>${esc(a.kind||'')}</td>
+        <td><span class="chip ${chip(a.result)}" style="font-size:10px">${esc(a.result||'')}</span></td>
+      </tr>`).join('')}</tbody></table></div>
+      <p class="text-[11px] mt-2 mb-0" style="color:var(--muted)">saved = punch DB me gaya · already = pehle se laga tha · prev/night_out = pichhle din ka OUT band hua · no_open = OUT try par koi khula IN nahi mila</p>`
+      : '<p class="m-0 text-xs" style="color:var(--muted)">Is period ka koi punch-attempt record nahi. (Ye log 20 Sep 2026 se shuru hua hai.)</p>';
+  }catch(err){ w.innerHTML = `<p style="color:var(--bad)">Error: ${esc(err.message||err)}</p>`; }
+}
+$('mpLoadBtn') && $('mpLoadBtn').addEventListener('click', loadMissPunch);
+$('mpCsvBtn') && $('mpCsvBtn').addEventListener('click', mpCsv);
+$('mpQKal') && $('mpQKal').addEventListener('click', () => { const y = mpYesterday(); $('mpFrom').value = y; $('mpTo').value = y; loadMissPunch(); });
+$('mpQAaj') && $('mpQAaj').addEventListener('click', () => { const t = todayISO(); $('mpFrom').value = t; $('mpTo').value = t; loadMissPunch(); });
+$('mpQMonth') && $('mpQMonth').addEventListener('click', () => { const t = todayISO(); $('mpFrom').value = t.slice(0,8)+'01'; $('mpTo').value = t; loadMissPunch(); });
 
 /* ---------------- Attendance Register ---------------- */
 $('attMonth').value = todayISO().slice(0,7);
