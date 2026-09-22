@@ -630,12 +630,22 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 
 /* ---- Nexus config from the GAS endpoint (keys live in the SUPABASE sheet) ---- */
 const NX_CONFIG_URL = 'https://script.google.com/macros/s/AKfycbyLyxuzYzGZ1odibF_-ORvn314hFY_zKg4595HpDZrhMObhqbcAh_LIw60sTc4b_dPI/exec';
-// ESS se approval-request email — GAS khud manager/CEO dhundh ke bhejta hai (RLS bypass)
+// ESS se approval-request email — recipient YAHIN resolve hota hai:
+// request us employee ke reporting manager ki OFFICIAL email par jaati hai.
+// CEO ko tabhi jab manager set hi na ho (ya manager ka naam ambiguous ho).
 async function essSendApprovalEmail(kind, id, title, rows){
   try{
     const codeU = String(CODE||'').trim().toUpperCase();
     const lines = (rows||[]).map(r => `<tr><td style="padding:5px 14px 5px 0;color:#64748b">${r[0]}</td><td style="padding:5px 0;font-weight:600">${r[1]}</td></tr>`).join('');
-    const url = NX_CONFIG_URL + '?action=essnotify'
+    // Reporting manager ki official email nikaalo (code / naam / "Naam (CODE)" — teeno format)
+    let _to = '', _approver = '';
+    try{
+      const { data: ap } = await sb.rpc('nx_request_approver_email', { p_code: codeU });
+      if(ap && ap.email){ _to = String(ap.email).trim(); _approver = String(ap.approver || '').trim(); }
+      console.log('[ESS] approver:', ap);
+    }catch(e){ console.warn('[ESS] approver resolve fail — GAS default par ja rahe hain:', e); }
+    const url = NX_CONFIG_URL + '?action=' + (_to ? 'sendapproval' : 'essnotify')
+      + (_to ? '&to=' + encodeURIComponent(_to) : '')
       + '&emp=' + encodeURIComponent(codeU)
       + '&kind=' + encodeURIComponent(kind) + '&id=' + encodeURIComponent(id)
       + '&title=' + encodeURIComponent(title) + '&lines=' + encodeURIComponent(lines)
@@ -646,7 +656,7 @@ async function essSendApprovalEmail(kind, id, title, rows){
       const cb = 'nxMailCb_' + Date.now();
       window[cb] = (res) => { try{ delete window[cb]; sc.remove(); }catch(e2){}
         console.log('[ESS] email result:', res);
-        if(res && res.ok) notify('✉ Notification manager/HR ko bhej di gayi');
+        if(res && res.ok) notify('✉ Approval mail bhej di gayi' + (_approver ? ' — ' + _approver : '') + (_to ? ' (' + _to + ')' : ''));
         // fail hone par bhi user ko scary error NAHI — request to submit ho hi chuki hai
         else console.warn('[ESS] notification email skipped:', (res && (res.reason||res.error)) || 'unknown');
         resolve(); };
