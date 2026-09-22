@@ -437,6 +437,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <button id="otModeTeam" class="chip chip-gray" style="border:none;cursor:pointer;flex:1;justify-content:center;padding:8px">For My Team (Bulk)</button>
         </div>
         <div id="otTeamWrap" class="hidden mb-3">
+          <p id="otPresentNote" class="text-[11px] mt-0 mb-2 p-2 rounded" style="background:#ecfdf5;color:#065f46">…</p>
           <select id="otDept" class="inp mb-2"><option value="">All sections</option></select>
           <input id="otSearch" class="inp mb-2" placeholder="Search workers…">
           <div class="flex items-center gap-2 mb-2">
@@ -982,7 +983,7 @@ var ESS_FAQ = [
   { t:'WFH (Work From Home)', b:'Ghar se kaam ke liye. WFH tile → date + reason, din se pehle daalo. Manager approve karta hai. Approved WFH us din present ki tarah paid hota hai aur iske liye face/kiosk punch ki zaroorat nahi. Jo din pehle se attendance/leave me hai us par WFH dubara mat daalo.' },
   { t:'Expenses / Reimbursement', b:'Company ke kaam me kharch kiya paisa wapas paane ke liye. Expenses tile → category + amount + bill/receipt ki photo bharo. NOTE: 7 din se purana kharch claim nahi hota, isliye bill turant daal do. Request pehle manager, phir Accounts ke paas jaati hai. Approve + paid hone par amount aapko milta hai; status har step par tile me dikhta hai.' },
   { t:'Advance / Loan', b:'Advance = ek baar ka paisa jo agli hi salary se poora kat jaata hai. Loan = CEO approval → Loan Agreement (yahin ESS me Accept karna hoga) → Accounts se disbursement → har mahine EMI katauti. Advance/Loan tile → type + amount + reason (Loan me months bhi) bharo. Manager/Accounts/CEO approve karte hain; katauti aapke payslip me saaf dikhti hai.' },
-  { t:'Overtime (OT)', b:'OT sirf unhe dikhta hai jinhe allowed hai. OT tile → date + hours + reason; supervisor poori team ka OT ek saath bhi bhej sakta hai. Rule: OT sirf 17:50 ke baad ke kaam ka ginta hai. Paid OT = min(jitne ghante approve hue, jitne 17:50 ke baad actual kaam kiya) — yaani approval ek upper limit hai. Paid tabhi hoga jab (1) OT approve ho AUR (2) gate par guard/security ne ViziTrack se verify kiya ho — dono zaroori, warna 0. Single rate par pay hota hai, double pay nahi.' },
+  { t:'Overtime (OT)', b:'OT sirf unhe dikhta hai jinhe allowed hai. OT tile → date + hours + reason; supervisor poori team ka OT ek saath bhi bhej sakta hai. Rule: OT sirf 17:50 ke baad ke kaam ka ginta hai. Paid OT = min(jitne ghante approve hue, jitne 17:50 ke baad actual kaam kiya) — yaani approval ek upper limit hai. OT sirf unhi logon ka lag sakta hai jo us din PRESENT hain (punch hua ho) — absent bande ki list me hi nahi aayenge. Paid tabhi hoga jab (1) OT approve ho AUR (2) gate par guard/security ne ViziTrack se verify kiya ho — dono zaroori, warna 0. Single rate par pay hota hai, double pay nahi.' },
   { t:'Visitor Request (guest ko bulana)', b:'Aapse milne koi bahar se aa raha hai to pehle se entry kar do. Visitor tile → visitor ka naam, mobile, company, visit date/time, kitne log, vehicle number aur purpose bharo. Request HR/Admin ke paas jaati hai. Approve hone par us din gate par security ko approved visitor list dikh jaati hai, isliye guest ko intezaar nahi karna padta. Pending request ko aap khud cancel bhi kar sakte ho. Guest aane se pehle request daalna zaroori hai \u2014 bina approval ke gate par entry nahi milti.' },
   { t:'Payslips', b:'Payslip tile → mahine wise apna payslip dekho/download karo. Payslip tab dikhta hai jab HR us mahine ka payroll finalize kar deta hai. Isme earnings (basic/HRA/allowance/OT) aur deductions (PF/ESI/PT/LWF/TDS/advance) sab breakup me hote hain.' },
   { t:'My Assets', b:'Company ne jo saaman (laptop, phone, SIM, tools…) aapko issue kiya hai wo yahan list hota hai. Koi galat entry ya wapas kiya hua item abhi bhi dikhe to HR/Admin ko batao taaki record update ho.' },
@@ -2697,6 +2698,8 @@ async function loadMyTeamOt(){
 }
 let OT_MODE = 'self', WORKERS = null;
 const OT_SEL = new Set();   // chune hue worker codes — search/filter badalne par bhi bache rehte hain
+let OT_LOADED_DATE = null;  // list kis date ke present logon ki hai
+function otDateVal(){ return ($('otDate') && $('otDate').value) || new Date().toISOString().slice(0,10); }
 function setOtMode(m){
   OT_MODE = m;
   $('otModeSelf').className = 'chip ' + (m === 'self' ? 'chip-blue' : 'chip-gray');
@@ -2704,7 +2707,7 @@ function setOtMode(m){
   $('otModeSelf').style.cssText = 'border:none;cursor:pointer;flex:1;justify-content:center;padding:8px';
   $('otModeTeam').style.cssText = 'border:none;cursor:pointer;flex:1;justify-content:center;padding:8px';
   $('otTeamWrap').classList.toggle('hidden', m !== 'team');
-  if(m === 'team' && !WORKERS) loadWorkers();
+  if(m === 'team' && (!WORKERS || OT_LOADED_DATE !== otDateVal())) loadWorkers();
 }
 $('otModeSelf').addEventListener('click', () => setOtMode('self'));
 $('otModeTeam').addEventListener('click', () => setOtMode('team'));
@@ -2712,7 +2715,8 @@ async function loadWorkers(){
   $('otWorkers').innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Loading workers…</p>';
   // scope: 'team' -> sirf apne reportees; 'own' (production) -> apna dept; 'all' (planning) -> saare.
   const _teamOnly = (window._otScope === 'team');
-  const { data, error } = await sb.rpc('ess_get_workers', { p_code: CODE, p_phone: PHONE, p_team_only: _teamOnly });
+  const _otDate = otDateVal();
+  const { data, error } = await sb.rpc('ess_get_workers', { p_code: CODE, p_phone: PHONE, p_team_only: _teamOnly, p_date: _otDate });
   if(error || (data && data.error)){ $('otWorkers').innerHTML = '<p class="m-0 text-xs" style="color:var(--bad)">' + esc((data && data.error) || error.message) + '</p>'; return; }
   let rows = data.rows || [];
   if(window._otScope === 'own'){
@@ -2720,6 +2724,17 @@ async function loadWorkers(){
   }
   WORKERS = rows;
   OT_SEL.clear();
+  OT_LOADED_DATE = _otDate;
+  const note = $('otPresentNote');
+  if(note){
+    if(data.future){
+      note.style.background = '#fffbeb'; note.style.color = '#92400e';
+      note.innerHTML = `<b>${fmtDate(_otDate)}</b> aane wali date hai — us din ka attendance abhi nahi hai, isliye saare active employees dikh rahe hain.`;
+    }else{
+      note.style.background = '#ecfdf5'; note.style.color = '#065f46';
+      note.innerHTML = `Sirf <b>${fmtDate(_otDate)}</b> ko <b>present</b> (punch ho chuka) employees dikh rahe hain — <b>${rows.length}</b> log. Jo us din present nahi, unka OT apply nahi ho sakta.`;
+    }
+  }
   // Filter dropdown ab SECTION ke hisaab se (department ki jagah)
   const secs = [...new Set((WORKERS||[]).map(w => String(w.section||'').trim()).filter(Boolean))].sort();
   $('otDept').innerHTML = '<option value="">All sections</option>' + secs.map(s => `<option>${esc(s)}</option>`).join('');
@@ -2750,6 +2765,7 @@ function updateOtCount(){
   }).join('');
 }
 $('otSearch').addEventListener('input', e => renderWorkers(e.target.value));
+$('otDate') && $('otDate').addEventListener('change', () => { if(OT_MODE === 'team') loadWorkers(); });
 $('otDept') && $('otDept').addEventListener('change', () => renderWorkers($('otSearch').value));
 $('otWorkers').addEventListener('change', e => {
   const c = e.target.closest('.otw-chk'); if(!c) return;
@@ -2775,7 +2791,7 @@ $('otBtn').addEventListener('click', async () => {
       const { data, error } = await sb.rpc('ess_apply_ot_bulk', { p_code: CODE, p_phone: PHONE, p_date: $('otDate').value, p_hours: Number($('otHours').value), p_reason: $('otReason').value, p_workers: codes });
       if(error) throw error;
       if(data && data.error) return notify(data.error);
-      notify(`OT requested for ${data.inserted} worker(s)` + (data.skipped ? ` — ${data.skipped} already had OT for this date` : '') + ' — pending approval');
+      notify(`OT requested for ${data.inserted} worker(s)` + (data.skipped ? ` — ${data.skipped} already had OT for this date` : '') + (data.absent ? ` — ${data.absent} us din present nahi the, unka OT nahi laga` : '') + ' — pending approval');
       // OT request -> CEO ko approval email
       essSendApprovalEmail('ot', (data&&data.group_id)||'', 'Overtime Request — ' + ((D.employee&&D.employee.Name)||CODE), [
         ['Requested by', (D.employee&&D.employee.Name)||CODE], ['Date', $('otDate').value],
