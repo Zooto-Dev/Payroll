@@ -392,6 +392,7 @@ body.no-confidential .confidential-col{display:none!important}
       <button class="nav-item nxdi" data-page="mis"><span class="di"><i class="fa-solid fa-chart-pie"></i></span><span style="flex:1"><span class="dt">MIS Report</span><span class="ds">Attendance, expense & manpower</span></span></button>
       <button class="nav-item nxdi" data-page="reports"><span class="di"><i class="fa-solid fa-chart-column"></i></span><span style="flex:1"><span class="dt">Analytics</span><span class="ds">Trends & deep dives</span></span></button>
       <button class="nav-item nxdi" data-page="misspunch"><span class="di"><i class="fa-solid fa-user-clock"></i></span><span style="flex:1"><span class="dt">Miss Punch</span><span class="ds">Missing IN / OUT punches</span></span></button>
+      <button class="nav-item nxdi" data-page="visitors"><span class="di"><i class="fa-solid fa-user-plus"></i></span><span style="flex:1"><span class="dt">Visitors</span><span class="ds">Employee Portal visitor requests</span></span><span id="vrBadge" class="bdg hidden">0</span></button>
     </div></div>
   <div class="nxg"><button><i class="fa-solid fa-users li"></i> Workforce <i class="fa-solid fa-chevron-down ca"></i><span id="apprBadge" class="bdg hidden">0</span></button>
     <div class="nxdd">
@@ -1376,6 +1377,26 @@ body.no-confidential .confidential-col{display:none!important}
   </div>
 </div>
 
+<div class="page" id="page-visitors">
+  <div class="card">
+    <div class="flex items-end gap-3 flex-wrap">
+      <div><label class="lbl">From</label><input id="vrFrom" type="date" class="inp"></div>
+      <div><label class="lbl">To</label><input id="vrTo" type="date" class="inp"></div>
+      <div><label class="lbl">Status</label><select id="vrStatus" class="inp">
+        <option value="PENDING">Pending</option><option value="APPROVED">Approved</option>
+        <option value="REJECTED">Rejected</option><option value="">All</option>
+      </select></div>
+      <button id="vrLoadBtn" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Load</button>
+      <span class="chip chip-gray" style="cursor:pointer" id="vrQAaj">Aaj</span>
+      <span class="chip chip-gray" style="cursor:pointer" id="vrQWeek">Agle 7 din</span>
+      <div style="flex:1"></div>
+      <button id="vrCsvBtn" class="btn btn-ghost btn-sm hidden"><i class="fa-solid fa-download"></i> Export CSV</button>
+    </div>
+    <p class="text-[11px] mt-2 mb-0" style="color:var(--muted)">Employee Portal se aayi visitor requests. Approve karne par us din gate par security ko approved visitor dikh jayega.</p>
+  </div>
+  <div class="card" id="vrWrap"><p class="m-0 text-sm" style="color:var(--muted)">Date chun kar Load dabao.</p></div>
+</div>
+
 <div class="page" id="page-idcards">
   <div class="card mb-4 flex items-end gap-3 flex-wrap">
     <div><label class="lbl">Employee</label><select id="idEmp" class="inp" style="min-width:240px"><option value="ALL">— All Active Employees —</option></select></div>
@@ -2320,7 +2341,7 @@ $('loginBtn').addEventListener('click', async () => {
 $('loginPass').addEventListener('keydown', e => { if(e.key === 'Enter') $('loginBtn').click(); });
 $('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
 
-const ALL_PAGES = ['dashboard','mis','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','misspunch','letters','ctccalc','idcards','approvals','trial','voice','settings','faq'];
+const ALL_PAGES = ['dashboard','mis','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','misspunch','visitors','letters','ctccalc','idcards','approvals','trial','voice','settings','faq'];
 let ME_EMAIL = '';
 let FACE_CODES = new Set();
 function isSuper(){
@@ -2398,7 +2419,7 @@ function applyPerms(){
   const mb = document.getElementById('attFixBtn');
   if(mb) mb.classList.toggle('hidden', !canManualAtt());
 }
-const PAGE_ICONS = { dashboard:'gauge', mis:'chart-pie', employees:'users', attendance:'calendar-check', workhours:'business-time', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', ctccalc:'calculator', idcards:'id-card', approvals:'clipboard-check', trial:'id-card-clip', voice:'comments', settings:'gear', faq:'circle-question', misspunch:'user-clock' };
+const PAGE_ICONS = { dashboard:'gauge', mis:'chart-pie', employees:'users', attendance:'calendar-check', workhours:'business-time', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', ctccalc:'calculator', idcards:'id-card', approvals:'clipboard-check', trial:'id-card-clip', voice:'comments', settings:'gear', faq:'circle-question', misspunch:'user-clock', visitors:'user-plus' };
 function isRowLate(r){ return r.is_late === true || String(r.in_time||'').toUpperCase().includes('LATE'); }
 function cleanInTime(r){ return String(r.in_time||'').replace(/\s*\(?LATE\)?/i,'').trim(); }
 function initials(em){ return em.split('@')[0].replace(/[^a-z0-9]/gi, ' ').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'A'; }
@@ -3184,7 +3205,7 @@ $('rmbApplyBtn') && $('rmbApplyBtn').addEventListener('click', async () => {
 });
 
 /* ---------------- Router ---------------- */
-const TITLES = { mis:'MIS Report', dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', trial:'Trial Workers (Work Pass)', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', ctccalc:'CTC Calculator', faq:'FAQ / SOP — Har Feature ka Guide', adminctl:'Admin Control Panel', misspunch:'Miss Punch — Missing IN / OUT' };
+const TITLES = { mis:'MIS Report', dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', trial:'Trial Workers (Work Pass)', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', ctccalc:'CTC Calculator', faq:'FAQ / SOP — Har Feature ka Guide', adminctl:'Admin Control Panel', misspunch:'Miss Punch — Missing IN / OUT', visitors:'Visitor Requests — Employee Portal' };
 /* ---- Topbar dropdown open/close ---- */
 function nxCloseDD(){ document.querySelectorAll('.nxg').forEach(g=>g.classList.remove('open')); }
 const _nxNav = document.querySelector('.nxnav');
@@ -3215,6 +3236,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     $('pageTitle').innerText = TITLES[page];
     if(page === 'dashboard') loadDashboard();
     if(page === 'misspunch') mpInit();
+    if(page === 'visitors') vrInit();
     if(page === 'mis') loadMis();
     if(page === 'advances') loadAdvances();
     if(page === 'leaves') loadLeaves();
@@ -6089,6 +6111,91 @@ function exportWorkHours(){
 /* ================= MISS PUNCH (Overview) ================= */
 let MP_ROWS = [];
 function mpYesterday(){ const d = new Date(); d.setDate(d.getDate()-1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+/* ===== Visitor Requests (Employee Portal se) ===== */
+let VR_ROWS = [];
+function vrToday(){ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function vrInit(){
+  if(!$('vrFrom').value){ $('vrFrom').value = vrToday(); $('vrTo').value = vrToday(); }
+  loadVisitors();
+}
+async function loadVisitors(){
+  const from = $('vrFrom').value, to = $('vrTo').value || from;
+  if(!from) return notify('Date chunein', 'error');
+  const st = $('vrStatus').value;
+  const wrap = $('vrWrap');
+  wrap.innerHTML = '<div class="loader-ring"></div>';
+  try{
+    let q = sb.from('visitor_requests').select('*').gte('visit_date', from).lte('visit_date', to).order('visit_date').order('id');
+    if(st) q = q.eq('status', st);
+    const { data, error } = await q;
+    if(error) throw error;
+    VR_ROWS = data || [];
+    const can = canApprove('visitor');
+    const body = VR_ROWS.map(r => {
+      const chip = { PENDING:'chip-warn', APPROVED:'chip-ok', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
+      const act = (r.status === 'PENDING' && can)
+        ? `<button class="btn btn-sm btn-primary" onclick="vrDecide(${r.id},'APPROVED')"><i class="fa-solid fa-check"></i></button>
+           <button class="btn btn-sm btn-ghost" onclick="vrDecide(${r.id},'REJECTED')"><i class="fa-solid fa-xmark"></i></button>`
+        : (r.status === 'REJECTED' && r.reject_reason ? `<span class="text-[10px]" style="color:var(--bad)">${esc(r.reject_reason)}</span>` : (r.decided_by ? `<span class="text-[10px]" style="color:var(--muted)">${esc(r.decided_by)}</span>` : ''));
+      return `<tr>
+        <td>${esc(r.visit_date)}</td>
+        <td>${esc(String(r.visit_time||'').substring(0,5) || '—')}</td>
+        <td><b>${esc(r.visitor_name)}</b>${r.visitors_count > 1 ? ` <span class="chip chip-gray" style="font-size:9px">${r.visitors_count} log</span>` : ''}</td>
+        <td>${esc(r.visitor_mobile || '—')}</td>
+        <td>${esc(r.visitor_company || '—')}</td>
+        <td>${esc(r.vehicle_no || '—')}</td>
+        <td>${esc(r.purpose || '—')}</td>
+        <td>${esc(r.employee_name || r.employee_code)}<div class="text-[10px]" style="color:var(--muted)">${esc(r.employee_code)}</div></td>
+        <td><span class="chip ${chip}">${esc(r.status)}</span></td>
+        <td style="white-space:nowrap">${act}</td>
+      </tr>`;
+    }).join('');
+    wrap.innerHTML = VR_ROWS.length
+      ? `<div style="overflow-x:auto;max-height:70vh;overflow-y:auto"><table class="tbl"><thead><tr><th>Date</th><th>Time</th><th>Visitor</th><th>Mobile</th><th>Company</th><th>Vehicle</th><th>Purpose</th><th>Host (Employee)</th><th>Status</th><th>Action</th></tr></thead><tbody>${body}</tbody></table></div>`
+      : '<p class="m-0 text-sm" style="color:var(--muted)">Is range me koi visitor request nahi.</p>';
+    $('vrCsvBtn').classList.toggle('hidden', !VR_ROWS.length);
+    vrBadgeRefresh();
+  }catch(e){ wrap.innerHTML = '<p class="m-0 text-sm" style="color:var(--bad)">Error: ' + esc(e.message || e) + '</p>'; }
+}
+async function vrDecide(id, status){
+  if(!canApprove('visitor')) return notify('You are not allowed to approve visitor requests', 'error');
+  let reason = null;
+  if(status === 'REJECTED'){
+    reason = prompt('Reject karne ka reason?') || '';
+    if(!reason.trim()) return;
+  }
+  try{
+    const { error } = await sb.from('visitor_requests').update({
+      status, reject_reason: reason ? reason.trim() : null,
+      decided_by: ME_EMAIL || 'admin', decided_at: new Date().toISOString()
+    }).eq('id', id);
+    if(error) throw error;
+    notify('Visitor request ' + (status === 'APPROVED' ? 'approve' : 'reject') + ' ho gayi', status === 'APPROVED' ? 'success' : 'info');
+    loadVisitors();
+  }catch(e){ notify(e.message || 'Update fail', 'error'); }
+}
+async function vrBadgeRefresh(){
+  try{
+    const { count } = await sb.from('visitor_requests').select('id', { count:'exact', head:true }).eq('status','PENDING').gte('visit_date', vrToday());
+    const b = $('vrBadge'); if(!b) return;
+    b.innerText = count || 0;
+    b.classList.toggle('hidden', !count);
+  }catch(e){}
+}
+function vrCsv(){
+  if(!VR_ROWS.length) return;
+  const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
+  const lines = ['Date,Time,Visitor,Mobile,Company,Persons,Vehicle,Purpose,Host Code,Host Name,Status,Reject Reason'];
+  VR_ROWS.forEach(r => lines.push([r.visit_date, q(String(r.visit_time||'').substring(0,5)), q(r.visitor_name), q(r.visitor_mobile||''), q(r.visitor_company||''), r.visitors_count||1, q(r.vehicle_no||''), q(r.purpose||''), q(r.employee_code), q(r.employee_name||''), q(r.status), q(r.reject_reason||'')].join(',')));
+  dlText('Visitor_Requests_' + $('vrFrom').value + ($('vrTo').value !== $('vrFrom').value ? '_to_' + $('vrTo').value : '') + '.csv', lines.join('\n'), 'text/csv');
+}
+document.addEventListener('click', e => {
+  if(e.target.closest('#vrLoadBtn')) loadVisitors();
+  else if(e.target.closest('#vrCsvBtn')) vrCsv();
+  else if(e.target.closest('#vrQAaj')){ $('vrFrom').value = vrToday(); $('vrTo').value = vrToday(); loadVisitors(); }
+  else if(e.target.closest('#vrQWeek')){ const d = new Date(); const t = new Date(d.getTime() + 7*86400000);
+    $('vrFrom').value = vrToday(); $('vrTo').value = t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'); loadVisitors(); }
+});
 function mpInit(){
   if(!$('mpFrom').value){ const y = mpYesterday(); $('mpFrom').value = y; $('mpTo').value = y; }
   loadMissPunch();

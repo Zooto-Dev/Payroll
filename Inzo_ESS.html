@@ -237,6 +237,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <button class="req-tile" data-rs="field"><span class="rt-ic" style="background:#e0f2fe;color:#0284c7"><i class="fa-solid fa-location-dot"></i></span><span>Field Duty</span></button>
         <button class="req-tile" data-rs="gate"><span class="rt-ic" style="background:#ccfbf1;color:#0d9488"><i class="fa-solid fa-door-open"></i></span><span>Gate Pass</span></button>
         <button class="req-tile" data-rs="wfh"><span class="rt-ic" style="background:#f3e8ff;color:#7e22ce"><i class="fa-solid fa-house-laptop"></i></span><span>WFH</span></button>
+        <button class="req-tile" data-rs="visitor"><span class="rt-ic" style="background:#cffafe;color:#0891b2"><i class="fa-solid fa-user-plus"></i></span><span>Visitor</span></button>
         <button class="req-tile" data-rs="money"><span class="rt-ic" style="background:#dbeafe;color:#2563eb"><i class="fa-solid fa-receipt"></i></span><span>Expenses</span></button>
         <button class="req-tile" data-rs="adv"><span class="rt-ic" style="background:#fef9c3;color:#ca8a04"><i class="fa-solid fa-sack-dollar"></i></span><span>Advance / Loan</span></button>
         <button class="req-tile hidden" id="tilOT" data-rs="ot"><span class="rt-ic" style="background:#fef3c7;color:#d97706"><i class="fa-solid fa-clock"></i></span><span>Overtime</span></button>
@@ -327,6 +328,25 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         </div>
         <button id="gpBtn" class="btn btn-primary w-full justify-center" style="background:#0d9488"><i class="fa-solid fa-paper-plane"></i> Request Gate Pass</button>
         <div id="gpList" class="mt-2 text-xs"></div>
+      </div>
+      </div>
+      <div class="req-sec hidden" id="rs-visitor">
+      <div class="card" style="background:linear-gradient(135deg,#ecfeff,#ffffff);border:1.5px solid #a5f3fc">
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-user-plus" style="color:#0891b2"></i> Visitor Request <i class="fa-regular fa-circle-question" onclick="$('vrInfo').classList.toggle('hidden')" style="cursor:pointer;color:#94a3b8;font-size:12px;margin-left:4px"></i></h3>
+        <p class="text-[11px] mt-0 mb-2 hidden p-2 rounded" id="vrInfo" style="background:#ecfeff;color:#155e75;line-height:1.5">
+          Aapse milne aa rahe guest ki pehle se entry. HR/Admin approve karta hai, phir gate par security ko us din ki approved visitor list dikh jaati hai — guest ko rukna nahi padta. Visitor ke aane se pehle request daalein.</p>
+        <div class="grid grid-cols-2 gap-2 mb-2">
+          <div class="col-span-2"><label class="lbl">Visitor ka naam <span style="color:var(--bad)">*</span></label><input id="vrName" class="inp" placeholder="Poora naam"></div>
+          <div><label class="lbl">Mobile</label><input id="vrMobile" class="inp" inputmode="numeric" placeholder="10 digit"></div>
+          <div><label class="lbl">Company / Firm</label><input id="vrCompany" class="inp" placeholder="Kahan se aa rahe hain"></div>
+          <div><label class="lbl">Visit date <span style="color:var(--bad)">*</span></label><input id="vrDate" type="date" class="inp"></div>
+          <div><label class="lbl">Approx time</label><input id="vrTime" type="time" class="inp"></div>
+          <div><label class="lbl">Kitne log</label><input id="vrCount" type="number" min="1" class="inp" value="1"></div>
+          <div><label class="lbl">Vehicle no.</label><input id="vrVehicle" class="inp" placeholder="UP00XX0000"></div>
+          <div class="col-span-2"><label class="lbl">Purpose / kaam</label><input id="vrPurpose" class="inp" placeholder="Meeting, sample, interview…"></div>
+        </div>
+        <button id="vrBtn" class="btn btn-primary w-full justify-center" style="background:#0891b2"><i class="fa-solid fa-paper-plane"></i> Send Visitor Request</button>
+        <div id="vrList" class="mt-2 text-xs"></div>
       </div>
       </div>
       <div class="req-sec hidden" id="rs-wfh">
@@ -424,6 +444,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
             <button id="otNoneBtn" class="chip chip-gray" style="border:none;cursor:pointer">Clear</button>
             <span class="chip chip-blue" style="margin-left:auto" id="otSelCount">0 selected</span>
           </div>
+          <div id="otSelWrap" class="flex flex-wrap gap-1 mb-2"></div>
           <div id="otWorkers" style="max-height:220px;overflow-y:auto" class="space-y-1"></div>
         </div>
         <button id="otBtn" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Request OT Approval</button>
@@ -949,12 +970,12 @@ document.querySelectorAll('.req-tile').forEach(t => t.addEventListener('click', 
   const opening = sec.classList.contains('hidden');
   document.querySelectorAll('.req-sec').forEach(s => s.classList.add('hidden'));
   document.querySelectorAll('.req-tile').forEach(x => x.classList.remove('active'));
-  if(opening){ sec.classList.remove('hidden'); t.classList.add('active'); if(t.dataset.rs === 'faq') essRenderFaq(); }
+  if(opening){ sec.classList.remove('hidden'); t.classList.add('active'); if(t.dataset.rs === 'faq') essRenderFaq(); if(t.dataset.rs === 'visitor') loadVisitorReq(); }
 }));
 /* ===== ESS Help / SOP ===== */
 var ESS_FAQ = [
   { t:'Login & Password', b:'Employee Code + password se login karo. Pehli baar ka password = aapka registered mobile number. Password bhool jao to HR reset karta hai — reset hone par wapas mobile number ban jaata hai, login karke turant badal lo. Apna mobile number HR ke paas hamesha updated rakho, kyunki approval aur zaroori messages isi par jaate hain.' },
-  { t:'Leave (CL / SL / EL)', b:'Leave tile kholo → leave type + from/to date + reason bharo. Aapka bacha hua balance upar live dikhta hai, isliye galat count ka dar nahi. Aage ki leave pehle se daalo; emergency me us din bhi reason ke saath daal sakte ho. Bhejte hi request aapke reporting manager ke paas jaati hai (Super Admin ko bhi mail). Jab tak manager APPROVE na kare tab tak leave "Pending" rehti hai aur pay par asar nahi padta. Approve hone ke baad ye paid leave payroll me present ki tarah gini jaati hai (Sunday/holiday sandwich rule apne aap lagta hai).' },
+  { t:'Leave (CL / SL / EL)', b:'Leave tile kholo → leave type + from/to date + reason bharo. Aapka bacha hua balance upar live dikhta hai, isliye galat count ka dar nahi. Aage ki leave pehle se daalo; emergency me us din bhi reason ke saath daal sakte ho. Bhejte hi request aapke reporting manager ke paas jaati hai (Super Admin ko bhi mail). Jab tak manager APPROVE na kare tab tak leave "Pending" rehti hai aur pay par asar nahi padta. Approve hone ke baad ye paid leave payroll me present ki tarah gini jaati hai. Sandwich policy hamare yahan hai hi nahi \u2014 leave ke aas-paas ka Sunday/holiday nahi kata jaata.' },
   { t:'Attendance Fix (galat ya chhoot gaya punch)', b:'Ye tab use karo jab kiosk ne aapka face punch miss kar diya ho ya galat time chadh gaya ho. Att. Fix tile → date + asli IN time + asli OUT time + reason + proof (gate photo/screenshot) bharo. Request HR ke paas jaati hai; HR us din ki gate CCTV/photo se milaan karke Approve ya Reject karta hai. Approve hone par us din ki attendance sahi ho jaati hai — tabhi wo din present count hota hai. Bina approval ke koi badlaav nahi hota.' },
   { t:'Field Duty (office ke bahar kaam)', b:'Client visit, delivery, site ya bahar ka koi official kaam. Field Duty tile → Duration (single ya multiple din) + date + reason bharo, ho sake to us din se pehle. Request reporting manager ke paas jaati hai (Super Admin ko bhi mail). DHYAAN DO: sirf approve ho jaane se present NAHI lagta. Approve hone ke baad us approved din aapki Home screen par "Punch In / Punch Out" button khul jaata hai. Aapko field par pahunch kar khud Punch In karna hai, aur kaam khatam hone par Punch Out — tabhi us din ki attendance record hoti hai aur present count hota hai. Agar approval ke baad bhi aap punch nahi karte, to wo din absent hi rahega.' },
   { t:'Gate Pass / Short Leave', b:'Jab shift ke beech me thodi der ke liye bahar jaana ho. Pehle aapka normal IN punch hona chahiye. Gate Pass tile → slot (subah/shaam ka short leave) ya half-day + reason bharo. Manager approve karta hai. Approved gate pass ka matlab: us din aapka jaldi jaana ya der se aana "excused" hai — late/half-day ki katauti nahi lagti aur us din ki poori salary milti hai. Bina approval ke jaldi nikalna late/absent maana ja sakta hai.' },
@@ -962,6 +983,7 @@ var ESS_FAQ = [
   { t:'Expenses / Reimbursement', b:'Company ke kaam me kharch kiya paisa wapas paane ke liye. Expenses tile → category + amount + bill/receipt ki photo bharo. NOTE: 7 din se purana kharch claim nahi hota, isliye bill turant daal do. Request pehle manager, phir Accounts ke paas jaati hai. Approve + paid hone par amount aapko milta hai; status har step par tile me dikhta hai.' },
   { t:'Advance / Loan', b:'Advance = ek baar ka paisa jo agli hi salary se poora kat jaata hai. Loan = CEO approval → Loan Agreement (yahin ESS me Accept karna hoga) → Accounts se disbursement → har mahine EMI katauti. Advance/Loan tile → type + amount + reason (Loan me months bhi) bharo. Manager/Accounts/CEO approve karte hain; katauti aapke payslip me saaf dikhti hai.' },
   { t:'Overtime (OT)', b:'OT sirf unhe dikhta hai jinhe allowed hai. OT tile → date + hours + reason; supervisor poori team ka OT ek saath bhi bhej sakta hai. Rule: OT sirf 17:50 ke baad ke kaam ka ginta hai. Paid OT = min(jitne ghante approve hue, jitne 17:50 ke baad actual kaam kiya) — yaani approval ek upper limit hai. Paid tabhi hoga jab (1) OT approve ho AUR (2) gate par guard/security ne ViziTrack se verify kiya ho — dono zaroori, warna 0. Single rate par pay hota hai, double pay nahi.' },
+  { t:'Visitor Request (guest ko bulana)', b:'Aapse milne koi bahar se aa raha hai to pehle se entry kar do. Visitor tile → visitor ka naam, mobile, company, visit date/time, kitne log, vehicle number aur purpose bharo. Request HR/Admin ke paas jaati hai. Approve hone par us din gate par security ko approved visitor list dikh jaati hai, isliye guest ko intezaar nahi karna padta. Pending request ko aap khud cancel bhi kar sakte ho. Guest aane se pehle request daalna zaroori hai \u2014 bina approval ke gate par entry nahi milti.' },
   { t:'Payslips', b:'Payslip tile → mahine wise apna payslip dekho/download karo. Payslip tab dikhta hai jab HR us mahine ka payroll finalize kar deta hai. Isme earnings (basic/HRA/allowance/OT) aur deductions (PF/ESI/PT/LWF/TDS/advance) sab breakup me hote hain.' },
   { t:'My Assets', b:'Company ne jo saaman (laptop, phone, SIM, tools…) aapko issue kiya hai wo yahan list hota hai. Koi galat entry ya wapas kiya hua item abhi bhi dikhe to HR/Admin ko batao taaki record update ho.' },
   { t:'Voice Box (Grievance / Suggestion / Kaizen)', b:'Apni shikayat, sujhaav ya kaam behtar karne ka idea (kaizen) bhejne ke liye. Voice Box tile → type + message. Ye seedha reporting manager/HR ko jaata hai. Chaho to confidential (naam chhupa kar) bhi bhej sakte ho. Accept kiya gaya kaizen reward payroll me jud sakta hai.' },
@@ -1529,6 +1551,62 @@ document.addEventListener('click', async e => {
     $('gpReason').value = '';
     loadGatePass();
   }catch(err){ notify(err.message || 'Request failed'); }
+});
+/* ===== Visitor Request ===== */
+async function loadVisitorReq(){
+  const host = $('vrList'); if(!host) return;
+  if($('vrDate') && !$('vrDate').value) $('vrDate').value = new Date().toISOString().slice(0,10);
+  try{
+    const { data, error } = await sb.rpc('ess_visitor_list', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE });
+    if(error || (data && data.error)) { host.innerHTML = ''; return; }
+    const rows = (data && data.rows) || [];
+    host.innerHTML = rows.length ? rows.map(r => {
+      const chip = { PENDING:'chip-warn', APPROVED:'chip-ok', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
+      const extra = [r.visitor_company, r.visit_time ? String(r.visit_time).substring(0,5) : '', (r.visitors_count > 1 ? r.visitors_count + ' log' : '')].filter(Boolean).join(' · ');
+      return `<div class="row"><span>${fmtDate(r.visit_date)} · <b>${esc(r.visitor_name)}</b>${extra ? ' · ' + esc(extra) : ''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status === 'PENDING' ? ` <button class="chip chip-gray" style="border:none;cursor:pointer;font-size:9px" onclick="essVisitorCancel(${r.id})" title="Cancel"><i class="fa-solid fa-xmark"></i></button>` : ''}${r.status === 'REJECTED' && r.reject_reason ? `<div class="text-[10px]" style="color:var(--bad);text-align:right;width:100%">${esc(r.reject_reason)}</div>` : ''}</span></div>`;
+    }).join('') : '';
+  }catch(e){}
+}
+async function essVisitorCancel(id){
+  try{
+    const { data, error } = await sb.rpc('ess_visitor_cancel', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: id });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    notify('Visitor request cancel ho gayi');
+    loadVisitorReq();
+  }catch(err){ notify(err.message || 'Cancel fail'); }
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('#vrBtn'); if(!b) return;
+  const nm = ($('vrName').value || '').trim();
+  const dt = $('vrDate').value;
+  if(!nm) return notify('Visitor ka naam daalein');
+  if(!dt) return notify('Visit date chunein');
+  const mob = ($('vrMobile').value || '').trim();
+  if(mob && !/^\d{10}$/.test(mob)) return notify('Mobile 10 digit ka hona chahiye');
+  b.disabled = true;
+  try{
+    const { data, error } = await sb.rpc('ess_visitor_request', {
+      p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE,
+      p_visitor: nm, p_mobile: mob || null, p_company: ($('vrCompany').value||'').trim() || null,
+      p_count: Number($('vrCount').value) || 1, p_date: dt, p_time: $('vrTime').value || null,
+      p_purpose: ($('vrPurpose').value||'').trim() || null, p_vehicle: ($('vrVehicle').value||'').trim() || null
+    });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    notify('Visitor request bhej di ✓ — HR/Admin approve karega');
+    essSendApprovalEmail('visitor', (data && data.id) || '', 'Visitor Request — ' + ((D.employee && D.employee.Name) || CODE), [
+      ['Host (employee)', (D.employee && D.employee.Name) || CODE], ['Visitor', nm],
+      ['Mobile', mob || '\u2014'], ['Company', ($('vrCompany').value||'').trim() || '\u2014'],
+      ['Date', dt], ['Time', $('vrTime').value || '\u2014'],
+      ['Kitne log', Number($('vrCount').value) || 1], ['Vehicle', ($('vrVehicle').value||'').trim() || '\u2014'],
+      ['Purpose', ($('vrPurpose').value||'').trim() || '\u2014']
+    ]);
+    $('vrName').value = ''; $('vrMobile').value = ''; $('vrCompany').value = '';
+    $('vrVehicle').value = ''; $('vrPurpose').value = ''; $('vrCount').value = 1;
+    loadVisitorReq();
+  }catch(err){ notify(err.message || 'Request failed'); }
+  finally{ b.disabled = false; }
 });
 async function loadWfh(){
   const host = $('wfhList'); if(!host) return;
@@ -2618,6 +2696,7 @@ async function loadMyTeamOt(){
   }catch(e){}
 }
 let OT_MODE = 'self', WORKERS = null;
+const OT_SEL = new Set();   // chune hue worker codes — search/filter badalne par bhi bache rehte hain
 function setOtMode(m){
   OT_MODE = m;
   $('otModeSelf').className = 'chip ' + (m === 'self' ? 'chip-blue' : 'chip-gray');
@@ -2640,6 +2719,7 @@ async function loadWorkers(){
     rows = rows.filter(w => String(w.dept||'').trim().toUpperCase() === String(window._otUserDept||'').toUpperCase());
   }
   WORKERS = rows;
+  OT_SEL.clear();
   // Filter dropdown ab SECTION ke hisaab se (department ki jagah)
   const secs = [...new Set((WORKERS||[]).map(w => String(w.section||'').trim()).filter(Boolean))].sort();
   $('otDept').innerHTML = '<option value="">All sections</option>' + secs.map(s => `<option>${esc(s)}</option>`).join('');
@@ -2654,17 +2734,35 @@ function renderWorkers(q){
     .filter(w => !sec || String(w.section||'').trim().toUpperCase() === String(sec).trim().toUpperCase())
     .filter(w => !q || [w.name, w.code, w.dept, w.section].join(' ').toLowerCase().includes(q))
     .map(w => `<label class="flex items-center gap-2 p-2 rounded-lg text-sm" style="background:#f8fafc">
-      <input type="checkbox" class="otw-chk" value="${esc(w.code)}">
+      <input type="checkbox" class="otw-chk" value="${esc(w.code)}"${OT_SEL.has(w.code) ? ' checked' : ''}>
       <span><b>${esc(w.name)}</b> <span style="color:var(--muted);font-size:11px">${esc(w.code)}${w.dept ? ' • ' + esc(w.dept) : ''}${w.section ? ' • ' + esc(w.section) : ''}</span></span>
     </label>`).join('') || '<p class="m-0 text-xs" style="color:var(--muted)">No workers found.</p>';
   updateOtCount();
 }
-function updateOtCount(){ $('otSelCount').innerText = document.querySelectorAll('.otw-chk:checked').length + ' selected'; }
+function updateOtCount(){
+  $('otSelCount').innerText = OT_SEL.size + ' selected';
+  const wrap = $('otSelWrap'); if(!wrap) return;
+  if(!OT_SEL.size){ wrap.innerHTML = ''; return; }
+  const byCode = {}; (WORKERS||[]).forEach(w => { byCode[w.code] = w; });
+  wrap.innerHTML = [...OT_SEL].map(c => {
+    const w = byCode[c];
+    return `<span class="chip chip-blue" style="font-size:10px">${esc(w ? w.name : c)}<button data-unsel="${esc(c)}" style="border:none;background:none;cursor:pointer;color:inherit;padding:0 0 0 4px"><i class="fa-solid fa-xmark"></i></button></span>`;
+  }).join('');
+}
 $('otSearch').addEventListener('input', e => renderWorkers(e.target.value));
 $('otDept') && $('otDept').addEventListener('change', () => renderWorkers($('otSearch').value));
-$('otWorkers').addEventListener('change', updateOtCount);
-$('otAllBtn').addEventListener('click', () => { document.querySelectorAll('.otw-chk').forEach(c => c.checked = true); updateOtCount(); });
-$('otNoneBtn').addEventListener('click', () => { document.querySelectorAll('.otw-chk').forEach(c => c.checked = false); updateOtCount(); });
+$('otWorkers').addEventListener('change', e => {
+  const c = e.target.closest('.otw-chk'); if(!c) return;
+  if(c.checked) OT_SEL.add(c.value); else OT_SEL.delete(c.value);
+  updateOtCount();
+});
+$('otSelWrap').addEventListener('click', e => {
+  const b = e.target.closest('[data-unsel]'); if(!b) return;
+  OT_SEL.delete(b.dataset.unsel);
+  renderWorkers($('otSearch').value);
+});
+$('otAllBtn').addEventListener('click', () => { document.querySelectorAll('.otw-chk').forEach(c => { c.checked = true; OT_SEL.add(c.value); }); updateOtCount(); });
+$('otNoneBtn').addEventListener('click', () => { OT_SEL.clear(); document.querySelectorAll('.otw-chk').forEach(c => c.checked = false); updateOtCount(); });
 
 $('otBtn').addEventListener('click', async () => {
   if(!$('otDate').value || !Number($('otHours').value)) return notify('Enter date and hours');
@@ -2672,7 +2770,7 @@ $('otBtn').addEventListener('click', async () => {
   btn.innerHTML = '<div class="loader-ring"></div> Submitting…'; btn.disabled = true;
   try{
     if(OT_MODE === 'team'){
-      const codes = [...document.querySelectorAll('.otw-chk:checked')].map(c => c.value);
+      const codes = [...OT_SEL];
       if(!codes.length) return notify('Select at least one worker');
       const { data, error } = await sb.rpc('ess_apply_ot_bulk', { p_code: CODE, p_phone: PHONE, p_date: $('otDate').value, p_hours: Number($('otHours').value), p_reason: $('otReason').value, p_workers: codes });
       if(error) throw error;
@@ -2683,7 +2781,7 @@ $('otBtn').addEventListener('click', async () => {
         ['Requested by', (D.employee&&D.employee.Name)||CODE], ['Date', $('otDate').value],
         ['Hours', $('otHours').value], ['Workers', data.inserted], ['Reason', $('otReason').value||'—']
       ]);
-      document.querySelectorAll('.otw-chk').forEach(c => c.checked = false); updateOtCount();
+      OT_SEL.clear(); document.querySelectorAll('.otw-chk').forEach(c => c.checked = false); updateOtCount();
     } else {
       const { data, error } = await sb.rpc('ess_apply_ot', { p_code: CODE, p_phone: PHONE, p_date: $('otDate').value, p_hours: Number($('otHours').value), p_reason: $('otReason').value });
       if(error) throw error;
