@@ -637,13 +637,18 @@ async function essSendApprovalEmail(kind, id, title, rows){
   try{
     const codeU = String(CODE||'').trim().toUpperCase();
     const lines = (rows||[]).map(r => `<tr><td style="padding:5px 14px 5px 0;color:#64748b">${r[0]}</td><td style="padding:5px 0;font-weight:600">${r[1]}</td></tr>`).join('');
-    // Reporting manager ki official email nikaalo (code / naam / "Naam (CODE)" — teeno format)
+    // Reporting manager ki official email nikaalo (code / naam / "Naam (CODE)" — teeno format).
+    // NOTE: sirf manager-approval wali request-kinds par. OT hamesha CEO ke paas jaata hai aur
+    // grievance/suggestion sirf soochna hoti hai (button nahi) — wo GAS khud handle karta hai.
+    const MGR_KINDS = ['leaves','field','wfh','gate','attfix','money'];
     let _to = '', _approver = '';
-    try{
-      const { data: ap } = await sb.rpc('nx_request_approver_email', { p_code: codeU });
-      if(ap && ap.email){ _to = String(ap.email).trim(); _approver = String(ap.approver || '').trim(); }
-      console.log('[ESS] approver:', ap);
-    }catch(e){ console.warn('[ESS] approver resolve fail — GAS default par ja rahe hain:', e); }
+    if(MGR_KINDS.indexOf(String(kind).toLowerCase()) > -1){
+      try{
+        const { data: ap } = await sb.rpc('nx_request_approver_email', { p_code: codeU });
+        if(ap && ap.email){ _to = String(ap.email).trim(); _approver = String(ap.approver || '').trim(); }
+        console.log('[ESS] approver:', ap);
+      }catch(e){ console.warn('[ESS] approver resolve fail — GAS default par ja rahe hain:', e); }
+    }
     const url = NX_CONFIG_URL + '?action=' + (_to ? 'sendapproval' : 'essnotify')
       + (_to ? '&to=' + encodeURIComponent(_to) : '')
       + '&emp=' + encodeURIComponent(codeU)
