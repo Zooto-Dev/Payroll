@@ -1568,7 +1568,24 @@ document.addEventListener('click', async e => {
     loadGatePass();
   }catch(err){ notify(err.message || 'Request failed'); }
 });
-/* ===== Visitor Request ===== */
+/* ===== Visitor Entry ===== */
+// Visitor ko badge bhejna — ye wahi ViziTrack mail service hai jo pehle host panel use karta tha
+const VZT_MAIL_URL = 'https://script.google.com/macros/s/AKfycbzDCEFwXgNx2m-hn_CGxQzZdsMuhojHQnN38tPOMii5fzFYvAEyEU6QNtxVNjASjzEo/exec';
+const VZT_MAIL_KEY = 'vzt_a9f3k2m8x7q1w5e6r4t0y2u8i3o5p9';
+function vztSendBadge(invitationId){
+  return new Promise(resolve => {
+    if(!invitationId) return resolve({ success:false, error:'no invitation id' });
+    const cb = 'vztcb' + Date.now();
+    let done = false;
+    const sc = document.createElement('script');
+    window[cb] = res => { done = true; try{ delete window[cb]; sc.remove(); }catch(e){} resolve(res || {}); };
+    sc.onerror = () => { if(!done){ try{ delete window[cb]; sc.remove(); }catch(e){} resolve({ success:false, error:'Network error' }); } };
+    sc.src = VZT_MAIL_URL + '?action=sendBadge&invitationId=' + encodeURIComponent(invitationId) +
+             '&key=' + encodeURIComponent(VZT_MAIL_KEY) + '&callback=' + cb + '&t=' + Date.now();
+    document.head.appendChild(sc);
+    setTimeout(() => { if(!done && window[cb]){ try{ delete window[cb]; sc.remove(); }catch(e){} resolve({ success:false, error:'timeout' }); } }, 20000);
+  });
+}
 async function loadVisitorReq(){
   const host = $('vrList'); if(!host) return;
   if($('vrDate') && !$('vrDate').value) $('vrDate').value = new Date().toISOString().slice(0,10);
@@ -1620,6 +1637,12 @@ document.addEventListener('click', async e => {
     if(error) throw error;
     if(data && data.error) return notify(data.error);
     notify('✓ Gate par entry ban gayi — guest seedha aa sakta hai');
+    // visitor ko badge (pass) bhejo — bilkul waise hi jaise pehle ViziTrack bhejta tha
+    if(data && data.invitation_id){
+      const bres = await vztSendBadge(data.invitation_id);
+      if(bres && bres.success) notify('📩 Visitor ko badge bhej diya');
+      else console.warn('[ESS] badge send fail:', bres && (bres.error || bres.reason));
+    }
     essSendApprovalEmail('visitor', (data && data.id) || '', 'Visitor Entry (gate par live) — ' + ((D.employee && D.employee.Name) || CODE), [
       ['Host (employee)', (D.employee && D.employee.Name) || CODE], ['Visitor', nm],
       ['Mobile', mob || '\u2014'], ['Company', ($('vrCompany').value||'').trim() || '\u2014'],
