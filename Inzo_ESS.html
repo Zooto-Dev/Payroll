@@ -334,11 +334,12 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div class="card" style="background:linear-gradient(135deg,#ecfeff,#ffffff);border:1.5px solid #a5f3fc">
         <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-user-plus" style="color:#0891b2"></i> Visitor Request <i class="fa-regular fa-circle-question" onclick="$('vrInfo').classList.toggle('hidden')" style="cursor:pointer;color:#94a3b8;font-size:12px;margin-left:4px"></i></h3>
         <p class="text-[11px] mt-0 mb-2 hidden p-2 rounded" id="vrInfo" style="background:#ecfeff;color:#155e75;line-height:1.5">
-          Aapse milne aa rahe guest ki pehle se entry. Kisi approval ki zaroorat nahi — entry daalte hi gate par live ho jaati hai, security aapke guest ko uske mobile number se pehchan kar andar bhej deti hai. Guest kab andar aaya aur kab gaya, wo bhi yahin neeche dikhta rehta hai. Plan badal jaye to entry cancel bhi kar sakte ho.</p>
+          Aapse milne aa rahe guest ki pehle se entry. Kisi approval ki zaroorat nahi — entry daalte hi gate par live ho jaati hai aur guest ko QR badge chala jaata hai (WhatsApp par mobile se, aur email daala ho to email par bhi). Security use mobile number ya QR se pehchan kar andar bhej deti hai. Guest kab andar aaya aur kab gaya, wo bhi yahin neeche dikhta rehta hai. Plan badal jaye to entry cancel bhi kar sakte ho.</p>
         <div class="grid grid-cols-2 gap-2 mb-2">
           <div class="col-span-2"><label class="lbl">Visitor ka naam <span style="color:var(--bad)">*</span></label><input id="vrName" class="inp" placeholder="Poora naam"></div>
           <div><label class="lbl">Visitor mobile <span style="color:var(--bad)">*</span></label><input id="vrMobile" class="inp" inputmode="numeric" placeholder="10 digit"></div>
-          <div><label class="lbl">Company / Firm</label><input id="vrCompany" class="inp" placeholder="Kahan se aa rahe hain"></div>
+          <div><label class="lbl">Visitor email</label><input id="vrEmail" class="inp" type="email" placeholder="badge email ke liye"></div>
+          <div class="col-span-2"><label class="lbl">Company / Firm</label><input id="vrCompany" class="inp" placeholder="Kahan se aa rahe hain"></div>
           <div><label class="lbl">Visit date <span style="color:var(--bad)">*</span></label><input id="vrDate" type="date" class="inp"></div>
           <div><label class="lbl">Approx time</label><input id="vrTime" type="time" class="inp"></div>
           <div><label class="lbl">Kitne log</label><input id="vrCount" type="number" min="1" class="inp" value="1"></div>
@@ -1632,7 +1633,8 @@ document.addEventListener('click', async e => {
       p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE,
       p_visitor: nm, p_mobile: mob, p_company: ($('vrCompany').value||'').trim() || null,
       p_count: Number($('vrCount').value) || 1, p_date: dt, p_time: $('vrTime').value || null,
-      p_purpose: ($('vrPurpose').value||'').trim() || null, p_vehicle: ($('vrVehicle').value||'').trim() || null
+      p_purpose: ($('vrPurpose').value||'').trim() || null, p_vehicle: ($('vrVehicle').value||'').trim() || null,
+      p_email: ($('vrEmail').value||'').trim() || null
     });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
@@ -1645,12 +1647,13 @@ document.addEventListener('click', async e => {
     }
     essSendApprovalEmail('visitor', (data && data.id) || '', 'Visitor Entry (gate par live) — ' + ((D.employee && D.employee.Name) || CODE), [
       ['Host (employee)', (D.employee && D.employee.Name) || CODE], ['Visitor', nm],
-      ['Mobile', mob || '\u2014'], ['Company', ($('vrCompany').value||'').trim() || '\u2014'],
+      ['Mobile', mob || '\u2014'], ['Email', ($('vrEmail').value||'').trim() || '\u2014'],
+      ['Company', ($('vrCompany').value||'').trim() || '\u2014'],
       ['Date', dt], ['Time', $('vrTime').value || '\u2014'],
       ['Kitne log', Number($('vrCount').value) || 1], ['Vehicle', ($('vrVehicle').value||'').trim() || '\u2014'],
       ['Purpose', ($('vrPurpose').value||'').trim() || '\u2014']
     ]);
-    $('vrName').value = ''; $('vrMobile').value = ''; $('vrCompany').value = '';
+    $('vrName').value = ''; $('vrMobile').value = ''; $('vrCompany').value = ''; $('vrEmail').value = '';
     $('vrVehicle').value = ''; $('vrPurpose').value = ''; $('vrCount').value = 1;
     loadVisitorReq();
   }catch(err){ notify(err.message || 'Request failed'); }
