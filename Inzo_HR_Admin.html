@@ -392,7 +392,7 @@ body.no-confidential .confidential-col{display:none!important}
       <button class="nav-item nxdi" data-page="mis"><span class="di"><i class="fa-solid fa-chart-pie"></i></span><span style="flex:1"><span class="dt">MIS Report</span><span class="ds">Attendance, expense & manpower</span></span></button>
       <button class="nav-item nxdi" data-page="reports"><span class="di"><i class="fa-solid fa-chart-column"></i></span><span style="flex:1"><span class="dt">Analytics</span><span class="ds">Trends & deep dives</span></span></button>
       <button class="nav-item nxdi" data-page="misspunch"><span class="di"><i class="fa-solid fa-user-clock"></i></span><span style="flex:1"><span class="dt">Miss Punch</span><span class="ds">Missing IN / OUT punches</span></span></button>
-      <button class="nav-item nxdi" data-page="visitors"><span class="di"><i class="fa-solid fa-user-plus"></i></span><span style="flex:1"><span class="dt">Visitors</span><span class="ds">Employee Portal visitor requests</span></span><span id="vrBadge" class="bdg hidden">0</span></button>
+      <button class="nav-item nxdi" data-page="visitors"><span class="di"><i class="fa-solid fa-user-plus"></i></span><span style="flex:1"><span class="dt">Visitors</span><span class="ds">Requests, walk-ins & gate activity</span></span><span id="vrBadge" class="bdg hidden">0</span></button>
     </div></div>
   <div class="nxg"><button><i class="fa-solid fa-users li"></i> Workforce <i class="fa-solid fa-chevron-down ca"></i><span id="apprBadge" class="bdg hidden">0</span></button>
     <div class="nxdd">
@@ -1395,6 +1395,22 @@ body.no-confidential .confidential-col{display:none!important}
     <p class="text-[11px] mt-2 mb-0" style="color:var(--muted)">Employee Portal se aayi visitor requests. Approve karne par us din gate par security ko approved visitor dikh jayega.</p>
   </div>
   <div class="card" id="vrWrap"><p class="m-0 text-sm" style="color:var(--muted)">Date chun kar Load dabao.</p></div>
+
+  <div class="card">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-person-walking-dashed-line-arrow-right" style="color:#f59e0b"></i> Gate par aaye walk-in visitors <span class="text-[10px] font-normal" style="color:var(--muted)">— bina invitation wale, security ne gate se bheje</span></h3>
+      <button id="vrWalkRefresh" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate"></i></button>
+    </div>
+    <div id="vrWalkWrap"><p class="m-0 text-sm" style="color:var(--muted)">—</p></div>
+  </div>
+
+  <div class="card">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-door-open" style="color:var(--brand)"></i> Gate activity <span class="text-[10px] font-normal" style="color:var(--muted)">— selected date range ke check-in / check-out</span></h3>
+      <button id="vrLogRefresh" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate"></i></button>
+    </div>
+    <div id="vrLogWrap"><p class="m-0 text-sm" style="color:var(--muted)">—</p></div>
+  </div>
 </div>
 
 <div class="page" id="page-idcards">
@@ -6116,7 +6132,7 @@ let VR_ROWS = [];
 function vrToday(){ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function vrInit(){
   if(!$('vrFrom').value){ $('vrFrom').value = vrToday(); $('vrTo').value = vrToday(); }
-  loadVisitors();
+  loadVisitors(); loadWalkIns(); loadGateLogs();
 }
 async function loadVisitors(){
   const from = $('vrFrom').value, to = $('vrTo').value || from;
@@ -6174,6 +6190,65 @@ async function vrDecide(id, status){
     loadVisitors();
   }catch(e){ notify(e.message || 'Update fail', 'error'); }
 }
+async function loadWalkIns(){
+  const host = $('vrWalkWrap'); if(!host) return;
+  host.innerHTML = '<div class="loader-ring"></div>';
+  try{
+    const { data, error } = await sb.from('requests').select('*').order('created_at', { ascending:false }).limit(50);
+    if(error) throw error;
+    const rows = data || [];
+    const can = canApprove('visitor');
+    host.innerHTML = rows.length ? `<div style="overflow-x:auto;max-height:50vh;overflow-y:auto"><table class="tbl">
+      <thead><tr><th>Aaya</th><th>Visitor</th><th>Mobile</th><th>Purpose</th><th>Kisse milna hai</th><th>Status</th><th>Action</th></tr></thead><tbody>
+      ${rows.map(r => {
+        const chip = { pending:'chip-warn', approved:'chip-ok', rejected:'chip-bad' }[String(r.status||'').toLowerCase()] || 'chip-gray';
+        const act = (String(r.status||'').toLowerCase() === 'pending' && can)
+          ? `<button class="btn btn-sm btn-primary" onclick="vrWalkDecide('${r.id}','approved')"><i class="fa-solid fa-check"></i></button>
+             <button class="btn btn-sm btn-ghost" onclick="vrWalkDecide('${r.id}','rejected')"><i class="fa-solid fa-xmark"></i></button>`
+          : (r.approved_by ? `<span class="text-[10px]" style="color:var(--muted)">${esc(r.approved_by)}</span>` : '');
+        return `<tr><td>${esc(fmtDT(r.created_at))}</td><td><b>${esc(r.visitor_name)}</b></td><td>${esc(r.mobile||'—')}</td>
+          <td>${esc(r.purpose||'—')}</td><td>${esc(r.host_name||'—')}</td>
+          <td><span class="chip ${chip}">${esc(String(r.status||'').toUpperCase())}</span></td>
+          <td style="white-space:nowrap">${act}</td></tr>`;
+      }).join('')}</tbody></table></div>`
+      : '<p class="m-0 text-sm" style="color:var(--muted)">Koi walk-in request nahi.</p>';
+  }catch(e){ host.innerHTML = '<p class="m-0 text-sm" style="color:var(--bad)">Error: ' + esc(e.message||e) + '</p>'; }
+}
+async function vrWalkDecide(id, status){
+  if(!canApprove('visitor')) return notify('You are not allowed to approve visitors', 'error');
+  try{
+    const { error } = await sb.from('requests').update({ status, approved_at: new Date().toISOString(), approved_by: ME_EMAIL || 'admin' }).eq('id', id);
+    if(error) throw error;
+    notify('Walk-in visitor ' + (status === 'approved' ? 'approve' : 'reject') + ' ho gaya', status === 'approved' ? 'success' : 'info');
+    loadWalkIns();
+  }catch(e){ notify(e.message || 'Update fail', 'error'); }
+}
+async function loadGateLogs(){
+  const host = $('vrLogWrap'); if(!host) return;
+  const from = $('vrFrom').value || vrToday(), to = $('vrTo').value || from;
+  host.innerHTML = '<div class="loader-ring"></div>';
+  try{
+    const { data, error } = await sb.from('visitor_logs')
+      .select('id, visitor_name, mobile, host_name, purpose, entry_type, check_in_time, check_out_time, forced_out, photo_in')
+      .gte('check_in_time', from + 'T00:00:00')
+      .lte('check_in_time', to + 'T23:59:59')
+      .order('check_in_time', { ascending:false });
+    if(error) throw error;
+    const rows = data || [];
+    const inside = rows.filter(r => !r.check_out_time).length;
+    host.innerHTML = rows.length ? `<p class="text-[11px] mt-0 mb-2" style="color:var(--muted)">Total ${rows.length} · abhi andar <b style="color:var(--ok)">${inside}</b></p>
+      <div style="overflow-x:auto;max-height:60vh;overflow-y:auto"><table class="tbl">
+      <thead><tr><th>Photo</th><th>Visitor</th><th>Mobile</th><th>Type</th><th>Kisse mila</th><th>IN</th><th>OUT</th></tr></thead><tbody>
+      ${rows.map(r => `<tr>
+        <td>${r.photo_in ? `<img src="${esc(r.photo_in)}" style="width:34px;height:34px;border-radius:8px;object-fit:cover">` : '—'}</td>
+        <td><b>${esc(r.visitor_name)}</b>${r.purpose ? `<div class="text-[10px]" style="color:var(--muted)">${esc(r.purpose)}</div>` : ''}</td>
+        <td>${esc(r.mobile||'—')}</td><td>${esc(r.entry_type||'—')}</td><td>${esc(r.host_name||'—')}</td>
+        <td>${esc(fmtDT(r.check_in_time))}</td>
+        <td>${r.check_out_time ? esc(fmtDT(r.check_out_time)) + (r.forced_out ? ' <span class="chip chip-bad" style="font-size:9px">forced</span>' : '') : '<span class="chip chip-ok" style="font-size:9px">andar hai</span>'}</td>
+      </tr>`).join('')}</tbody></table></div>`
+      : '<p class="m-0 text-sm" style="color:var(--muted)">Is range me koi gate entry nahi.</p>';
+  }catch(e){ host.innerHTML = '<p class="m-0 text-sm" style="color:var(--bad)">Error: ' + esc(e.message||e) + '</p>'; }
+}
 async function vrBadgeRefresh(){
   try{
     const { count } = await sb.from('visitor_requests').select('id', { count:'exact', head:true }).eq('status','PENDING').gte('visit_date', vrToday());
@@ -6190,9 +6265,11 @@ function vrCsv(){
   dlText('Visitor_Requests_' + $('vrFrom').value + ($('vrTo').value !== $('vrFrom').value ? '_to_' + $('vrTo').value : '') + '.csv', lines.join('\n'), 'text/csv');
 }
 document.addEventListener('click', e => {
-  if(e.target.closest('#vrLoadBtn')) loadVisitors();
+  if(e.target.closest('#vrLoadBtn')) { loadVisitors(); loadGateLogs(); }
+  else if(e.target.closest('#vrWalkRefresh')) loadWalkIns();
+  else if(e.target.closest('#vrLogRefresh')) loadGateLogs();
   else if(e.target.closest('#vrCsvBtn')) vrCsv();
-  else if(e.target.closest('#vrQAaj')){ $('vrFrom').value = vrToday(); $('vrTo').value = vrToday(); loadVisitors(); }
+  else if(e.target.closest('#vrQAaj')){ $('vrFrom').value = vrToday(); $('vrTo').value = vrToday(); loadVisitors(); loadGateLogs(); }
   else if(e.target.closest('#vrQWeek')){ const d = new Date(); const t = new Date(d.getTime() + 7*86400000);
     $('vrFrom').value = vrToday(); $('vrTo').value = t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'); loadVisitors(); }
 });

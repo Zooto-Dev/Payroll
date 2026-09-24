@@ -334,10 +334,10 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div class="card" style="background:linear-gradient(135deg,#ecfeff,#ffffff);border:1.5px solid #a5f3fc">
         <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-user-plus" style="color:#0891b2"></i> Visitor Request <i class="fa-regular fa-circle-question" onclick="$('vrInfo').classList.toggle('hidden')" style="cursor:pointer;color:#94a3b8;font-size:12px;margin-left:4px"></i></h3>
         <p class="text-[11px] mt-0 mb-2 hidden p-2 rounded" id="vrInfo" style="background:#ecfeff;color:#155e75;line-height:1.5">
-          Aapse milne aa rahe guest ki pehle se entry. HR/Admin approve karta hai, phir gate par security ko us din ki approved visitor list dikh jaati hai — guest ko rukna nahi padta. Visitor ke aane se pehle request daalein.</p>
+          Aapse milne aa rahe guest ki pehle se entry. HR/Admin approve karta hai, phir gate par aapke guest ki entry apne aap ban jaati hai — security use mobile number se pehchan kar andar bhej deti hai. Guest kab andar aaya aur kab gaya, wo bhi yahin neeche dikhta hai.</p>
         <div class="grid grid-cols-2 gap-2 mb-2">
           <div class="col-span-2"><label class="lbl">Visitor ka naam <span style="color:var(--bad)">*</span></label><input id="vrName" class="inp" placeholder="Poora naam"></div>
-          <div><label class="lbl">Mobile</label><input id="vrMobile" class="inp" inputmode="numeric" placeholder="10 digit"></div>
+          <div><label class="lbl">Visitor mobile <span style="color:var(--bad)">*</span></label><input id="vrMobile" class="inp" inputmode="numeric" placeholder="10 digit"></div>
           <div><label class="lbl">Company / Firm</label><input id="vrCompany" class="inp" placeholder="Kahan se aa rahe hain"></div>
           <div><label class="lbl">Visit date <span style="color:var(--bad)">*</span></label><input id="vrDate" type="date" class="inp"></div>
           <div><label class="lbl">Approx time</label><input id="vrTime" type="time" class="inp"></div>
@@ -999,7 +999,7 @@ var ESS_FAQ = [
   { t:'Expenses / Reimbursement', b:'Company ke kaam me kharch kiya paisa wapas paane ke liye. Expenses tile → category + amount + bill/receipt ki photo bharo. NOTE: 7 din se purana kharch claim nahi hota, isliye bill turant daal do. Request pehle manager, phir Accounts ke paas jaati hai. Approve + paid hone par amount aapko milta hai; status har step par tile me dikhta hai.' },
   { t:'Advance / Loan', b:'Advance = ek baar ka paisa jo agli hi salary se poora kat jaata hai. Loan = CEO approval → Loan Agreement (yahin ESS me Accept karna hoga) → Accounts se disbursement → har mahine EMI katauti. Advance/Loan tile → type + amount + reason (Loan me months bhi) bharo. Manager/Accounts/CEO approve karte hain; katauti aapke payslip me saaf dikhti hai.' },
   { t:'Overtime (OT)', b:'OT sirf unhe dikhta hai jinhe allowed hai. OT tile → date + hours + reason; supervisor poori team ka OT ek saath bhi bhej sakta hai. Rule: OT sirf 17:50 ke baad ke kaam ka ginta hai. Paid OT = min(jitne ghante approve hue, jitne 17:50 ke baad actual kaam kiya) — yaani approval ek upper limit hai. OT sirf unhi logon ka lag sakta hai jo us din PRESENT hain (punch hua ho) — absent bande ki list me hi nahi aayenge. Paid tabhi hoga jab (1) OT approve ho AUR (2) gate par guard/security ne ViziTrack se verify kiya ho — dono zaroori, warna 0. Single rate par pay hota hai, double pay nahi.' },
-  { t:'Visitor Request (guest ko bulana)', b:'Aapse milne koi bahar se aa raha hai to pehle se entry kar do. Visitor tile → visitor ka naam, mobile, company, visit date/time, kitne log, vehicle number aur purpose bharo. Request HR/Admin ke paas jaati hai. Approve hone par us din gate par security ko approved visitor list dikh jaati hai, isliye guest ko intezaar nahi karna padta. Pending request ko aap khud cancel bhi kar sakte ho. Guest aane se pehle request daalna zaroori hai \u2014 bina approval ke gate par entry nahi milti.' },
+  { t:'Visitor Request (guest ko bulana)', b:'Aapse milne koi bahar se aa raha hai to pehle se entry kar do. Visitor tile → visitor ka naam, mobile, company, visit date/time, kitne log, vehicle number aur purpose bharo. Request HR/Admin ke paas jaati hai. Approve hote hi gate par aapke guest ki entry apne aap ban jaati hai — security uske mobile number se pehchan kar andar bhej deti hai (isliye visitor ka mobile number zaroori hai). Guest kab andar aaya aur kab bahar gaya, wo bhi isi tile me dikhta rehta hai. Pending request ko aap khud cancel bhi kar sakte ho. Guest aane se pehle request daalna zaroori hai \u2014 bina approval ke gate par entry nahi milti.' },
   { t:'Payslips', b:'Payslip tile → mahine wise apna payslip dekho/download karo. Payslip tab dikhta hai jab HR us mahine ka payroll finalize kar deta hai. Isme earnings (basic/HRA/allowance/OT) aur deductions (PF/ESI/PT/LWF/TDS/advance) sab breakup me hote hain.' },
   { t:'My Assets', b:'Company ne jo saaman (laptop, phone, SIM, tools…) aapko issue kiya hai wo yahan list hota hai. Koi galat entry ya wapas kiya hua item abhi bhi dikhe to HR/Admin ko batao taaki record update ho.' },
   { t:'Voice Box (Grievance / Suggestion / Kaizen)', b:'Apni shikayat, sujhaav ya kaam behtar karne ka idea (kaizen) bhejne ke liye. Voice Box tile → type + message. Ye seedha reporting manager/HR ko jaata hai. Chaho to confidential (naam chhupa kar) bhi bhej sakte ho. Accept kiya gaya kaizen reward payroll me jud sakta hai.' },
@@ -1579,7 +1579,12 @@ async function loadVisitorReq(){
     host.innerHTML = rows.length ? rows.map(r => {
       const chip = { PENDING:'chip-warn', APPROVED:'chip-ok', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
       const extra = [r.visitor_company, r.visit_time ? String(r.visit_time).substring(0,5) : '', (r.visitors_count > 1 ? r.visitors_count + ' log' : '')].filter(Boolean).join(' · ');
-      return `<div class="row"><span>${fmtDate(r.visit_date)} · <b>${esc(r.visitor_name)}</b>${extra ? ' · ' + esc(extra) : ''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status === 'PENDING' ? ` <button class="chip chip-gray" style="border:none;cursor:pointer;font-size:9px" onclick="essVisitorCancel(${r.id})" title="Cancel"><i class="fa-solid fa-xmark"></i></button>` : ''}${r.status === 'REJECTED' && r.reject_reason ? `<div class="text-[10px]" style="color:var(--bad);text-align:right;width:100%">${esc(r.reject_reason)}</div>` : ''}</span></div>`;
+      const t = iso => { try { return new Date(iso).toLocaleTimeString('en-IN', { hour:'numeric', minute:'2-digit' }); } catch(e){ return ''; } };
+      let act = '';
+      if(r.check_in_time && r.check_out_time)      act = `<span class="chip chip-gray" style="font-size:9px">Aaya ${t(r.check_in_time)} · Gaya ${t(r.check_out_time)}</span>`;
+      else if(r.check_in_time)                     act = `<span class="chip chip-ok" style="font-size:9px"><i class="fa-solid fa-door-open"></i> Andar hai · ${t(r.check_in_time)}</span>`;
+      else if(r.status === 'APPROVED')             act = `<span class="chip chip-warn" style="font-size:9px">Gate par intezaar</span>`;
+      return `<div class="row"><span>${fmtDate(r.visit_date)} · <b>${esc(r.visitor_name)}</b>${extra ? ' · ' + esc(extra) : ''}${act ? '<br>' + act : ''}</span><span><span class="chip ${chip}">${esc(r.status)}</span>${r.status === 'PENDING' ? ` <button class="chip chip-gray" style="border:none;cursor:pointer;font-size:9px" onclick="essVisitorCancel(${r.id})" title="Cancel"><i class="fa-solid fa-xmark"></i></button>` : ''}${r.status === 'REJECTED' && r.reject_reason ? `<div class="text-[10px]" style="color:var(--bad);text-align:right;width:100%">${esc(r.reject_reason)}</div>` : ''}</span></div>`;
     }).join('') : '';
   }catch(e){}
 }
@@ -1599,12 +1604,12 @@ document.addEventListener('click', async e => {
   if(!nm) return notify('Visitor ka naam daalein');
   if(!dt) return notify('Visit date chunein');
   const mob = ($('vrMobile').value || '').trim();
-  if(mob && !/^\d{10}$/.test(mob)) return notify('Mobile 10 digit ka hona chahiye');
+  if(!/^\d{10}$/.test(mob)) return notify('Visitor ka 10 digit mobile daalein — gate par isi se pehchan hoti hai');
   b.disabled = true;
   try{
     const { data, error } = await sb.rpc('ess_visitor_request', {
       p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE,
-      p_visitor: nm, p_mobile: mob || null, p_company: ($('vrCompany').value||'').trim() || null,
+      p_visitor: nm, p_mobile: mob, p_company: ($('vrCompany').value||'').trim() || null,
       p_count: Number($('vrCount').value) || 1, p_date: dt, p_time: $('vrTime').value || null,
       p_purpose: ($('vrPurpose').value||'').trim() || null, p_vehicle: ($('vrVehicle').value||'').trim() || null
     });
