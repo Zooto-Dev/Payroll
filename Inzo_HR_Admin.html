@@ -1383,8 +1383,8 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">From</label><input id="vrFrom" type="date" class="inp"></div>
       <div><label class="lbl">To</label><input id="vrTo" type="date" class="inp"></div>
       <div><label class="lbl">Status</label><select id="vrStatus" class="inp">
-        <option value="PENDING">Pending</option><option value="APPROVED">Approved</option>
-        <option value="REJECTED">Rejected</option><option value="">All</option>
+        <option value="">All</option><option value="APPROVED">Gate ready</option>
+        <option value="CANCELLED">Cancelled</option>
       </select></div>
       <button id="vrLoadBtn" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Load</button>
       <span class="chip chip-gray" style="cursor:pointer" id="vrQAaj">Aaj</span>
@@ -1392,7 +1392,7 @@ body.no-confidential .confidential-col{display:none!important}
       <div style="flex:1"></div>
       <button id="vrCsvBtn" class="btn btn-ghost btn-sm hidden"><i class="fa-solid fa-download"></i> Export CSV</button>
     </div>
-    <p class="text-[11px] mt-2 mb-0" style="color:var(--muted)">Employee Portal se aayi visitor requests. Approve karne par us din gate par security ko approved visitor dikh jayega.</p>
+    <p class="text-[11px] mt-2 mb-0" style="color:var(--muted)">Employee Portal se daali gayi visitor entries — approval ki zaroorat nahi, daalte hi gate par live ho jaati hain (security visitor ko uske mobile number se pehchanti hai). Zaroorat pade to yahan se Cancel kar sakte ho.</p>
   </div>
   <div class="card" id="vrWrap"><p class="m-0 text-sm" style="color:var(--muted)">Date chun kar Load dabao.</p></div>
 
@@ -6129,6 +6129,15 @@ let MP_ROWS = [];
 function mpYesterday(){ const d = new Date(); d.setDate(d.getDate()-1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 /* ===== Visitor Requests (Employee Portal se) ===== */
 let VR_ROWS = [];
+function vrDT(iso){
+  if(!iso) return '—';
+  try{
+    const d = new Date(iso);
+    if(isNaN(d)) return String(iso);
+    return d.toLocaleDateString('en-IN', { day:'2-digit', month:'short' }) + ' ' +
+           d.toLocaleTimeString('en-IN', { hour:'numeric', minute:'2-digit' });
+  }catch(e){ return String(iso); }
+}
 function vrToday(){ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function vrInit(){
   if(!$('vrFrom').value){ $('vrFrom').value = vrToday(); $('vrTo').value = vrToday(); }
@@ -6148,11 +6157,12 @@ async function loadVisitors(){
     VR_ROWS = data || [];
     const can = canApprove('visitor');
     const body = VR_ROWS.map(r => {
-      const chip = { PENDING:'chip-warn', APPROVED:'chip-ok', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
-      const act = (r.status === 'PENDING' && can)
-        ? `<button class="btn btn-sm btn-primary" onclick="vrDecide(${r.id},'APPROVED')"><i class="fa-solid fa-check"></i></button>
-           <button class="btn btn-sm btn-ghost" onclick="vrDecide(${r.id},'REJECTED')"><i class="fa-solid fa-xmark"></i></button>`
-        : (r.status === 'REJECTED' && r.reject_reason ? `<span class="text-[10px]" style="color:var(--bad)">${esc(r.reject_reason)}</span>` : (r.decided_by ? `<span class="text-[10px]" style="color:var(--muted)">${esc(r.decided_by)}</span>` : ''));
+      const chip = { APPROVED:'chip-ok', CANCELLED:'chip-gray', PENDING:'chip-warn', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
+      const label = r.status === 'APPROVED' ? 'GATE READY' : r.status;
+      const upcoming = String(r.visit_date) >= vrToday();
+      const act = (r.status !== 'CANCELLED' && upcoming && can)
+        ? `<button class="btn btn-sm btn-ghost" onclick="vrCancel(${r.id})" title="Gate entry cancel karo"><i class="fa-solid fa-ban"></i> Cancel</button>`
+        : (r.reject_reason ? `<span class="text-[10px]" style="color:var(--muted)">${esc(r.reject_reason)}</span>` : (r.decided_by ? `<span class="text-[10px]" style="color:var(--muted)">${esc(r.decided_by)}</span>` : ''));
       return `<tr>
         <td>${esc(r.visit_date)}</td>
         <td>${esc(String(r.visit_time||'').substring(0,5) || '—')}</td>
@@ -6162,7 +6172,7 @@ async function loadVisitors(){
         <td>${esc(r.vehicle_no || '—')}</td>
         <td>${esc(r.purpose || '—')}</td>
         <td>${esc(r.employee_name || r.employee_code)}<div class="text-[10px]" style="color:var(--muted)">${esc(r.employee_code)}</div></td>
-        <td><span class="chip ${chip}">${esc(r.status)}</span></td>
+        <td><span class="chip ${chip}">${esc(label)}</span></td>
         <td style="white-space:nowrap">${act}</td>
       </tr>`;
     }).join('');
@@ -6173,20 +6183,16 @@ async function loadVisitors(){
     vrBadgeRefresh();
   }catch(e){ wrap.innerHTML = '<p class="m-0 text-sm" style="color:var(--bad)">Error: ' + esc(e.message || e) + '</p>'; }
 }
-async function vrDecide(id, status){
-  if(!canApprove('visitor')) return notify('You are not allowed to approve visitor requests', 'error');
-  let reason = null;
-  if(status === 'REJECTED'){
-    reason = prompt('Reject karne ka reason?') || '';
-    if(!reason.trim()) return;
-  }
+async function vrCancel(id){
+  if(!canApprove('visitor')) return notify('You are not allowed to change visitor entries', 'error');
+  const why = prompt('Cancel karne ka reason (optional):') || '';
   try{
     const { error } = await sb.from('visitor_requests').update({
-      status, reject_reason: reason ? reason.trim() : null,
+      status: 'CANCELLED', reject_reason: why.trim() || null,
       decided_by: ME_EMAIL || 'admin', decided_at: new Date().toISOString()
     }).eq('id', id);
     if(error) throw error;
-    notify('Visitor request ' + (status === 'APPROVED' ? 'approve' : 'reject') + ' ho gayi', status === 'APPROVED' ? 'success' : 'info');
+    notify('Visitor entry cancel ho gayi — gate par ab allow nahi hoga', 'info');
     loadVisitors();
   }catch(e){ notify(e.message || 'Update fail', 'error'); }
 }
@@ -6206,7 +6212,7 @@ async function loadWalkIns(){
           ? `<button class="btn btn-sm btn-primary" onclick="vrWalkDecide('${r.id}','approved')"><i class="fa-solid fa-check"></i></button>
              <button class="btn btn-sm btn-ghost" onclick="vrWalkDecide('${r.id}','rejected')"><i class="fa-solid fa-xmark"></i></button>`
           : (r.approved_by ? `<span class="text-[10px]" style="color:var(--muted)">${esc(r.approved_by)}</span>` : '');
-        return `<tr><td>${esc(fmtDT(r.created_at))}</td><td><b>${esc(r.visitor_name)}</b></td><td>${esc(r.mobile||'—')}</td>
+        return `<tr><td>${esc(vrDT(r.created_at))}</td><td><b>${esc(r.visitor_name)}</b></td><td>${esc(r.mobile||'—')}</td>
           <td>${esc(r.purpose||'—')}</td><td>${esc(r.host_name||'—')}</td>
           <td><span class="chip ${chip}">${esc(String(r.status||'').toUpperCase())}</span></td>
           <td style="white-space:nowrap">${act}</td></tr>`;
@@ -6243,15 +6249,15 @@ async function loadGateLogs(){
         <td>${r.photo_in ? `<img src="${esc(r.photo_in)}" style="width:34px;height:34px;border-radius:8px;object-fit:cover">` : '—'}</td>
         <td><b>${esc(r.visitor_name)}</b>${r.purpose ? `<div class="text-[10px]" style="color:var(--muted)">${esc(r.purpose)}</div>` : ''}</td>
         <td>${esc(r.mobile||'—')}</td><td>${esc(r.entry_type||'—')}</td><td>${esc(r.host_name||'—')}</td>
-        <td>${esc(fmtDT(r.check_in_time))}</td>
-        <td>${r.check_out_time ? esc(fmtDT(r.check_out_time)) + (r.forced_out ? ' <span class="chip chip-bad" style="font-size:9px">forced</span>' : '') : '<span class="chip chip-ok" style="font-size:9px">andar hai</span>'}</td>
+        <td>${esc(vrDT(r.check_in_time))}</td>
+        <td>${r.check_out_time ? esc(vrDT(r.check_out_time)) + (r.forced_out ? ' <span class="chip chip-bad" style="font-size:9px">forced</span>' : '') : '<span class="chip chip-ok" style="font-size:9px">andar hai</span>'}</td>
       </tr>`).join('')}</tbody></table></div>`
       : '<p class="m-0 text-sm" style="color:var(--muted)">Is range me koi gate entry nahi.</p>';
   }catch(e){ host.innerHTML = '<p class="m-0 text-sm" style="color:var(--bad)">Error: ' + esc(e.message||e) + '</p>'; }
 }
 async function vrBadgeRefresh(){
   try{
-    const { count } = await sb.from('visitor_requests').select('id', { count:'exact', head:true }).eq('status','PENDING').gte('visit_date', vrToday());
+    const { count } = await sb.from('requests').select('id', { count:'exact', head:true }).eq('status','pending');
     const b = $('vrBadge'); if(!b) return;
     b.innerText = count || 0;
     b.classList.toggle('hidden', !count);
