@@ -1599,6 +1599,8 @@ body.no-confidential .confidential-col{display:none!important}
           <textarea id="setDepts" class="inp" rows="6" style="font-size:12px"></textarea></div>
         <div><h3 class="display font-bold mb-2">Designations <span class="text-[10px] font-normal" style="color:var(--muted)">one per line</span></h3>
           <textarea id="setDesigs" class="inp" rows="6" style="font-size:12px"></textarea></div>
+        <div class="col-span-2"><h3 class="display font-bold mb-2">Sections <span class="text-[10px] font-normal" style="color:var(--muted)">one per line — employee form me isi ki dropdown aati hai (manual typing band hai)</span></h3>
+          <textarea id="setSections" class="inp" rows="5" style="font-size:12px"></textarea></div>
       </div>
       <h3 class="display font-bold mt-6 mb-3">Units / Locations <span class="text-[10px] font-normal" style="color:var(--muted)">employee code prefixes — e.g. ZM01 = Zooto Manesar Unit 1</span></h3>
       <div id="unitList" class="space-y-1 mb-2"></div>
@@ -1747,7 +1749,7 @@ body.no-confidential .confidential-col{display:none!important}
       <div id="epLineWrap"><label class="lbl">Production Line</label><select id="epLine" class="inp"></select></div>
       <div><label class="lbl">Reporting Manager</label><input id="epManager" class="inp" list="mgrDL"></div>
       <datalist id="mgrDL"></datalist>
-      <div><label class="lbl">Section</label><input id="epSection" class="inp" placeholder="Dept ke andar section"></div>
+      <div><label class="lbl">Section</label><select id="epSection" class="inp"></select></div>
       <div><label class="lbl">Emergency Contact</label><input id="epEmName" class="inp" placeholder="Name"></div>
       <div><label class="lbl">Emergency Phone</label><input id="epEmPhone" class="inp"></div>
       <div><label class="lbl">Emergency Relation</label><input id="epEmRel" class="inp" placeholder="Father / Spouse…"></div>
@@ -3959,6 +3961,7 @@ function openNewEmpModal(){
   };
   // Dept / Desig (blank -> mandatory choose)
   $('epDeptSel').innerHTML = window.nxDeptOpts('');
+  if($('epSection') && window.nxSectionOpts) $('epSection').innerHTML = window.nxSectionOpts('');
   $('epDesigSel').innerHTML = window.nxDesigOpts('');
   // BASIC — blank
   $('epName').value = ''; $('epDOJ').value = todayISO();
@@ -4154,6 +4157,7 @@ async function openEmpModal(code){
   $('epPhone').value = p.phone || ''; $('epEmail').value = p.email || '';
   populateDLs();
   $('epDeptSel').innerHTML = window.nxDeptOpts(e.DEPARTMENT || '');
+  if($('epSection') && window.nxSectionOpts) $('epSection').innerHTML = window.nxSectionOpts('');
   $('epDesigSel').innerHTML = window.nxDesigOpts(e.DESIGNATION || '');
   {
     const curU = e.UNIT || String(e['Employee code']||'').slice(0,4);
@@ -4220,7 +4224,7 @@ async function openEmpModal(code){
   if($('epMarital')) $('epMarital').value = p.marital_status || '';
   if($('epAadhaar')) $('epAadhaar').value = p.aadhaar || '';
   if($('epIdNo')) $('epIdNo').value = p.id_number || '';
-  if($('epSection')) $('epSection').value = p.section || '';
+  if($('epSection')){ if(window.nxSectionOpts) $('epSection').innerHTML = window.nxSectionOpts(p.section || ''); $('epSection').value = String(p.section || '').trim().toUpperCase(); }
   if($('epEmRel')) $('epEmRel').value = p.emergency_relation || '';
   if($('epNomName')) $('epNomName').value = p.nominee_name || '';
   if($('epNomRel')) $('epNomRel').value = p.nominee_relation || '';
@@ -4954,7 +4958,7 @@ $('epSaveBtn').addEventListener('click', async () => {
       marital_status: ($('epMarital')||{}).value || null,
       aadhaar: ($('epAadhaar')||{}).value || null,
       id_number: ($('epIdNo')||{}).value || null,
-      section: ($('epSection')||{}).value || null,
+      section: String((($('epSection')||{}).value) || '').trim().toUpperCase() || null,
       gender: $('epGender').value || null,
       exit_date: $('epExitDate').value || null, exit_reason: $('epExitReason').value || null,
       ess_attendance: $('epEssAtt').checked
@@ -9501,6 +9505,7 @@ function fillSettingsForm(){
   $('setLWFE').value = S.lwfE; $('setLWFR').value = S.lwfR;
   $('setMW1').value = S.mw1; $('setMW2').value = S.mw2; $('setMW3').value = S.mw3; $('setMW4').value = S.mw4;
   $('setDepts').value = (S.depts || []).join('\n');
+  if($('setSections')) $('setSections').value = (S.sections || []).join('\n');
   $('setDesigs').value = (S.desigs || []).join('\n');
   renderUnits(); populateDLs();
   $('setLeaveMode').value = S.leaveMode; $('setAccrual').value = S.accrual; $('setOTDepts').value = S.otDepts;
@@ -9531,6 +9536,7 @@ $('setSaveBtn').addEventListener('click', async () => {
       superAdmins: (SETTINGS.superAdmins || []),
       adminPerms: (SETTINGS.adminPerms || {}),
       depts: $('setDepts').value.split('\n').map(s => s.trim()).filter(Boolean),
+      sections: ($('setSections') ? $('setSections').value.split('\n').map(s => s.trim().toUpperCase()).filter(Boolean) : (SETTINGS.sections || [])),
       desigs: $('setDesigs').value.split('\n').map(s => s.trim()).filter(Boolean),
       leaveMode: $('setLeaveMode').value, accrual: Number($('setAccrual').value)||1, sandwich: false, otDepts: $('setOTDepts').value,
       minDaysForLeave: Number($('setMinDaysForLeave').value)||15,
@@ -9859,6 +9865,15 @@ function populateDLs(){
   $('deptDL').innerHTML = depts.map(d => `<option value="${esc(d)}">`).join('');
   $('desigDL').innerHTML = desigs.map(d => `<option value="${esc(d)}">`).join('');
   const deptOpts = sel => '<option value="">— Select Department —</option>' + depts.map(d => `<option value="${esc(d)}" ${sel === d ? 'selected' : ''}>${esc(d)}</option>`).join('') + (sel && !depts.includes(sel) ? `<option value="${esc(sel)}" selected>${esc(sel)}</option>` : '');
+  // Sections — Settings ki list + jo pehle se employees par lagi hain (kuch chhoote na)
+  const secSet = new Set((S.sections || []).map(x => String(x).trim().toUpperCase()).filter(Boolean));
+  Object.keys(PROFILES || {}).forEach(c => { const v = (PROFILES[c] || {}).section; if(v) secSet.add(String(v).trim().toUpperCase()); });
+  const sections = Array.from(secSet).sort();
+  const sectionOpts = sel => { const u = String(sel || '').trim().toUpperCase();
+    return '<option value="">— Koi section nahi —</option>' +
+      sections.map(d => `<option value="${esc(d)}" ${u === d ? 'selected' : ''}>${esc(d)}</option>`).join('') +
+      (u && !sections.includes(u) ? `<option value="${esc(u)}" selected>${esc(u)}</option>` : ''); };
+  window.nxSectionOpts = sectionOpts;
   const desigOpts = sel => '<option value="">— Select Designation —</option>' + desigs.map(d => `<option value="${esc(d)}" ${sel === d ? 'selected' : ''}>${esc(d)}</option>`).join('') + (sel && !desigs.includes(sel) ? `<option value="${esc(sel)}" selected>${esc(sel)}</option>` : '');
   if($('aeDept')) $('aeDept').innerHTML = deptOpts('');
   if($('aeDesig')) $('aeDesig').innerHTML = desigOpts('');
@@ -10702,7 +10717,9 @@ async function loadExpenses(){
     const emp = EMP.find(e => e['Employee code'] === x.employee_code);
     const st = { PENDING:'chip-warn', APPROVED:'chip-blue', PAID:'chip-ok', REJECTED:'chip-bad' }[x.status] || 'chip-gray';
     let btns = '';
-    if(x.status === 'PENDING') btns = `<button class="btn btn-ghost btn-sm" data-act="ex-appr" data-id="${x.id}"><i class="fa-solid fa-check"></i></button> <button class="btn btn-danger btn-sm" data-act="ex-rej" data-id="${x.id}"><i class="fa-solid fa-xmark"></i></button>`;
+    if(x.status === 'PENDING') btns = (canApprove('expense') && roleAcctMgr())
+      ? `<button class="btn btn-ghost btn-sm" data-act="ex-appr" data-id="${x.id}"><i class="fa-solid fa-check"></i></button> <button class="btn btn-danger btn-sm" data-act="ex-rej" data-id="${x.id}"><i class="fa-solid fa-xmark"></i></button>`
+      : '<span class="text-[10px]" style="color:var(--muted)">Accounts approve karega</span>';
     if(x.status === 'APPROVED') btns = `<button class="btn btn-primary btn-sm" data-act="ex-pay" data-code="${esc(x.employee_code)}"><i class="fa-solid fa-qrcode"></i> Pay</button>`;
     if(x.status === 'PAID' && x.payment_ref) btns = `<button class="btn btn-ghost btn-sm" data-act="ex-proof" data-path="${esc(x.payment_ref)}"><i class="fa-solid fa-receipt"></i> Proof</button>`;
     return `<tr><td>${fmtDate(x.expense_date)}</td>
@@ -12251,9 +12268,10 @@ async function loadApprovals(){
       return `<tr><td class="text-xs" style="white-space:nowrap;color:var(--muted)">${esc(_fmtTs(x.created_at))}</td><td class="font-semibold text-xs">${esc(nameOf(x.employee_code))}</td><td class="text-xs">${esc(x.category)}</td>
         <td class="font-semibold">${fmtINR(x.amount)}</td><td class="text-xs">${fmtDate(x.expense_date)}</td>
         <td class="text-xs" style="max-width:180px">${esc(x.note||'—')}</td><td style="white-space:nowrap">${bills}</td>
-        <td style="text-align:right;white-space:nowrap">
-          <button class="btn btn-ghost btn-sm" data-act="ex-appr" data-id="${x.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
-          <button class="btn btn-danger btn-sm" data-act="ex-rej" data-id="${x.id}"><i class="fa-solid fa-xmark"></i></button></td></tr>`;
+        <td style="text-align:right;white-space:nowrap">${(canApprove('expense') && roleAcctMgr())
+          ? `<button class="btn btn-ghost btn-sm" data-act="ex-appr" data-id="${x.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
+             <button class="btn btn-danger btn-sm" data-act="ex-rej" data-id="${x.id}"><i class="fa-solid fa-xmark"></i></button>`
+          : '<span class="text-[10px]" style="color:var(--muted)">Accounts approve karega</span>'}</td></tr>`;
     }).join('')}</tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
   // Advance / Loan pending
   let ml = { data: [] };
