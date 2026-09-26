@@ -342,8 +342,6 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <div class="col-span-2"><label class="lbl">Company / Firm</label><input id="vrCompany" class="inp" placeholder="Kahan se aa rahe hain"></div>
           <div><label class="lbl">Visit date <span style="color:var(--bad)">*</span></label><input id="vrDate" type="date" class="inp"></div>
           <div><label class="lbl">Approx time</label><input id="vrTime" type="time" class="inp"></div>
-          <div><label class="lbl">Kitne log</label><input id="vrCount" type="number" min="1" class="inp" value="1"></div>
-          <div><label class="lbl">Vehicle no.</label><input id="vrVehicle" class="inp" placeholder="UP00XX0000"></div>
           <div class="col-span-2"><label class="lbl">Purpose / kaam</label><input id="vrPurpose" class="inp" placeholder="Meeting, sample, interview…"></div>
         </div>
         <button id="vrBtn" class="btn btn-primary w-full justify-center" style="background:#0891b2"><i class="fa-solid fa-user-check"></i> Visitor Entry Banao</button>
@@ -999,8 +997,8 @@ var ESS_FAQ = [
   { t:'WFH (Work From Home)', b:'Ghar se kaam ke liye. WFH tile → date + reason, din se pehle daalo. Manager approve karta hai. Approved WFH us din present ki tarah paid hota hai aur iske liye face/kiosk punch ki zaroorat nahi. Jo din pehle se attendance/leave me hai us par WFH dubara mat daalo.' },
   { t:'Expenses / Reimbursement', b:'Company ke kaam me kharch kiya paisa wapas paane ke liye. Expenses tile → category + amount + bill/receipt ki photo bharo. NOTE: 7 din se purana kharch claim nahi hota, isliye bill turant daal do. Claim seedha ACCOUNTS ke paas jaata hai — reporting manager ka koi approval nahi lagta. Accounts bill, date aur amount check karke approve/reject karta hai; approve + paid hone par amount aapko milta hai. Status har step par tile me dikhta hai.' },
   { t:'Advance / Loan', b:'Advance = ek baar ka paisa jo agli hi salary se poora kat jaata hai. Loan = CEO approval → Loan Agreement (yahin ESS me Accept karna hoga) → Accounts se disbursement → har mahine EMI katauti. Advance/Loan tile → type + amount + reason (Loan me months bhi) bharo. Manager/Accounts/CEO approve karte hain; katauti aapke payslip me saaf dikhti hai.' },
-  { t:'Overtime (OT)', b:'OT sirf unhe dikhta hai jinhe allowed hai. OT tile → date + hours + reason; supervisor poori team ka OT ek saath bhi bhej sakta hai. Rule: OT sirf 17:50 ke baad ke kaam ka ginta hai. Paid OT = min(jitne ghante approve hue, jitne 17:50 ke baad actual kaam kiya) — yaani approval ek upper limit hai. OT sirf unhi logon ka lag sakta hai jo us din PRESENT hain (punch hua ho) — absent bande ki list me hi nahi aayenge. Paid tabhi hoga jab (1) OT approve ho AUR (2) gate par guard/security ne ViziTrack se verify kiya ho — dono zaroori, warna 0. Single rate par pay hota hai, double pay nahi.' },
-  { t:'Visitor Request (guest ko bulana)', b:'Aapse milne koi bahar se aa raha hai to pehle se entry kar do. Visitor tile → visitor ka naam, mobile, company, visit date/time, kitne log, vehicle number aur purpose bharo. Koi approval nahi lagti — entry daalte hi gate par live ho jaati hai aur security aapke guest ko uske mobile number se pehchan kar andar bhej deti hai (isliye visitor ka 10 digit mobile zaroori hai). Guest kab andar aaya aur kab bahar gaya, wo bhi isi tile me dikhta rehta hai. Guest aane se pehle entry daal dena; plan badal jaye to usi tile se cancel kar do.' },
+  { t:'Overtime (OT)', b:'OT sirf unhe dikhta hai jinhe allowed hai. OT tile → date + hours + reason; supervisor poori team ka OT ek saath bhi bhej sakta hai. Rule: din ka actual OT = us din ke total kaam ke ghante − aapke shift ke ghante (General shift = 8.5 hrs). 20 minute se kam bache to us din ka OT 0. Weekly-off/Sunday ko kaam kiya to poora din OT. Paid OT = min(jitne ghante approve hue, jitna actual OT hua) — yaani approval ek upper limit hai. OT sirf unhi logon ka lag sakta hai jo us din PRESENT hain (punch hua ho) — absent bande ki list me hi nahi aayenge. Paid tabhi hoga jab (1) OT approve ho AUR (2) gate par guard/security ne ViziTrack se verify kiya ho — dono zaroori, warna 0. Single rate par pay hota hai, double pay nahi.' },
+  { t:'Visitor Request (guest ko bulana)', b:'Aapse milne koi bahar se aa raha hai to pehle se entry kar do. Visitor tile → visitor ka naam, mobile, company, visit date/time aur purpose bharo. Ek request = ek visitor. Koi approval nahi lagti — entry daalte hi gate par live ho jaati hai aur security aapke guest ko uske mobile number se pehchan kar andar bhej deti hai (isliye visitor ka 10 digit mobile zaroori hai). Guest kab andar aaya aur kab bahar gaya, wo bhi isi tile me dikhta rehta hai. Guest aane se pehle entry daal dena; plan badal jaye to usi tile se cancel kar do.' },
   { t:'Payslips', b:'Payslip tile → mahine wise apna payslip dekho/download karo. Payslip tab dikhta hai jab HR us mahine ka payroll finalize kar deta hai. Isme earnings (basic/HRA/allowance/OT) aur deductions (PF/ESI/PT/LWF/TDS/advance) sab breakup me hote hain.' },
   { t:'My Assets', b:'Company ne jo saaman (laptop, phone, SIM, tools…) aapko issue kiya hai wo yahan list hota hai. Koi galat entry ya wapas kiya hua item abhi bhi dikhe to HR/Admin ko batao taaki record update ho.' },
   { t:'Voice Box (Grievance / Suggestion / Kaizen)', b:'Apni shikayat, sujhaav ya kaam behtar karne ka idea (kaizen) bhejne ke liye. Voice Box tile → type + message. Ye seedha reporting manager/HR ko jaata hai. Chaho to confidential (naam chhupa kar) bhi bhej sakte ho. Accept kiya gaya kaizen reward payroll me jud sakta hai.' },
@@ -1599,7 +1597,7 @@ async function loadVisitorReq(){
       const chip = { APPROVED:'chip-ok', CANCELLED:'chip-gray', PENDING:'chip-warn', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
       const label = r.status === 'APPROVED' ? 'GATE READY' : r.status;
       const upcoming = String(r.visit_date) >= today;
-      const extra = [r.visitor_company, r.visit_time ? String(r.visit_time).substring(0,5) : '', (r.visitors_count > 1 ? r.visitors_count + ' log' : '')].filter(Boolean).join(' · ');
+      const extra = [r.visitor_company, r.visit_time ? String(r.visit_time).substring(0,5) : ''].filter(Boolean).join(' · ');
       const t = iso => { try { return new Date(iso).toLocaleTimeString('en-IN', { hour:'numeric', minute:'2-digit' }); } catch(e){ return ''; } };
       let act = '';
       if(r.check_in_time && r.check_out_time)              act = `<span class="chip chip-gray" style="font-size:9px">Aaya ${t(r.check_in_time)} · Gaya ${t(r.check_out_time)}</span>`;
@@ -1632,8 +1630,8 @@ document.addEventListener('click', async e => {
     const { data, error } = await sb.rpc('ess_visitor_request', {
       p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE,
       p_visitor: nm, p_mobile: mob, p_company: ($('vrCompany').value||'').trim() || null,
-      p_count: Number($('vrCount').value) || 1, p_date: dt, p_time: $('vrTime').value || null,
-      p_purpose: ($('vrPurpose').value||'').trim() || null, p_vehicle: ($('vrVehicle').value||'').trim() || null,
+      p_count: 1, p_date: dt, p_time: $('vrTime').value || null,
+      p_purpose: ($('vrPurpose').value||'').trim() || null, p_vehicle: null,
       p_email: ($('vrEmail').value||'').trim() || null
     });
     if(error) throw error;
@@ -1650,11 +1648,10 @@ document.addEventListener('click', async e => {
       ['Mobile', mob || '\u2014'], ['Email', ($('vrEmail').value||'').trim() || '\u2014'],
       ['Company', ($('vrCompany').value||'').trim() || '\u2014'],
       ['Date', dt], ['Time', $('vrTime').value || '\u2014'],
-      ['Kitne log', Number($('vrCount').value) || 1], ['Vehicle', ($('vrVehicle').value||'').trim() || '\u2014'],
       ['Purpose', ($('vrPurpose').value||'').trim() || '\u2014']
     ]);
     $('vrName').value = ''; $('vrMobile').value = ''; $('vrCompany').value = ''; $('vrEmail').value = '';
-    $('vrVehicle').value = ''; $('vrPurpose').value = ''; $('vrCount').value = 1;
+    $('vrPurpose').value = '';
     loadVisitorReq();
   }catch(err){ notify(err.message || 'Request failed'); }
   finally{ b.disabled = false; }

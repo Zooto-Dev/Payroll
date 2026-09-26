@@ -1565,7 +1565,7 @@ body.no-confidential .confidential-col{display:none!important}
         <div><label class="lbl">ESI Gross Limit (₹)</label><input id="setESILimit" type="number" class="inp" value="21000"></div>
         <div><label class="lbl">Professional Tax (₹/month)</label><input id="setPT" type="number" class="inp" value="0"></div>
         <div><label class="lbl">OT Rate Multiplier</label><input id="setOTMult" type="number" step="0.5" class="inp" value="1" title="1 = single rate, 2 = double"></div>
-        <div><label class="lbl">OT Counts After (mins beyond shift)</label><input id="setOTAfter" type="number" class="inp" value="30"></div>
+        <div><label class="lbl">OT Counts After (mins beyond shift)</label><input id="setOTAfter" type="number" class="inp" value="20" title="Itne minute se kam OT bache to us din ka OT count nahi hoga"></div>
         <div><label class="lbl">Leave Policy</label>
           <select id="setLeaveMode" class="inp"><option value="annual">Annual quota (CL/SL/EL)</option><option value="monthly">Monthly accrual (earn per month)</option></select></div>
         <div><label class="lbl">Accrual / Month (days)</label><input id="setAccrual" type="number" step="0.5" class="inp" value="1"></div>
@@ -2256,7 +2256,7 @@ function getSettings(){
     name:'Zooto Fashion Pvt Ltd', addr:'IMT Manesar, Gurugram, Haryana', phone:'', email:'', cin:'',
     hr:'', hrDesig:'Director', probation:6, notice:30,
     weekOff:0, latesHalf:3, pfPct:12, pfCap:15000, esiPct:0.75, esiLimit:21000, pt:0,
-    otMult:1, otAfter:30, cl:7, sl:7, el:15,
+    otMult:1, otAfter:20, cl:7, sl:7, el:15,
     leaveMode:'annual', accrual:1, sandwich:false, otDepts:'PLANNING,PRODUCTION',
     lwfE:35, lwfR:70, mw1:15220.71, mw2:16780.74, mw3:18500.81, mw4:19425.85,
     minWO:4,
@@ -2305,6 +2305,33 @@ function shiftHours(s){
   if(mins <= 0) mins += 24*60; // night shift
   return mins/60;
 }
+/* ===== OT ka ek hi rule — OT Report aur Payroll dono yahi use karte hain =====
+   Din ka OT = us din ke TOTAL WORKED HOURS − us employee ke shift ke ghante.
+   Weekly-off / holiday / Sunday par kaam kiya to poora worked time OT.
+   Threshold (Settings > "OT Counts After") se kam bacha to OT = 0. */
+function nxHrsOf(t){ if(!t) return 0; const q = String(t).split(':').map(Number); return (q[0]||0) + (q[1]||0)/60 + (q[2]||0)/3600; }
+function nxShiftHrsOf(code){
+  // shift set nahi hai to General (8.5h) maano — SHIFTS[0] jo bhi ho uspe mat jao
+  if(!((PROFILES[code] || {}).shift_id)) return 8.5;
+  let h = 0; try{ h = shiftHours(shiftOf(code)); }catch(e){ h = 0; }
+  return h > 0 ? h : 8.5;
+}
+function nxWorkedHrs(row){
+  if(!row) return 0;
+  let w = nxHrsOf(row.total_hours);
+  if(!w && row.in_time && row.out_time){
+    w = nxHrsOf(row.out_time) - nxHrsOf(row.in_time);
+    if(w < 0) w += 24;                       // night shift (midnight cross)
+  }
+  return w > 0 ? w : 0;
+}
+function nxOtDayHours(code, row, minHrs, isOffDay){
+  const worked = nxWorkedHrs(row);
+  if(worked <= 0) return 0;
+  const ot = isOffDay ? worked : Math.max(0, worked - nxShiftHrsOf(code));
+  return ot > (Number(minHrs) || 0) ? ot : 0;
+}
+function nxOtMinHrs(){ const v = Number((getSettings() || {}).otAfter); return (isFinite(v) && v > 0 ? v : 20) / 60; }
 function isLateFor(inTime, s){
   if(!inTime) return false;
   const t = inTime.substring(0,5);
@@ -3301,49 +3328,64 @@ $('otrLoadBtn').addEventListener('click', async () => {
   const from = m + '-01', to = m + '-' + String(dim).padStart(2, '0');
   const { data, error } = await sb.from('ot_requests').select('employee_code, ot_date, hours, ot_verified').eq('status', 'APPROVED').gte('ot_date', from).lte('ot_date', to);
   if(error) return notify(error.message, 'error');
-  // attendance out_time per code/date (naya rule: OT 17:50 ke baad, approved hrs tak cap)
+  // attendance per code/date — OT = total worked hours − shift hours (>= threshold), approved hrs tak cap
   let att = [];
   try{ att = await sbFetchAllAtt('employee_code, date, in_time, out_time, total_hours', from, to); }catch(e){ att = []; }
   const attIdx = {}; (att || []).forEach(r => { (attIdx[r.employee_code] = attIdx[r.employee_code] || {})[r.date] = r; });
-  const OT_START_H = 17 + 50/60;
-  const hrsOf = t => { if(!t) return 0; const q = String(t).split(':').map(Number); return (q[0]||0) + (q[1]||0)/60 + (q[2]||0)/3600; };
   const S = getSettings();
+  const OT_MIN = nxOtMinHrs();                       // Settings > "OT Counts After" (minutes)
   const byEmp = {};
   (data || []).forEach(o => {
-    byEmp[o.employee_code] = byEmp[o.employee_code] || { hours: 0, phours: 0, days: 0 };
+    const code = o.employee_code;
+    const v = byEmp[code] = byEmp[code] || { hours:0, worked:0, actual:0, phours:0, days:0, unvDays:0, unvHrs:0 };
     const h = Number(o.hours) || 0;
-    byEmp[o.employee_code].hours += h;
-    byEmp[o.employee_code].days++;
-    if(o.ot_verified !== true) return;                 // gate: sirf approved + guard-verified payable
-    const r = (attIdx[o.employee_code] || {})[o.ot_date];
-    if(!r || !r.out_time) return;                       // punch/out nahi to OT 0
-    const isSun = new Date(o.ot_date + 'T00:00:00').getDay() === 0;
-    const actual = isSun ? (hrsOf(r.total_hours) || Math.max(0, hrsOf(r.out_time) - hrsOf(r.in_time)))
-                         : Math.max(0, hrsOf(r.out_time) - OT_START_H);   // 17:50 ke baad ka
-    byEmp[o.employee_code].phours += Math.min(h, actual);   // approved hrs = CAP
+    v.hours += h; v.days++;
+    const r = (attIdx[code] || {})[o.ot_date];
+    if(!r) return;                                   // punch hi nahi -> OT 0
+    v.worked += nxWorkedHrs(r);
+    const isOff = new Date(o.ot_date + 'T00:00:00').getDay() === 0;   // Sunday = off day, poora din OT
+    const actual = nxOtDayHours(code, r, OT_MIN, isOff);
+    v.actual += actual;
+    const pay = Math.min(h, actual);                 // approved hours = CAP
+    if(o.ot_verified === true) v.phours += pay;      // gate: sirf guard-verified OT payable
+    else if(pay > 0){ v.unvDays++; v.unvHrs += pay; }
   });
+  const r1 = n => Math.round(n * 10) / 10;
   OTR_ROWS = Object.entries(byEmp).map(([code, v]) => {
     const emp = EMP.find(e => e['Employee code'] === code) || {};
     const gross = grossOf(code) || 0;
-    const rate = Math.round((gross / (dim * 8)) * Number(S.otMult || 2));
-    const ph = Math.round(v.phours * 2) / 2;
-    return { code, name: emp.Name || code, dept: emp.DEPARTMENT || '—', sec: (PROFILES[code]||{}).section || '', days: v.days,
-             hours: Math.round(v.hours * 2) / 2, phours: ph, rate, amount: Math.round(v.phours * rate) };
+    const shH = nxShiftHrsOf(code);
+    const rate = Math.round((gross / (dim * shH)) * Number(S.otMult || 1));
+    return { code, name: emp.Name || code, dept: emp.DEPARTMENT || '\u2014', sec: (PROFILES[code]||{}).section || '',
+             days: v.days, shH, worked: r1(v.worked), actual: r1(v.actual),
+             hours: Math.round(v.hours * 2) / 2, phours: Math.round(v.phours * 2) / 2,
+             unvDays: v.unvDays, unvHrs: r1(v.unvHrs), rate, amount: Math.round(v.phours * rate) };
   }).sort((a, b) => b.amount - a.amount);
-  const total = OTR_ROWS.reduce((a, r) => a + r.amount, 0);
-  const totalH = OTR_ROWS.reduce((a, r) => a + r.hours, 0);
-  const totalPH = OTR_ROWS.reduce((a, r) => a + r.phours, 0);
-  $('otrWrap').innerHTML = OTR_ROWS.length ? `<p class="text-[11px] mb-2" style="color:var(--muted)"><i class="fa-solid fa-shield-halved" style="color:var(--brand)"></i> OT paisa = <b>17:50 ke baad kiya gaya kaam</b>, approved ghanton tak cap, aur sirf guard-verified. "Payable" 0 = abhi tak paid nahi / verify nahi hua.</p><div style="overflow-x:auto"><table class="tbl">
-    <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Section</th><th>Days</th><th>Approved Hrs</th><th>Payable Hrs</th><th>Rate/hr (×${S.otMult || 2})</th><th>OT Amount</th></tr></thead>
-    <tbody>${OTR_ROWS.map(r => `<tr><td>${esc(r.code)}</td><td class="font-semibold">${esc(r.name)}</td><td>${esc(r.dept)}</td><td>${esc(r.sec||'—')}</td><td>${r.days}</td><td class="money">${r.hours}</td><td class="money" style="color:${r.phours>0?'var(--ok,#16a34a)':'var(--bad,#dc2626)'}">${r.phours}</td><td class="money">${fmtINR(r.rate)}</td><td class="money font-semibold">${fmtINR(r.amount)}</td></tr>`).join('')}
-    <tr style="background:#faf8f4"><th colspan="5">TOTAL</th><th class="money">${totalH}</th><th class="money">${totalPH}</th><th></th><th class="money">${fmtINR(total)}</th></tr></tbody>
+  const total   = OTR_ROWS.reduce((a, r) => a + r.amount, 0);
+  const totalH  = OTR_ROWS.reduce((a, r) => a + r.hours, 0);
+  const totalA  = r1(OTR_ROWS.reduce((a, r) => a + r.actual, 0));
+  const totalW  = r1(OTR_ROWS.reduce((a, r) => a + r.worked, 0));
+  const totalPH = r1(OTR_ROWS.reduce((a, r) => a + r.phours, 0));
+  const unvD    = OTR_ROWS.reduce((a, r) => a + r.unvDays, 0);
+  const unvH    = r1(OTR_ROWS.reduce((a, r) => a + r.unvHrs, 0));
+  const otMins  = Math.round(OT_MIN * 60);
+  $('otrWrap').innerHTML = OTR_ROWS.length ? `<p class="text-[11px] mb-1" style="color:var(--muted)"><i class="fa-solid fa-calculator" style="color:var(--brand)"></i>
+      <b>Actual OT</b> = us din ke total worked hours \u2212 employee ke shift ke ghante (Sunday par poora din OT). ${otMins} minute se kam bache to us din ka OT 0.
+      <b>Payable</b> = Actual aur Approved me se jo <b>kam</b> ho \u2014 aur sirf un dino ka jo gate par <b>verify</b> ho chuke hain.
+      <b>Rate/hr</b> = Gross \u00f7 (${dim} din \u00d7 shift ke ghante) \u00d7 ${S.otMult || 1}.</p>
+    ${unvD ? `<p class="text-[11px] mb-2 p-2 rounded" style="background:#fffbeb;border:1px solid #fde68a;color:#78350f"><i class="fa-solid fa-triangle-exclamation"></i>
+      <b>${unvD} din</b> ka OT abhi gate par verify nahi hua \u2014 <b>${unvH} hrs</b> (\u2248 ${fmtINR(Math.round(OTR_ROWS.reduce((a,r)=>a+r.unvHrs*r.rate,0)))}) roka hua hai. Verify hote hi Payable me aa jayega.</p>` : ''}
+    <div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Section</th><th>Days</th><th>Shift Hrs</th><th>Worked Hrs</th><th>Actual OT</th><th>Approved Hrs</th><th>Payable Hrs</th><th>Rate/hr (\u00d7${S.otMult || 1})</th><th>OT Amount</th></tr></thead>
+    <tbody>${OTR_ROWS.map(r => `<tr><td>${esc(r.code)}</td><td class="font-semibold">${esc(r.name)}</td><td>${esc(r.dept)}</td><td>${esc(r.sec||'\u2014')}</td><td>${r.days}</td><td class="money">${r.shH}</td><td class="money">${r.worked}</td><td class="money">${r.actual}</td><td class="money">${r.hours}</td><td class="money" style="color:${r.phours>0?'var(--ok,#16a34a)':'var(--bad,#dc2626)'}" title="${r.unvDays ? r.unvDays + ' din verify nahi hue (' + r.unvHrs + ' hrs rok diye)' : 'sab verified'}">${r.phours}${r.unvDays ? ` <span class="chip chip-warn" style="font-size:9px">+${r.unvHrs} unverified</span>` : ''}</td><td class="money">${fmtINR(r.rate)}</td><td class="money font-semibold">${fmtINR(r.amount)}</td></tr>`).join('')}
+    <tr style="background:#faf8f4"><th colspan="6">TOTAL</th><th class="money">${totalW}</th><th class="money">${totalA}</th><th class="money">${totalH}</th><th class="money">${totalPH}</th><th></th><th class="money">${fmtINR(total)}</th></tr></tbody>
   </table></div>` : '<p class="text-xs m-0" style="color:var(--muted)">No approved overtime in this month.</p>';
   $('otrCsvBtn').classList.toggle('hidden', !OTR_ROWS.length);
 });
 $('otrCsvBtn').addEventListener('click', () => {
   dlText('OT_Report_' + $('otrMonth').value + '.csv',
-    ['Code,Name,Department,Section,Days,Approved Hours,Payable Hours,Rate per hour,OT Amount',
-     ...OTR_ROWS.map(r => [r.code, '"' + r.name + '"', '"' + r.dept + '"', '"' + (r.sec||'') + '"', r.days, r.hours, r.phours, r.rate, r.amount].join(','))].join('\n'), 'text/csv');
+    ['Code,Name,Department,Section,Days,Shift Hours,Worked Hours,Actual OT,Approved Hours,Payable Hours,Unverified Days,Unverified Hours,Rate per hour,OT Amount',
+     ...OTR_ROWS.map(r => [r.code, '"' + r.name + '"', '"' + r.dept + '"', '"' + (r.sec||'') + '"', r.days, r.shH, r.worked, r.actual, r.hours, r.phours, r.unvDays, r.unvHrs, r.rate, r.amount].join(','))].join('\n'), 'text/csv');
 });
 
 /* ---------------- Voice Box QR poster ---------------- */
@@ -6170,10 +6212,9 @@ async function loadVisitors(){
       return `<tr>
         <td>${esc(r.visit_date)}</td>
         <td>${esc(String(r.visit_time||'').substring(0,5) || '—')}</td>
-        <td><b>${esc(r.visitor_name)}</b>${r.visitors_count > 1 ? ` <span class="chip chip-gray" style="font-size:9px">${r.visitors_count} log</span>` : ''}</td>
+        <td><b>${esc(r.visitor_name)}</b></td>
         <td>${esc(r.visitor_mobile || '—')}</td>
         <td>${esc(r.visitor_company || '—')}</td>
-        <td>${esc(r.vehicle_no || '—')}</td>
         <td>${esc(r.purpose || '—')}</td>
         <td>${esc(r.employee_name || r.employee_code)}<div class="text-[10px]" style="color:var(--muted)">${esc(r.employee_code)}</div></td>
         <td><span class="chip ${chip}">${esc(label)}</span></td>
@@ -6181,7 +6222,7 @@ async function loadVisitors(){
       </tr>`;
     }).join('');
     wrap.innerHTML = VR_ROWS.length
-      ? `<div style="overflow-x:auto;max-height:70vh;overflow-y:auto"><table class="tbl"><thead><tr><th>Date</th><th>Time</th><th>Visitor</th><th>Mobile</th><th>Company</th><th>Vehicle</th><th>Purpose</th><th>Host (Employee)</th><th>Status</th><th>Action</th></tr></thead><tbody>${body}</tbody></table></div>`
+      ? `<div style="overflow-x:auto;max-height:70vh;overflow-y:auto"><table class="tbl"><thead><tr><th>Date</th><th>Time</th><th>Visitor</th><th>Mobile</th><th>Company</th><th>Purpose</th><th>Host (Employee)</th><th>Status</th><th>Action</th></tr></thead><tbody>${body}</tbody></table></div>`
       : '<p class="m-0 text-sm" style="color:var(--muted)">Is range me koi visitor request nahi.</p>';
     $('vrCsvBtn').classList.toggle('hidden', !VR_ROWS.length);
     vrBadgeRefresh();
@@ -6270,8 +6311,8 @@ async function vrBadgeRefresh(){
 function vrCsv(){
   if(!VR_ROWS.length) return;
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
-  const lines = ['Date,Time,Visitor,Mobile,Company,Persons,Vehicle,Purpose,Host Code,Host Name,Status,Reject Reason'];
-  VR_ROWS.forEach(r => lines.push([r.visit_date, q(String(r.visit_time||'').substring(0,5)), q(r.visitor_name), q(r.visitor_mobile||''), q(r.visitor_company||''), r.visitors_count||1, q(r.vehicle_no||''), q(r.purpose||''), q(r.employee_code), q(r.employee_name||''), q(r.status), q(r.reject_reason||'')].join(',')));
+  const lines = ['Date,Time,Visitor,Mobile,Company,Purpose,Host Code,Host Name,Status,Reject Reason'];
+  VR_ROWS.forEach(r => lines.push([r.visit_date, q(String(r.visit_time||'').substring(0,5)), q(r.visitor_name), q(r.visitor_mobile||''), q(r.visitor_company||''), q(r.purpose||''), q(r.employee_code), q(r.employee_name||''), q(r.status), q(r.reject_reason||'')].join(',')));
   dlText('Visitor_Requests_' + $('vrFrom').value + ($('vrTo').value !== $('vrFrom').value ? '_to_' + $('vrTo').value : '') + '.csv', lines.join('\n'), 'text/csv');
 }
 document.addEventListener('click', e => {
@@ -7150,31 +7191,21 @@ async function runPayroll(){
           if(isRowLate(r) && !((gateSLMap[code]||new Set()).has(x.iso)) && !(((window._gateHDMap||{})[code]||new Set()).has(x.iso))) lates++;
         }
       });
-      // ===== OT (NAYA RULE) =====
+      // ===== OT =====
       // Approval + guard-verify = sirf ELIGIBILITY + verification (gate). Paisa attendance se banta hai,
       // approved hours ke CAP tak:
-      //   • Normal din  : OT = 17:50 ke baad ka worked time (out_time − 17:50), approved hrs tak cap.
-      //   • Weekly-off / holiday par kaam: us din ka poora worked time OT, approved hrs tak cap.
-      // Example: Pankaj 09:00 aaya, approval 3h, verified; agar 4h OT kiya to bhi 3h paid (cap);
-      //          agar sirf 2h ruka to 2h paid (actual). Approval amount decide nahi karta, sirf cap karta hai.
+      //   • Normal din  : OT = total worked hours − shift ke ghante (threshold se kam ho to 0).
+      //   • Weekly-off / holiday par kaam: us din ka poora worked time OT.
+      // Example: shift 8.5h, approval 3h, verified; banda 12h ruka to actual OT 3.5h -> 3h paid (cap);
+      //          sirf 10.5h ruka to actual 2h -> 2h paid. Approval amount decide nahi karta, sirf cap karta hai.
       otHours = 0;
-      const OT_START_H = 17 + 50/60;   // 17:50
-      const _hrsOf = t => { if(!t) return 0; const q = String(t).split(':').map(Number); return (q[0]||0) + (q[1]||0)/60 + (q[2]||0)/3600; };
+      const _otMin = nxOtMinHrs();
       const myOtByDate = otApprovedByDate[code] || {};
       Object.keys(myOtByDate).forEach(iso => {
         const appr = Number(myOtByDate[iso]) || 0;
         if(appr <= 0) return;
-        const r = days[iso];
-        if(!r || !r.out_time) return;              // punch/out nahi to OT nahi
         const meta = dayMetaMap[iso];
-        let actual;
-        if(meta && (meta.isWO || meta.isH)){
-          // off-day: poora worked time OT
-          actual = _hrsOf(r.total_hours) || Math.max(0, _hrsOf(r.out_time) - _hrsOf(r.in_time));
-        } else {
-          // normal din: sirf 17:50 ke baad ka
-          actual = Math.max(0, _hrsOf(r.out_time) - OT_START_H);
-        }
+        const actual = nxOtDayHours(code, days[iso], _otMin, !!(meta && (meta.isWO || meta.isH)));
         otHours += Math.min(appr, actual);         // approved hours = CAP
       });
       if((p.salary || {}).otAllowed === false) otHours = 0; // OT not allowed for this employee
@@ -9527,7 +9558,7 @@ $('setSaveBtn').addEventListener('click', async () => {
       earlyDepts: $('setEarlyDepts').value || 'PRODUCTION,STORE',
       pfPct: Number($('setPF').value)||0, pfCap: Number($('setPFCap').value)||0,
       esiPct: Number($('setESI').value)||0, esiLimit: Number($('setESILimit').value)||0, pt: Number($('setPT').value)||0,
-      otMult: Number($('setOTMult').value)||1, otAfter: Number($('setOTAfter').value)||30,
+      otMult: Number($('setOTMult').value)||1, otAfter: Number($('setOTAfter').value)||20,
       cl: Number($('setCL').value)||0, sl: Number($('setSL').value)||0, el: Number($('setEL').value)||0,
       lwfE: Number($('setLWFE').value)||0, lwfR: Number($('setLWFR').value)||0,
       mw1: Number($('setMW1').value)||0, mw2: Number($('setMW2').value)||0,
@@ -12128,7 +12159,7 @@ const FAQ_SOP = [
   { c:'Workforce', t:'Hiring & Recruitment', b:'<li>Candidates add karo, stage badlo, offer bhejo.</li><li>Candidate ko "Convert to Employee" se Add Employee form pre-filled khulta hai.</li>' },
   { c:'Approvals', t:'Approvals Inbox', b:'<li>Ek jagah: Leaves, Overtime, Expenses, Field, WFH, Gate Pass, Att. Fix, Advance/Loan, Supervisor Attendance, Fuel.</li><li>Reporting manager / super-admin approve/reject karta hai; mail ke buttons se bhi.</li><li>Expenses tab me Timestamp column (kab submit hua).</li>' },
   { c:'Approvals', t:'Leaves', b:'<li>ESS se employee leave dalta hai → reporting manager approve; Super Admin ko hamesha mail.</li><li>Approved paid leave payroll me present jaisi count hoti hai (sandwich/half-day auto).</li>' },
-  { c:'Payroll', t:'Overtime (OT) — naya rule', b:'<li>OT sirf 17:50 ke baad ka. Paid = min(approved hours, actual 17:50 ke baad). Single rate — <b>double pay nahi</b>.</li><li>Approval (CEO) + guard verify (ViziTrack) dono zaroori; bina inke 0.</li><li>Poora SOP: OT SOP document.</li>' },
+  { c:'Payroll', t:'Overtime (OT) — naya rule', b:'<li>Din ka actual OT = total worked hours − shift ke ghante (General = 8.5); 20 min se kam bache to 0; weekly-off/Sunday par poora din OT. Paid = min(approved hours, actual OT). Single rate — <b>double pay nahi</b>.</li><li>Rate/hr = Gross ÷ (mahine ke din × shift ke ghante) × OT multiplier.</li><li>Approval (CEO) + guard verify (ViziTrack) dono zaroori; bina inke 0.</li><li>Poora SOP: OT SOP document.</li>' },
   { c:'Payroll', t:'Payroll (Salary Sheet)', b:'<li>Month choose → Generate. Present/paid days, lates, OT (verified), deductions sab auto.</li><li>ONR/OFR alag download; combined total bhi.</li><li>Salary tabhi count hoti hai jab CEO ne approve ki ho (pending/rejected skip).</li>' },
   { c:'Payroll', t:'Income Tax (TDS) & Slabs', b:'<li>Profile → Salary → TDS Regime (New/Old/No TDS). Nexus apne aap TDS nikaalta hai aur payslip me line aati hai.</li><li>New Regime FY25-26: std. deduction ₹75,000; ₹12L taxable tak nil (87A); phir 5/10/15/20/30% + 4% cess; yearly ÷ 12 monthly.</li><li>Appointment letter ke Annexure me bhi regime ke hisaab se TDS dikhta hai.</li>' },
   { c:'Payroll', t:'Advances & Loans', b:'<li>ESS se request → manager/accounts/CEO approve → salary se recover.</li><li>Advances page par track; payslip me deduction dikhti hai.</li>' },
