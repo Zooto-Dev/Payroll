@@ -741,6 +741,23 @@ body.no-confidential .confidential-col{display:none!important}
       <button id="lvSaveBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-check"></i> Approve & Save</button>
       <div id="lvBalance" class="mt-4 text-xs p-3 rounded-xl hidden" style="background:var(--brand-soft)"></div>
     </div>
+    <div class="card hidden" id="ulCard" style="background:linear-gradient(135deg,#fef2f2,#ffffff);border:1.5px solid #fecaca">
+      <h3 class="display font-bold mt-0 mb-1" style="font-size:14px"><i class="fa-solid fa-bolt" style="color:#dc2626"></i> Urgent Leave <span class="text-[10px] font-normal" style="color:var(--muted)">sirf HR — aaj ki chhutti</span></h3>
+      <p class="text-[11px] mt-0 mb-3" style="color:var(--muted)">Kisi ko aaj hi chhutti chahiye to yahan se lagao. Date hamesha <b id="ulToday">aaj</b> rahegi aur leave seedha APPROVED lagti hai — koi approval nahi lagti.</p>
+      <label class="lbl">Employee</label><select id="ulEmp" class="inp mb-3"></select>
+      <label class="lbl">Leave Type</label>
+      <select id="ulType" class="inp mb-3">
+        <option value="CL">Casual Leave (Paid)</option>
+        <option value="SL">Sick Leave (Paid)</option>
+        <option value="EL">Earned Leave (Paid)</option>
+        <option value="LWP">Leave Without Pay</option>
+      </select>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="ulHalf"> Half day (0.5)</label>
+      <label class="lbl" style="margin-top:12px;display:block">Reason</label>
+      <input id="ulReason" class="inp mb-4" placeholder="Jaise: tabiyat kharab, ghar par emergency">
+      <button id="ulSaveBtn" class="btn btn-primary w-full justify-center" style="background:#dc2626;border-color:#dc2626"><i class="fa-solid fa-bolt"></i> Aaj ki Chhutti Lagao</button>
+      <div id="ulBalance" class="mt-4 text-xs p-3 rounded-xl hidden" style="background:var(--brand-soft)"></div>
+    </div>
     <div class="card lg:col-span-3" style="padding:0;overflow:hidden">
       <div class="p-4 border-b flex items-center justify-between" style="border-color:var(--line)">
         <h3 class="display font-bold m-0">Leave Records</h3>
@@ -2463,6 +2480,8 @@ function applyPerms(){
   // manual attendance correction: hide button if this admin isn't allowed
   const mb = document.getElementById('attFixBtn');
   if(mb) mb.classList.toggle('hidden', !canManualAtt());
+  // Urgent Leave card sirf HR ko
+  try{ ulApplyVisibility(); }catch(e){}
 }
 const PAGE_ICONS = { dashboard:'gauge', mis:'chart-pie', employees:'users', attendance:'calendar-check', workhours:'business-time', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', ctccalc:'calculator', idcards:'id-card', approvals:'clipboard-check', trial:'id-card-clip', voice:'comments', settings:'gear', faq:'circle-question', misspunch:'user-clock', visitors:'user-plus' };
 function isRowLate(r){ return r.is_late === true || String(r.in_time||'').toUpperCase().includes('LATE'); }
@@ -3190,6 +3209,7 @@ function fillEmpSelects(){
   $('advEmp').innerHTML = opts;
   $('letterEmp').innerHTML = opts;
   $('lvEmp').innerHTML = opts;
+  $('ulEmp').innerHTML = '<option value="">— employee chuno —</option>' + opts;
   $('fxEmp').innerHTML = opts;
   // asEmp is now a datalist input; build the list + name->code map
   const asDL = $('asEmpDL');
@@ -9725,12 +9745,13 @@ $('empExportBtn').addEventListener('click', async () => {
   const fmtD = d => d ? String(d).split('-').reverse().join('/') : '';   // yyyy-mm-dd -> dd/mm/yyyy
   const mask = v => full ? (v==null?'':v) : '';   // confidential column — blank if no permission
   // === FIXED FORMAT (jaisa HR ne maanga) ===
-  const header = ['S.No','Emp Code','Employee Name','Designation','DOJ','DOB','Reporting Manager','Department','Section','Gender','Accounts No.','IFSC Code','ESIC No','UAN No','PAN Card','Adhaar Number','ID','Mobile No','Address','Marital Status','E-Mail ID','Emergency Contact Name','Number','Relation','Nominee Name','Relation'];
+  const header = ['S.No','Emp Code','Employee Name','Designation','DOJ','DOB','Reporting Manager','Department','Section','Category','Gender','Accounts No.','IFSC Code','ESIC No','UAN No','PAN Card','Adhaar Number','ID','Mobile No','Address','Marital Status','E-Mail ID','Emergency Contact Name','Number','Relation','Nominee Name','Relation'];
   const lines = [header.join(',')];
   list.forEach((e, i) => {
     const code = e['Employee code']; const p = PROFILES[code] || {};
     const row = [
-      i + 1, code, e.Name, e.DESIGNATION, fmtD(e.DOJ), fmtD(p.dob), p.reporting_manager, e.DEPARTMENT, p.section, p.gender,
+      i + 1, code, e.Name, e.DESIGNATION, fmtD(e.DOJ), fmtD(p.dob), p.reporting_manager, e.DEPARTMENT, p.section,
+      String(p.category || 'WORKER').toUpperCase() === 'STAFF' ? 'Staff' : 'Worker', p.gender,
       mask(p.account_no), mask(p.ifsc), mask(p.esi_no), mask(p.uan), mask(p.pan), mask(p.aadhaar), mask(p.id_number),
       p.phone, p.address, p.marital_status, p.email,
       p.emergency_name, p.emergency_phone, p.emergency_relation, p.nominee_name, p.nominee_relation
@@ -10457,7 +10478,8 @@ async function loadLeaves(){
     }).join('') : '<tr><td colspan="8" class="text-center py-8" style="color:var(--muted)">No leave records for this month.</td></tr>';
   }catch(err){ notify(err.message, 'error'); }
 }
-async function showLeaveBalance(code){
+async function showLeaveBalance(code, boxId){
+  const BOX = boxId || 'lvBalance';
   const S = getSettings();
   const yr = new Date().getFullYear();
   const { data } = await sb.from('leaves').select('leave_type, days').eq('employee_code', code).eq('status','APPROVED')
@@ -10470,13 +10492,13 @@ async function showLeaveBalance(code){
     if(e && e.DOJ){ const d = new Date(e.DOJ); if(!isNaN(d) && d.getFullYear() === yr) startM = d.getMonth() + 1; }
     const accrued = (new Date().getMonth() + 1 - startM + 1) * Number(S.accrual);
     const bal = Math.max(0, accrued - usedAll);
-    $('lvBalance').innerHTML = `<b>Accrued balance:</b> ${bal} day(s) available (earned ${accrued}, used ${usedAll}). Leave beyond balance automatically becomes LOP in payroll.`;
+    $(BOX).innerHTML = `<b>Accrued balance:</b> ${bal} day(s) available (earned ${accrued}, used ${usedAll}). Leave beyond balance automatically becomes LOP in payroll.`;
   } else {
     const used = { CL:0, SL:0, EL:0 };
     (data || []).forEach(L => { if(used[L.leave_type] !== undefined) used[L.leave_type] += Number(L.days); });
-    $('lvBalance').innerHTML = `<b>Balance ${yr}:</b> CL ${S.cl - used.CL}/${S.cl} • SL ${S.sl - used.SL}/${S.sl} • EL ${S.el - used.EL}/${S.el}`;
+    $(BOX).innerHTML = `<b>Balance ${yr}:</b> CL ${S.cl - used.CL}/${S.cl} • SL ${S.sl - used.SL}/${S.sl} • EL ${S.el - used.EL}/${S.el}`;
   }
-  $('lvBalance').classList.remove('hidden');
+  $(BOX).classList.remove('hidden');
 }
 $('lvEmp').addEventListener('change', () => showLeaveBalance($('lvEmp').value));
 $('lvSaveBtn').addEventListener('click', async () => {
@@ -10498,6 +10520,55 @@ $('lvSaveBtn').addEventListener('click', async () => {
     loadLeaves(); showLeaveBalance(code);
   }catch(err){ notify(err.message, 'error'); }
   finally{ btn.innerHTML = '<i class="fa-solid fa-check"></i> Approve & Save'; btn.disabled = false; }
+});
+
+/* ---------------- URGENT LEAVE (HR only, sirf aaj ki date) ---------------- */
+// Sirf HR/Admin ise dekh sakta hai — Leaves page par card tabhi dikhta hai.
+function ulCanUse(){ return isHRAdmin() && canApprove('leave'); }
+function ulApplyVisibility(){
+  const c = $('ulCard'); if(!c) return;
+  c.classList.toggle('hidden', !ulCanUse());
+  const t = $('ulToday'); if(t) t.innerText = fmtDate(todayISO());
+}
+$('ulEmp').addEventListener('change', () => {
+  const v = $('ulEmp').value;
+  if(v) showLeaveBalance(v, 'ulBalance');
+  else $('ulBalance').classList.add('hidden');
+});
+$('ulSaveBtn').addEventListener('click', async () => {
+  if(!ulCanUse()) return notify('Urgent Leave sirf HR daal sakti hai', 'error');
+  const code = $('ulEmp').value;
+  if(!code) return notify('Pehle employee chuno', 'error');
+  const today = todayISO();
+  const half = $('ulHalf').checked;
+  const days = half ? 0.5 : 1;
+  const btn = $('ulSaveBtn');
+  btn.innerHTML = '<div class="loader-ring"></div> Lag rahi hai…'; btn.disabled = true;
+  try{
+    // aaj ki koi leave pehle se to nahi lagi
+    const { data: dup } = await sb.from('leaves').select('id, leave_type, status')
+      .eq('employee_code', code).in('status', ['APPROVED','PENDING'])
+      .lte('from_date', today).gte('to_date', today).limit(1);
+    if(dup && dup.length) throw new Error('Is employee ki aaj ki leave pehle se lagi hai (' + dup[0].leave_type + ' — ' + dup[0].status + ')');
+    const reason = ($('ulReason').value || '').trim();
+    const { error } = await sb.from('leaves').insert([{
+      employee_code: code, leave_type: $('ulType').value,
+      from_date: today, to_date: today, days,
+      reason: 'URGENT' + (reason ? ' — ' + reason : ''), status: 'APPROVED'
+    }]);
+    if(error) throw error;
+    const nm = (EMP.find(e => e['Employee code'] === code) || {}).Name || code;
+    notify('\u2713 ' + nm + ' ki aaj ki chhutti lag gayi (' + days + ' din)', 'success');
+    // aaj punch bhi hua hai to HR ko bata do — conflict card me bhi dikhega
+    try{
+      const { data: att } = await sb.from('attendance').select('in_time').eq('employee_code', code).eq('date', today).limit(1);
+      if(att && att.length && att[0].in_time) notify(nm + ' ka aaj punch bhi hai (' + String(att[0].in_time).slice(0,5) + ') — half day nahi hai to leave cancel kar dena', 'error');
+    }catch(e){}
+    $('ulReason').value = ''; $('ulHalf').checked = false;
+    if($('lvMonth').value !== today.slice(0,7)) $('lvMonth').value = today.slice(0,7);
+    loadLeaves(); showLeaveBalance(code, 'ulBalance');
+  }catch(err){ notify(err.message, 'error'); }
+  finally{ btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Aaj ki Chhutti Lagao'; btn.disabled = false; }
 });
 
 /* ---------------- MANUAL PUNCH ---------------- */

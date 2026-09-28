@@ -335,6 +335,10 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-user-plus" style="color:#0891b2"></i> Visitor Request <i class="fa-regular fa-circle-question" onclick="$('vrInfo').classList.toggle('hidden')" style="cursor:pointer;color:#94a3b8;font-size:12px;margin-left:4px"></i></h3>
         <p class="text-[11px] mt-0 mb-2 hidden p-2 rounded" id="vrInfo" style="background:#ecfeff;color:#155e75;line-height:1.5">
           Aapse milne aa rahe guest ki pehle se entry. Kisi approval ki zaroorat nahi — entry daalte hi gate par live ho jaati hai aur guest ko QR badge chala jaata hai (WhatsApp par mobile se, aur email daala ho to email par bhi). Security use mobile number ya QR se pehchan kar andar bhej deti hai. Guest kab andar aaya aur kab gaya, wo bhi yahin neeche dikhta rehta hai. Plan badal jaye to entry cancel bhi kar sakte ho.</p>
+        <div id="vrPastWrap" class="hidden mb-2">
+          <label class="lbl">Pehle aa chuke visitor — dobara bulao</label>
+          <select id="vrPast" class="inp"><option value="">— naya visitor —</option></select>
+        </div>
         <div class="grid grid-cols-2 gap-2 mb-2">
           <div class="col-span-2"><label class="lbl">Visitor ka naam <span style="color:var(--bad)">*</span></label><input id="vrName" class="inp" placeholder="Poora naam"></div>
           <div><label class="lbl">Visitor mobile <span style="color:var(--bad)">*</span></label><input id="vrMobile" class="inp" inputmode="numeric" placeholder="10 digit"></div>
@@ -998,7 +1002,7 @@ var ESS_FAQ = [
   { t:'Expenses / Reimbursement', b:'Company ke kaam me kharch kiya paisa wapas paane ke liye. Expenses tile → category + amount + bill/receipt ki photo bharo. NOTE: 7 din se purana kharch claim nahi hota, isliye bill turant daal do. Claim seedha ACCOUNTS ke paas jaata hai — reporting manager ka koi approval nahi lagta. Accounts bill, date aur amount check karke approve/reject karta hai; approve + paid hone par amount aapko milta hai. Status har step par tile me dikhta hai.' },
   { t:'Advance / Loan', b:'Advance = ek baar ka paisa jo agli hi salary se poora kat jaata hai. Loan = CEO approval → Loan Agreement (yahin ESS me Accept karna hoga) → Accounts se disbursement → har mahine EMI katauti. Advance/Loan tile → type + amount + reason (Loan me months bhi) bharo. Manager/Accounts/CEO approve karte hain; katauti aapke payslip me saaf dikhti hai.' },
   { t:'Overtime (OT)', b:'OT sirf unhe dikhta hai jinhe allowed hai. OT tile → date + hours + reason; supervisor poori team ka OT ek saath bhi bhej sakta hai. Rule: din ka actual OT = us din ke total kaam ke ghante − aapke shift ke ghante (General shift = 8.5 hrs). 20 minute se kam bache to us din ka OT 0. Weekly-off/Sunday ko kaam kiya to poora din OT. Paid OT = min(jitne ghante approve hue, jitna actual OT hua) — yaani approval ek upper limit hai. OT sirf unhi logon ka lag sakta hai jo us din PRESENT hain (punch hua ho) — absent bande ki list me hi nahi aayenge. Paid tabhi hoga jab (1) OT approve ho AUR (2) gate par guard/security ne ViziTrack se verify kiya ho — dono zaroori, warna 0. Single rate par pay hota hai, double pay nahi.' },
-  { t:'Visitor Request (guest ko bulana)', b:'Aapse milne koi bahar se aa raha hai to pehle se entry kar do. Visitor tile → visitor ka naam, mobile, company, visit date/time aur purpose bharo. Ek request = ek visitor. Koi approval nahi lagti — entry daalte hi gate par live ho jaati hai aur security aapke guest ko uske mobile number se pehchan kar andar bhej deti hai (isliye visitor ka 10 digit mobile zaroori hai). Guest kab andar aaya aur kab bahar gaya, wo bhi isi tile me dikhta rehta hai. Guest aane se pehle entry daal dena; plan badal jaye to usi tile se cancel kar do.' },
+  { t:'Visitor Request (guest ko bulana)', b:'Aapse milne koi bahar se aa raha hai to pehle se entry kar do. Visitor tile → visitor ka naam, mobile, company, visit date/time aur purpose bharo. Ek request = ek visitor. Koi approval nahi lagti — entry daalte hi gate par live ho jaati hai aur security aapke guest ko uske mobile number se pehchan kar andar bhej deti hai (isliye visitor ka 10 digit mobile zaroori hai). Guest kab andar aaya aur kab bahar gaya, wo bhi isi tile me dikhta rehta hai. Guest aane se pehle entry daal dena; plan badal jaye to usi tile se cancel kar do. Jo visitor pehle aa chuka hai use dobara bulana ho to upar "Pehle aa chuke visitor" wali list me se chun lo, ya neeche uski purani entry par <b>Reinvite</b> dabao — saari detail apne aap bhar jayegi, bas date chun kar bhej do.' },
   { t:'Payslips', b:'Payslip tile → mahine wise apna payslip dekho/download karo. Payslip tab dikhta hai jab HR us mahine ka payroll finalize kar deta hai. Isme earnings (basic/HRA/allowance/OT) aur deductions (PF/ESI/PT/LWF/TDS/advance) sab breakup me hote hain.' },
   { t:'My Assets', b:'Company ne jo saaman (laptop, phone, SIM, tools…) aapko issue kiya hai wo yahan list hota hai. Koi galat entry ya wapas kiya hua item abhi bhi dikhe to HR/Admin ko batao taaki record update ho.' },
   { t:'Voice Box (Grievance / Suggestion / Kaizen)', b:'Apni shikayat, sujhaav ya kaam behtar karne ka idea (kaizen) bhejne ke liye. Voice Box tile → type + message. Ye seedha reporting manager/HR ko jaata hai. Chaho to confidential (naam chhupa kar) bhi bhej sakte ho. Accept kiya gaya kaizen reward payroll me jud sakta hai.' },
@@ -1585,6 +1589,45 @@ function vztSendBadge(invitationId){
     setTimeout(() => { if(!done && window[cb]){ try{ delete window[cb]; sc.remove(); }catch(e){} resolve({ success:false, error:'timeout' }); } }, 20000);
   });
 }
+// ===== Reinvite: purane visitor ki detail form me bhar do =====
+let VR_MINE = [];     // Portal me dikh rahi apni last 10 entries
+let VR_PAST = [];     // ab tak bulaye gaye sabhi visitor (mobile par unique)
+function vrFill(v){
+  if(!v) return;
+  $('vrName').value    = v.visitor_name || '';
+  $('vrMobile').value  = v.visitor_mobile || '';
+  $('vrEmail').value   = v.visitor_email || '';
+  $('vrCompany').value = v.visitor_company || '';
+  $('vrPurpose').value = v.purpose || '';
+  $('vrDate').value    = new Date().toISOString().slice(0,10);
+  $('vrTime').value    = '';
+  const card = $('vrName').closest('.card') || $('vrName');
+  try{ card.scrollIntoView({ behavior:'smooth', block:'start' }); }catch(e){}
+  $('vrDate').focus();
+  notify('Detail bhar di — date/time check karke "Visitor Entry Banao" dabao');
+}
+function essVisitorReinvite(id){
+  vrFill(VR_MINE.find(r => Number(r.id) === Number(id)));
+}
+async function loadVisitorPast(){
+  const sel = $('vrPast'), wrap = $('vrPastWrap');
+  if(!sel || !wrap) return;
+  try{
+    const { data, error } = await sb.rpc('ess_visitor_past', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE });
+    if(error || (data && data.error)) return;
+    VR_PAST = (data && data.rows) || [];
+    if(!VR_PAST.length){ wrap.classList.add('hidden'); return; }
+    sel.innerHTML = '<option value="">— naya visitor —</option>' + VR_PAST.map((v, i) =>
+      `<option value="${i}">${esc(v.visitor_name)} · ${esc(v.visitor_mobile)}${v.visitor_company ? ' · ' + esc(v.visitor_company) : ''}</option>`).join('');
+    wrap.classList.remove('hidden');
+  }catch(e){}
+}
+document.addEventListener('change', e => {
+  if(!e.target || e.target.id !== 'vrPast') return;
+  const i = e.target.value;
+  if(i === '') return;
+  vrFill(VR_PAST[Number(i)]);
+});
 async function loadVisitorReq(){
   const host = $('vrList'); if(!host) return;
   if($('vrDate') && !$('vrDate').value) $('vrDate').value = new Date().toISOString().slice(0,10);
@@ -1592,6 +1635,7 @@ async function loadVisitorReq(){
     const { data, error } = await sb.rpc('ess_visitor_list', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE });
     if(error || (data && data.error)) { host.innerHTML = ''; return; }
     const rows = (data && data.rows) || [];
+    VR_MINE = rows;
     const today = new Date().toISOString().slice(0,10);
     host.innerHTML = rows.length ? rows.map(r => {
       const chip = { APPROVED:'chip-ok', CANCELLED:'chip-gray', PENDING:'chip-warn', REJECTED:'chip-bad' }[r.status] || 'chip-gray';
@@ -1604,9 +1648,11 @@ async function loadVisitorReq(){
       else if(r.check_in_time)                             act = `<span class="chip chip-ok" style="font-size:9px"><i class="fa-solid fa-door-open"></i> Andar hai · ${t(r.check_in_time)}</span>`;
       else if(r.status === 'APPROVED' && upcoming)         act = `<span class="chip chip-warn" style="font-size:9px">Gate par intezaar</span>`;
       const canCancel = r.status !== 'CANCELLED' && upcoming && !r.check_in_time;
-      return `<div class="row"><span>${fmtDate(r.visit_date)} · <b>${esc(r.visitor_name)}</b>${extra ? ' · ' + esc(extra) : ''}${act ? '<br>' + act : ''}</span><span><span class="chip ${chip}">${esc(label)}</span>${canCancel ? ` <button class="chip chip-gray" style="border:none;cursor:pointer;font-size:9px" onclick="essVisitorCancel(${r.id})" title="Cancel"><i class="fa-solid fa-xmark"></i></button>` : ''}${r.reject_reason ? `<div class="text-[10px]" style="color:var(--muted);text-align:right;width:100%">${esc(r.reject_reason)}</div>` : ''}</span></div>`;
+      const reBtn = canCancel ? '' : ` <button class="chip chip-gray" style="border:none;cursor:pointer;font-size:9px" onclick="essVisitorReinvite(${r.id})" title="Isi visitor ko dobara bulao"><i class="fa-solid fa-rotate-right"></i> Reinvite</button>`;
+      return `<div class="row"><span>${fmtDate(r.visit_date)} · <b>${esc(r.visitor_name)}</b>${extra ? ' · ' + esc(extra) : ''}${act ? '<br>' + act : ''}</span><span><span class="chip ${chip}">${esc(label)}</span>${canCancel ? ` <button class="chip chip-gray" style="border:none;cursor:pointer;font-size:9px" onclick="essVisitorCancel(${r.id})" title="Cancel"><i class="fa-solid fa-xmark"></i></button>` : ''}${reBtn}${r.reject_reason ? `<div class="text-[10px]" style="color:var(--muted);text-align:right;width:100%">${esc(r.reject_reason)}</div>` : ''}</span></div>`;
     }).join('') : '';
   }catch(e){}
+  loadVisitorPast();
 }
 async function essVisitorCancel(id){
   try{
@@ -1652,6 +1698,7 @@ document.addEventListener('click', async e => {
     ]);
     $('vrName').value = ''; $('vrMobile').value = ''; $('vrCompany').value = ''; $('vrEmail').value = '';
     $('vrPurpose').value = '';
+    if($('vrPast')) $('vrPast').value = '';
     loadVisitorReq();
   }catch(err){ notify(err.message || 'Request failed'); }
   finally{ b.disabled = false; }
