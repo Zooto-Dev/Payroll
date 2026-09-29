@@ -697,39 +697,90 @@ async function nxCheckProofDuplicate(file, kind){
     return { blocked: false };
   }catch(e){ return { blocked: false }; }
 }
-function nxLoadConfig(){
-  const cached = (() => { try { return JSON.parse(localStorage.getItem('nx_cfg') || 'null'); } catch(e){ return null; } })();
-  // Ek JSONP attempt (10s timeout). GAS cold-start/transient blip par neeche retry hota hai.
-  function attempt(){
-    return new Promise((resolve, reject) => {
-      let settled = false;
-      const cb = 'nxCfg' + Math.floor(Math.random() * 1e6);
-      const timer = setTimeout(() => {
-        if(settled) return; settled = true; delete window[cb]; reject(new Error('GAS ne 10 sec mein jawab nahi diya'));
-      }, 10000);
-      window[cb] = data => {
-        if(settled) return; settled = true; clearTimeout(timer); delete window[cb];
-        if(data && data.url && data.key){
-          try { localStorage.setItem('nx_cfg', JSON.stringify(data)); } catch(e){}
-          resolve(data);
-        } else reject(new Error(data && data.error ? ('GAS error: ' + data.error) : 'GAS se url/key nahi aayi'));
-      };
-      const s = document.createElement('script');
-      s.src = NX_CONFIG_URL + '?callback=' + cb + '&t=' + Date.now();
-      s.onerror = () => { if(settled) return; settled = true; clearTimeout(timer); delete window[cb]; reject(new Error('GAS script load fail (redirect/URL galat)')); };
-      document.head.appendChild(s);
-    });
-  }
-  // 3 tak koshish; fail ho to last-known cached config; warna saaf error.
-  return attempt()
-    .catch(() => attempt())
-    .catch(() => attempt())
-    .catch(err => {
-      if(cached && cached.url) return cached;             // offline / GAS down -> last known config
-      throw new Error('Config load nahi hui (' + (err && err.message || 'fail') + '). Internet check karke thodi der baad dobara try karo. HR: GAS Deploy -> "Who has access" = Anyone, "Execute as" = Me -> New version.');
-    });
+function nxLoadConfig(){ return NX_CFG_LOADER(); }
+/* ===== Config loader =====
+   Supabase ka URL/key GAS ke SUPABASE sheet me rehta hai — page me kabhi nahi likha jaata.
+   Pehle ye sirf JSONP (<script>) se aata tha, aur wo teen wajah se fail hota tha:
+     1. installed PWA / service-worker ke andar cross-origin script tag block ho jaata tha,
+     2. browser Google me logged-in hota hai to /exec account-chooser par redirect kar deta tha
+        (isi wajah se incognito me chalta tha aur normal profile me nahi),
+     3. GAS ka cold start 10 sec se zyada le leta tha.
+   Ab: config ek baar aane ke baad localStorage me rehti hai aur boot usi se hota hai (turant),
+   nayi config background me aa kar cache update karti hai. Cache na ho to do raste EK SAATH
+   chalte hain — fetch (bina Google cookie ke, yaani incognito jaisa) aur JSONP — jo pehle
+   jawab de wahi le liya jaata hai. */
+const NX_CFG_KEY = 'nx_cfg';
+function nxCfgCached(){
+  try{ const c = JSON.parse(localStorage.getItem(NX_CFG_KEY) || 'null'); return (c && c.url && c.key) ? c : null; }
+  catch(e){ return null; }
 }
-
+function nxCfgSave(c){
+  try{ if(c && c.url && c.key) localStorage.setItem(NX_CFG_KEY, JSON.stringify({ url: c.url, key: c.key })); }catch(e){}
+  return c;
+}
+function nxCfgPick(d){
+  if(d && d.url && d.key) return d;
+  throw new Error(d && d.error ? ('GAS error: ' + d.error) : 'GAS se url/key nahi aayi');
+}
+// Rasta 1 — fetch. credentials:'omit' se Google ki cookie nahi jaati, isliye multi-account
+// wala account-chooser redirect nahi hota (incognito jaisa vyavhaar).
+async function nxCfgViaFetch(ms){
+  const ac = ('AbortController' in window) ? new AbortController() : null;
+  const t = setTimeout(() => { try{ ac && ac.abort(); }catch(e){} }, ms || 8000);
+  try{
+    const r = await fetch(NX_CONFIG_URL + '?callback=nxCfgF&t=' + Date.now(),
+      { cache: 'no-store', credentials: 'omit', redirect: 'follow', signal: ac ? ac.signal : undefined });
+    const txt = await r.text();
+    const m = txt.match(/\{[\s\S]*\}/);          // nxCfgF({...}) me se sirf JSON
+    if(!m) throw new Error('config ka jawab samajh nahi aaya');
+    return nxCfgPick(JSON.parse(m[0]));
+  } finally { clearTimeout(t); }
+}
+// Rasta 2 — JSONP script tag (purana tarika, backup ke taur par).
+function nxCfgViaJsonp(ms){
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const cb = 'nxCfg' + Math.floor(Math.random() * 1e6);
+    const done = fn => (x) => { if(settled) return; settled = true; clearTimeout(timer);
+      try{ delete window[cb]; s.remove(); }catch(e){} fn(x); };
+    const timer = setTimeout(() => done(reject)(new Error('GAS ne jawab nahi diya')), ms || 8000);
+    window[cb] = d => { try{ done(resolve)(nxCfgPick(d)); }catch(e){ done(reject)(e); } };
+    const s = document.createElement('script');
+    s.src = NX_CONFIG_URL + '?callback=' + cb + '&t=' + Date.now();
+    s.onerror = () => done(reject)(new Error('GAS script load fail'));
+    document.head.appendChild(s);
+  });
+}
+// Dono raste ek saath — jo pehle chal jaye wahi. Dono fail hone par hi error.
+function nxCfgOnce(ms){
+  return new Promise((resolve, reject) => {
+    let got = false, fails = 0, lastErr = null;
+    const ok = d => { if(!got){ got = true; resolve(d); } };
+    const no = e => { lastErr = e; if(++fails >= 2 && !got) reject(lastErr); };
+    nxCfgViaFetch(ms).then(ok, no);
+    nxCfgViaJsonp(ms).then(ok, no);
+  });
+}
+async function NX_CFG_LOADER(){
+  const cached = nxCfgCached();
+  if(cached){
+    // Cache se turant chal pado, aur background me taaza kar lo. Agar GAS me key/URL
+    // badal gaya ho to purani cache par atakne ke bajaye page khud reload ho jayega.
+    nxCfgOnce(8000).then(d => {
+      const changed = d.url !== cached.url || d.key !== cached.key;
+      nxCfgSave(d);
+      if(changed) location.reload();
+    }).catch(() => {});   // chup-chaap taaza kar lo
+    return cached;
+  }
+  let lastErr = null;
+  for(let i = 0; i < 3; i++){
+    try{ return nxCfgSave(await nxCfgOnce(8000)); }
+    catch(e){ lastErr = e; }
+  }
+  throw new Error('Nexus abhi khul nahi paaya (' + ((lastErr && lastErr.message) || 'config load fail') +
+    '). Internet check karke "View My HR" dobara dabao. HR: GAS Deploy \u2192 "Who has access" = Anyone, "Execute as" = Me \u2192 New version.');
+}
 let SUPABASE_URL = '', SUPABASE_ANON_KEY = '';
 let sb = null;
 // sbReady: config + supabase client ban jaane par resolve hota hai. Login isi ka intezaar karta hai

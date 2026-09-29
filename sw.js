@@ -1,13 +1,30 @@
 /* ============================================================
-   NEXUS Attendance — Service Worker  v6
+   NEXUS Attendance — Service Worker  v7
    - HTML: ALWAYS network-first (HTTP cache bhi bypass) -> naye
      deploy turant har device par lagenge, purana build kabhi
      atkega nahi. Offline par cache fallback.
    - CDN libs + face models: cache-first (offline reload chalta rahe)
-   - Supabase / GAS: kabhi cache nahi (hamesha live)
+   - Baaki sab cross-origin (Supabase, Google Apps Script, uske
+     redirect host, QR/IP services): SW bilkul haath nahi lagata.
+     Pehle sirf script.google.com chhoda ja raha tha, par GAS /exec
+     script.googleusercontent.com par redirect hota hai — wo request
+     SW ke andar aa jaati thi aur redirect ki wajah se fail ho jaati
+     thi. Isi se installed PWA me "config load nahi hui" aata tha
+     jabki incognito (jahan SW hota hi nahi) me sab chalta tha.
    - IndexedDB / localStorage ko SW touch nahi karta (punch queue SAFE)
    ============================================================ */
-const CACHE = 'nexus-attend-v6';
+const CACHE = 'nexus-attend-v7';
+
+// Sirf inhi cross-origin hosts ko cache karte hain. Baaki kuch bhi ho — SW usme
+// dakhal nahi deta, browser khud handle karta hai (redirect bhi theek se chalta hai).
+const CDN_HOSTS = [
+  'cdn.tailwindcss.com',
+  'cdnjs.cloudflare.com',
+  'cdn.jsdelivr.net',
+  'fonts.googleapis.com',
+  'fonts.gstatic.com',
+  'justadudewhohacks.github.io'   // face-api ke models
+];
 
 const CORE = [
   './',
@@ -32,16 +49,27 @@ self.addEventListener('activate', e => {
   );
 });
 
+// respondWith() ko aisa response dena mana hai jo redirect ho kar aaya ho — browser use
+// network error bana deta hai. Body wahi rakh kar naya Response bana dete hain, taaki
+// redirect ka nishaan hat jaye aur page normal chale.
+function unredirect(res) {
+  if (!res || !res.redirected) return res;
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: res.headers });
+}
+
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;                       // POST/PUT kabhi cache nahi
 
   const url = new URL(req.url);
-  if (url.hostname.includes('supabase.co') || url.hostname.includes('script.google.com')) {
-    return;                                               // data hamesha live
-  }
+  const sameOrigin = url.origin === location.origin;
 
-  const isHTML = url.origin === location.origin &&
+  // Cross-origin me sirf CDN/models hi SW se hokar jaate hain. Supabase, Apps Script
+  // (script.google.com + script.googleusercontent.com), account pages, QR/IP services —
+  // sab seedha browser ke paas, bina kisi dakhal ke.
+  if (!sameOrigin && CDN_HOSTS.indexOf(url.hostname) === -1) return;
+
+  const isHTML = sameOrigin &&
                  (url.pathname.endsWith('.html') || url.pathname.endsWith('/') || req.mode === 'navigate');
 
   if (isHTML) {
@@ -51,18 +79,18 @@ self.addEventListener('fetch', e => {
         .then(res => {
           const copy = res.clone();
           caches.open(CACHE).then(c => c.put(req, copy));
-          return res;
+          return unredirect(res);
         })
         .catch(() => caches.match(req).then(m => m || caches.match('./attendance.html')))
     );
     return;
   }
 
-  // baaki sab (CDN, models, images): cache-first, miss par network + cache
+  // baaki (same-origin assets + upar wale CDN): cache-first, miss par network + cache
   e.respondWith(
     caches.match(req).then(hit => hit || fetch(req).then(res => {
       if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
-      return res;
+      return unredirect(res);
     }).catch(() => hit))
   );
 });
