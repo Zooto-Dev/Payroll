@@ -743,9 +743,11 @@ body.no-confidential .confidential-col{display:none!important}
       <div id="lvBalance" class="mt-4 text-xs p-3 rounded-xl hidden" style="background:var(--brand-soft)"></div>
     </div>
     <div class="card hidden" id="ulCard" style="background:linear-gradient(135deg,#fef2f2,#ffffff);border:1.5px solid #fecaca">
-      <h3 class="display font-bold mt-0 mb-1" style="font-size:14px"><i class="fa-solid fa-bolt" style="color:#dc2626"></i> Urgent Leave <span class="text-[10px] font-normal" style="color:var(--muted)">sirf HR — aaj ki chhutti</span></h3>
-      <p class="text-[11px] mt-0 mb-3" style="color:var(--muted)">Kisi ko aaj hi chhutti chahiye to yahan se lagao. Date hamesha <b id="ulToday">aaj</b> rahegi aur leave seedha APPROVED lagti hai — koi approval nahi lagti.</p>
+      <h3 class="display font-bold mt-0 mb-1" style="font-size:14px"><i class="fa-solid fa-bolt" style="color:#dc2626"></i> Urgent Leave <span class="text-[10px] font-normal" style="color:var(--muted)">sirf HR — aaj ya pichhle din ki chhutti</span></h3>
+      <p class="text-[11px] mt-0 mb-3" style="color:var(--muted)">Aaj ki, ya pichhle kisi din ki chhutti yahan se lagao — leave seedha APPROVED lagti hai, koi approval nahi lagti. Aane wali date nahi chalegi (uske liye employee khud Portal se apply kare).</p>
       <label class="lbl">Employee</label><select id="ulEmp" class="inp mb-3"></select>
+      <label class="lbl">Date <span class="text-[10px] font-normal" style="color:var(--muted)">(aaj <b id="ulToday">—</b> tak)</span></label>
+      <input id="ulDate" type="date" class="inp mb-3">
       <label class="lbl">Leave Type</label>
       <select id="ulType" class="inp mb-3">
         <option value="CL">Casual Leave (Paid)</option>
@@ -756,7 +758,7 @@ body.no-confidential .confidential-col{display:none!important}
       <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="ulHalf"> Half day (0.5)</label>
       <label class="lbl" style="margin-top:12px;display:block">Reason</label>
       <input id="ulReason" class="inp mb-4" placeholder="Jaise: tabiyat kharab, ghar par emergency">
-      <button id="ulSaveBtn" class="btn btn-primary w-full justify-center" style="background:#dc2626;border-color:#dc2626"><i class="fa-solid fa-bolt"></i> Aaj ki Chhutti Lagao</button>
+      <button id="ulSaveBtn" class="btn btn-primary w-full justify-center" style="background:#dc2626;border-color:#dc2626"><i class="fa-solid fa-bolt"></i> Chhutti Lagao</button>
       <div id="ulBalance" class="mt-4 text-xs p-3 rounded-xl hidden" style="background:var(--brand-soft)"></div>
     </div>
     <div class="card lg:col-span-3" style="padding:0;overflow:hidden">
@@ -2487,8 +2489,8 @@ function isSuper(){
 function isAdminRole(){ return !isSuper() && !!(SETTINGS.adminPerms || {})[ME_EMAIL]; }
 function normPerm(v){
   // Admin template: near-super — salary/bank dikhega, payroll finalize kar sakta hai, par OT approve NAHI
-  if(Array.isArray(v)) return { pages: v, approve: { leave:true, ot:false, expense:true, advance:true }, finalize: true, confidential: true };
-  return Object.assign({ pages: ALL_PAGES.filter(x => x !== 'settings'), approve: { leave:true, ot:false, expense:true, advance:true }, finalize: true, confidential: true, manualAtt: true, dept: '', desig: '' }, v || {});
+  if(Array.isArray(v)) return { pages: v, approve: { leave:true, ot:false, expense:true, advance:true, attfix:false }, finalize: true, confidential: true };
+  return Object.assign({ pages: ALL_PAGES.filter(x => x !== 'settings'), approve: { leave:true, ot:false, expense:true, advance:true, attfix:false }, finalize: true, confidential: true, manualAtt: true, dept: '', desig: '' }, v || {});
 }
 function canSeeConfidential(){
   if(isSuper() || isAdminRole()) return true;   // Admin role = super jaisa: salary/bank data dikhega
@@ -2514,6 +2516,13 @@ function loanCanCEO(){
   return /CEO|DIRECTOR|MANAGING/.test(String(r.desig||''));
 }
 function canApprove(kind){ return isSuper() || !(SETTINGS.adminPerms || {})[ME_EMAIL] || myPerm().approve[kind] !== false; }
+// Attendance correction approve karne ka extra adhikar — Admin Control se explicitly diya jata hai.
+// Jiska koi perms record hi nahi (purane admin) uske liye pehle jaisa hi: sirf manager/super.
+function nxCanApproveAttFix(){
+  if(isSuper()) return true;
+  const perm = (SETTINGS.adminPerms || {})[ME_EMAIL];
+  return !!perm && normPerm(perm).approve.attfix === true;
+}
 // role of the logged-in admin = the employee whose profile email matches the login email
 function adminRoleOf(email){
   const perm = (SETTINGS.adminPerms || {})[email] || {};
@@ -3030,7 +3039,7 @@ async function renderAdminCtl(){
     <thead><tr>
       <th>User</th><th>Role</th><th>Department</th><th>Designation</th><th>Pages</th>
       <th style="text-align:center">Leave<br>Approve</th><th style="text-align:center">OT<br>Approve</th>
-      <th style="text-align:center">Expense<br>Approve</th><th style="text-align:center">Advance<br>Add</th>
+      <th style="text-align:center">Expense<br>Approve</th><th style="text-align:center">Att. Fix<br>Approve</th><th style="text-align:center">Advance<br>Add</th>
       <th style="text-align:center">Payroll<br>Finalize</th><th style="text-align:center">See Salary /<br>Confidential</th><th style="text-align:center">Manual<br>Attendance</th><th></th>
     </tr></thead>
     <tbody>${everyone.map(em => { const p = normPerm(perms[em]); const isSup = supers.includes(em.toLowerCase()); return `
@@ -3053,6 +3062,7 @@ async function renderAdminCtl(){
         <td style="text-align:center">${sw(em, 'leave', p.approve.leave !== false)}</td>
         <td style="text-align:center">${sw(em, 'ot', p.approve.ot !== false)}</td>
         <td style="text-align:center">${sw(em, 'expense', p.approve.expense !== false)}</td>
+        <td style="text-align:center">${sw(em, 'attfix', p.approve.attfix === true)}</td>
         <td style="text-align:center">${sw(em, 'advance', p.approve.advance !== false)}</td>
         <td style="text-align:center">${sw(em, 'finalize', p.finalize === true)}</td>
         <td style="text-align:center">${sw(em, 'confidential', p.confidential === true)}</td>
@@ -3110,7 +3120,7 @@ document.addEventListener('change', async e => {
   SETTINGS.adminPerms[em] = p;
   const { error } = await sb.from('company_settings').upsert({ id: 1, data: SETTINGS });
   if(error) return notify(error.message, 'error');
-  const lbl = k === 'finalize' ? 'Payroll finalize' : k === 'confidential' ? 'Confidential access' : k === 'manualAtt' ? 'Manual attendance' : (k + ' approval');
+  const lbl = k === 'finalize' ? 'Payroll finalize' : k === 'confidential' ? 'Confidential access' : k === 'manualAtt' ? 'Manual attendance' : k === 'attfix' ? 'Attendance correction approval' : (k + ' approval');
   notify(lbl + (on ? ' allowed' : ' blocked') + ' for ' + em, 'success');
 });
 function acShowPages(email, selected){
@@ -10691,13 +10701,16 @@ $('lvSaveBtn').addEventListener('click', async () => {
   finally{ btn.innerHTML = '<i class="fa-solid fa-check"></i> Approve & Save'; btn.disabled = false; }
 });
 
-/* ---------------- URGENT LEAVE (HR only, sirf aaj ki date) ---------------- */
+/* ---------------- URGENT LEAVE (HR only — aaj ya pichhla din) ---------------- */
 // Sirf HR/Admin ise dekh sakta hai — Leaves page par card tabhi dikhta hai.
+// Date aaj ki ya pehle ki ho sakti hai; aane wali date yahan se nahi lagti.
 function ulCanUse(){ return isHRAdmin() && canApprove('leave'); }
 function ulApplyVisibility(){
   const c = $('ulCard'); if(!c) return;
   c.classList.toggle('hidden', !ulCanUse());
   const t = $('ulToday'); if(t) t.innerText = fmtDate(todayISO());
+  const d = $('ulDate');
+  if(d){ d.max = todayISO(); if(!d.value) d.value = todayISO(); }   // aage ki date chuni hi nahi ja sakti
 }
 $('ulEmp').addEventListener('change', () => {
   const v = $('ulEmp').value;
@@ -10708,36 +10721,42 @@ $('ulSaveBtn').addEventListener('click', async () => {
   if(!ulCanUse()) return notify('Urgent Leave sirf HR daal sakti hai', 'error');
   const code = $('ulEmp').value;
   if(!code) return notify('Pehle employee chuno', 'error');
-  const today = todayISO();
+  const day = ($('ulDate').value || '').trim() || todayISO();
+  if(day > todayISO()) return notify('Aane wali date nahi chal sakti \u2014 aaj ya usse pehle ka din chuno', 'error');
   const half = $('ulHalf').checked;
   const days = half ? 0.5 : 1;
   const btn = $('ulSaveBtn');
-  btn.innerHTML = '<div class="loader-ring"></div> Lag rahi hai…'; btn.disabled = true;
+  btn.innerHTML = '<div class="loader-ring"></div> Lag rahi hai\u2026'; btn.disabled = true;
   try{
-    // aaj ki koi leave pehle se to nahi lagi
+    // us din ki koi leave pehle se to nahi lagi
     const { data: dup } = await sb.from('leaves').select('id, leave_type, status')
       .eq('employee_code', code).in('status', ['APPROVED','PENDING'])
-      .lte('from_date', today).gte('to_date', today).limit(1);
-    if(dup && dup.length) throw new Error('Is employee ki aaj ki leave pehle se lagi hai (' + dup[0].leave_type + ' — ' + dup[0].status + ')');
+      .lte('from_date', day).gte('to_date', day).limit(1);
+    if(dup && dup.length) throw new Error(fmtDate(day) + ' ki leave is employee ki pehle se lagi hai (' + dup[0].leave_type + ' \u2014 ' + dup[0].status + ')');
     const reason = ($('ulReason').value || '').trim();
     const { error } = await sb.from('leaves').insert([{
       employee_code: code, leave_type: $('ulType').value,
-      from_date: today, to_date: today, days,
-      reason: 'URGENT' + (reason ? ' — ' + reason : ''), status: 'APPROVED'
+      from_date: day, to_date: day, days,
+      reason: 'URGENT' + (reason ? ' \u2014 ' + reason : ''), status: 'APPROVED'
     }]);
     if(error) throw error;
     const nm = (EMP.find(e => e['Employee code'] === code) || {}).Name || code;
-    notify('\u2713 ' + nm + ' ki aaj ki chhutti lag gayi (' + days + ' din)', 'success');
-    // aaj punch bhi hua hai to HR ko bata do — conflict card me bhi dikhega
+    notify('\u2713 ' + nm + ' ki ' + fmtDate(day) + ' ki chhutti lag gayi (' + days + ' din)', 'success');
+    // us din punch bhi hua hai to HR ko bata do — conflict card me bhi dikhega
     try{
-      const { data: att } = await sb.from('attendance').select('in_time').eq('employee_code', code).eq('date', today).limit(1);
-      if(att && att.length && att[0].in_time) notify(nm + ' ka aaj punch bhi hai (' + String(att[0].in_time).slice(0,5) + ') — half day nahi hai to leave cancel kar dena', 'error');
+      const { data: att } = await sb.from('attendance').select('in_time').eq('employee_code', code).eq('date', day).limit(1);
+      if(att && att.length && att[0].in_time) notify(nm + ' ka us din punch bhi hai (' + String(att[0].in_time).slice(0,5) + ') \u2014 half day nahi hai to leave cancel kar dena', 'error');
+    }catch(e){}
+    // pichhli date par: us mahine ka payroll pehle hi ban chuka ho to HR ko bata do
+    try{
+      const { data: ps } = await sb.from('payslips').select('id').eq('month', day.slice(0,7)).limit(1);
+      if(ps && ps.length) notify('Dhyan dein: ' + day.slice(0,7) + ' ka payroll pehle hi ban chuka hai \u2014 ye leave payslip me tabhi aayegi jab payroll dobara calculate karein', 'error');
     }catch(e){}
     $('ulReason').value = ''; $('ulHalf').checked = false;
-    if($('lvMonth').value !== today.slice(0,7)) $('lvMonth').value = today.slice(0,7);
+    if($('lvMonth').value !== day.slice(0,7)) $('lvMonth').value = day.slice(0,7);
     loadLeaves(); showLeaveBalance(code, 'ulBalance');
   }catch(err){ notify(err.message, 'error'); }
-  finally{ btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Aaj ki Chhutti Lagao'; btn.disabled = false; }
+  finally{ btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Chhutti Lagao'; btn.disabled = false; }
 });
 
 /* ---------------- MANUAL PUNCH ---------------- */
@@ -12456,7 +12475,12 @@ async function loadApprovals(){
     const plain = s.replace(/\s*\([^)]*\)/g, '').trim();
     return plain === myName || myName.startsWith(plain + ' ') || plain.startsWith(myName + ' ');
   };
-  const canDecideEssAtt = r => isSuper() || nxIsMyReport(((PROFILES[r.employee_code]||{}).reporting_manager)||'');
+  // Attendance correction: reporting manager ke alawa wo admin bhi approve kar sakta hai jise
+  // Admin Control me "Att. Fix Approve" diya gaya ho. Baaki kinds (field/WFH/gate) par ye
+  // permission lagu nahi hoti — wo manager ke paas hi rehti hain.
+  const canDecideEssAtt = r => isSuper()
+    || (String((r && r.req_type) || '') === 'ATT_FIX' && nxCanApproveAttFix())
+    || nxIsMyReport(((PROFILES[r.employee_code]||{}).reporting_manager)||'');
   window._canDecideEssAtt = canDecideEssAtt;
   const _essRow = r => {
     const mgr = ((PROFILES[r.employee_code]||{}).reporting_manager) || '—';
