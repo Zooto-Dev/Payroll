@@ -896,7 +896,6 @@ body.no-confidential .confidential-col{display:none!important}
   <div class="card mb-4 flex items-end gap-3 flex-wrap">
     <div><label class="lbl">Payroll Month</label><input type="month" id="payMonth" class="inp"></div>
     <button id="payRunBtn" class="btn btn-primary"><i class="fa-solid fa-calculator"></i> Calculate Payroll</button>
-    <label class="text-[11px] flex items-center gap-1 hidden" id="payNoDblWrap" style="color:var(--muted);cursor:pointer" title="Is month ke liye unauthorized-absence ki 2x (double) penalty band kar do — sirf 1 din unpaid"><input type="checkbox" id="payNoDblChk"> Double-penalty OFF (this month)</label>
     <button id="payLockBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-lock"></i> Lock &amp; Send for Approval</button>
     <button id="payUnlockBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-lock-open"></i> Unlock / Edit</button>
     <span id="payLockPill" class="chip hidden"></span>
@@ -7215,21 +7214,6 @@ $('payMonth').addEventListener('change', async () => {
     if(data && data[0] && String(data[0].status).toUpperCase() === 'FINALIZED') runPayroll();
   }catch(e){}
 });
-// Per-month double-penalty toggle (unauthorized absence 2x on/off) — persisted per month
-$('payNoDblChk') && $('payNoDblChk').addEventListener('change', async (e) => {
-  const ym = PAY_MONTH || $('payMonth').value;
-  if(!ym) return;
-  const on = e.target.checked;
-  SETTINGS.dblPenaltyOff = ((SETTINGS.dblPenaltyOff)||[]).map(String).filter(m => m !== ym);
-  if(on) SETTINGS.dblPenaltyOff.push(ym);
-  try{
-    const { error } = await sb.from('company_settings').upsert({ id:1, data: SETTINGS });
-    if(error) throw error;
-    notify('Double penalty ' + (on?'OFF':'ON') + ' for ' + ym + ' — recalculating…', 'success');
-    runPayroll();
-  }catch(err){ e.target.checked = !on; notify('Save failed: ' + (err.message||err), 'error'); }
-});
-
 async function runPayroll(){
   const ym = $('payMonth').value; if(!ym) return notify('Please select a month', 'error');
   PAY_MONTH = ym;
@@ -7238,10 +7222,6 @@ async function runPayroll(){
   window._payPendingNote = '';
   try{
     const S = getSettings();
-    // Per-month toggle: is month ke liye unauthorized-absence ki double (2x) penalty OFF?
-    const noDblPenalty = ((S.dblPenaltyOff)||[]).map(String).includes(ym);
-    if($('payNoDblChk')) $('payNoDblChk').checked = noDblPenalty;
-    if($('payNoDblWrap')) $('payNoDblWrap').classList.remove('hidden');
     const rows = await fetchMonthAttendance(ym);
     // ===== NEXT-MONTH activity (trailing off-day rule) =====
     // Jis employee ne is month ke aakhir me off-days ke baad kaam chhod diya lagta hai,
@@ -7467,8 +7447,8 @@ async function runPayroll(){
       // leave) around it — not by a single present day in the whole month.
       const leaveISOs = new Set();
       myLeaves.forEach(L => { Object.keys(expandLeave(L)).forEach(iso => { if(!days[iso]) leaveISOs.add(iso); }); });
-      // LWP (Leave Without Pay): APPROVED leave hai -> UNPAID (paid leave me nahi), lekin
-      // "bina soochna gairhaazri" (2x penalty) NAHI. Sirf 1 din ka paisa katega, penalty nahi.
+      // LWP (Leave Without Pay): APPROVED leave hai -> UNPAID (paid leave me nahi).
+      // Sirf us 1 din ka paisa katega.
       const lwpISOs = new Set();
       yearLeaves.filter(L => L.employee_code === code && String(L.leave_type).toUpperCase() === 'LWP')
         .forEach(L => { Object.keys(expandLeave(L)).forEach(iso => { if(!days[iso]) lwpISOs.add(iso); }); });
@@ -7541,9 +7521,10 @@ async function runPayroll(){
         else                                      why = 'dono taraf gair-haazir (absence gap ke andar)';
         offNotEarned.push({ iso: x.iso, isH: x.isH, why });
       });
-      // days jab employee employed tha lekin working day pe absent (bina leave/pass) = unauthorized
+      // days jab employee employed tha lekin working day pe absent (bina leave/pass) = unauthorized.
       // AAKHRI attendance/activity ka din nikaalo — uske baad ke absent = "continuously gayab"
-      // (unauthorized 2x penalty SIRF tab jab absence ke baad WAPAS aaya ho)
+      // (trailing). Dono ki katauti ek jaisi hai (1 din ka 1 din); ye baatein sirf report me
+      // alag-alag dikhane ke liye ginni jaati hain.
       let lastActiveIso = '';
       dayMeta.forEach(x => {
         if(days[x.iso] || leaveISOs.has(x.iso) || lwpISOs.has(x.iso) || (apprReqDays[code]||new Set()).has(x.iso)){
@@ -7559,17 +7540,16 @@ async function runPayroll(){
         if(leaveISOs.has(x.iso)) return;                 // approved paid leave
         if(lwpISOs.has(x.iso)){ lwpDays++; return; }     // approved LWP -> unpaid, par penalty NAHI
         if((apprReqDays[code]||new Set()).has(x.iso)) return;   // approved WFH/gate request
-        // aakhri active din ke BAAD ka absent = trailing (continuously gayab) — 2x penalty NAHI
+        // aakhri active din ke BAAD ka absent = trailing (continuously gayab)
         if(lastActiveIso && x.iso > lastActiveIso){ trailingAbs++; return; }
-        unauthAbs++;                                     // beech ka unauthorized absence (wapas aaya) — 2x penalty
+        unauthAbs++;                                     // beech ka unauthorized absence — katauti sirf us 1 din ki
       });
-      // paidDays: earned (present + leave + off-days) + 1 EXTRA penalty per unauthorized absence.
-      // outsideDays (pre-joining/post-exit) simply reduce the payable month, no double penalty.
+      // paidDays = jitne din kamaye (present + leave + off-days), minus late ki katauti.
+      // DOUBLE PENALTY NAHI: bina bataye gair-hazir rehne par bhi sirf us 1 din ka paisa katta
+      // hai (wo din earnedDays me aata hi nahi) — upar se koi extra din nahi kata jaata.
       const earnedDays = present + leaveDays + earnedWO + earnedH - sandwichCut;
-      // Double-penalty toggle: is month ke liye ON ho to unauthorized absence ka extra din NAHI katega
-      const unauthApplied = noDblPenalty ? 0 : unauthAbs;
       let paidDays = (present + leaveDays) > 0
-        ? earnedDays - lateLOP - unauthApplied           // har unauthorized absence = +1 extra din (jab tak double-penalty OFF na ho)
+        ? earnedDays - lateLOP
         : 0;
       paidDays = Math.min(dim, paidDays);
       paidDays = Math.max(0, paidDays);
@@ -7606,7 +7586,7 @@ async function runPayroll(){
       return { code, name: e.Name, dept: e.DEPARTMENT, desig: e.DESIGNATION,
         isContract: isContractEmp(code), contractor: (PROFILES[code]||{}).contractor_name || '',
         dim, present, lates, lateLOP, baseLateLOP, lateFgEligible, lateDecision, usedSL, usedHD,
-        leaveDays, unauthAbs, unauthApplied, outsideDays, lwpDays, paidDays: +paidDays.toFixed(1), lop,
+        leaveDays, unauthAbs, outsideDays, lwpDays, paidDays: +paidDays.toFixed(1), lop,
         earnedWO, earnedH, wfhDays, offNotEarned, absentWorking: (unauthAbs + trailingAbs), trailingAbs,
         shiftName: sh.name, shHrs, perHour,
         basic: Math.round(basic), comps, dedBreak, customDed,
@@ -8195,9 +8175,7 @@ function lopReasonHindi(r){
   let plainAbs  = +(uncovered - outside - lopLv - lwp).toFixed(1);
   if(plainAbs < 0) plainAbs = 0;
   const parts = [];
-  const _uap = (r.unauthApplied != null ? r.unauthApplied : r.unauthAbs) || 0;   // double-penalty OFF ho to 0
   if(plainAbs > 0)          parts.push(`${nf(plainAbs)} दिन बिना छुट्टी अनुपस्थित`);
-  if(_uap > 0)              parts.push(`${nf(_uap)} दिन बिना सूचना गैरहाज़िरी की अतिरिक्त कटौती`);
   if(lwp > 0)               parts.push(`${nf(lwp)} दिन बिना वेतन छुट्टी (LWP)`);
   if((r.lateLOP||0) > 0)    parts.push(`देर से आने के कारण ${nf(r.lateLOP)} दिन कटौती`);
   if(lopLv > 0)             parts.push(`${nf(lopLv)} दिन छुट्टी बैलेंस से अधिक (अवैतनिक)`);
