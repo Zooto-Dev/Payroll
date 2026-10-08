@@ -1045,7 +1045,7 @@ document.querySelectorAll('.req-tile').forEach(t => t.addEventListener('click', 
 /* ===== ESS Help / SOP ===== */
 var ESS_FAQ = [
   { t:'Login & Password', b:'Employee Code + password se login karo. Pehli baar ka password = aapka registered mobile number. Password bhool jao to HR reset karta hai — reset hone par wapas mobile number ban jaata hai, login karke turant badal lo. Apna mobile number HR ke paas hamesha updated rakho, kyunki approval aur zaroori messages isi par jaate hain.' },
-  { t:'Leave (CL / SL / EL)', b:'Leave tile kholo → leave type + from/to date + reason bharo. Aapka bacha hua balance upar live dikhta hai, isliye galat count ka dar nahi. Aage ki leave pehle se daalo; emergency me us din bhi reason ke saath daal sakte ho. Bhejte hi request aapke reporting manager ke paas jaati hai (Super Admin ko bhi mail). Jab tak manager APPROVE na kare tab tak leave "Pending" rehti hai aur pay par asar nahi padta. Approve hone ke baad ye paid leave payroll me present ki tarah gini jaati hai. Sandwich policy hamare yahan hai hi nahi \u2014 leave ke aas-paas ka Sunday/holiday nahi kata jaata.' },
+  { t:'Leave (CL / SL / EL)', b:'Leave tile kholo → leave type + from/to date + reason bharo. Niyam seedha hai: <b>har mahine sirf 1 leave paid</b> hoti hai. Usi mahine ki usse zyada leave, manager approve kar de to bhi, <b>unpaid (LOP)</b> rehti hai. Koi leave balance nahi hai aur bachi hui leave agle mahine nahi jaati — upar chip me dikh jata hai ki is mahine ki paid leave bachi hai ya use ho gayi. Aage ki leave pehle se daalo; emergency me us din bhi reason ke saath daal sakte ho. Bhejte hi request aapke reporting manager ke paas jaati hai (Super Admin ko bhi mail). Jab tak manager APPROVE na kare tab tak leave "Pending" rehti hai aur pay par asar nahi padta. Approve hone ke baad ye paid leave payroll me present ki tarah gini jaati hai. Sandwich policy hamare yahan hai hi nahi \u2014 leave ke aas-paas ka Sunday/holiday nahi kata jaata.' },
   { t:'Attendance Fix (galat ya chhoot gaya punch)', b:'Ye tab use karo jab kiosk ne aapka face punch miss kar diya ho ya galat time chadh gaya ho. Att. Fix tile → date + asli IN time + asli OUT time + reason + proof (gate photo/screenshot) bharo. Request HR ke paas jaati hai; HR us din ki gate CCTV/photo se milaan karke Approve ya Reject karta hai. Approve hone par us din ki attendance sahi ho jaati hai — tabhi wo din present count hota hai. Bina approval ke koi badlaav nahi hota.' },
   { t:'Field Duty (office ke bahar kaam)', b:'Client visit, delivery, site ya bahar ka koi official kaam. Field Duty tile → Duration (single ya multiple din) + date + reason bharo, ho sake to us din se pehle. Request reporting manager ke paas jaati hai (Super Admin ko bhi mail). DHYAAN DO: sirf approve ho jaane se present NAHI lagta. Approve hone ke baad us approved din aapki Home screen par "Punch In / Punch Out" button khul jaata hai. Aapko field par pahunch kar khud Punch In karna hai, aur kaam khatam hone par Punch Out — tabhi us din ki attendance record hoti hai aur present count hota hai. Agar approval ke baad bhi aap punch nahi karte, to wo din absent hi rahega.' },
   { t:'Gate Pass / Short Leave', b:'Jab shift ke beech me thodi der ke liye bahar jaana ho. Pehle aapka normal IN punch hona chahiye. Gate Pass tile → slot (subah/shaam ka short leave) ya half-day + reason bharo. Manager approve karta hai. Approved gate pass ka matlab: us din aapka jaldi jaana ya der se aana "excused" hai — late/half-day ki katauti nahi lagti aur us din ki poori salary milti hai. Bina approval ke jaldi nikalna late/absent maana ja sakta hai.' },
@@ -2961,37 +2961,25 @@ $('otBtn').addEventListener('click', async () => {
   finally{ btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Request OT Approval'; btn.disabled = false; }
 });
 
-async function renderLeaveBalance(){
+// Leave ka hisaab: koi balance nahi hota. Niyam seedha hai — har mahine 1 leave PAID,
+// usi mahine ki usse zyada leave (approved ho to bhi) UNPAID. Bachi hui leave agle
+// mahine nahi jaati, aur na hi uska paisa milta hai.
+function renderLeaveBalance(){
   const host = $('lvBalChips'); if(!host) return;
-  let S = {};
-  try{ const { data } = await sb.from('company_settings').select('data').eq('id',1).single(); S = (data && data.data) || {}; }catch(e){}
-  const types = (S.leaveTypes && S.leaveTypes.length) ? S.leaveTypes : ['EL'];
-  const monthly = S.leaveMode === 'monthly';
-  const c = D.company || {};
-  const annualEnt = { CL: Number(c.cl)||0, SL: Number(c.sl)||0, EL: Number(c.el)||0, ML:0, PL:0 };
-
-  if(monthly){
-    // No carry-forward: this month you have (accrual) days, minus leave taken THIS month.
-    const ym = new Date().toISOString().slice(0,7);
-    const accrual = Number(S.accrual) || 1;
-    const usedThisMonth = {};
-    (D.leaves||[]).forEach(L => {
-      if(L.status === 'APPROVED' && String(L.from_date||'').startsWith(ym) && L.leave_type !== 'LWP')
-        usedThisMonth[L.leave_type] = (usedThisMonth[L.leave_type]||0) + Number(L.days);
-    });
-    // in monthly mode the accrual is a single shared pool this month
-    const usedTotal = Object.values(usedThisMonth).reduce((a,b)=>a+b,0);
-    host.innerHTML = `<span class="chip chip-blue">This month: ${Math.max(0, accrual - usedTotal)} / ${accrual} leave left</span>` +
-      `<span class="chip chip-gray" style="margin-left:6px">No carry-forward</span>`;
-  } else {
-    const used = {};
-    (D.leaves||[]).forEach(L => { if(L.status === 'APPROVED') used[L.leave_type] = (used[L.leave_type]||0) + Number(L.days); });
-    host.innerHTML = types.filter(t => annualEnt[t] !== undefined).map(t =>
-      `<span class="chip chip-blue">${t}: ${Math.max(0, (annualEnt[t]||0)-(used[t]||0))} / ${annualEnt[t]||0} left</span>`).join('')
-      || '<span class="chip chip-gray">Leave balance managed by HR</span>';
-  }
+  const ym = new Date().toISOString().slice(0, 7);
+  let taken = 0;
+  (D.leaves || []).forEach(L => {
+    if(L.status === 'APPROVED' && String(L.from_date || '').startsWith(ym) && L.leave_type !== 'LWP')
+      taken += Number(L.days) || 0;
+  });
+  const paid = Math.min(taken, 1);
+  const unpaid = +(taken - paid).toFixed(1);
+  host.innerHTML =
+    `<span class="chip ${paid >= 1 ? 'chip-gray' : 'chip-blue'}">Is mahine: ${paid >= 1 ? 'paid leave use ho gayi' : '1 paid leave baaki'}</span>`
+    + (taken ? `<span class="chip chip-blue" style="margin-left:6px">Li: ${taken} din</span>` : '')
+    + (unpaid > 0 ? `<span class="chip chip-bad" style="margin-left:6px">${unpaid} din unpaid (LOP)</span>` : '')
+    + `<span class="chip chip-gray" style="margin-left:6px">Koi balance / carry-forward nahi</span>`;
 }
-
 function renderLeaves(){
   const lv = D.leaves || [];
   $('lvBox').innerHTML = lv.length ? lv.map(L => {

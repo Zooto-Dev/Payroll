@@ -1610,10 +1610,9 @@ body.no-confidential .confidential-col{display:none!important}
         <div><label class="lbl">Professional Tax (₹/month)</label><input id="setPT" type="number" class="inp" value="0"></div>
         <div><label class="lbl">OT Rate Multiplier</label><input id="setOTMult" type="number" step="0.5" class="inp" value="1" title="1 = single rate, 2 = double"></div>
         <div><label class="lbl">OT Counts After (mins beyond shift)</label><input id="setOTAfter" type="number" class="inp" value="20" title="Itne minute se kam OT bache to us din ka OT count nahi hoga"></div>
-        <div><label class="lbl">Leave Policy</label>
-          <select id="setLeaveMode" class="inp"><option value="annual">Annual quota (CL/SL/EL)</option><option value="monthly">Monthly accrual (earn per month)</option></select></div>
-        <div><label class="lbl">Accrual / Month (days)</label><input id="setAccrual" type="number" step="0.5" class="inp" value="1"></div>
-        <div><label class="lbl">Min days worked to earn a month's leave</label><input id="setMinDaysForLeave" type="number" class="inp" value="15" min="1" max="31" title="An employee must attend at least this many days in a month to earn that month's leave. Below this, they won't appear in the Unused-Leave list."></div>
+        <div class="lg:col-span-2 p-2 rounded text-[11px]" style="background:var(--brand-soft);color:#334155">
+          <b>Leave policy (fix hai, badalti nahi):</b> har mahine <b>1 leave paid</b>. Usi mahine ki usse zyada leave, approved ho to bhi, <b>unpaid (LOP)</b> hai. Koi leave balance, carry-forward, rollover ya encashment nahi \u2014 bachi hui leave mahine ke aakhir me lapse ho jaati hai.
+        </div>
         <div class="lg:col-span-2"><label class="lbl">Leave Types Offered <span class="text-[10px]" style="color:var(--muted)">(only ticked types show in the leave form)</span></label>
           <div id="setLeaveTypes" style="display:flex;flex-wrap:wrap;gap:10px;padding:8px 0">
             <label style="display:flex;align-items:center;gap:5px;font-size:13px"><input type="checkbox" class="lt-opt" value="EL"> Earned Leave (EL)</label>
@@ -1625,9 +1624,6 @@ body.no-confidential .confidential-col{display:none!important}
         </div>
 
         <div><label class="lbl">OT Departments (ESS apply)</label><input id="setOTDepts" class="inp" value="PLANNING,PRODUCTION" title="Comma separated. Employees of these departments can request OT from ESS."></div>
-        <div><label class="lbl">CL / Year</label><input id="setCL" type="number" class="inp" value="7"></div>
-        <div><label class="lbl">SL / Year</label><input id="setSL" type="number" class="inp" value="7"></div>
-        <div><label class="lbl">EL / Year</label><input id="setEL" type="number" class="inp" value="15"></div>
         <div><label class="lbl">LWF Employee Cap (₹/mo) — 0.2% of gross, capped</label><input id="setLWFE" type="number" class="inp" value="35"></div>
         <div><label class="lbl">LWF Employer Cap (₹/mo) — 2× employee, capped</label><input id="setLWFR" type="number" class="inp" value="70"></div>
         <div class="col-span-2"><p class="lbl" style="margin:8px 0 4px">Minimum Wages — Haryana (Apr 2026, monthly ₹)</p></div>
@@ -2346,8 +2342,8 @@ function getSettings(){
     name:'Zooto Fashion Pvt Ltd', addr:'IMT Manesar, Gurugram, Haryana', phone:'', email:'', cin:'',
     hr:'', hrDesig:'Director', probation:6, notice:30,
     weekOff:0, latesHalf:3, pfPct:12, pfCap:15000, esiPct:0.75, esiLimit:21000, pt:0,
-    otMult:1, otAfter:20, cl:7, sl:7, el:15,
-    leaveMode:'annual', accrual:1, sandwich:false, otDepts:'PLANNING,PRODUCTION',
+    otMult:1, otAfter:20,
+    sandwich:false, otDepts:'PLANNING,PRODUCTION',
     lwfE:35, lwfR:70, mw1:15220.71, mw2:16780.74, mw3:18500.81, mw4:19425.85,
     minWO:4,
     units:[],
@@ -3874,7 +3870,6 @@ async function loadDashboard(){
   renderSalaryApprovals();
   loadEngagement();
   renderSetupChecklist();
-  renderLeaveDecisions();
   const today = todayISO();
   $('dToday').innerText = fmtDate(today);
   try{
@@ -7290,12 +7285,11 @@ async function runPayroll(){
     const woCount = dayMeta.filter(x => x.isWO).length;
     const hCount = dayMeta.filter(x => x.isH && !x.isWO).length;
 
-    // year leaves (for accrual balance) + approved OT for the month
-    const [yearLvRes, otRes, ldRes, wfhRes] = await Promise.all([
+    // is saal ki approved leaves (mahine-wise ginti ke liye) + is month ka approved OT
+    const [yearLvRes, otRes, wfhRes] = await Promise.all([
       sb.from('leaves').select('employee_code, leave_type, from_date, to_date, days, status').eq('status','APPROVED').gte('from_date', ym.slice(0,4) + '-01-01').lte('from_date', _lastDay(ym)),
       // OT PAID sirf tab jab security ne ViziTrack se VERIFY kiya ho (ot_verified=true). Bina verify OT paid nahi.
       sb.from('ot_requests').select('employee_code, ot_date, hours').eq('status','APPROVED').eq('ot_verified', true).gte('ot_date', ym + '-01').lte('ot_date', _lastDay(ym)),
-      sb.from('leave_decisions').select('*'),
       sb.from('ess_att_requests').select('employee_code, date, req_type').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).gte('date', ym + '-01').lte('date', _lastDay(ym))
     ]);
     // approved WFH days: paid like present, but shown as WFH (no punch needed)
@@ -7309,7 +7303,6 @@ async function runPayroll(){
       (apprReqDays[w.employee_code] = apprReqDays[w.employee_code] || new Set()).add(w.date);
     });
     window._wfhMap = wfhMap;
-    const LDEC = ldRes.data || [];
     const yearLeaves = yearLvRes.data || [];
     // Kaizen rewards: SOURCE = feedback table (salary.pendingReward fragile hai — profile save par ud jaata hai).
     // COMPLETED + reward>0 + credited + abhi tak kisi payroll me pay nahi hua (reward_paid_month null).
@@ -7395,31 +7388,16 @@ async function runPayroll(){
         const exp = expandLeave(L);
         Object.keys(exp).forEach(iso => { if(!days[iso]) leaveDaysRaw += exp[iso]; });
       });
-      // balance enforcement (monthly accrual mode): beyond balance -> LOP
-      let leaveDays = leaveDaysRaw, lopLeave = 0;
-      if(S.leaveMode === 'monthly'){
-        // No auto carry-forward: each month's unused leave lapses UNLESS the
-        // admin chose Rollover (dashboard prompt). Balance for this month =
-        // this month's own accrual + rolled-over months − past over-use.
-        const rollovers = LDEC.filter(d => d.employee_code === code && d.action === 'ROLLOVER' && d.month < ym).length;
-        let overusedBefore = 0;
-        const byMonth = {};
-        yearLeaves.filter(L => L.employee_code === code && PAID_LEAVES.includes(L.leave_type) && L.from_date < ym + '-01')
-          .forEach(L => { const m = L.from_date.slice(0,7); byMonth[m] = (byMonth[m]||0) + Number(L.days); });
-        Object.values(byMonth).forEach(u => { overusedBefore += Math.max(0, u - Number(S.accrual)); });
-        const balAvail = Math.max(0, Number(S.accrual) + rollovers * Number(S.accrual) - overusedBefore);
-        leaveDays = Math.min(leaveDaysRaw, balAvail);
-        lopLeave = +(leaveDaysRaw - leaveDays).toFixed(1);
-      }
-      // RULE: mahine mein sirf 1 leave PAID — baaki approved bhi ho to unpaid (LOP)
+      // ===== LEAVE KA EK HI NIYAM =====
+      // Har mahine SIRF 1 leave PAID. Usi mahine ki 1 din se zyada jo leave hai — approved
+      // ho ya na ho — wo UNPAID (LOP) hai. Leave balance, carry-forward, rollover, pichhle
+      // mahine ka udhaar, encashment — aisa kuch nahi hai. Har mahina apne aap me alag hai,
+      // aur pichhle mahine ka hisaab is mahine par kabhi asar nahi daalta.
+      // (Yahi appointment letter me likha hai: "one (1) paid leave per month; unavailed
+      //  leave shall lapse at month-end and shall not be carried forward or encashed".)
       const MAX_PAID_LEAVE = 1;
-      if(leaveDays > MAX_PAID_LEAVE){
-        lopLeave = +(lopLeave + (leaveDays - MAX_PAID_LEAVE)).toFixed(1);
-        leaveDays = MAX_PAID_LEAVE;
-      }
-      // Leave encashment: admin chose Encash for an unused month -> pay 1 day
-      const encashRows = LDEC.filter(d => d.employee_code === code && d.action === 'ENCASH' && !d.paid);
-      const encashDays = encashRows.length * Number(S.accrual);
+      const leaveDays = Math.min(leaveDaysRaw, MAX_PAID_LEAVE);
+      const lopLeave  = +(leaveDaysRaw - leaveDays).toFixed(1);
       otHours = Math.round(otHours * 2) / 2; // nearest 0.5
       // Late rule: har `perHalf` (default 3) lates = 0.5 din LOP.
       // Gate-pass quota/month = YA TO 2 Short-Leave (SL) YA 1 Half-Day (HD) — dono nahi.
@@ -7570,7 +7548,6 @@ async function runPayroll(){
       const dedMap = empDeductions(code);
       const dedBreak = S.dedComps.map(c => ({ name: c.name, amt: (paidDays > 0 ? (dedMap[c.k]||0) : 0) })).filter(d => d.amt > 0);
       const customDed = dedBreak.reduce((a,d) => a + d.amt, 0);
-      const encash = Math.round((fullGross / dim) * encashDays); // 1 day gross per encashed leave
       const tds = calcTDS(fullGross, p.tax_regime, Number(p.tax_declarations)||0);
       const erPF = pf > 0 ? pf : 0; // employer PF mirrors capped 12%
       const erESI = esi > 0 ? Math.ceil(earnedGross * 3.25 / 100) : 0;
@@ -7593,7 +7570,7 @@ async function runPayroll(){
         earnedGross: Math.round(earnedGross), pf, esi, pt, lwf,
         hasPay: (present + leaveDays) > 0 && paidDays > 0 && Math.round(earnedGross) > 0,
         otHours, otPay: Math.round(perHour * otHours * Number(S.otMult)),
-        tds, arrears, reward, encash, encashDays, lopLeave, otApprovedMode: otApproved[code] !== undefined,
+        tds, arrears, reward, lopLeave, otApprovedMode: otApproved[code] !== undefined,
         erPF, erESI, erLWF,
         advDed: Math.round(advDed), advRefs: advs.map(a => a.id),
         otherDed: 0, bonus: 0, fullGross: Math.round(fullGross), hasSalary: fullGross > 0,
@@ -7932,10 +7909,6 @@ $('payFinalizeBtn').addEventListener('click', async () => {
     }
     // clear consumed arrears
     for(const r of PAY_ROWS){
-      if(r.encash > 0){
-        await sb.from('leave_decisions').update({ paid: true })
-          .eq('employee_code', r.code).eq('action', 'ENCASH').eq('paid', false);
-      }
       if(r.arrears > 0){
         const p = PROFILES[r.code] || {};
         const sal = Object.assign({}, p.salary || {}, { pendingArrear: 0 });
@@ -8062,7 +8035,6 @@ function slipHTML(r){
   }
   if(r.arrears) earnRows.push(['Arrears', '', r.arrears]);
   if(r.reward) earnRows.push(['Kaizen Reward', '', r.reward]);
-  if(r.encash) earnRows.push(['Leave Encashment (' + r.encashDays + ' day' + (r.encashDays > 1 ? 's' : '') + ')', '', r.encash]);
   earnRows.push(['Bonus / Incentive', '', r.bonus||0]);
   const dedRows = [['Provident Fund', r.pf], ['ESI', r.esi], ['Professional Tax', r.pt], ['LWF', r.lwf||0]];
   if(r.tds) dedRows.push(['TDS (Income Tax)', r.tds]);
@@ -8904,15 +8876,6 @@ document.body.addEventListener('click', async e => {
     await sb.from('ot_requests').update({ status: 'REJECTED' }).in('id', ids);
     loadApprovals();
   }
-  if(act === 'lv-roll' || act === 'lv-encash'){
-    const { error } = await sb.from('leave_decisions').insert([{
-      employee_code: el.dataset.code, month: el.dataset.ym,
-      action: act === 'lv-roll' ? 'ROLLOVER' : 'ENCASH'
-    }]);
-    if(error) return notify(error.message + ' — have you run the V13 migration SQL?', 'error');
-    notify(act === 'lv-roll' ? 'Rolled over — 1 leave added to the balance' : 'Marked for encashment — one day\'s pay will be added in the next payroll', 'success');
-    renderLeaveDecisions();
-  }
   if(act === 'vb-review'){ await sb.from('feedback').update({ status:'IN_REVIEW' }).eq('id', el.dataset.id); loadVoice(); }
   if(act === 'vb-resolve'){
     const note = (await nxPrompt('Closing remark — ye employee ko ESS mein dikhega:', 'Close / Resolve')) || '';
@@ -9709,15 +9672,13 @@ function fillSettingsForm(){
   $('setPF').value = S.pfPct; $('setPFCap').value = S.pfCap;
   $('setESI').value = S.esiPct; $('setESILimit').value = S.esiLimit; $('setPT').value = S.pt;
   $('setOTMult').value = S.otMult; $('setOTAfter').value = S.otAfter;
-  $('setCL').value = S.cl; $('setSL').value = S.sl; $('setEL').value = S.el;
   $('setLWFE').value = S.lwfE; $('setLWFR').value = S.lwfR;
   $('setMW1').value = S.mw1; $('setMW2').value = S.mw2; $('setMW3').value = S.mw3; $('setMW4').value = S.mw4;
   $('setDepts').value = (S.depts || []).join('\n');
   if($('setSections')) $('setSections').value = (S.sections || []).join('\n');
   $('setDesigs').value = (S.desigs || []).join('\n');
   renderUnits(); populateDLs();
-  $('setLeaveMode').value = S.leaveMode; $('setAccrual').value = S.accrual; $('setOTDepts').value = S.otDepts;
-  $('setMinDaysForLeave').value = S.minDaysForLeave || 15;
+  $('setOTDepts').value = S.otDepts;
   const offered = (S.leaveTypes && S.leaveTypes.length) ? S.leaveTypes : ['EL'];
   document.querySelectorAll('.lt-opt').forEach(c => c.checked = offered.includes(c.value));
   EARN_EDIT = null; DED_EDIT = null;
@@ -9736,7 +9697,6 @@ $('setSaveBtn').addEventListener('click', async () => {
       pfPct: Number($('setPF').value)||0, pfCap: Number($('setPFCap').value)||0,
       esiPct: Number($('setESI').value)||0, esiLimit: Number($('setESILimit').value)||0, pt: Number($('setPT').value)||0,
       otMult: Number($('setOTMult').value)||1, otAfter: Number($('setOTAfter').value)||20,
-      cl: Number($('setCL').value)||0, sl: Number($('setSL').value)||0, el: Number($('setEL').value)||0,
       lwfE: Number($('setLWFE').value)||0, lwfR: Number($('setLWFR').value)||0,
       mw1: Number($('setMW1').value)||0, mw2: Number($('setMW2').value)||0,
       mw3: Number($('setMW3').value)||0, mw4: Number($('setMW4').value)||0,
@@ -9746,8 +9706,7 @@ $('setSaveBtn').addEventListener('click', async () => {
       depts: $('setDepts').value.split('\n').map(s => s.trim()).filter(Boolean),
       sections: ($('setSections') ? $('setSections').value.split('\n').map(s => s.trim().toUpperCase()).filter(Boolean) : (SETTINGS.sections || [])),
       desigs: $('setDesigs').value.split('\n').map(s => s.trim()).filter(Boolean),
-      leaveMode: $('setLeaveMode').value, accrual: Number($('setAccrual').value)||1, sandwich: false, otDepts: $('setOTDepts').value,
-      minDaysForLeave: Number($('setMinDaysForLeave').value)||15,
+      sandwich: false, otDepts: $('setOTDepts').value,
       leaveTypes: (function(){ const a = Array.from(document.querySelectorAll('.lt-opt:checked')).map(c=>c.value); return a.length ? a : ['EL']; })(),
       earnComps: EARN_EDIT || getSettings().earnComps,
       dedComps: DED_EDIT || getSettings().dedComps
@@ -10635,26 +10594,21 @@ async function loadLeaves(){
     }).join('') : '<tr><td colspan="8" class="text-center py-8" style="color:var(--muted)">No leave records for this month.</td></tr>';
   }catch(err){ notify(err.message, 'error'); }
 }
-async function showLeaveBalance(code, boxId){
+// Leave ka hisaab: koi balance nahi — bas "is mahine kitni li, kitni paid".
+// Har mahine 1 leave paid; usse zyada jo bhi ho, approved bhi ho to unpaid.
+async function showLeaveBalance(code, boxId, forMonth){
   const BOX = boxId || 'lvBalance';
-  const S = getSettings();
-  const yr = new Date().getFullYear();
-  const { data } = await sb.from('leaves').select('leave_type, days').eq('employee_code', code).eq('status','APPROVED')
-    .gte('from_date', yr + '-01-01').lte('from_date', yr + '-12-31');
-  if(S.leaveMode === 'monthly'){
-    let usedAll = 0;
-    (data || []).forEach(L => { if(PAID_LEAVES.includes(L.leave_type)) usedAll += Number(L.days); });
-    const e = EMP.find(x => x['Employee code'] === code);
-    let startM = 1;
-    if(e && e.DOJ){ const d = new Date(e.DOJ); if(!isNaN(d) && d.getFullYear() === yr) startM = d.getMonth() + 1; }
-    const accrued = (new Date().getMonth() + 1 - startM + 1) * Number(S.accrual);
-    const bal = Math.max(0, accrued - usedAll);
-    $(BOX).innerHTML = `<b>Accrued balance:</b> ${bal} day(s) available (earned ${accrued}, used ${usedAll}). Leave beyond balance automatically becomes LOP in payroll.`;
-  } else {
-    const used = { CL:0, SL:0, EL:0 };
-    (data || []).forEach(L => { if(used[L.leave_type] !== undefined) used[L.leave_type] += Number(L.days); });
-    $(BOX).innerHTML = `<b>Balance ${yr}:</b> CL ${S.cl - used.CL}/${S.cl} • SL ${S.sl - used.SL}/${S.sl} • EL ${S.el - used.EL}/${S.el}`;
-  }
+  const ym = forMonth || todayISO().slice(0, 7);
+  const { data } = await sb.from('leaves').select('leave_type, days, from_date, status')
+    .eq('employee_code', code).eq('status', 'APPROVED')
+    .gte('from_date', ym + '-01').lte('from_date', _lastDay(ym));
+  let taken = 0;
+  (data || []).forEach(L => { if(PAID_LEAVES.includes(L.leave_type)) taken += Number(L.days) || 0; });
+  const paid = Math.min(taken, 1), unpaid = +(taken - paid).toFixed(1);
+  const mName = fmtDate(ym + '-01').slice(3);
+  $(BOX).innerHTML = `<b>${mName}:</b> ${taken} din leave li \u2014 <b style="color:var(--ok)">${paid} paid</b>`
+    + (unpaid > 0 ? `, <b style="color:var(--bad)">${unpaid} unpaid (LOP)</b>` : '')
+    + `<div style="margin-top:4px;color:var(--muted)">Niyam: har mahine sirf <b>1 leave paid</b>. Usse zyada approved leave bhi unpaid hi rehti hai. Koi balance ya carry-forward nahi \u2014 bachi hui leave agle mahine nahi jaati.</div>`;
   $(BOX).classList.remove('hidden');
 }
 $('lvEmp').addEventListener('change', () => showLeaveBalance($('lvEmp').value));
@@ -10690,11 +10644,13 @@ function ulApplyVisibility(){
   const d = $('ulDate');
   if(d){ d.max = todayISO(); if(!d.value) d.value = todayISO(); }   // aage ki date chuni hi nahi ja sakti
 }
-$('ulEmp').addEventListener('change', () => {
+function ulShowUsage(){
   const v = $('ulEmp').value;
-  if(v) showLeaveBalance(v, 'ulBalance');
+  if(v) showLeaveBalance(v, 'ulBalance', ($('ulDate').value || todayISO()).slice(0, 7));
   else $('ulBalance').classList.add('hidden');
-});
+}
+$('ulEmp').addEventListener('change', ulShowUsage);
+$('ulDate') && $('ulDate').addEventListener('change', ulShowUsage);
 $('ulSaveBtn').addEventListener('click', async () => {
   if(!ulCanUse()) return notify('Urgent Leave sirf HR daal sakti hai', 'error');
   const code = $('ulEmp').value;
@@ -10732,7 +10688,7 @@ $('ulSaveBtn').addEventListener('click', async () => {
     }catch(e){}
     $('ulReason').value = ''; $('ulHalf').checked = false;
     if($('lvMonth').value !== day.slice(0,7)) $('lvMonth').value = day.slice(0,7);
-    loadLeaves(); showLeaveBalance(code, 'ulBalance');
+    loadLeaves(); showLeaveBalance(code, 'ulBalance', day.slice(0, 7));
   }catch(err){ notify(err.message, 'error'); }
   finally{ btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Chhutti Lagao'; btn.disabled = false; }
 });
@@ -11493,7 +11449,9 @@ async function openFnF(id){
   const yr = new Date().getFullYear();
   const { data: lvData } = await sb.from('leaves').select('leave_type, days').eq('employee_code', x.employee_code).eq('status','APPROVED').gte('from_date', yr + '-01-01');
   let elUsed = 0; (lvData||[]).forEach(L => { if(L.leave_type === 'EL') elUsed += Number(L.days); });
-  const elBal = Math.max(0, Number(S.el) - elUsed);
+  // Policy: leave encashable nahi hai (mahine ke aakhir me lapse). Default 0 — HR chahe to
+  // haath se amount daal sakta hai, par apne aap koi balance nahi banta.
+  const elBal = 0;
   // open advances
   const { data: advData } = await sb.from('advances').select('balance').eq('employee_code', x.employee_code).eq('status','OPEN');
   const advBal = (advData||[]).reduce((a,b) => a + Number(b.balance), 0);
@@ -11521,7 +11479,7 @@ async function openFnF(id){
     <h4 class="display font-bold mb-2 mt-4">Full & Final Settlement</h4>
     <div class="grid grid-cols-2 gap-3 text-sm">
       <div><label class="lbl">Pending Salary Days (last month)</label><input id="fnfDays" type="number" class="inp fnf-in" value="${fnf.days ?? 0}"></div>
-      <div><label class="lbl">EL Encashment Days (bal: ${elBal})</label><input id="fnfEL" type="number" class="inp fnf-in" value="${fnf.el ?? elBal}"></div>
+      <div><label class="lbl">EL Encashment Days <span class="text-[10px]" style="color:var(--muted)">(policy: 0 \u2014 leave lapse hoti hai)</span></label><input id="fnfEL" type="number" class="inp fnf-in" value="${fnf.el ?? 0}"></div>
       <div><label class="lbl">Bonus / Incentive (₹)</label><input id="fnfBonus" type="number" class="inp fnf-in" value="${fnf.bonus ?? 0}"></div>
       <div><label class="lbl">Gratuity (₹) ${years >= 5 ? '(auto: 15/26 × basic × yrs)' : '(< 5 yrs — 0)'}</label><input id="fnfGrat" type="number" class="inp fnf-in" value="${fnf.grat ?? gratuity}"></div>
       <div><label class="lbl">Advance Recovery (₹) (open bal: ${fmtINR(advBal)})</label><input id="fnfAdv" type="number" class="inp fnf-in" value="${fnf.adv ?? advBal}"></div>
@@ -12043,61 +12001,13 @@ async function idPNG(side){
 $('idPngFrontBtn').addEventListener('click', () => idPNG('front'));
 $('idPngBackBtn').addEventListener('click', () => idPNG('back'));
 
-async function renderLeaveDecisions(){
-  const S = getSettings();
-  let card = document.getElementById('lvDecCard');
-  if(S.leaveMode !== 'monthly'){ if(card) card.remove(); return; }
-  const now = new Date();
-  const dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  if(dim - now.getDate() > 2){ if(card) card.remove(); return; } // only in the last 2 days
-  const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-  const [lvRes, ldRes, attRes] = await Promise.all([
-    sb.from('leaves').select('employee_code, leave_type, days').eq('status','APPROVED').gte('from_date', ym + '-01').lte('from_date', _lastDay(ym)),
-    sb.from('leave_decisions').select('employee_code').eq('month', ym),
-    sb.from('attendance').select('employee_code, in_time').gte('date', ym + '-01').lte('date', _lastDay(ym))
-  ]);
-  if(ldRes.error) return; // V13 not run yet
-  const used = {};
-  (lvRes.data || []).forEach(L => { if(PAID_LEAVES.includes(L.leave_type)) used[L.employee_code] = (used[L.employee_code]||0) + Number(L.days); });
-  const decided = new Set((ldRes.data || []).map(d => d.employee_code));
-  // count present days this month per employee (only real punches)
-  const presentDays = {};
-  (attRes.data || []).forEach(a => { if(a.in_time) presentDays[a.employee_code] = (presentDays[a.employee_code]||0) + 1; });
-  // an employee earns this month's leave only after working a minimum number of days
-  const MIN_DAYS_FOR_LEAVE = Number(S.minDaysForLeave) || 15;
-  const pending = activeEmps().filter(e => {
-    const code = e['Employee code'];
-    if(used[code] > 0) return false;              // already took leave
-    if(decided.has(code)) return false;           // already decided
-    if((presentDays[code] || 0) < MIN_DAYS_FOR_LEAVE) return false; // hasn't earned leave yet
-    return true;
-  });
-  if(!pending.length){ if(card) card.remove(); return; }
-  if(!card){
-    card = document.createElement('div');
-    card.id = 'lvDecCard';
-    card.className = 'card mt-4';
-    $('page-dashboard').appendChild(card);
-  }
-  card.innerHTML = `<h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-hourglass-half" style="color:var(--warn)"></i> Unused Leave — decide before month end</h3>
-    <p class="text-xs mb-3" style="color:var(--muted)">These employees have not taken their leave this month. Unused leave does NOT carry forward on its own — choose <b>Rollover</b> (adds to balance) or <b>Encash</b> (one day's pay in the next payroll).</p>
-    <div class="grid lg:grid-cols-2 gap-2">` + pending.map(e => `
-      <div class="flex items-center justify-between p-2 rounded-lg" style="background:#fffbeb;border:1px solid #fde68a">
-        <span class="text-sm"><b>${esc(e.Name)}</b> <span style="color:var(--muted)">(${esc(e['Employee code'])})</span></span>
-        <span style="white-space:nowrap">
-          <button class="btn btn-ghost btn-sm" data-act="lv-roll" data-code="${esc(e['Employee code'])}" data-ym="${ym}"><i class="fa-solid fa-rotate-right" style="color:var(--brand)"></i> Rollover</button>
-          <button class="btn btn-ghost btn-sm" data-act="lv-encash" data-code="${esc(e['Employee code'])}" data-ym="${ym}"><i class="fa-solid fa-indian-rupee-sign" style="color:var(--ok)"></i> Encash</button>
-        </span>
-      </div>`).join('') + '</div>';
-}
-
 /* ================= HELP SYSTEM ================= */
 const HELP = {
   dashboard: ['Today\'s attendance summary, punches with photos, and the late leaderboard update automatically.', 'Post announcements here — employees see them in their ESS app.', 'Birthdays and work anniversaries for the month appear on the right.'],
   employees: ['Click Profile on any row to fill in phone (needed for ESS login), salary, shift, documents and face registration.', 'Use "Add Employee" for staff without face-attendance; register their face later from the profile if needed.', 'Enter the target CTC and click "Build from CTC" — the salary structure and employer contributions are calculated per government rules.', 'The red "Below minimum wage" warning appears if the gross is under the Haryana rate for the selected skill category.'],
   attendance: ['Pick a month and click Load Register — P Present, L Late, A Absent, WO Week Off, H Holiday, LV Leave.', 'Late is based on each employee\'s assigned shift start time + grace minutes.', 'Use "Manual Punch / Fix" to add a missing punch or correct an in/out time.'],
   shifts: ['Create every shift you run (e.g. Morning 6–2, Evening 2–10, Night 10–6 with the night toggle).', 'Assign a shift to each employee from Employees → Profile. Late and overtime are computed from it.'],
-  leaves: ['Apply and approve leave here, or approve employee requests from the Approvals page.', 'In "Monthly accrual" mode (Settings), leave beyond the earned balance automatically becomes LOP in payroll.', 'Tick "Half day" for a 0.5-day leave on a single date.'],
+  leaves: ['Apply and approve leave here, or approve employee requests from the Approvals page.', 'Rule: one paid leave per month. Any further leave in the same month stays unpaid (LOP) even after approval — there is no leave balance and nothing carries forward.', 'Tick "Half day" for a 0.5-day leave on a single date.'],
   approvals: ['Everything waiting for your decision in one inbox — leaves, overtime and expense claims from ESS.', 'The orange badge in the sidebar shows the pending count.', 'Approved overtime hours are used in payroll instead of the auto-calculation.'],
   payroll: ['Pick the month and click Calculate — attendance, leaves, OT, PF/ESI/PT/LWF/TDS and advances are applied automatically.', 'Edit OT hours, bonus or other deductions inline; the net and totals update live.', 'Click Finalize & Save All to lock payslips, record employer contributions and update advance balances.', 'Then use Bank Advice (bank portions), Cash Register (cash portions with signature column) and Print All Payslips.'],
   advances: ['Record an advance/loan with a monthly EMI — payroll deducts it automatically until the balance reaches zero.'],
