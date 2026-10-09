@@ -143,6 +143,48 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .gflag{position:absolute;top:-3px;right:-3px;font-size:8px;font-weight:800;background:#7c3aed;color:#fff;border-radius:50%;width:12px;height:12px;line-height:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.25)}
 .d-none{color:#cbd5e1}
 .legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+/* ===== Team screen (manager view) ===== */
+.tm-head{display:flex;align-items:center;justify-content:space-between;gap:12px;background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;border-radius:16px;padding:16px 18px;margin-bottom:12px}
+.tm-head-t{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;line-height:1.2}
+.tm-head-s{font-size:12px;opacity:.88;margin-top:3px}
+.tm-head-ic{font-size:26px;opacity:.3}
+.tm-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.tm-stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 8px;text-align:center}
+.tm-stat-n{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;line-height:1.1;color:var(--ink)}
+.tm-stat-l{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:3px}
+.tm-stat.tm-ok .tm-stat-n{color:#047857}
+.tm-stat.tm-bad .tm-stat-n{color:#b91c1c}
+.tm-stat.tm-warn .tm-stat-n{color:#b45309}
+.tm-ch{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.tm-ch h3{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;margin:0;display:flex;align-items:center;gap:7px}
+.tm-note{font-size:11px;color:var(--muted);margin:0 0 10px}
+.tm-p{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f1f5f9}
+.tm-p:last-child{border-bottom:none}
+.tm-av{width:34px;height:34px;flex:none;border-radius:10px;background:#eff6ff;color:#2563eb;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+.tm-p.tm-absent .tm-av{background:#fef2f2;color:#b91c1c}
+.tm-pn{font-size:13px;font-weight:600;color:var(--ink);line-height:1.25}
+.tm-ps{font-size:10.5px;color:var(--muted);margin-top:1px}
+.tm-pr{margin-left:auto;text-align:right;white-space:nowrap}
+.tm-pt{font-size:10.5px;color:var(--muted);margin-top:3px}
+.tm-ar{border:1px solid var(--line);border-radius:12px;padding:11px;margin-bottom:8px;background:#fff}
+.tm-ar-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.tm-ab{display:flex;gap:6px;margin-top:10px}
+.tm-ab button{flex:1;border:none;border-radius:9px;padding:9px;font-weight:700;font-size:12px;cursor:pointer}
+.tm-y{background:#ecfdf5;color:#047857}
+.tm-n{background:#fef2f2;color:#b91c1c}
+.tm-grid{overflow:auto;border:1px solid var(--line);border-radius:12px;-webkit-overflow-scrolling:touch;max-height:62vh}
+.tm-grid table{border-collapse:separate;border-spacing:0;font-size:11px}
+.tm-grid th,.tm-grid td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:4px 6px;text-align:center;white-space:nowrap}
+.tm-grid thead th{position:sticky;top:0;z-index:2;background:#f8fafc;font-size:10px;font-weight:700;color:var(--muted)}
+.tm-grid .tm-emp{position:sticky;left:0;z-index:3;background:#fff;text-align:left;min-width:128px}
+.tm-grid thead .tm-emp{z-index:4;background:#f8fafc}
+.tm-grid .tm-wk{background:#f8fafc;color:#94a3b8}
+.tm-grid .tm-sum{font-weight:700;background:#f8fafc;color:#334155}
+.tm-lg{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0 0;font-size:10.5px;color:var(--muted);align-items:center}
+.tm-lg i{font-style:normal;display:inline-block;min-width:17px;text-align:center;border-radius:4px;padding:1px 0;font-weight:700;font-size:10px;margin-right:4px}
+.tm-empty{text-align:center;padding:22px 10px;color:var(--muted);font-size:12px}
+.tm-empty i{display:block;font-size:26px;opacity:.3;margin-bottom:8px}
+@media(max-width:430px){.tm-stats{grid-template-columns:repeat(2,1fr)}}
 .legend .chip{font-size:10px}
 @media print{ body *{visibility:hidden} #slipPrint,#slipPrint *{visibility:visible} #slipPrint{position:absolute;top:0;left:0;width:100%} }
 </style>
@@ -534,26 +576,78 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     </div>
 
     <div class="page" id="p-team">
-  <div class="card hidden" id="wpCard" style="background:linear-gradient(135deg,#ecfdf5,#ffffff);border:1.5px solid #a7f3d0">
-    <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-id-card-clip" style="color:#059669"></i> Work Pass — Trial Worker (3 din)</h3>
-    <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Naye worker ka 3-din trial pass banao. Worker VMS kiosk par IN/OUT karega. Trial ke baad yahin se <b>Employee Banao</b> — HR approve karega to payroll mein aa jayega.</p>
+  <div class="tm-head">
+    <div>
+      <div class="tm-head-t">My Team</div>
+      <div class="tm-head-s" id="tmHeadSub">Loading…</div>
+    </div>
+    <div class="tm-head-ic"><i class="fa-solid fa-people-group"></i></div>
+  </div>
+
+  <div class="tm-stats">
+    <div class="tm-stat"><div class="tm-stat-n" id="tmsTeam">—</div><div class="tm-stat-l">Team</div></div>
+    <div class="tm-stat tm-ok"><div class="tm-stat-n" id="tmsIn">—</div><div class="tm-stat-l">Aaj aaye</div></div>
+    <div class="tm-stat tm-bad"><div class="tm-stat-n" id="tmsAbs">—</div><div class="tm-stat-l">Absent</div></div>
+    <div class="tm-stat tm-warn"><div class="tm-stat-n" id="tmsPend">—</div><div class="tm-stat-l">Pending</div></div>
+  </div>
+
+  <div class="card hidden" id="teamApprCard">
+    <div class="tm-ch">
+      <h3><i class="fa-solid fa-clipboard-check" style="color:var(--brand)"></i> Pending Approvals</h3>
+      <span class="chip chip-warn" id="teamApprCnt">0</span>
+    </div>
+    <div id="teamApprBox"></div>
+  </div>
+
+  <div class="card hidden" id="teamTodayCard">
+    <div class="tm-ch">
+      <h3><i class="fa-solid fa-user-check" style="color:var(--ok)"></i> Aaj ki Attendance</h3>
+      <span class="chip chip-blue" id="teamTodayCnt">—</span>
+    </div>
+    <div id="teamTodayBox"></div>
+  </div>
+
+  <div class="card hidden" id="teamMonthCard">
+    <div class="tm-ch">
+      <h3><i class="fa-solid fa-calendar-days" style="color:var(--brand)"></i> Mahine ki Attendance</h3>
+      <input type="month" id="tmMonth" class="inp m-0" style="width:148px" onchange="loadTeamMonth()">
+    </div>
+    <p class="tm-note">Kisi din <b>A</b> dikhe aur banda asli me aaya tha, to aaj ki date par ✏️ dabao — photo aur IN time ke saath HR ko present-request chali jayegi.</p>
+    <div id="tmBox" class="tm-grid"><p class="tm-empty">Month chuno…</p></div>
+    <div class="tm-lg">
+      <span><i style="background:#f0fdf4;color:#047857">P</i>Present</span>
+      <span><i style="background:#fffbeb;color:#b45309">L</i>Late</span>
+      <span><i style="background:#f5f3ff;color:#7c3aed">LV</i>Leave</span>
+      <span><i style="background:#ecfeff;color:#0891b2">G</i>Gate pass / WFH</span>
+      <span><i style="background:#fef2f2;color:#b91c1c">A</i>Absent</span>
+      <span><i style="background:#f8fafc;color:#94a3b8">·</i>Sunday</span>
+    </div>
+  </div>
+
+  <div class="card hidden" id="wpCard">
+    <div class="tm-ch">
+      <h3><i class="fa-solid fa-id-card-clip" style="color:#059669"></i> Work Pass — Trial Worker</h3>
+      <span class="chip chip-gray">3 din valid</span>
+    </div>
+    <p class="tm-note">Naye worker ka 3-din trial pass banao. Worker gate kiosk par IN/OUT karega. Trial ke baad yahin se <b>Employee Banao</b> — HR approve karega to payroll me aa jayega.</p>
     <div class="grid gap-2 mb-2" style="grid-template-columns:1fr 1fr">
       <input id="wpeName" class="inp m-0" placeholder="Worker ka naam *" style="text-transform:uppercase">
       <input id="wpePhone" type="tel" maxlength="10" class="inp m-0" placeholder="Mobile">
       <input id="wpeDept" class="inp m-0" placeholder="Department" style="text-transform:uppercase">
       <input id="wpeLine" class="inp m-0" placeholder="Line (optional)" style="text-transform:uppercase">
     </div>
-    <button class="btn btn-primary w-full" onclick="wpEssCreate()" style="background:#059669;border-color:#059669"><i class="fa-solid fa-id-card-clip"></i> WORK PASS BANAO (3 din valid)</button>
+    <button class="btn btn-primary w-full" onclick="wpEssCreate()" style="background:#059669;border-color:#059669"><i class="fa-solid fa-id-card-clip"></i> Work Pass Banao</button>
     <div id="wpeList" class="mt-3"></div>
   </div>
-  <div class="card hidden" id="teamMonthCard">
-    <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
-      <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-calendar-days" style="color:var(--brand)"></i> Team Monthly Attendance</h3>
-      <input type="month" id="tmMonth" class="inp m-0" style="width:150px" onchange="loadTeamMonth()">
+
+  <div class="card hidden" id="teamLineCard">
+    <div class="tm-ch">
+      <h3><i class="fa-solid fa-industry" style="color:var(--brand)"></i> Meri Line — Aaj</h3>
+      <span class="chip chip-gray" id="teamDate">—</span>
     </div>
-    <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Team ki poori attendance. Kisi din ABSENT dikhe par wo asli mein aaya tha to <b>photo + IN time</b> daal ke present-request bhej sakte ho — HR approve karega to lag jayegi.</p>
-    <div id="tmBox" style="overflow:auto"><p class="text-xs m-0" style="color:var(--muted)">Month chuno…</p></div>
+    <div id="teamBox"><p class="tm-empty"><i class="fa-solid fa-spinner"></i>Loading…</p></div>
   </div>
+
   <!-- photo capture overlay for present-marking -->
   <div id="supCam" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(15,23,42,.92);flex-direction:column;align-items:center;justify-content:center;padding:16px">
     <p id="supCamName" style="color:#fff;font-weight:700;font-size:16px;margin-bottom:8px"></p>
@@ -562,20 +656,6 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <button onclick="supCamShoot()" style="border:none;border-radius:14px;background:#059669;color:#fff;font-weight:800;padding:14px 26px;font-size:16px">📸 PHOTO &amp; SUBMIT</button>
       <button onclick="supCamClose()" style="border:none;border-radius:14px;background:rgba(255,255,255,.15);color:#fff;font-weight:700;padding:14px 18px">✕</button>
     </div>
-  </div>
-  <div class="card hidden" id="teamApprCard" style="background:linear-gradient(135deg,#eff6ff,#ffffff);border:1.5px solid #bfdbfe">
-    <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-clipboard-check" style="color:var(--brand)"></i> Team Approvals <span class="chip chip-blue" id="teamApprCnt">0</span></h3>
-    <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Pending requests from your team.</p>
-    <div id="teamApprBox"></div>
-  </div>
-  <div class="card hidden" id="teamTodayCard">
-    <h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-user-check" style="color:var(--ok)"></i> My Team — Today <span class="chip chip-blue" id="teamTodayCnt">0</span></h3>
-    <div id="teamTodayBox"></div>
-  </div>
-  <div class="card">
-    <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-people-group" style="color:var(--brand)"></i> My Line — Today's Attendance</h3>
-    <p class="text-xs mt-0 mb-3" id="teamDate" style="color:var(--muted)"></p>
-    <div id="teamBox"><p class="text-xs m-0" style="color:var(--muted)">Loading…</p></div>
   </div>
 </div>
 <div class="page" id="p-me">
@@ -958,6 +1038,20 @@ async function loadEssPunch(){
   }
   host.innerHTML = `<div class="ep-card">${inner}</div>`;
 }
+// Team ke 4 stat tile ek hi jagah se bharte hain, taaki number aapas me kabhi na bhide.
+const TM = { team: null, inCnt: null, absCnt: null, pend: null, name: '' };
+function tmPaint(){
+  const set = (id, v) => { const el = $(id); if(el) el.innerText = (v == null ? '\u2014' : v); };
+  set('tmsTeam', TM.team); set('tmsIn', TM.inCnt); set('tmsAbs', TM.absCnt); set('tmsPend', TM.pend);
+  const sub = $('tmHeadSub');
+  if(sub){
+    const d = new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' });
+    const bits = [TM.name || ((D && D.employee && D.employee.Name) || CODE)];
+    if(TM.team != null) bits.push(TM.team + (TM.team === 1 ? ' report' : ' reports'));
+    bits.push(d);
+    sub.innerText = bits.join('  \u00b7  ');
+  }
+}
 async function loadTeamApprovals(){
   try{
     const codeU = String(CODE||'').trim().toUpperCase();
@@ -968,7 +1062,11 @@ async function loadTeamApprovals(){
     const reqs = data.requests || [];
     const isManager = (Number(data.team_count) || 0) > 0;
     window._essTeamCount = Number(data.team_count) || 0;
-    if(typeof renderOT === 'function') try{ renderOT(); if(typeof renderFuel === "function") renderFuel(); }catch(e){}   // OT team-btn refresh
+    TM.team = Number(data.team_count) || 0;
+    TM.pend = reqs.length;
+    TM.name = data.my_name || '';
+    tmPaint();
+    if(typeof renderOT === 'function') try{ renderOT(); if(typeof renderFuel === "function") renderFuel(); }catch(e){}
     const card = $('teamApprCard'); if(!card) return;
     if(isManager || reqs.length){
       // manager hai -> Team tab HAMESHA dikhega (pending ho ya na ho)
@@ -981,20 +1079,28 @@ async function loadTeamApprovals(){
     }
     $('teamApprCnt').innerText = reqs.length;
     $('teamApprBox').innerHTML = reqs.length ? reqs.map(r => {
-      return `<div class="p-2 rounded-lg mb-2" style="background:#fff;border:1px solid var(--line)">
-        <div class="flex items-center justify-between gap-2 flex-wrap">
+      const when = r.src === 'LEAVE'
+        ? fmtDate(r.from_date) + ' \u2192 ' + fmtDate(r.to_date) + ' \u00b7 ' + r.days + (Number(r.days) === 1 ? ' din' : ' din')
+        : fmtDate(r.date);
+      return `<div class="tm-ar">
+        <div class="tm-ar-top">
           <div>
-            <div class="text-xs"><b>${esc(r.name || r.employee_code)}</b> ${gpTypeLabel(r)}</div>
-            <div class="text-[10px]" style="color:var(--muted)">${r.src === 'LEAVE' ? (fmtDate(r.from_date) + ' → ' + fmtDate(r.to_date) + ' (' + r.days + 'd)') : fmtDate(r.date)}${r.reason ? ' · ' + esc(r.reason) : ''}${r.proof_path ? ` · <a href="#" onclick="essViewProof('${esc(r.proof_path)}');return false" style="color:var(--brand)">Proof</a>` : ''}</div>
+            <div class="tm-pn">${esc(r.name || r.employee_code)}</div>
+            <div class="tm-ps">${esc(when)}${r.reason ? ' \u00b7 ' + esc(r.reason) : ''}</div>
           </div>
-          <div style="white-space:nowrap">
-            <button class="chip chip-ok" style="border:none;cursor:pointer" onclick="teamDecide(${r.id},'APPROVED','${esc(r.src||'ATT')}')"><i class="fa-solid fa-check"></i> Approve</button>
-            <button class="chip chip-bad" style="border:none;cursor:pointer" onclick="teamDecide(${r.id},'REJECTED','${esc(r.src||'ATT')}')"><i class="fa-solid fa-xmark"></i></button>
-          </div>
+          ${gpTypeLabel(r)}
+        </div>
+        ${r.proof_path ? `<div class="tm-ps" style="margin-top:6px"><a href="#" onclick="essViewProof('${esc(r.proof_path)}');return false" style="color:var(--brand);font-weight:600"><i class="fa-solid fa-paperclip"></i> Proof dekho</a></div>` : ''}
+        <div class="tm-ab">
+          <button class="tm-y" onclick="teamDecide(${r.id},'APPROVED','${esc(r.src||'ATT')}')"><i class="fa-solid fa-check"></i> Approve</button>
+          <button class="tm-n" onclick="teamDecide(${r.id},'REJECTED','${esc(r.src||'ATT')}')"><i class="fa-solid fa-xmark"></i> Reject</button>
         </div>
       </div>`;
-    }).join('') : '<p class="text-xs m-0" style="color:var(--muted)">Abhi koi pending request nahi — team ki Leave / Field / WFH / Gate-pass requests yahan aayengi.</p>';
+    }).join('') : '<p class="tm-empty"><i class="fa-solid fa-circle-check"></i>Koi pending request nahi \u2014 sab clear hai.</p>';
   }catch(e){ _dbg('team-ERROR', e); }
+}
+function tmInitials(nm){
+  return String(nm||'?').trim().split(/\s+/).map(w => w[0]).slice(0,2).join('').toUpperCase() || '?';
 }
 async function loadTeamToday(){
   try{
@@ -1005,15 +1111,27 @@ async function loadTeamToday(){
     const card = $('teamTodayCard'); if(!card) return;
     card.classList.toggle('hidden', !rows.length);
     const inCnt = rows.filter(r => r.in_time).length;
-    $('teamTodayCnt').innerText = inCnt + '/' + rows.length + ' in';
-    $('teamTodayBox').innerHTML = rows.map(r => {
-      const inT = r.in_time ? String(r.in_time).substring(0,5) : null;
+    TM.inCnt = inCnt; TM.absCnt = rows.length - inCnt;
+    if(TM.team == null) TM.team = rows.length;
+    tmPaint();
+    $('teamTodayCnt').innerText = inCnt + ' / ' + rows.length + ' aaye';
+    // RPC pehle un logon ko bhejta hai jinka punch nahi hua — absent sabse upar rahe
+    $('teamTodayBox').innerHTML = rows.length ? rows.map(r => {
+      const inT  = r.in_time  ? String(r.in_time).substring(0,5)  : null;
       const outT = r.out_time ? String(r.out_time).substring(0,5) : null;
       const st = !inT ? '<span class="chip chip-bad">Absent</span>'
-        : outT ? `<span class="chip chip-gray">Out ${outT}</span>`
-        : `<span class="chip chip-ok">In ${inT}</span>`;
-      return `<div class="row"><span><b>${esc(r.name)}</b> <span class="text-[10px]" style="color:var(--muted)">${esc(r.dept||'')}</span></span>${st}</div>`;
-    }).join('');
+        : outT ? '<span class="chip chip-gray">Ja chuke</span>'
+        : '<span class="chip chip-ok">Andar hain</span>';
+      const t = !inT ? '' : ('IN ' + inT + (outT ? '  \u00b7  OUT ' + outT : ''));
+      return `<div class="tm-p${inT ? '' : ' tm-absent'}">
+        <div class="tm-av">${esc(tmInitials(r.name))}</div>
+        <div>
+          <div class="tm-pn">${esc(r.name)}</div>
+          <div class="tm-ps">${esc(r.dept || r.code || '')}</div>
+        </div>
+        <div class="tm-pr">${st}${t ? `<div class="tm-pt">${esc(t)}</div>` : ''}</div>
+      </div>`;
+    }).join('') : '<p class="tm-empty"><i class="fa-solid fa-users-slash"></i>Team me koi active employee nahi hai.</p>';
   }catch(e){ _dbg('teamtoday-ERROR', e); }
 }
 async function teamDecide(id, action, src){
@@ -1327,59 +1445,70 @@ async function loadTeamMonth(){
 }
 function renderTeamMonth(mon){
   const box = $('tmBox');
-  // group by employee
   const byEmp = {};
   (_tmData||[]).forEach(r => {
     if(!r) return;
     const code = r.code || r.employee_code || '';
     if(!code) return;
-    if(!byEmp[code]) byEmp[code] = { name: r.name || r.Name || code, dept: r.dept || '', rows: [] };
+    if(!byEmp[code]) byEmp[code] = { name: r.name || r.Name || code, dept: r.dept || '', desig: r.desig || '', rows: [] };
     byEmp[code].rows.push(r);
   });
   const codes = Object.keys(byEmp);
-  if(!codes.length){ box.innerHTML = '<p class="text-xs m-0" style="color:var(--muted)">Team ka koi data nahi. (Reporting manager set hai kya?)</p>'; return; }
-  const [yy,mm] = mon.split('-').map(Number);
+  if(!codes.length){
+    box.innerHTML = '<p class="tm-empty"><i class="fa-solid fa-users-slash"></i>Is mahine ka koi data nahi. Agar team hai to HR se reporting manager check karwayein.</p>';
+    return;
+  }
+  const [yy, mm] = mon.split('-').map(Number);
   const days = new Date(yy, mm, 0).getDate();
   const today = new Date().toISOString().slice(0,10);
-  let h = '<table style="border-collapse:collapse;font-size:11px;min-width:600px"><thead><tr>'
-    + '<th style="position:sticky;left:0;background:#f8fafc;padding:5px 8px;border:1px solid var(--line);text-align:left">Employee</th>';
-  for(let d=1; d<=days; d++) h += `<th style="padding:3px 5px;border:1px solid var(--line);text-align:center">${d}</th>`;
-  h += '</tr></thead><tbody>';
-  codes.sort((a,b)=>String(byEmp[a].name||'').localeCompare(String(byEmp[b].name||''))).forEach(code => {
+
+  let h = '<table><thead><tr><th class="tm-emp">Employee</th>';
+  for(let d = 1; d <= days; d++){
+    const sun = new Date(yy, mm - 1, d).getDay() === 0;
+    h += `<th class="${sun ? 'tm-wk' : ''}" title="${sun ? 'Sunday' : ''}">${d}</th>`;
+  }
+  h += '<th class="tm-sum" title="Present (late bhi)">P</th><th class="tm-sum" title="Approved leave">LV</th><th class="tm-sum" title="Absent">A</th></tr></thead><tbody>';
+
+  codes.sort((x,y) => String(byEmp[x].name||'').localeCompare(String(byEmp[y].name||''))).forEach(code => {
     const emp = byEmp[code];
     const map = {};
     emp.rows.forEach(r => { if(r.date) map[r.date] = r; });
-    h += `<tr><td style="position:sticky;left:0;background:#fff;padding:4px 8px;border:1px solid var(--line);white-space:nowrap"><b>${esc(emp.name)}</b><br><span style="color:var(--muted);font-size:9px">${esc(code)}</span></td>`;
-    for(let d=1; d<=days; d++){
+    let nP = 0, nL = 0, nA = 0;
+    let cells = '';
+    for(let d = 1; d <= days; d++){
       const dt = `${mon}-${String(d).padStart(2,'0')}`;
       const r = map[dt];
+      const sun = new Date(yy, mm - 1, d).getDay() === 0;
       const isFuture = dt > today;
-      let cell, bg='';
+      let cell = '', bg = '', cls = '';
       if(r && r.in_time && /[0-9]/.test(r.in_time)){
-        cell = `<span title="IN ${String(r.in_time).slice(0,5)}${r.out_time?' OUT '+String(r.out_time).slice(0,5):''}${r.total_hours?' ('+String(r.total_hours).slice(0,5)+')':''}">${r.is_late?'<span style=\'color:#d97706\'>L</span>':'P'}</span>`;
+        nP++;
+        const tip = 'IN ' + String(r.in_time).slice(0,5) + (r.out_time ? ' \u00b7 OUT ' + String(r.out_time).slice(0,5) : '') + (r.total_hours ? ' (' + String(r.total_hours).slice(0,5) + ')' : '');
+        cell = `<span title="${esc(tip)}" style="font-weight:700;color:${r.is_late ? '#b45309' : '#047857'}">${r.is_late ? 'L' : 'P'}</span>`;
         bg = r.is_late ? '#fffbeb' : '#f0fdf4';
-      } else if(isFuture){ cell = ''; }
-      else if(r && r.on_leave){ cell = '<span style="color:#7c3aed;font-weight:700" title="Approved leave">L̲</span>'; bg = '#f5f3ff'; }
-      else if(r && r.has_pass){ cell = '<span style="color:#0891b2;font-weight:700" title="Approved gatepass/WFH">G</span>'; bg = '#ecfeff'; }
+      } else if(isFuture){ cls = sun ? 'tm-wk' : ''; }
+      else if(r && r.on_leave){ nL++; cell = '<span title="Approved leave" style="font-weight:700;color:#7c3aed">LV</span>'; bg = '#f5f3ff'; }
+      else if(r && r.has_pass){ cell = '<span title="Approved gate pass / WFH" style="font-weight:700;color:#0891b2">G</span>'; bg = '#ecfeff'; }
+      else if(sun){ cell = '<span style="color:#cbd5e1">\u00b7</span>'; cls = 'tm-wk'; }
       else {
-        // ABSENT (koi leave/pass nahi)
+        nA++;
         if(dt === today){
-          // pencil SIRF aaj — HR approval ke liye request
-          cell = `<span style="color:#dc2626;font-weight:700">A</span> <button onclick="supMarkAsk('${esc(code)}','${esc(emp.name).replace(/'/g,"\\'")}','${dt}')" style="border:none;background:none;color:#2563eb;cursor:pointer;padding:0 2px" title="Present mark karo (HR approval)">✏️</button>`;
+          cell = `<span style="font-weight:700;color:#b91c1c">A</span> <button onclick="supMarkAsk('${esc(code)}','${esc(emp.name).replace(/'/g,"\\'")}','${dt}')" style="border:none;background:none;color:var(--brand);cursor:pointer;padding:0" title="Present mark karo (HR approval)">\u270f\ufe0f</button>`;
         } else {
-          cell = '<span style="color:#dc2626;font-weight:700">A</span>';
+          cell = '<span style="font-weight:700;color:#b91c1c">A</span>';
         }
         bg = '#fef2f2';
       }
-      h += `<td style="padding:3px 5px;border:1px solid var(--line);text-align:center;background:${bg}">${cell}</td>`;
+      cells += `<td class="${cls}"${bg ? ` style="background:${bg}"` : ''}>${cell}</td>`;
     }
-    h += '</tr>';
+    h += `<tr><td class="tm-emp"><div class="tm-pn" style="font-size:12px">${esc(emp.name)}</div>`
+       + `<div class="tm-ps">${esc(code)}${emp.desig ? ' \u00b7 ' + esc(emp.desig) : ''}</div></td>`
+       + cells
+       + `<td class="tm-sum" style="color:#047857">${nP}</td><td class="tm-sum" style="color:#7c3aed">${nL}</td><td class="tm-sum" style="color:#b91c1c">${nA}</td></tr>`;
   });
-  h += '</tbody></table><p class="text-[10px] mt-1" style="color:var(--muted)">P=Present · <span style="color:#d97706">L</span>=Late · <span style="color:#7c3aed">L̲</span>=Leave · <span style="color:#0891b2">G</span>=Gatepass · <span style="color:#dc2626">A</span>=Absent · <b>✏️ sirf aaj</b> ke absent par (HR approve karega tab attendance lagegi) · hover se timing</p>';
+  h += '</tbody></table>';
   box.innerHTML = h;
 }
-// present-marking with photo
-var _supMark = null, _supCamStream = null;
 function supMarkAsk(code, name, dt){
   const fmtD = (() => { try{ return new Date(dt+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'}); }catch(e){ return dt; } })();
   // simple confirm popup — YES/NO
@@ -2089,25 +2218,35 @@ document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () =>
   if(t.dataset.p === 'team') loadLineToday();
 }));
 async function loadLineToday(){
+  const card = $('teamLineCard'), box = $('teamBox');
+  const hide = () => { if(card) card.classList.add('hidden'); };
   const { data, error } = await sb.rpc('ess_line_today', { p_code: CODE, p_phone: PHONE });
-  if(error || (data && data.error)){ $('teamBox').innerHTML = `<p class="text-xs" style="color:var(--bad)">${esc((error&&error.message)||data.error)}</p>`; return; }
-  $('teamDate').innerText = 'Date: ' + (data.date || '');
+  if(error || (data && data.error)){ hide(); _dbg('line-ERROR', (error && error.message) || data.error); return; }
   const lines = data.lines || [];
-  if(!lines.length){ $('teamBox').innerHTML = '<p class="text-xs m-0" style="color:var(--muted)">You are not set as a supervisor of any line.</p>'; return; }
-  $('teamBox').innerHTML = lines.map(L => {
-    const inCount = (L.workers || []).filter(w => w.in_time).length;
-    return `<div class="mb-3">
-      <div class="flex items-center justify-between mb-2">
-        <span class="font-semibold text-sm">${esc(L.line)}</span>
-        <span class="chip chip-blue">${inCount}/${(L.workers||[]).length} punched in</span>
+  // Production line ka supervisor nahi hai to ye card dikhane ka matlab hi nahi
+  if(!lines.length){ hide(); return; }
+  if(card) card.classList.remove('hidden');
+  $('teamDate').innerText = data.date ? fmtDate(data.date) : '\u2014';
+  box.innerHTML = lines.map(L => {
+    const ws = L.workers || [];
+    const inCount = ws.filter(w => w.in_time).length;
+    return `<div style="margin-bottom:14px">
+      <div class="tm-ch" style="margin-bottom:6px">
+        <span class="tm-pn">${esc(L.line)}</span>
+        <span class="chip ${inCount === ws.length && ws.length ? 'chip-ok' : 'chip-blue'}">${inCount} / ${ws.length} aaye</span>
       </div>
-      ${(L.workers||[]).length ? (L.workers||[]).map(w => `
-        <div class="flex items-center justify-between py-2" style="border-bottom:1px solid var(--line)">
-          <div><div class="text-sm">${esc(w.name)}</div><div class="text-[10px]" style="color:var(--muted)">${esc(w.code)}</div></div>
-          <div class="text-right">${w.in_time
-            ? `<span class="chip chip-ok">IN ${esc(String(w.in_time).slice(0,5))}</span>${w.out_time ? ` <span class="chip chip-gray">OUT ${esc(String(w.out_time).slice(0,5))}</span>` : ''}`
-            : `<span class="chip chip-bad">Absent</span>`}</div>
-        </div>`).join('') : '<p class="text-[11px] m-0" style="color:var(--muted)">No workers assigned to this line.</p>'}
+      ${ws.length ? ws.map(w => {
+        const inT = w.in_time ? String(w.in_time).slice(0,5) : null;
+        const outT = w.out_time ? String(w.out_time).slice(0,5) : null;
+        const st = !inT ? '<span class="chip chip-bad">Absent</span>'
+          : outT ? '<span class="chip chip-gray">Ja chuke</span>'
+          : '<span class="chip chip-ok">Andar hain</span>';
+        return `<div class="tm-p${inT ? '' : ' tm-absent'}">
+          <div class="tm-av">${esc(tmInitials(w.name))}</div>
+          <div><div class="tm-pn">${esc(w.name)}</div><div class="tm-ps">${esc(w.code)}</div></div>
+          <div class="tm-pr">${st}${inT ? `<div class="tm-pt">IN ${esc(inT)}${outT ? '  \u00b7  OUT ' + esc(outT) : ''}</div>` : ''}</div>
+        </div>`;
+      }).join('') : '<p class="tm-empty" style="padding:12px">Is line par koi worker assign nahi hai.</p>'}
     </div>`;
   }).join('');
 }
