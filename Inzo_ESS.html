@@ -185,6 +185,34 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .tm-empty{text-align:center;padding:22px 10px;color:var(--muted);font-size:12px}
 .tm-empty i{display:block;font-size:26px;opacity:.3;margin-bottom:8px}
 @media(max-width:430px){.tm-stats{grid-template-columns:repeat(2,1fr)}}
+/* reporting structure (kaun kiske under) */
+.tm-nd{border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden;background:#fff}
+.tm-nd-h{display:flex;align-items:center;gap:10px;padding:10px 11px;cursor:default}
+.tm-nd-h.tm-can{cursor:pointer}
+.tm-nd-h.tm-can:active{background:#f8fafc}
+.tm-sub{background:#f8fafc;border-top:1px solid var(--line);padding:4px 11px 8px}
+.tm-sub .tm-p{padding:7px 0;border-bottom:1px dashed #e2e8f0}
+.tm-sub .tm-p:last-child{border-bottom:none}
+.tm-sub .tm-av{width:26px;height:26px;border-radius:8px;font-size:10px;background:#e0e7ff;color:#4338ca}
+.tm-caret{color:var(--muted);font-size:12px;transition:transform .18s}
+.tm-nd.open .tm-caret{transform:rotate(90deg)}
+/* ===== Profile ===== */
+.pf-hero{display:flex;align-items:center;gap:13px;background:linear-gradient(135deg,#312e81,#4f46e5);color:#fff;border-radius:16px;padding:16px;margin-bottom:12px}
+.pf-av{width:54px;height:54px;flex:none;border-radius:16px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:19px;letter-spacing:.02em}
+.pf-nm{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;line-height:1.2}
+.pf-dg{font-size:12px;opacity:.9;margin-top:2px}
+.pf-meta{font-size:11px;opacity:.72;margin-top:4px}
+.pf-chips{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+.pf-chip{background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 11px}
+.pf-chip-l{font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.pf-chip-v{font-size:12.5px;font-weight:600;color:var(--ink);margin-top:2px;word-break:break-word}
+.pf-sec{margin-top:14px}
+.pf-sec:first-child{margin-top:0}
+.pf-sec-t{font-size:10px;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.pf-r{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px}
+.pf-r:last-child{border-bottom:none}
+.pf-r-k{color:var(--muted);flex:none}
+.pf-r-v{text-align:right;font-weight:600;color:var(--ink);word-break:break-word}
 .legend .chip{font-size:10px}
 @media print{ body *{visibility:hidden} #slipPrint,#slipPrint *{visibility:visible} #slipPrint{position:absolute;top:0;left:0;width:100%} }
 </style>
@@ -607,6 +635,15 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <div id="teamTodayBox"></div>
   </div>
 
+  <div class="card hidden" id="teamTreeCard">
+    <div class="tm-ch">
+      <h3><i class="fa-solid fa-sitemap" style="color:var(--brand)"></i> Reporting Structure</h3>
+      <span class="chip chip-gray" id="teamTreeCnt">—</span>
+    </div>
+    <p class="tm-note">Seedhe aapko report karne wale log. Jiske neeche khud ki team hai, uspe dabao to uski list khul jayegi.</p>
+    <div id="teamTreeBox"></div>
+  </div>
+
   <div class="card hidden" id="teamMonthCard">
     <div class="tm-ch">
       <h3><i class="fa-solid fa-calendar-days" style="color:var(--brand)"></i> Mahine ki Attendance</h3>
@@ -659,17 +696,39 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
   </div>
 </div>
 <div class="page" id="p-me">
-      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm">My Details</h3><div id="meBox"></div>
-        <button id="pwOpenBtn" class="btn btn-ghost btn-sm mt-3"><i class="fa-solid fa-key"></i> Change Password</button></div>
-      <div class="card">
-        <h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-user-tie" style="color:var(--brand)"></i> Reporting Manager &amp; Approvals</h3>
-        <div id="rmBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div>
+      <div class="pf-hero">
+        <div class="pf-av" id="pfAv">—</div>
+        <div style="min-width:0">
+          <div class="pf-nm" id="pfName">—</div>
+          <div class="pf-dg" id="pfDesig">—</div>
+          <div class="pf-meta" id="pfMeta">—</div>
+        </div>
       </div>
+      <div class="pf-chips" id="pfChips"></div>
+
       <div class="card">
-        <h3 class="display font-bold mt-0 mb-2 text-sm">Update Contact Details</h3>
+        <div class="tm-ch">
+          <h3><i class="fa-solid fa-user-tie" style="color:var(--brand)"></i> Reporting &amp; Approvals</h3>
+        </div>
+        <div id="rmBox"><p class="tm-empty">Loading…</p></div>
+      </div>
+
+      <div class="card">
+        <div class="tm-ch">
+          <h3><i class="fa-solid fa-id-card" style="color:var(--brand)"></i> Meri Poori Jaankari</h3>
+          <button id="pwOpenBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-key"></i> Password</button>
+        </div>
+        <div id="meBox"></div>
+      </div>
+
+      <div class="card">
+        <div class="tm-ch">
+          <h3><i class="fa-solid fa-pen-to-square" style="color:var(--brand)"></i> Contact Update Karo</h3>
+        </div>
+        <p class="tm-note">Address ya email badla hai to yahan se bhejo — HR check karke record me update karega.</p>
         <label class="lbl">Address</label><input id="upAddr" class="inp mb-3">
         <label class="lbl">Email</label><input id="upEmail" type="email" class="inp mb-4">
-        <button id="upBtn" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Send Update</button>
+        <button id="upBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-paper-plane"></i> Update Bhejo</button>
       </div>
     </div>
   </div>
@@ -1039,7 +1098,7 @@ async function loadEssPunch(){
   host.innerHTML = `<div class="ep-card">${inner}</div>`;
 }
 // Team ke 4 stat tile ek hi jagah se bharte hain, taaki number aapas me kabhi na bhide.
-const TM = { team: null, inCnt: null, absCnt: null, pend: null, name: '' };
+const TM = { team: null, total: null, inCnt: null, absCnt: null, pend: null, name: '' };
 function tmPaint(){
   const set = (id, v) => { const el = $(id); if(el) el.innerText = (v == null ? '\u2014' : v); };
   set('tmsTeam', TM.team); set('tmsIn', TM.inCnt); set('tmsAbs', TM.absCnt); set('tmsPend', TM.pend);
@@ -1047,7 +1106,8 @@ function tmPaint(){
   if(sub){
     const d = new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' });
     const bits = [TM.name || ((D && D.employee && D.employee.Name) || CODE)];
-    if(TM.team != null) bits.push(TM.team + (TM.team === 1 ? ' report' : ' reports'));
+    if(TM.team != null) bits.push(TM.team + (TM.team === 1 ? ' report' : ' reports')
+      + (TM.total != null && TM.total > TM.team ? '  (kul ' + TM.total + ')' : ''));
     bits.push(d);
     sub.innerText = bits.join('  \u00b7  ');
   }
@@ -1071,6 +1131,7 @@ async function loadTeamApprovals(){
     if(isManager || reqs.length){
       // manager hai -> Team tab HAMESHA dikhega (pending ho ya na ho)
       loadTeamToday();
+      loadTeamTree();
       $('tabTeam').classList.remove('hidden');
       $('tabTeam').innerHTML = '<i class="fa-solid fa-people-group"></i>Team' + (reqs.length ? ' <span class="chip chip-bad" style="font-size:9px;padding:1px 6px">' + reqs.length + '</span>' : '');
       card.classList.remove('hidden');
@@ -1098,6 +1159,57 @@ async function loadTeamApprovals(){
       </div>`;
     }).join('') : '<p class="tm-empty"><i class="fa-solid fa-circle-check"></i>Koi pending request nahi \u2014 sab clear hai.</p>';
   }catch(e){ _dbg('team-ERROR', e); }
+}
+// Reporting structure — direct reports, aur jiske neeche khud ki team hai uska count + list
+let _tmTree = null;
+async function loadTeamTree(){
+  const card = $('teamTreeCard'), box = $('teamTreeBox');
+  if(!card || !box) return;
+  try{
+    const { data } = await sb.rpc('ess_team_tree', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE });
+    if(!data || data.error || !Number(data.direct_count)){ card.classList.add('hidden'); return; }
+    _tmTree = data;
+    const dc = Number(data.direct_count), tc = Number(data.total_count);
+    TM.team = dc; TM.total = tc; tmPaint();
+    card.classList.remove('hidden');
+    $('teamTreeCnt').innerText = tc > dc ? (dc + ' direct \u00b7 ' + tc + ' total') : (dc + (dc > 1 ? ' reports' : ' report'));
+    box.innerHTML = (data.direct || []).map((r, i) => {
+      const hasSub = Number(r.sub_direct) > 0;
+      const inT = r.in_time ? String(r.in_time).slice(0,5) : null;
+      const st = !inT ? '<span class="chip chip-bad" style="font-size:9.5px">Absent</span>'
+        : (r.out_time ? '<span class="chip chip-gray" style="font-size:9.5px">Ja chuke</span>'
+                      : '<span class="chip chip-ok" style="font-size:9.5px">Andar hain</span>');
+      const subChip = hasSub
+        ? `<span class="chip chip-blue" style="font-size:9.5px">${r.sub_direct} under${Number(r.sub_total) > Number(r.sub_direct) ? ' \u00b7 ' + r.sub_total + ' total' : ''}</span>`
+        : '';
+      return `<div class="tm-nd" id="tmnd${i}">
+        <div class="tm-nd-h${hasSub ? ' tm-can' : ''}"${hasSub ? ` onclick="tmToggleNode(${i})"` : ''}>
+          <div class="tm-av">${esc(tmInitials(r.name))}</div>
+          <div style="min-width:0">
+            <div class="tm-pn">${esc(r.name)}</div>
+            <div class="tm-ps">${esc([r.desig, r.dept].filter(Boolean).join(' \u00b7 ') || r.code)}</div>
+          </div>
+          <div class="tm-pr" style="display:flex;align-items:center;gap:7px">
+            ${subChip}${st}
+            ${hasSub ? '<i class="fa-solid fa-chevron-right tm-caret"></i>' : ''}
+          </div>
+        </div>
+        ${hasSub ? `<div class="tm-sub hidden" id="tmsub${i}">
+          ${(r.under || []).map(u => `<div class="tm-p">
+            <div class="tm-av">${esc(tmInitials(u.name))}</div>
+            <div><div class="tm-pn" style="font-size:12px">${esc(u.name)}</div>
+            <div class="tm-ps">${esc(u.desig || u.code)}</div></div>
+          </div>`).join('')}
+        </div>` : ''}
+      </div>`;
+    }).join('');
+  }catch(e){ _dbg('teamtree-ERROR', e); }
+}
+function tmToggleNode(i){
+  const nd = $('tmnd' + i), sub = $('tmsub' + i);
+  if(!nd || !sub) return;
+  sub.classList.toggle('hidden');
+  nd.classList.toggle('open', !sub.classList.contains('hidden'));
 }
 function tmInitials(nm){
   return String(nm||'?').trim().split(/\s+/).map(w => w[0]).slice(0,2).join('').toUpperCase() || '?';
@@ -2347,16 +2459,32 @@ function render(){
      <button class="chip chip-blue" style="border:none;cursor:pointer" data-slip="${i}"><i class="fa-solid fa-download"></i> View / PDF</button></span></div>`).join(''))
     : '<p class="m-0" style="color:var(--muted)">No payslips yet. They appear here once HR finalizes your monthly payroll.</p>';
   document.querySelectorAll('[data-slip]').forEach(b => b.addEventListener('click', () => printSlip(sortedSlips[Number(b.dataset.slip)])));
-  // profile
-  const rows = [
-    ['Employee Code', e['Employee code']], ['Department', e.DEPARTMENT], ['Designation', e.DESIGNATION],
-    ['Date of Joining', e.DOJ], ['Grade', p.grade], ['Employment Type', p.employment_type],
-    ['Work Location', p.work_location], ['Mobile', p.phone], ['Email', p.email], ['Address', p.address],
-    ['Bank', p.bank_name], ['Account No.', p.account_no], ['IFSC', p.ifsc],
-    ['PAN', p.pan], ['UAN', p.uan], ['ESI No.', p.esi_no],
-    ['Emergency Contact', (p.emergency_name || '') + (p.emergency_phone ? ' — ' + p.emergency_phone : '')]
+  // ===== Profile =====
+  const nm = e.Name || CODE;
+  $('pfAv').innerText   = tmInitials(nm);
+  $('pfName').innerText = nm;
+  $('pfDesig').innerText = e.DESIGNATION || '—';
+  $('pfMeta').innerText = [e['Employee code'], e.DEPARTMENT, p.section].filter(Boolean).join('  ·  ');
+  const chip = (l, v) => `<div class="pf-chip"><div class="pf-chip-l">${esc(l)}</div><div class="pf-chip-v">${esc(v || '—')}</div></div>`;
+  $('pfChips').innerHTML =
+      chip('Joining', e.DOJ ? fmtDate(e.DOJ) : '')
+    + chip('Employment', p.employment_type)
+    + chip('Grade', p.grade)
+    + chip('Location', p.work_location);
+  const SEC = [
+    ['Contact', 'address-book', [['Mobile', p.phone], ['Email', p.email], ['Address', p.address]]],
+    ['Bank', 'building-columns', [['Bank', p.bank_name], ['Account No.', p.account_no], ['IFSC', p.ifsc]]],
+    ['Statutory', 'file-shield', [['PAN', p.pan], ['UAN', p.uan], ['ESI No.', p.esi_no]]],
+    ['Emergency', 'phone-volume', [
+      ['Naam', p.emergency_name],
+      ['Number', p.emergency_phone],
+      ['Rishta', p.emergency_relation]
+    ]]
   ];
-  $('meBox').innerHTML = rows.map(r => `<div class="row"><span class="k">${r[0]}</span><span style="text-align:right">${esc(r[1] || '—')}</span></div>`).join('');
+  $('meBox').innerHTML = SEC.map(([title, ic, rows]) => `<div class="pf-sec">
+      <div class="pf-sec-t"><i class="fa-solid fa-${ic}"></i>${esc(title)}</div>
+      ${rows.map(r => `<div class="pf-r"><span class="pf-r-k">${esc(r[0])}</span><span class="pf-r-v">${esc(r[1] || '—')}</span></div>`).join('')}
+    </div>`).join('');
   $('upAddr').value = p.address || ''; $('upEmail').value = p.email || '';
   renderReportingInfo();
 }
@@ -2390,10 +2518,27 @@ async function renderReportingInfo(){
     ['Expense Claim', 'Accounts'],
     ['Salary / CTC', 'CEO']
   ];
+  // Agar ye khud manager hai to apni team ka size bhi dikha do (Team tab par poori list hai)
+  let teamHtml = '';
+  try{
+    const { data: tr } = await sb.rpc('ess_team_tree', { p_code: String(CODE||'').toUpperCase(), p_phone: PHONE });
+    if(tr && !tr.error && Number(tr.direct_count) > 0){
+      const dc = Number(tr.direct_count), tc = Number(tr.total_count);
+      teamHtml = `<div class="pf-r"><span class="pf-r-k">Meri Team</span><span class="pf-r-v">`
+        + `${dc} seedha report${dc > 1 ? ' karte hain' : ' karta hai'}`
+        + (tc > dc ? ` <span class="chip chip-gray" style="font-size:9.5px">kul ${tc} under</span>` : '')
+        + `</span></div>`;
+    }
+  }catch(e){}
   box.innerHTML =
-    `<div class="row" style="align-items:flex-start"><span class="k">Reporting Manager</span><span style="text-align:right">${mgrHtml}</span></div>
-     <div class="text-[11px] mt-3 mb-1" style="color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Kaun si request kaun approve karega</div>` +
-    approves.map(a => `<div class="row"><span class="k">${esc(a[0])}</span><span style="text-align:right;font-weight:600">${esc(a[1])}</span></div>`).join('');
+    `<div class="pf-sec">
+       <div class="pf-r" style="align-items:flex-start"><span class="pf-r-k">Reporting Manager</span><span class="pf-r-v">${mgrHtml}</span></div>
+       ${teamHtml}
+     </div>
+     <div class="pf-sec">
+       <div class="pf-sec-t"><i class="fa-solid fa-circle-check"></i>Kaun si request kaun approve karega</div>`
+    + approves.map(a => `<div class="pf-r"><span class="pf-r-k">${esc(a[0])}</span><span class="pf-r-v">${esc(a[1])}</span></div>`).join('')
+    + '</div>';
 }
 /* ---------- Attendance calendar ---------- */
 let CAL_YM = new Date().toISOString().slice(0,7);
