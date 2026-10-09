@@ -1,0 +1,4 @@
+# Nexus ke generated report / export (Excel, CSV, PDF) — ye repo GitHub Pages par
+# PUBLIC hai, aur in files me employee ke naam, mobile/SIM number, device serial
+# jaisi personal detail hoti hai. Isliye ye kabhi commit nahi hone chahiye.
+out/
