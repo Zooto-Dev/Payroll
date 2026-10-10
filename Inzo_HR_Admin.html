@@ -4337,6 +4337,10 @@ async function openEmpModal(code){
     && String(x.Status).toUpperCase() === 'ACTIVE' && x['Employee code'] !== code)
     .map(x => `<option value="${esc(x.Name)} (${esc(x['Employee code'])})">${esc(x.DESIGNATION || '')}</option>`).join('');
   $('epAddr').value = p.address || '';
+  // Skill pehle set karo — buildSalaryInputs ke andar category wali salary isi skill se banti hai.
+  // (Pehle ye neeche set hota tha, to doosri profile kholne par PICHHLE bande ka skill lag jaata
+  //  tha: salary galat minimum-wage rate se bhar jaati thi aur approval bhi reset ho jaata tha.)
+  $('epSkill').value = (p.salary && p.salary.skill) || '';
   buildSalaryInputs(code);
   const showSal = canSeeConfidential();
   if($('epSalarySection')) $('epSalarySection').classList.toggle('hidden', !showSal);
@@ -4356,7 +4360,6 @@ async function openEmpModal(code){
   $('epCatSel').value = (p.category === 'WORKER') ? 'WORKER' : 'STAFF';
   $('epContractor').value = p.contractor_name || ''; $('epContractorPh').value = p.contractor_phone || '';
   epContractorToggle();
-  $('epSkill').value = (p.salary && p.salary.skill) || '';
   renderLines(); $('epLine').value = e.LINE || '';
   $('epManager').value = p.reporting_manager || '';
   $('epEmName').value = p.emergency_name || ''; $('epEmPhone').value = p.emergency_phone || '';
@@ -4369,6 +4372,9 @@ async function openEmpModal(code){
   if($('epNomRel')) $('epNomRel').value = p.nominee_relation || '';
   loadDocs(code);
   updateGrossPreview();
+  // Modal khulte waqt ki salary ka snapshot — Save par isi se compare hoga. Admin ne salary
+  // ko haath hi nahi lagaya to salary aur uski approval DB me chhedi hi nahi jayegi.
+  window._epSalSnap = nxCanonSal(epFormSalary());
   $('empModal').classList.add('show');
 }
 // standard split: Basic 50%, HRA 25%, remainder in Special Allowance (Code on Wages compliant)
@@ -4965,6 +4971,23 @@ function setWageTypeUI(){
   document.querySelectorAll('#epSalWrap .sal-part').forEach(i => { i.readOnly = cat; i.style.background = cat ? '#faf8f4' : ''; });
   if(cat) applyCategorySalary();
 }
+// Salary compare ka ek hi tarika — key ka order, number ka type aur zero se farak na pade.
+function nxCanonSal(sal){
+  sal = sal || {};
+  const clean = o => { const out = {};
+    Object.keys(o || {}).sort().forEach(k => { const n = Number((o || {})[k]) || 0; if(n !== 0) out[k] = n; });
+    return out; };
+  return JSON.stringify({ earn: clean(sal.earn), ded: clean(sal.ded),
+    wageType: String(sal.wageType || ''), skill: String(sal.skill || ''), otAllowed: !!sal.otAllowed });
+}
+// Profile form me is waqt jo salary dikh rahi hai
+function epFormSalary(){
+  const earn = {}, ded = {};
+  document.querySelectorAll('#epSalWrap [data-comp]').forEach(i => { earn[i.dataset.comp] = Number(i.value)||0; });
+  document.querySelectorAll('#epDedWrap [data-dcomp]').forEach(i => { ded[i.dataset.dcomp] = Number(i.value)||0; });
+  return { earn, ded, wageType: (($('epWageType')||{}).value) || '',
+    skill: (($('epSkill')||{}).value) || '', otAllowed: !!(($('epOT')||{}).checked) };
+}
 function buildSalaryInputs(code){
   const S = getSettings();
   let sal = empSalary(code); const ded = empDeductions(code);
@@ -4978,6 +5001,7 @@ function buildSalaryInputs(code){
   $('epSalWrap').innerHTML = S.earnComps.map(c =>
     `<div><label class="lbl">${esc(c.name)}${c.pf ? ' <i class="fa-solid fa-shield-halved" title="PF wages" style="color:var(--brand)"></i>' : ''}</label>
      <input type="number" class="inp sal-part" data-comp="${esc(c.k)}" value="${sal[c.k]||0}"></div>`).join('');
+  window._epSalAutoFromCtc = _autoFromCtc;   // auto-bhari salary ko save par likhna hai
   if(_autoFromCtc){
     const hint = document.getElementById('epSalCtcHint');
     const msg = `<i class="fa-solid fa-wand-magic-sparkles" style="color:var(--brand)"></i> CTC Calculator ke Annual CTC ₹${_ctcA.toLocaleString('en-IN')} se salary breakup auto-bhara gaya hai — <b>Save</b> karke pakka karein (zaroorat ho to CEO approval jayega).`;
@@ -5172,16 +5196,13 @@ $('epSaveBtn').addEventListener('click', async () => {
   }
   btn.innerHTML = '<div class="loader-ring"></div> Saving…'; btn.disabled = true;
   try{
-    const earn = {}, ded = {};
-    document.querySelectorAll('#epSalWrap [data-comp]').forEach(i => { earn[i.dataset.comp] = Number(i.value)||0; });
-    document.querySelectorAll('#epDedWrap [data-dcomp]').forEach(i => { ded[i.dataset.dcomp] = Number(i.value)||0; });
+    const _formSal = epFormSalary();
+    const earn = _formSal.earn, ded = _formSal.ded;
+    // salary / basic / hra / conveyance / special_allowance neeche SIRF zaroorat par jurte hain
     const row = {
       employee_code: $('epCode').value,
       phone: $('epPhone').value, email: $('epEmail').value, father_name: $('epFather').value,
       dob: $('epDOB').value || null, address: $('epAddr').value,
-      salary: { earn, ded, wageType: $('epWageType').value, skill: $('epSkill').value, otAllowed: $('epOT').checked, payMode: 'bank', pendingArrear: Number(((PROFILES[$('epCode').value]||{}).salary||{}).pendingArrear)||0 },
-      basic: Number(earn.basic)||0, hra: Number(earn.hra)||0,
-      conveyance: Number(earn.conveyance)||0, special_allowance: Number(earn.special_allowance)||0,
       pf_applicable: $('epPF').checked, esi_applicable: $('epESI').checked, pt_applicable: $('epPT').checked,
       lwf_applicable: $('epLWF').checked,
       tax_regime: $('epRegime').value, tax_declarations: Number($('epDecl').value)||0,
@@ -5204,34 +5225,31 @@ $('epSaveBtn').addEventListener('click', async () => {
       exit_date: $('epExitDate').value || null, exit_reason: $('epExitReason').value || null,
       ess_attendance: $('epEssAtt').checked
     };
-    // Salary approval sirf TAB reset ho jab salary sach me badli ho.
-    // Warna (naam/phone/shift/status/inactive edit par) purani approval bani rahegi.
-    const _prevSal = (PROFILES[$('epCode').value] || {}).salary || {};
-    // ORDER-INDEPENDENT + TYPE-INDEPENDENT salary compare.
-    // (DB me earn/ded keys ka order aur numbers ka type alag ho sakta hai — string "18000" vs 18000,
-    //  {hra,basic} vs {basic,hra} — plain JSON.stringify galat "changed" deta tha, isliye har profile
-    //  edit CEO approval me chala jaata tha. Ab keys sort + Number coerce + zero-drop karke compare.)
-    const _canonSal = s => {
-      s = s || {};
-      const clean = o => {
-        const out = {};
-        Object.keys(o || {}).sort().forEach(k => { const n = Number((o || {})[k]) || 0; if(n !== 0) out[k] = n; });
-        return out;
-      };
-      return JSON.stringify({
-        earn: clean(s.earn), ded: clean(s.ded),
-        wageType: String(s.wageType || ''), skill: String(s.skill || ''), otAllowed: !!s.otAllowed
-      });
-    };
-    const _salaryChanged = _canonSal(row.salary) !== _canonSal(_prevSal);
+    // ===== SALARY KO CHHEDO HI NAHI JAB TAK ADMIN NE KHUD NA BADLI HO =====
+    // Pehle har Save par salary form se dobara likhi jaati thi, aur zara se farak par approval
+    // PENDING chala jaata tha — isliye phone / address / shift / section jaisa koi bhi edit
+    // karne par salary approval me chali jaati thi. Ab modal khulte waqt liye gaye snapshot
+    // (_epSalSnap) se compare hota hai: farak nahi mila to salary ke columns bheje hi nahi jaate,
+    // yaani DB me salary aur uski approval jaisi hai waisi hi rehti hai.
+    const _prevSal      = (PROFILES[$('epCode').value] || {}).salary || {};
     const _isNewProfile = !PROFILES[$('epCode').value];
-    if(_salaryChanged || _isNewProfile){
-      row.salary_status = isCEO() ? 'APPROVED' : 'PENDING';
-      row.salary_submitted_by = ME_EMAIL; row.salary_submitted_at = new Date().toISOString();
-      row.salary_approved_by = isCEO() ? ME_EMAIL : null;
-      row.salary_approved_at = isCEO() ? new Date().toISOString() : null;
+    const _userTouched  = nxCanonSal(_formSal) !== String(window._epSalSnap || '');
+    const _writeSalary  = _isNewProfile || _userTouched || !!window._epSalAutoFromCtc;
+    let _salaryChanged = false;
+    if(_writeSalary){
+      row.salary = { earn, ded, wageType: _formSal.wageType, skill: _formSal.skill,
+        otAllowed: _formSal.otAllowed, payMode: 'bank',
+        pendingArrear: Number((_prevSal || {}).pendingArrear) || 0 };
+      row.basic = Number(earn.basic)||0; row.hra = Number(earn.hra)||0;
+      row.conveyance = Number(earn.conveyance)||0; row.special_allowance = Number(earn.special_allowance)||0;
+      _salaryChanged = nxCanonSal(row.salary) !== nxCanonSal(_prevSal);
+      if(_salaryChanged || _isNewProfile){
+        row.salary_status = isCEO() ? 'APPROVED' : 'PENDING';
+        row.salary_submitted_by = ME_EMAIL; row.salary_submitted_at = new Date().toISOString();
+        row.salary_approved_by = isCEO() ? ME_EMAIL : null;
+        row.salary_approved_at = isCEO() ? new Date().toISOString() : null;
+      }
     }
-    // (salary same -> salary_status/approval columns row me nahi -> DB me jaisa hai waisa hi rahega)
     const { error } = await sb.from('hr_profiles').upsert(row, { onConflict: 'employee_code' });
     if(error) throw error;
     // if an exit date is set, force status INACTIVE
@@ -5285,7 +5303,9 @@ $('epSaveBtn').addEventListener('click', async () => {
       await loadCore();
       openEmpModal(_nc);   // ab edit-mode me khula rahe (Face/Docs tabs kaam karein)
     } else {
-      notify('Profile saved', 'success');
+      notify(_salaryChanged && !isCEO()
+        ? 'Profile saved — salary badli hai, isliye CEO approval ke liye gayi hai'
+        : 'Profile saved', 'success');
       $('empModal').classList.remove('show');
     }
   }catch(err){ notify(err.message, 'error'); }
