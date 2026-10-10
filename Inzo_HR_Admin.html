@@ -1650,7 +1650,7 @@ body.no-confidential .confidential-col{display:none!important}
         <input id="unitAddr" class="inp" style="flex:1;min-width:220px" placeholder="Unit address (prints on that unit's payslips)">
         <button id="unitAddBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-plus"></i></button>
       </div>
-      <h3 class="display font-bold mt-6 mb-3">Production Lines <span class="text-[10px] font-normal" style="color:var(--muted)">manpower capacity per line — enforced at the attendance device</span></h3>
+      <h3 class="display font-bold mt-6 mb-3">Section / Line Capacity <span class="text-[10px] font-normal" style="color:var(--muted)">Section hi line hai. Jis section ki capacity yahan set hai, kiosk us section ke utne hi logon ka IN punch leta hai — jiski capacity set nahi, us par koi limit nahi.</span></h3>
       <div id="plList" class="space-y-1 mb-2"></div>
       <div class="flex gap-2 mb-4 flex-wrap">
         <input id="plName" class="inp" list="plNameDL" style="flex:1;min-width:160px" placeholder="Line name — pick a department">
@@ -1786,10 +1786,10 @@ body.no-confidential .confidential-col{display:none!important}
       </div></div>
       <div><label class="lbl">Skill Category (min wage)</label>
         <select id="epSkill" class="inp"><option value="">Not applicable</option><option value="mw1">Unskilled</option><option value="mw2">Semi-Skilled</option><option value="mw3">Skilled</option><option value="mw4">Highly Skilled</option></select></div>
-      <div id="epLineWrap"><label class="lbl">Production Line</label><select id="epLine" class="inp"></select></div>
+      <div id="epLineWrap" class="hidden"><label class="lbl">Production Line</label><select id="epLine" class="inp"></select></div>
       <div><label class="lbl">Reporting Manager</label><input id="epManager" class="inp" list="mgrDL"></div>
       <datalist id="mgrDL"></datalist>
-      <div><label class="lbl">Section</label><select id="epSection" class="inp"></select></div>
+      <div><label class="lbl">Section / Production Line</label><select id="epSection" class="inp" onchange="epSectionCapHint()"></select><span id="epSecCap" class="text-[10px] block mt-1" style="color:var(--muted)"></span></div>
       <div><label class="lbl">Emergency Contact</label><input id="epEmName" class="inp" placeholder="Name"></div>
       <div><label class="lbl">Emergency Phone</label><input id="epEmPhone" class="inp"></div>
       <div><label class="lbl">Emergency Relation</label><input id="epEmRel" class="inp" placeholder="Father / Spouse…"></div>
@@ -1952,7 +1952,7 @@ body.no-confidential .confidential-col{display:none!important}
         <div><label class="lbl">Contractor Name</label><input id="aeContractor" class="inp"></div>
         <div><label class="lbl">Contractor Phone</label><input id="aeContractorPh" class="inp"></div>
       </div></div>
-      <div id="aeLineWrap"><label class="lbl">Production Line</label><select id="aeLine" class="inp"></select></div>
+      <div id="aeLineWrap"><label class="lbl">Section / Production Line</label><select id="aeLine" class="inp"></select><span class="text-[10px] block mt-1" style="color:var(--muted)">Section hi line hai — kiosk ki manpower capacity isi par lagti hai</span></div>
       <div><label class="lbl">Reporting Manager</label><input id="aeMgr" class="inp" list="mgrDL" placeholder="Select after department"></div>
     </div>
 
@@ -4029,8 +4029,7 @@ function updateAePreview(){
   const mgmt = $('aeCat').value === 'mgmt';
   $('aeSkillWrap').classList.toggle('hidden', mgmt);
   $('aeCTCWrap').classList.toggle('hidden', !mgmt);
-  $('aeLineWrap').classList.toggle('hidden', mgmt);
-  if(mgmt) $('aeLine').value = '';
+  // Section sabka hota hai (STORE, QUALITY, ADMIN bhi) — management par bhi chhipta nahi
   const S = getSettings();
   if(mgmt){
     const ctc = Number($('aeCTC').value) || 0;
@@ -4186,7 +4185,7 @@ $('aeSaveBtn').addEventListener('click', async () => {
       Name: name, 'Employee code': code, Status: 'Active',
       DEPARTMENT: String($('aeDept').value||'').trim().toUpperCase() || null, DESIGNATION: String($('aeDesig').value||'').trim().toUpperCase() || null, DOJ: $('aeDOJ').value,
       UNIT: ($('aeUnit') && $('aeUnit').value) || null,
-      LINE: ($('aeCat').value === 'mgmt') ? null : (String($('aeLine').value||'').trim().toUpperCase() || null)
+      LINE: (String($('aeLine').value||'').trim().toUpperCase() || null)
     }]);
     if(error) throw error;
     // salary from category (worker = min wage level, management = CTC)
@@ -4212,6 +4211,7 @@ $('aeSaveBtn').addEventListener('click', async () => {
       gender: $('aeGender').value || null,
       address: $('aeAddress').value.trim() || null,
       emergency_phone: ($('aeEmergency').value||'').replace(/\D/g,'') || null,
+      section: String(($('aeLine')||{}).value || '').trim().toUpperCase() || null,   // section = line
       employment_type: $('aeEmpType').value || null,
       roll_type: $('aeRoll').value || null,
       contractor_name: ($('aeEmpType').value === 'Contract' ? ($('aeContractor').value.trim() || null) : null),
@@ -4256,7 +4256,7 @@ $('aeSaveBtn').addEventListener('click', async () => {
         DEPARTMENT: String($('aeDept').value||'').trim().toUpperCase(),
         DESIGNATION: String($('aeDesig').value||'').trim().toUpperCase(),
         DOJ: $('aeDOJ').value, UNIT: ($('aeUnit')&&$('aeUnit').value)||'',
-        LINE: ($('aeCat').value==='mgmt') ? '' : String($('aeLine').value||'').trim().toUpperCase() });
+        LINE: String($('aeLine').value||'').trim().toUpperCase() });
     }
     PROFILES[code] = Object.assign(PROFILES[code] || {}, prof);   // profile data bhi retain
     openEmpModal(code);
@@ -4363,7 +4363,7 @@ async function openEmpModal(code){
   if($('epMarital')) $('epMarital').value = p.marital_status || '';
   if($('epAadhaar')) $('epAadhaar').value = p.aadhaar || '';
   if($('epIdNo')) $('epIdNo').value = p.id_number || '';
-  if($('epSection')){ if(window.nxSectionOpts) $('epSection').innerHTML = window.nxSectionOpts(p.section || ''); $('epSection').value = String(p.section || '').trim().toUpperCase(); }
+  if($('epSection')){ if(window.nxSectionOpts) $('epSection').innerHTML = window.nxSectionOpts(p.section || ''); $('epSection').value = String(p.section || '').trim().toUpperCase(); try{ epSectionCapHint(); }catch(e){} }
   if($('epEmRel')) $('epEmRel').value = p.emergency_relation || '';
   if($('epNomName')) $('epNomName').value = p.nominee_name || '';
   if($('epNomRel')) $('epNomRel').value = p.nominee_relation || '';
@@ -4945,17 +4945,23 @@ function applyCategorySalary(){
   $('epCatInfo').innerHTML = `<i class="fa-solid fa-lock" style="color:var(--brand)"></i> <b>${SKILL_NAMES[skill]}</b> — ₹${rate.toLocaleString('en-IN')}/month (Haryana minimum wage, from Settings). When rates revise, use <b>Settings → Apply Rates to All Category Workers</b> — no per-employee editing needed.`;
   updateGrossPreview();
 }
+function epSectionCapHint(){
+  const el = $('epSecCap'); if(!el) return;
+  const s = String((($('epSection')||{}).value) || '').trim().toUpperCase();
+  if(!s){ el.textContent = ''; return; }
+  const l = (typeof LINES !== 'undefined' ? LINES : []).find(x => String(x.name).trim().toUpperCase() === s);
+  if(!l){ el.textContent = 'Is section ki manpower capacity set nahi hai — punch par koi limit nahi.'; return; }
+  const filled = EMP.filter(e => String(e.Status).toUpperCase() === 'ACTIVE' &&
+    String(((PROFILES[e['Employee code']]||{}).section) || e.LINE || '').trim().toUpperCase() === s).length;
+  el.textContent = 'Capacity ' + l.capacity + ' · is section me ' + filled + ' active log'
+    + (filled > l.capacity ? ' — capacity se jyada hai, kiosk punch rokega' : '');
+}
 function setWageTypeUI(){
   const cat = $('epWageType').value === 'category';
   $('epCTCWrap').classList.toggle('hidden', cat);
   $('epCatInfo').classList.toggle('hidden', !cat);
-  const lineSel = $('epLine');
-  if(lineSel && lineSel.parentElement){
-    lineSel.parentElement.classList.toggle('hidden', !cat);
-    if(!cat) lineSel.value = '';
-  }
-  $('epLineWrap').classList.toggle('hidden', !cat); // management/CTC = no production line
-  if(!cat) $('epLine').value = '';
+  // Production Line ka alag field nahi rakha — Section hi line hai
+  if($('epLineWrap')) $('epLineWrap').classList.add('hidden');
   document.querySelectorAll('#epSalWrap .sal-part').forEach(i => { i.readOnly = cat; i.style.background = cat ? '#faf8f4' : ''; });
   if(cat) applyCategorySalary();
 }
@@ -5152,14 +5158,14 @@ $('epSaveBtn').addEventListener('click', async () => {
         DEPARTMENT: String($('epDeptSel').value||'').trim().toUpperCase() || null,
         DESIGNATION: String($('epDesigSel').value||'').trim().toUpperCase() || null,
         DOJ: $('epDOJ').value || null, UNIT: unit0 || null,
-        LINE: (($('epCatSel').value === 'WORKER') ? (String($('epLine').value||'').trim().toUpperCase() || null) : null)
+        LINE: (String((($('epSection')||{}).value) || '').trim().toUpperCase() || null)
       }]);
       if(eIns) throw eIns;
       EMP.push({ 'Employee code': code0, Name: name0, Status: 'Active',
         DEPARTMENT: String($('epDeptSel').value||'').trim().toUpperCase(),
         DESIGNATION: String($('epDesigSel').value||'').trim().toUpperCase(),
         DOJ: $('epDOJ').value, UNIT: unit0,
-        LINE: ($('epCatSel').value === 'WORKER') ? String($('epLine').value||'').trim().toUpperCase() : '' });
+        LINE: String((($('epSection')||{}).value) || '').trim().toUpperCase() });
     }catch(err){ btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Profile'; btn.disabled = false; return notify('Add fail: ' + (err.message||err), 'error'); }
     // ab ye normal edit ban gaya — neeche ka upsert/update chalega
     window._epNewMode = false;
@@ -5265,7 +5271,8 @@ $('epSaveBtn').addEventListener('click', async () => {
     if(empRow) Object.assign(empRow, empUpd);
     // merge (replace nahi) -> salary same hone par purani salary_status/approval local me bani rahe
     PROFILES[row.employee_code] = Object.assign({}, PROFILES[row.employee_code] || {}, row);
-    const newLine = ($('epWageType').value === 'custom') ? null : ($('epLine').value || null);
+    // Section hi line hai — kiosk ki capacity employees.LINE par chalti hai, to use section se bharo
+    const newLine = String((($('epSection')||{}).value) || '').trim().toUpperCase() || null;
     const empRec = EMP.find(x => x['Employee code'] === row.employee_code);
     if(empRec && (empRec.LINE || null) !== newLine){
       await sb.from('employees').update({ LINE: newLine }).eq('"Employee code"', row.employee_code);
@@ -10042,6 +10049,7 @@ function populateDLs(){
       sections.map(d => `<option value="${esc(d)}" ${u === d ? 'selected' : ''}>${esc(d)}</option>`).join('') +
       (u && !sections.includes(u) ? `<option value="${esc(u)}" selected>${esc(u)}</option>` : ''); };
   window.nxSectionOpts = sectionOpts;
+  window.nxSections = sections;   // Section = Line — line capacity card bhi isi list se naam uthata hai
   const desigOpts = sel => '<option value="">— Select Designation —</option>' + desigs.map(d => `<option value="${esc(d)}" ${sel === d ? 'selected' : ''}>${esc(d)}</option>`).join('') + (sel && !desigs.includes(sel) ? `<option value="${esc(sel)}" selected>${esc(sel)}</option>` : '');
   if($('aeDept')) $('aeDept').innerHTML = deptOpts('');
   if($('aeDesig')) $('aeDesig').innerHTML = desigOpts('');
@@ -10114,9 +10122,15 @@ $('mwApplyBtn').addEventListener('click', async () => {
 function renderLines(){
   const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
   $('plList').innerHTML = LINES.length ? LINES.map(l => {
-    const assigned = EMP.filter(e => String(e.LINE||'').trim().toLowerCase() === String(l.name).trim().toLowerCase() && String(e.Status).toUpperCase() === 'ACTIVE').length;
+    const _ln = String(l.name).trim().toUpperCase();
+    // Section hi line hai — ginti section se (aur jahan purana LINE set hai wahan us se bhi)
+    const assigned = EMP.filter(e => String(e.Status).toUpperCase() === 'ACTIVE' &&
+      (String(((PROFILES[e['Employee code']]||{}).section) || '').trim().toUpperCase() === _ln ||
+       String(e.LINE || '').trim().toUpperCase() === _ln)).length;
+    const over = assigned - Number(l.capacity || 0);
     return `<div class="flex items-center justify-between p-2 rounded-lg text-sm flex-wrap gap-1" style="background:#faf8f4">
       <span><b>${esc(l.name)}</b> <span class="chip chip-blue">Capacity ${l.capacity}</span> <span class="chip chip-gray">${assigned} assigned</span>
+        ${over > 0 ? `<span class="chip chip-bad" title="Kiosk is section ke sirf ${l.capacity} logon ka IN punch lega">${over} jyada — punch rukega</span>` : ''}
         ${l.supervisor_code ? `<span class="chip chip-ok"><i class="fa-solid fa-user-tie"></i> ${esc(nameOf(l.supervisor_code))}</span>` : '<span class="chip chip-warn">No supervisor</span>'}</span>
       <span>
         <select class="inp" style="width:auto;padding:4px 8px;font-size:11px;display:inline-block" data-act="pl-sup" data-id="${l.id}">
@@ -10129,12 +10143,19 @@ function renderLines(){
   }).join('') : '<p class="text-xs m-0" style="color:var(--muted)">No production lines defined.</p>';
   const sups = activeEmps().filter(e => String(e.DESIGNATION||'').toUpperCase().includes('SUPERVISOR'));
   $('plSup').innerHTML = '<option value="">— Supervisor —</option>' + (sups.length ? sups : activeEmps()).map(e => `<option value="${esc(e['Employee code'])}">${esc(e.Name)}${sups.length?'':' ('+esc(e.DESIGNATION||'')+')'}</option>`).join('');
-  // line names come from the department list — no manual guessing
+  // Line ka naam Section list se aata hai (section = line) — department se nahi
   const _dSet = new Set();
-  (getSettings().depts || []).forEach(d => _dSet.add(String(d).trim()));
-  EMP.forEach(e => { if(e.DEPARTMENT) _dSet.add(String(e.DEPARTMENT).trim()); });
+  (getSettings().sections || []).forEach(d => _dSet.add(String(d).trim().toUpperCase()));
+  Object.keys(PROFILES || {}).forEach(c => { const v = (PROFILES[c] || {}).section; if(v) _dSet.add(String(v).trim().toUpperCase()); });
   $('plNameDL').innerHTML = Array.from(_dSet).sort().map(d => `<option value="${esc(d)}">`).join('');
-  const opts = '<option value="">— No line —</option>' + LINES.map(l => `<option value="${esc(l.name)}">${esc(l.name)} (cap ${l.capacity})</option>`).join('');
+  // Employee form ke dono dropdown me Section list — jiski capacity set hai wahan wo bhi dikhe
+  const _capOf = {}; LINES.forEach(l => { _capOf[String(l.name).trim().toUpperCase()] = l.capacity; });
+  const _secs = (window.nxSections && window.nxSections.length) ? window.nxSections
+              : Array.from(_dSet).sort();
+  const opts = '<option value="">— Koi section nahi —</option>' + _secs.map(sn => {
+    const c = _capOf[String(sn).trim().toUpperCase()];
+    return `<option value="${esc(sn)}">${esc(sn)}${c ? ' (cap ' + c + ')' : ''}</option>`;
+  }).join('');
   if($('epLine')) $('epLine').innerHTML = opts;
   if($('aeLine')) $('aeLine').innerHTML = opts;
 }
