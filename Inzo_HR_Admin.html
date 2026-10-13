@@ -499,10 +499,21 @@ body.no-confidential .confidential-col{display:none!important}
 
   <div class="grid lg:grid-cols-2 gap-4 mt-4">
     <div class="card">
-      <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+        <h3 class="display font-bold m-0"><i class="fa-solid fa-ban" style="color:var(--bad)"></i> Punch Ruke — Manpower Full</h3>
+        <div class="flex items-center gap-2">
+          <input type="date" id="blkDate" class="inp" style="width:auto;padding:4px 8px;font-size:11px">
+          <button id="blkRefreshBtn" class="btn btn-ghost btn-sm" title="Refresh"><i class="fa-solid fa-rotate"></i></button>
+        </div>
+      </div>
+      <div id="blkList" class="space-y-2 text-sm" style="max-height:340px;overflow-y:auto"><p style="color:var(--muted)">Loading…</p></div>
+    </div>
+    <div class="card">
+      <div class="flex items-center justify-between mb-2">
         <h3 class="display font-bold m-0">Today's Punches</h3>
         <span class="chip chip-blue" id="dToday">—</span>
       </div>
+      <input id="dPunchSearch" class="inp mb-2" style="font-size:12px" placeholder="Naam, code, department ya section se dhoondho…">
       <div id="dPunchList" class="space-y-2 text-sm" style="max-height:340px;overflow-y:auto"><p style="color:var(--muted)">Loading…</p></div>
     </div>
     <div class="card">
@@ -3215,6 +3226,7 @@ async function enterApp(){
   if(isSuper()){ const b = document.getElementById('navAdminCtl'); if(b) b.classList.remove('hidden'); }
   applyConfidential();
   loadDashboard();
+  loadBlockedPunches();
   loadApprovals();
   nxHideSplash();
 }
@@ -3376,7 +3388,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('show'));
     $('page-' + page).classList.add('show');
     $('pageTitle').innerText = TITLES[page];
-    if(page === 'dashboard') loadDashboard();
+    if(page === 'dashboard'){ loadDashboard(); loadBlockedPunches(); }
     if(page === 'misspunch') mpInit();
     if(page === 'visitors') vrInit();
     if(page === 'mis') loadMis();
@@ -3962,19 +3974,8 @@ async function loadDashboard(){
     // ===== CHARTS =====
     buildDashCharts(rows, total, late, monthRes.data || [], slips);
 
-    $('dPunchList').innerHTML = rows.length ? rows.map(r => {
-      const isLate = isRowLate(r);
-      return `<div class="flex items-center justify-between p-2 rounded-lg" style="background:#faf8f4">
-        <div class="flex items-center gap-2">
-          ${r.in_photo_url ? `<button class="wh-thumb" data-full="${esc(r.in_photo_url)}" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:13px" title="Photo dekho">📷</button>` : '<div class="w-8 h-8 rounded-full" style="background:var(--line)"></div>'}
-          <div><div class="font-semibold text-xs">${esc(r.Name)}</div><div class="text-[10px]" style="color:var(--muted)">${esc(r.employee_code)}${(() => { const e = EMP.find(x => x['Employee code'] === r.employee_code); return e && e.DEPARTMENT ? ' • ' + esc(e.DEPARTMENT) : ''; })()}</div></div>
-        </div>
-        <div class="text-right text-[11px]">
-          <span class="${isLate ? 'chip chip-warn' : 'chip chip-ok'}">IN ${esc((r.in_time||'').substring(0,5))}</span>
-          ${r.out_time ? `<span class="chip chip-gray ml-1">OUT ${esc(r.out_time.substring(0,5))}</span>` : ''}
-        </div>
-      </div>`;
-    }).join('') : '<p style="color:var(--muted)">No punches recorded today.</p>';
+    window._dPunchRows = rows;
+    renderDPunchList();
 
     const lateMap = {};
     (monthRes.data || []).forEach(r => {
@@ -3991,6 +3992,88 @@ async function loadDashboard(){
       </div>`).join('') : '<p style="color:var(--muted)">No late arrivals this month. 👏</p>';
   }catch(err){ console.error(err); }
 }
+
+/* ---------------- Dashboard: Today's Punches search ---------------- */
+function renderDPunchList(){
+  const host = $('dPunchList'); if(!host) return;
+  const rows = window._dPunchRows || [];
+  const q = String((($('dPunchSearch')||{}).value) || '').trim().toLowerCase();
+  const hit = r => {
+    if(!q) return true;
+    const e = EMP.find(x => x['Employee code'] === r.employee_code) || {};
+    const p = (PROFILES[r.employee_code] || {});
+    return [r.Name, r.employee_code, e.DEPARTMENT, e.DESIGNATION, p.section]
+      .some(v => String(v || '').toLowerCase().includes(q));
+  };
+  const list = rows.filter(hit);
+  if(!rows.length){ host.innerHTML = '<p style="color:var(--muted)">No punches recorded today.</p>'; return; }
+  if(!list.length){ host.innerHTML = `<p style="color:var(--muted)">"${esc(q)}" se koi punch nahi mila (aaj ${rows.length} punch hue hain).</p>`; return; }
+  host.innerHTML = (q ? `<p class="text-[11px] mb-1" style="color:var(--muted)">${list.length} / ${rows.length} dikha rahe hain</p>` : '')
+    + list.map(r => {
+    const isLate = isRowLate(r);
+    const e = EMP.find(x => x['Employee code'] === r.employee_code);
+    return `<div class="flex items-center justify-between p-2 rounded-lg" style="background:#faf8f4">
+      <div class="flex items-center gap-2">
+        ${r.in_photo_url ? `<button class="wh-thumb" data-full="${esc(r.in_photo_url)}" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:13px" title="Photo dekho">📷</button>` : '<div class="w-8 h-8 rounded-full" style="background:var(--line)"></div>'}
+        <div><div class="font-semibold text-xs">${esc(r.Name)}</div><div class="text-[10px]" style="color:var(--muted)">${esc(r.employee_code)}${e && e.DEPARTMENT ? ' • ' + esc(e.DEPARTMENT) : ''}</div></div>
+      </div>
+      <div class="text-right text-[11px]">
+        <span class="${isLate ? 'chip chip-warn' : 'chip chip-ok'}">IN ${esc((r.in_time||'').substring(0,5))}</span>
+        ${r.out_time ? `<span class="chip chip-gray ml-1">OUT ${esc(r.out_time.substring(0,5))}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+if($('dPunchSearch')) $('dPunchSearch').addEventListener('input', renderDPunchList);
+
+/* ---------------- Dashboard: manpower-full se ruke punch ---------------- */
+// Kiosk jab capacity full hone par punch rokta hai to deployment_logs me ek row daalta hai —
+// par wo attendance NAHI hai. Ye card batata hai kiske punch ruke aur unme se kiski
+// attendance ab tak nahi bani (wo log absent count honge).
+async function loadBlockedPunches(){
+  const host = $('blkList'); if(!host) return;
+  if($('blkDate') && !$('blkDate').value) $('blkDate').value = todayISO();
+  const d = (($('blkDate')||{}).value) || todayISO();
+  host.innerHTML = '<p style="color:var(--muted)">Loading…</p>';
+  try{
+    const [logRes, attRes] = await Promise.all([
+      sb.from('deployment_logs').select('employee_code,name,line,time').eq('date', d).eq('status','MANPOWER_FULL'),
+      sb.from('attendance').select('employee_code,in_time').eq('date', d)
+    ]);
+    const att = {};
+    (attRes.data || []).forEach(r => { att[String(r.employee_code||'').toUpperCase()] = r.in_time; });
+    // ek bande ki saari koshishein ek hi row me — warna 100+ rows ban jaate hain
+    const by = {};
+    (logRes.data || []).forEach(g => {
+      const c = String(g.employee_code || '').toUpperCase(); if(!c) return;
+      const t = String(g.time || '').substring(0,5);
+      const o = by[c] || (by[c] = { code:c, name:g.name || c, line:g.line || '—', tries:0, first:t, last:t });
+      o.tries++;
+      if(t){ if(!o.first || t < o.first) o.first = t; if(!o.last || t > o.last) o.last = t; }
+      if(g.line) o.line = g.line;
+    });
+    const rows = Object.values(by).sort((a,b) =>
+      a.line === b.line ? String(a.name).localeCompare(String(b.name)) : String(a.line).localeCompare(String(b.line)));
+    if(!rows.length){ host.innerHTML = '<p style="color:var(--muted)">Is din kisi ka punch nahi ruka ✓</p>'; return; }
+    const pending = rows.filter(r => !att[r.code]).length;
+    host.innerHTML =
+      `<p class="text-[11px] mb-2" style="color:${pending ? 'var(--bad)' : 'var(--muted)'}">${rows.length} logon ka punch ruka`
+      + (pending ? ` — <b>${pending} ki attendance abhi tak nahi bani</b>, ye absent count honge` : ' — sabki attendance ban chuki hai')
+      + `</p>`
+      + rows.map(r => {
+        const inT = att[r.code];
+        return `<div class="flex items-center justify-between p-2 rounded-lg" style="background:${inT ? '#f0fdf4' : '#fef2f2'}">
+          <div>
+            <div class="font-semibold text-xs">${esc(r.name)} <span style="color:var(--muted)">(${esc(r.code)})</span></div>
+            <div class="text-[10px]" style="color:var(--muted)">${esc(r.line)} • ${r.tries} koshish • ${esc(r.first)}${r.last && r.last !== r.first ? ' – ' + esc(r.last) : ''}</div>
+          </div>
+          <span class="chip ${inT ? 'chip-ok' : 'chip-bad'}">${inT ? 'IN ' + esc(String(inT).substring(0,5)) : 'ATTENDANCE NAHI'}</span>
+        </div>`;
+      }).join('');
+  }catch(err){ host.innerHTML = '<p style="color:var(--muted)">Load nahi hui: ' + esc(err.message || err) + '</p>'; }
+}
+if($('blkRefreshBtn')) $('blkRefreshBtn').addEventListener('click', loadBlockedPunches);
+if($('blkDate')) $('blkDate').addEventListener('change', loadBlockedPunches);
 
 /* ---------------- Employees ---------------- */
 function renderEmployees(filter){
