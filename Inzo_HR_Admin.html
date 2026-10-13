@@ -499,29 +499,30 @@ body.no-confidential .confidential-col{display:none!important}
 
   <div class="grid lg:grid-cols-2 gap-4 mt-4">
     <div class="card">
-      <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
-        <h3 class="display font-bold m-0"><i class="fa-solid fa-ban" style="color:var(--bad)"></i> Punch Ruke — Manpower Full</h3>
-        <div class="flex items-center gap-2">
-          <input type="date" id="blkDate" class="inp" style="width:auto;padding:4px 8px;font-size:11px">
-          <button id="blkRefreshBtn" class="btn btn-ghost btn-sm" title="Refresh"><i class="fa-solid fa-rotate"></i></button>
-        </div>
-      </div>
-      <div id="blkList" class="space-y-2 text-sm" style="max-height:340px;overflow-y:auto"><p style="color:var(--muted)">Loading…</p></div>
-    </div>
-    <div class="card">
       <div class="flex items-center justify-between mb-2">
         <h3 class="display font-bold m-0">Today's Punches</h3>
         <span class="chip chip-blue" id="dToday">—</span>
       </div>
       <input id="dPunchSearch" class="inp mb-2" style="font-size:12px" placeholder="Naam, code, department ya section se dhoondho…">
-      <div id="dPunchList" class="space-y-2 text-sm" style="max-height:340px;overflow-y:auto"><p style="color:var(--muted)">Loading…</p></div>
+      <div id="dPunchList" class="space-y-2 text-sm" style="height:340px;overflow-y:auto"><p style="color:var(--muted)">Loading…</p></div>
+    </div>
+    <div class="card">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="display font-bold m-0"><i class="fa-solid fa-user-xmark" style="color:var(--bad)"></i> Excess Manpower</h3>
+        <span class="chip chip-gray" id="blkCount">—</span>
+      </div>
+      <div class="flex items-center gap-2 mb-2">
+        <input type="date" id="blkDate" class="inp" style="font-size:12px">
+        <button id="blkRefreshBtn" class="btn btn-ghost btn-sm" title="Refresh"><i class="fa-solid fa-rotate"></i></button>
+      </div>
+      <div id="blkList" class="space-y-2 text-sm" style="height:340px;overflow-y:auto"><p style="color:var(--muted)">Loading…</p></div>
     </div>
     <div class="card">
       <h3 class="display font-bold m-0 mb-3">Late Leaderboard — This Month</h3>
       <div id="dLateBoard" class="space-y-2 text-sm"><p style="color:var(--muted)">Loading…</p></div>
     </div>
     <div class="card">
-      <h3 class="display font-bold m-0 mb-3"><i class="fa-solid fa-cake-candles" style="color:var(--warn)"></i> Birthdays & Anniversaries — This Month</h3>
+      <h3 class="display font-bold m-0 mb-3"><i class="fa-solid fa-cake-candles" style="color:var(--warn)"></i> Birthdays & Anniversaries — This Month <span class="text-[10px] font-normal" style="color:var(--muted)">(staff)</span></h3>
       <div id="dCelebrate" class="space-y-2 text-sm"><p style="color:var(--muted)">Loading…</p></div>
     </div>
     <div class="card">
@@ -4027,9 +4028,9 @@ function renderDPunchList(){
 if($('dPunchSearch')) $('dPunchSearch').addEventListener('input', renderDPunchList);
 
 /* ---------------- Dashboard: manpower-full se ruke punch ---------------- */
-// Kiosk jab capacity full hone par punch rokta hai to deployment_logs me ek row daalta hai —
-// par wo attendance NAHI hai. Ye card batata hai kiske punch ruke aur unme se kiski
-// attendance ab tak nahi bani (wo log absent count honge).
+// EXCESS MANPOWER = us section me capacity se jyada log aa gaye. Kiosk ne inka punch nahi liya
+// aur deployment_logs me sirf ek log row daali — wo attendance NAHI hai. Ye card batata hai
+// kaun extra aaya aur unme se kiski attendance ab tak nahi bani (wo log absent count honge).
 async function loadBlockedPunches(){
   const host = $('blkList'); if(!host) return;
   if($('blkDate') && !$('blkDate').value) $('blkDate').value = todayISO();
@@ -4054,24 +4055,48 @@ async function loadBlockedPunches(){
     });
     const rows = Object.values(by).sort((a,b) =>
       a.line === b.line ? String(a.name).localeCompare(String(b.name)) : String(a.line).localeCompare(String(b.line)));
-    if(!rows.length){ host.innerHTML = '<p style="color:var(--muted)">Is din kisi ka punch nahi ruka ✓</p>'; return; }
+    if(!rows.length){
+      if($('blkCount')){ $('blkCount').className = 'chip chip-ok'; $('blkCount').innerText = 'Koi nahi'; }
+      host.innerHTML = '<p style="color:var(--muted)">Is din kisi section me extra manpower nahi aaya ✓</p>'; return;
+    }
+    // chehra dikhane ke liye har bande ki aakhri punch photo (sirf chand log hote hain,
+    // isliye yahan thumbnail seedha dikha rahe hain — Today's Punches me click-to-view hi rehne do)
+    const photo = {};
+    try{
+      const { data: ph } = await sb.from('attendance')
+        .select('employee_code,in_photo_url,created_at')
+        .in('employee_code', rows.map(r => r.code))
+        .not('in_photo_url','is',null)
+        .order('created_at', { ascending:false }).limit(300);
+      (ph || []).forEach(x => { const c = String(x.employee_code||'').toUpperCase(); if(!photo[c]) photo[c] = x.in_photo_url; });
+    }catch(e){ /* photo na mile to naam hi sahi */ }
     const pending = rows.filter(r => !att[r.code]).length;
+    if($('blkCount')){
+      $('blkCount').className = 'chip ' + (pending ? 'chip-bad' : 'chip-warn');
+      $('blkCount').innerText = rows.length + ' extra' + (pending ? ' • ' + pending + ' ki attendance nahi' : '');
+    }
     host.innerHTML =
-      `<p class="text-[11px] mb-2" style="color:${pending ? 'var(--bad)' : 'var(--muted)'}">${rows.length} logon ka punch ruka`
-      + (pending ? ` — <b>${pending} ki attendance abhi tak nahi bani</b>, ye absent count honge` : ' — sabki attendance ban chuki hai')
+      `<p class="text-[11px] mb-2" style="color:${pending ? 'var(--bad)' : 'var(--muted)'}">Capacity se jyada log aaye — kiosk ne inka punch nahi liya`
+      + (pending ? `. <b>${pending} ki attendance abhi tak nahi bani</b>, ye absent count honge.` : '. Sabki attendance ban chuki hai.')
       + `</p>`
       + rows.map(r => {
-        const inT = att[r.code];
+        const inT = att[r.code], pu = photo[r.code];
         return `<div class="flex items-center justify-between p-2 rounded-lg" style="background:${inT ? '#f0fdf4' : '#fef2f2'}">
-          <div>
-            <div class="font-semibold text-xs">${esc(r.name)} <span style="color:var(--muted)">(${esc(r.code)})</span></div>
-            <div class="text-[10px]" style="color:var(--muted)">${esc(r.line)} • ${r.tries} koshish • ${esc(r.first)}${r.last && r.last !== r.first ? ' – ' + esc(r.last) : ''}</div>
+          <div class="flex items-center gap-2">
+            ${pu ? `<img class="wh-thumb" data-full="${esc(pu)}" src="${esc(pu)}" alt="" title="Photo bada karo"
+                     style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:1px solid var(--line);cursor:zoom-in">`
+                 : '<div class="w-8 h-8 rounded-full" style="background:var(--line)"></div>'}
+            <div>
+              <div class="font-semibold text-xs">${esc(r.name)} <span style="color:var(--muted)">(${esc(r.code)})</span></div>
+              <div class="text-[10px]" style="color:var(--muted)">${esc(r.line)} • ${r.tries} koshish • ${esc(r.first)}${r.last && r.last !== r.first ? ' – ' + esc(r.last) : ''}</div>
+            </div>
           </div>
           <span class="chip ${inT ? 'chip-ok' : 'chip-bad'}">${inT ? 'IN ' + esc(String(inT).substring(0,5)) : 'ATTENDANCE NAHI'}</span>
         </div>`;
       }).join('');
   }catch(err){ host.innerHTML = '<p style="color:var(--muted)">Load nahi hui: ' + esc(err.message || err) + '</p>'; }
 }
+if($('blkDate')) $('blkDate').value = todayISO();
 if($('blkRefreshBtn')) $('blkRefreshBtn').addEventListener('click', loadBlockedPunches);
 if($('blkDate')) $('blkDate').addEventListener('change', loadBlockedPunches);
 
@@ -11844,12 +11869,15 @@ async function loadReports(){
 async function loadEngagement(){
   const mm = todayISO().slice(5,7);
   const items = [];
-  EMP.forEach(e => {
+  // sirf STAFF, aur sirf jo abhi company me hain (worker + exit ho chuke log yahan nahi aayenge)
+  EMP.filter(e => String(e.Status || '').toUpperCase() === 'ACTIVE'
+                && ((PROFILES[e['Employee code']] || {}).category || 'STAFF') !== 'WORKER')
+     .forEach(e => {
     const p = PROFILES[e['Employee code']] || {};
     if(p.dob && p.dob.slice(5,7) === mm) items.push({ d: p.dob.slice(8,10), txt: `🎂 ${e.Name} — Birthday (${fmtDate(p.dob).slice(0,6)})` });
     if(e.DOJ){ const d = new Date(e.DOJ); if(!isNaN(d) && String(d.getMonth()+1).padStart(2,'0') === mm){ const yrs = new Date().getFullYear() - d.getFullYear(); if(yrs > 0) items.push({ d: String(d.getDate()).padStart(2,'0'), txt: `🏆 ${e.Name} — ${yrs} years completed (Work Anniversary)` }); } }
   });
-  $('dCelebrate').innerHTML = items.length ? items.sort((a,b) => a.d.localeCompare(b.d)).map(i => `<div class="p-2 rounded-lg" style="background:#faf8f4">${esc(i.txt)}</div>`).join('') : '<p style="color:var(--muted)">No birthdays or anniversaries this month.</p>';
+  $('dCelebrate').innerHTML = items.length ? items.sort((a,b) => a.d.localeCompare(b.d)).map(i => `<div class="p-2 rounded-lg" style="background:#faf8f4">${esc(i.txt)}</div>`).join('') : '<p style="color:var(--muted)">Is mahine staff me koi birthday ya work anniversary nahi hai.</p>';
   try{
     const { data } = await sb.from('announcements').select('*').order('created_at', { ascending:false }).limit(5);
     $('annList').innerHTML = (data && data.length) ? data.map(a =>
