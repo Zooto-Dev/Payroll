@@ -2568,6 +2568,18 @@ function adminRoleOf(email){
   return { desig: '', dept: '' };
 }
 function myEmpRole(){ return adminRoleOf(ME_EMAIL); }
+// Login email se apna employee code — koi apni hi salary approve na kar sake
+function myEmpCode(){
+  const em = String(ME_EMAIL || '').trim().toLowerCase();
+  if(!em) return '';
+  const hit = Object.keys(PROFILES || {}).find(c =>
+    String((PROFILES[c] || {}).email || '').trim().toLowerCase() === em);
+  return hit || '';
+}
+function isMyOwnProfile(code){
+  const me = myEmpCode();
+  return !!me && String(code || '').trim().toUpperCase() === me.trim().toUpperCase();
+}
 function isHRAdmin(){ const d = adminRoleOf(ME_EMAIL).dept; return isSuper() || d.includes('ADMIN') || d.includes('HR') || d.includes('HUMAN'); }
 // Absent Today ke actions permission-toggle se control hote hain (department se nahi):
 //  • Mark Present (attendance correction) -> "MANUAL ATTENDANCE" toggle
@@ -3698,6 +3710,7 @@ async function rejectSalary(code){
   if(!isCEO()) return notify('Only the CEO can reject salaries', 'error');
   const nm = (EMP.find(e => e['Employee code'] === code)||{}).Name || code;
   if(!(await nxConfirm(nm + ' ki submitted salary REJECT karein? Ye payroll me nahi jayegi — HR ko dobara sahi salary daalni hogi.', 'Reject Salary'))) return;
+  if(isMyOwnProfile(code)) return notify('Apni khud ki salary par aap action nahi le sakte', 'error');
   await sb.from('hr_profiles').update({ salary_status:'REJECTED', salary_approved_by: ME_EMAIL, salary_approved_at: new Date().toISOString() }).eq('employee_code', code);
   if(PROFILES[code]) PROFILES[code].salary_status = 'REJECTED';
   notify(nm + ' ki salary reject kar di', 'success');
@@ -3705,7 +3718,10 @@ async function rejectSalary(code){
 }
 async function approveSelectedSalaries(){
   if(!isCEO()) return notify('Only the CEO can approve salaries', 'error');
-  const codes = Array.from(document.querySelectorAll('.sal-cb:checked')).map(c => c.value);
+  let codes = Array.from(document.querySelectorAll('.sal-cb:checked')).map(c => c.value);
+  const _mine = codes.filter(isMyOwnProfile);
+  codes = codes.filter(c => !isMyOwnProfile(c));
+  if(_mine.length) notify('Aapki apni salary chhod di gayi — use aap approve nahi kar sakte', 'info');
   if(!codes.length) return notify('Select at least one employee (tick the boxes)', 'error');
   const ok = await nxConfirm('Approve salary for ' + codes.length + ' selected employee(s)?', 'Approve Selected');
   if(!ok) return;
@@ -3716,6 +3732,7 @@ async function approveSelectedSalaries(){
 }
 async function approveSalary(code){
   if(!isCEO()) return notify('Only the CEO can approve salaries', 'error');
+  if(isMyOwnProfile(code)) return notify('Apni khud ki salary aap approve nahi kar sakte — kisi doosre approver se karwayein', 'error');
   await sb.from('hr_profiles').update({ salary_status:'APPROVED', salary_approved_by: ME_EMAIL, salary_approved_at: new Date().toISOString() }).eq('employee_code', code);
   if(PROFILES[code]) PROFILES[code].salary_status = 'APPROVED';
   notify('Salary approved', 'success');
@@ -3723,7 +3740,8 @@ async function approveSalary(code){
 }
 async function approveAllSalaries(){
   if(!isCEO()) return notify('Only the CEO can approve salaries', 'error');
-  const pend = activeEmps().filter(e => String((PROFILES[e['Employee code']]||{}).salary_status||'').toUpperCase() === 'PENDING');
+  const pend = activeEmps().filter(e => String((PROFILES[e['Employee code']]||{}).salary_status||'').toUpperCase() === 'PENDING'
+                                      && !isMyOwnProfile(e['Employee code']));
   if(!pend.length) return;
   const ok = await nxConfirm('Approve salary for all ' + pend.length + ' pending employee(s)?', 'Bulk Approve');
   if(!ok) return;
@@ -4495,7 +4513,10 @@ async function openEmpModal(code){
   const salSt = String(p.salary_status || 'APPROVED').toUpperCase();
   if($('epSalStatus')){
     $('epSalStatus').innerHTML = salSt === 'PENDING'
-      ? '<span class="chip chip-warn"><i class="fa-solid fa-hourglass-half"></i> Salary pending CEO approval</span>' + (isCEO() ? ' <button class="btn btn-primary btn-sm" onclick="approveSalary(\''+code+'\').then(()=>openEmpModal(\''+code+'\'))"><i class="fa-solid fa-check"></i> Approve now</button>' : '')
+      ? '<span class="chip chip-warn"><i class="fa-solid fa-hourglass-half"></i> Salary pending CEO approval</span>'
+        + (isMyOwnProfile(code)
+            ? ' <span class="chip chip-gray">Apni salary khud approve nahi kar sakte</span>'
+            : (isCEO() ? ' <button class="btn btn-primary btn-sm" onclick="approveSalary(\''+code+'\').then(()=>openEmpModal(\''+code+'\'))"><i class="fa-solid fa-check"></i> Approve now</button>' : ''))
       : (p.salary_approved_at ? '<span class="chip chip-ok"><i class="fa-solid fa-circle-check"></i> Salary approved</span>' : '');
   }
   $('epExitDate').value = p.exit_date || '';
@@ -5442,10 +5463,14 @@ $('epSaveBtn').addEventListener('click', async () => {
       row.conveyance = Number(earn.conveyance)||0; row.special_allowance = Number(earn.special_allowance)||0;
       _salaryChanged = nxCanonSal(row.salary) !== nxCanonSal(_prevSal);
       if(_salaryChanged || _isNewProfile){
-        row.salary_status = isCEO() ? 'APPROVED' : 'PENDING';
+        // Apni hi salary kabhi khud approve nahi — chahe CEO ya super admin hi kyon na ho.
+        const _own = isMyOwnProfile(row.employee_code);
+        const _auto = isCEO() && !_own;
+        row.salary_status = _auto ? 'APPROVED' : 'PENDING';
         row.salary_submitted_by = ME_EMAIL; row.salary_submitted_at = new Date().toISOString();
-        row.salary_approved_by = isCEO() ? ME_EMAIL : null;
-        row.salary_approved_at = isCEO() ? new Date().toISOString() : null;
+        row.salary_approved_by = _auto ? ME_EMAIL : null;
+        row.salary_approved_at = _auto ? new Date().toISOString() : null;
+        window._epSelfSalary = _own;
       }
     }
     const { error } = await sb.from('hr_profiles').upsert(row, { onConflict: 'employee_code' });
@@ -5517,6 +5542,12 @@ $('epSaveBtn').addEventListener('click', async () => {
       openEmpModal(_nc);   // ab edit-mode me khula rahe (Face/Docs tabs kaam karein)
     } else {
       const _savedGross = grossOf(row.employee_code);
+      if(_salaryChanged && window._epSelfSalary){
+        window._epSelfSalary = false;
+        notify('Profile saved — ye aapki apni salary hai, isliye aap ise khud approve nahi kar sakte. CEO approval ke liye bhej di gayi hai.', 'info');
+        $('empModal').classList.remove('show');
+        return;
+      }
       notify(_salaryChanged && !isCEO()
         ? 'Profile saved — salary badli hai, isliye CEO approval ke liye gayi hai'
         : ('Profile saved' + (_savedGross ? ' — Gross ₹' + _savedGross.toLocaleString('en-IN') : '')), 'success');
@@ -10338,9 +10369,10 @@ $('mwApplyBtn').addEventListener('click', async () => {
       const alloc = splitGross(rate);
       const sal = Object.assign({}, p.salary, { earn: alloc, wageType: 'category' });
       const upd = { salary: sal, basic: alloc.basic||0, hra: alloc.hra||0, conveyance: alloc.conveyance||0, special_allowance: alloc.special_allowance||0,
-        salary_status: isCEO() ? 'APPROVED' : 'PENDING',
+        salary_status: (isCEO() && !isMyOwnProfile(p.employee_code)) ? 'APPROVED' : 'PENDING',
         salary_submitted_by: ME_EMAIL, salary_submitted_at: new Date().toISOString(),
-        salary_approved_by: isCEO() ? ME_EMAIL : null, salary_approved_at: isCEO() ? new Date().toISOString() : null };
+        salary_approved_by: (isCEO() && !isMyOwnProfile(p.employee_code)) ? ME_EMAIL : null,
+        salary_approved_at: (isCEO() && !isMyOwnProfile(p.employee_code)) ? new Date().toISOString() : null };
       const { error } = await sb.from('hr_profiles').update(upd).eq('employee_code', p.employee_code);
       if(!error){ Object.assign(PROFILES[p.employee_code], upd); done++; }
     }
