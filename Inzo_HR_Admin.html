@@ -5049,14 +5049,39 @@ function splitGross(g){
   return alloc;
 }
 const SKILL_NAMES = { mw1:'Unskilled', mw2:'Semi-Skilled', mw3:'Skilled', mw4:'Highly Skilled' };
-function applyCategorySalary(){
+// force = true  -> salary ke box asli me bhar do (tab jab user ne khud Skill/Wage Type badla ho)
+// force = false -> sirf dikhao; DB me jo saved hai wahi box me rehne do
+function applyCategorySalary(force){
   const S = getSettings();
   const skill = $('epSkill').value;
   if(!skill){ $('epCatInfo').innerHTML = '<i class="fa-solid fa-circle-info"></i> Select a <b>Skill Category</b> above — the salary fills automatically from the minimum wage rate in Settings.'; return; }
   const rate = Math.round(Number(S[skill]) || 0);
   const alloc = splitGross(rate);
-  document.querySelectorAll('#epSalWrap .sal-part').forEach(i => { i.value = alloc[i.dataset.comp] || 0; });
-  $('epCatInfo').innerHTML = `<i class="fa-solid fa-lock" style="color:var(--brand)"></i> <b>${SKILL_NAMES[skill]}</b> — ₹${rate.toLocaleString('en-IN')}/month (Haryana minimum wage, from Settings). When rates revise, use <b>Settings → Apply Rates to All Category Workers</b> — no per-employee editing needed.`;
+  const boxes = Array.from(document.querySelectorAll('#epSalWrap .sal-part'));
+  if(force){
+    boxes.forEach(i => { i.value = alloc[i.dataset.comp] || 0; });
+  }
+  const saved = boxes.reduce((a,i) => a + (Number(i.value)||0), 0);
+  const line = `<i class="fa-solid fa-lock" style="color:var(--brand)"></i> <b>${SKILL_NAMES[skill]}</b> — ₹${rate.toLocaleString('en-IN')}/month (Haryana minimum wage, from Settings).`;
+  if(!force && saved && saved !== rate){
+    // DB ka number aur skill ka rate alag hain — chupchap badalna nahi hai, batana hai
+    $('epCatInfo').innerHTML = line
+      + `<div class="mt-2 p-2 rounded" style="background:#fef2f2;color:#7f1d1d;line-height:1.6">
+           <b>Dhyan dein:</b> is employee ki <b>saved salary ₹${saved.toLocaleString('en-IN')}</b> hai,
+           par <b>${SKILL_NAMES[skill]}</b> ka aaj ka rate <b>₹${rate.toLocaleString('en-IN')}</b> hai.
+           Payroll wahi dega jo saved hai — <b>₹${saved.toLocaleString('en-IN')}</b>.<br>
+           Agar rate wala sahi hai to neeche daba kar badlo (CEO approval jayega); agar saved sahi hai
+           to Skill Category theek karni hogi.
+           <button type="button" class="btn btn-primary btn-sm mt-2" id="epApplyRateBtn">
+             <i class="fa-solid fa-wand-magic-sparkles"></i> ₹${rate.toLocaleString('en-IN')} lagao
+           </button>
+         </div>`;
+    const b = $('epApplyRateBtn');
+    if(b) b.addEventListener('click', () => applyCategorySalary(true));
+  } else {
+    $('epCatInfo').innerHTML = line
+      + ' When rates revise, use <b>Settings → Apply Rates to All Category Workers</b> — no per-employee editing needed.';
+  }
   updateGrossPreview();
 }
 function epSectionCapHint(){
@@ -5070,14 +5095,14 @@ function epSectionCapHint(){
   el.textContent = 'Capacity ' + l.capacity + ' · is section me ' + filled + ' active log'
     + (filled > l.capacity ? ' — capacity se jyada hai, kiosk punch rokega' : '');
 }
-function setWageTypeUI(){
+function setWageTypeUI(force){
   const cat = $('epWageType').value === 'category';
   $('epCTCWrap').classList.toggle('hidden', cat);
   $('epCatInfo').classList.toggle('hidden', !cat);
   // Production Line ka alag field nahi rakha — Section hi line hai
   if($('epLineWrap')) $('epLineWrap').classList.add('hidden');
   document.querySelectorAll('#epSalWrap .sal-part').forEach(i => { i.readOnly = cat; i.style.background = cat ? '#faf8f4' : ''; });
-  if(cat) applyCategorySalary();
+  if(cat) applyCategorySalary(!!force);
 }
 // Salary compare ka ek hi tarika — key ka order, number ka type aur zero se farak na pade.
 function nxCanonSal(sal){
@@ -5124,7 +5149,7 @@ function buildSalaryInputs(code){
   $('epWageType').value = (p.salary && p.salary.wageType) || (p.salary && p.salary.skill ? 'category' : 'custom');
   setWageTypeUI();
 }
-$('epWageType').addEventListener('change', setWageTypeUI);
+$('epWageType').addEventListener('change', () => setWageTypeUI(true));
 document.addEventListener('change', async e => {
   if(e.target && e.target.dataset && e.target.dataset.act === 'pl-sup'){
     const id = e.target.dataset.id, sup = e.target.value || null;
@@ -5163,7 +5188,7 @@ document.addEventListener('change', async e => {
     }
     return;
   }
-  if(e.target && e.target.id === 'epSkill'){ if($('epWageType').value === 'category') applyCategorySalary(); else updateGrossPreview(); }
+  if(e.target && e.target.id === 'epSkill'){ if($('epWageType').value === 'category') applyCategorySalary(true); else updateGrossPreview(); }
 });
 function lwfEE(gross){ // Haryana rule: 0.2% of wages, capped (₹35 w.e.f. 1 Jan 2026)
   const S = getSettings();
