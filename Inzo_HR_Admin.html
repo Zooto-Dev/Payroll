@@ -434,6 +434,7 @@ body.no-confidential .confidential-col{display:none!important}
   <div class="nxact">
     <button id="helpBtn" class="nxib" title="How this page works"><i class="fa-solid fa-circle-question"></i></button>
     <div class="nxuser" id="nxUserChip"><div class="a">A</div><div><div class="nm">Admin</div><div class="rl" id="adminEmailChip">—</div></div></div>
+    <button id="nxBuildChip" class="nxib" title="Is page ka build — dabane par purana version hata kar fresh load hoga" style="width:auto;padding:0 10px;font-size:10px;white-space:nowrap">—</button>
     <button id="logoutBtn" class="nxib" title="Logout" style="color:var(--bad)"><i class="fa-solid fa-power-off"></i></button>
   </div>
 </div>
@@ -3994,6 +3995,36 @@ async function loadDashboard(){
   }catch(err){ console.error(err); }
 }
 
+/* ---------------- Build stamp + "purana version hata ke reload" ---------------- */
+// Page roz badal raha hai. Agar browser me purana build atak jaaye to editing
+// aadhi-adhuri chalti hai. Ye chip batata hai ki abhi kaun sa build chal raha hai,
+// aur dabane par service-worker cache saaf karke fresh page load karta hai.
+(async function nxBuildStamp(){
+  const el = document.getElementById('nxBuildChip'); if(!el) return;
+  try{
+    const r = await fetch(location.pathname + '?v=' + Date.now(), { method:'HEAD', cache:'no-store' });
+    const lm = r.headers.get('last-modified');
+    if(lm){
+      const d = new Date(lm);
+      el.innerHTML = '<i class="fa-solid fa-code-branch"></i> ' +
+        d.toLocaleDateString('en-IN', { day:'2-digit', month:'short' }) + ' ' +
+        d.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+      el.title = 'Build: ' + d.toLocaleString('en-IN') + ' — dabane par purana version hata kar fresh load hoga';
+    } else { el.innerHTML = '<i class="fa-solid fa-code-branch"></i> build'; }
+  }catch(e){ el.innerHTML = '<i class="fa-solid fa-code-branch"></i> build'; }
+  el.addEventListener('click', async () => {
+    if(!(await nxConfirm('Purana cache hata kar page dobara load karein? Koi data nahi jayega.', 'Fresh Reload'))) return;
+    try{
+      if('serviceWorker' in navigator){
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(x => x.unregister()));
+      }
+      if(window.caches){ const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); }
+    }catch(e){}
+    location.replace(location.pathname + '?fresh=' + Date.now());
+  });
+})();
+
 /* ---------------- Dashboard: Today's Punches search ---------------- */
 function renderDPunchList(){
   const host = $('dPunchList'); if(!host) return;
@@ -5422,6 +5453,12 @@ $('epSaveBtn').addEventListener('click', async () => {
     if(empRow) Object.assign(empRow, empUpd);
     // merge (replace nahi) -> salary same hone par purani salary_status/approval local me bani rahe
     PROFILES[row.employee_code] = Object.assign({}, PROFILES[row.employee_code] || {}, row);
+    // ...aur phir DB se wahi row dobara padh lo. Bharosa DB par, local merge par nahi —
+    // warna save ho jaane ke baad bhi list/report me purana number dikhta reh jaata hai.
+    try{
+      const { data: _fresh } = await sb.from('hr_profiles').select('*').eq('employee_code', row.employee_code).limit(1);
+      if(_fresh && _fresh[0]) PROFILES[row.employee_code] = _fresh[0];
+    }catch(e){ /* net issue -> upar wala local merge hi chalega */ }
     // Section hi line hai — kiosk ki capacity employees.LINE par chalti hai, to use section se bharo
     const newLine = String((($('epSection')||{}).value) || '').trim().toUpperCase() || null;
     const empRec = EMP.find(x => x['Employee code'] === row.employee_code);
@@ -5429,16 +5466,26 @@ $('epSaveBtn').addEventListener('click', async () => {
       await sb.from('employees').update({ LINE: newLine }).eq('"Employee code"', row.employee_code);
       empRec.LINE = newLine;
     }
+    try{
+      const { data: _fe } = await sb.from('employees').select('*').eq('Employee code', row.employee_code).limit(1);
+      if(_fe && _fe[0]){
+        const _i = EMP.findIndex(x => x['Employee code'] === row.employee_code);
+        if(_i >= 0) EMP[_i] = _fe[0];
+      }
+    }catch(e){ /* net issue -> local hi sahi */ }
     renderEmployees($('empSearch').value);
+    // CTC report bhi khuli ho sakti hai — wo apne aap refresh nahi hoti thi
+    try{ if(typeof renderCtcReport === 'function' && document.getElementById('crTbl')) renderCtcReport(); }catch(e){}
     if(_isNew){
       const _nc = $('epCode').value;
       notify('Naya employee add ho gaya (' + _nc + ') — ab Face/Documents bhi laga sakte ho', 'success');
       await loadCore();
       openEmpModal(_nc);   // ab edit-mode me khula rahe (Face/Docs tabs kaam karein)
     } else {
+      const _savedGross = grossOf(row.employee_code);
       notify(_salaryChanged && !isCEO()
         ? 'Profile saved — salary badli hai, isliye CEO approval ke liye gayi hai'
-        : 'Profile saved', 'success');
+        : ('Profile saved' + (_savedGross ? ' — Gross ₹' + _savedGross.toLocaleString('en-IN') : '')), 'success');
       $('empModal').classList.remove('show');
     }
   }catch(err){ notify(err.message, 'error'); }
