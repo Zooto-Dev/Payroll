@@ -560,7 +560,7 @@ body.no-confidential .confidential-col{display:none!important}
     </div>
     <div style="overflow-x:auto">
       <table class="tbl" id="empTable">
-        <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Designation</th><th>DOJ</th><th>Monthly Gross</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Designation</th><th>DOJ</th><th>Monthly Gross</th><th>Monthly CTC</th><th>Take-home</th><th>Status</th><th></th></tr></thead>
         <tbody><tr><td colspan="8" class="text-center py-8" style="color:var(--muted)">Loading employees…</td></tr></tbody>
       </table>
     </div>
@@ -1837,8 +1837,16 @@ body.no-confidential .confidential-col{display:none!important}
     <div class="grid grid-cols-4 gap-3" id="epSalWrap"></div>
     <div class="mt-3 p-3 rounded-xl" style="background:#faf8f4;border:1px solid var(--line)">
       <div class="flex items-center justify-between">
-        <span class="font-semibold text-sm">Monthly Gross (in-hand before deductions)</span>
+        <span class="font-semibold text-sm">Monthly Gross <span class="text-[10px] font-normal" style="color:var(--muted)">— salary. PF/ESI tick karne se ye NAHI badalta</span></span>
         <span class="money font-bold text-lg" id="epGross">₹0</span>
+      </div>
+      <div class="flex items-center justify-between mt-1 pt-1" style="border-top:1px dashed var(--line)">
+        <span class="text-xs" style="color:var(--muted)">Take-home (PF/ESI/LWF katne ke baad)</span>
+        <span class="money font-bold text-sm" id="epNetBig">—</span>
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="text-xs" style="color:var(--muted)">Total CTC (gross + employer PF/ESI/LWF)</span>
+        <span class="money font-bold text-sm" id="epCtcBig">—</span>
       </div>
       <div id="epCTCInfo" class="text-xs mt-2 pt-2" style="border-top:1px dashed var(--line);color:var(--muted)"></div>
     </div>
@@ -2387,6 +2395,26 @@ function salaryApproved(code){
   // treat missing status as approved (legacy); PENDING and REJECTED both block payroll
   const st = String(p.salary_status || 'APPROVED').toUpperCase();
   return st !== 'PENDING' && st !== 'REJECTED';
+}
+// Gross PF/ESI se kabhi nahi badalta — wo salary hai. PF/ESI se CTC upar jaata hai
+// aur take-home neeche. Ye helper dono nikaal deta hai taaki list me bhi dikha sakein.
+function ctcTakeHomeOf(code){
+  const S = getSettings();
+  const p = PROFILES[code] || {};
+  const g = grossOf(code);
+  if(!g) return { gross:0, ctc:0, net:0, pf:false, esi:false, lwf:false };
+  const sal = empSalary(code);
+  let pfW = 0;
+  (S.earnComps || []).forEach(c => { if(c.pf) pfW += Number(sal[c.k]) || 0; });
+  const pfOn  = p.pf_applicable  !== false;
+  const esiOn = p.esi_applicable !== false;
+  const lwfOn = p.lwf_applicable !== false;
+  const er = employerSides(g, pfW, pfOn, esiOn, lwfOn);
+  const pfBase = Number(S.pfCap) > 0 ? Math.min(pfW, Number(S.pfCap)) : pfW;
+  const eePF  = pfOn ? Math.round(pfBase * Number(S.pfPct) / 100) : 0;
+  const eeESI = (esiOn && g > 0 && g <= Number(S.esiLimit)) ? Math.ceil(g * Number(S.esiPct) / 100) : 0;
+  const eeLWF = lwfOn ? lwfEE(g) : 0;
+  return { gross:g, ctc: g + er.total, net: g - eePF - eeESI - eeLWF, pf:pfOn, esi:esiOn, lwf:lwfOn };
 }
 function grossOf(code){
   if(!salaryApproved(code)) return 0;   // unapproved salary = not counted (kept out of payroll)
@@ -4141,6 +4169,7 @@ function renderEmployees(filter){
   tb.innerHTML = list.length ? list.map(e => {
     const code = e['Employee code'];
     const gross = grossOf(code);
+    const ct = ctcTakeHomeOf(code);
     const active = String(e.Status).toUpperCase() === 'ACTIVE';
     return `<tr>
       <td class="font-semibold">${esc(code)}</td>
@@ -4149,10 +4178,12 @@ function renderEmployees(filter){
       <td>${esc(e.DESIGNATION || '—')}</td>
       <td>${esc(e.DOJ || '—')}</td>
       <td class="money font-semibold confidential-col">${gross ? fmtINR(gross) : '<span class="chip chip-bad">Not set</span>'}</td>
+      <td class="money confidential-col">${gross ? fmtINR(ct.ctc) : '—'}</td>
+      <td class="money confidential-col">${gross ? fmtINR(ct.net) + `<div class="text-[10px]" style="color:var(--muted)">${ct.pf ? 'PF' : 'no PF'} · ${ct.esi ? 'ESI' : 'no ESI'}</div>` : '—'}</td>
       <td><span class="chip ${active ? 'chip-ok' : 'chip-gray'}">${esc(e.Status || '—')}</span></td>
       <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-act="edit-emp" data-code="${esc(code)}"><i class="fa-solid fa-pen"></i> Profile</button> <button class="btn btn-danger btn-sm super-only" data-act="del-emp" data-code="${esc(code)}" title="Delete employee (super admin)"><i class="fa-solid fa-trash"></i></button></td>
     </tr>`;
-  }).join('') : '<tr><td colspan="8" class="text-center py-8" style="color:var(--muted)">No employees found.</td></tr>';
+  }).join('') : '<tr><td colspan="10" class="text-center py-8" style="color:var(--muted)">No employees found.</td></tr>';
 }
 $('empSearch').addEventListener('input', e => renderEmployees(e.target.value));
 $('empShowExited') && $('empShowExited').addEventListener('change', () => renderEmployees($('empSearch').value));
@@ -5269,6 +5300,8 @@ function updateGrossPreview(){
   const eeLWF = $('epLWF').checked ? lwfEE(g) : 0;
   const totalCTC = g + er.total;
   const basic50 = Math.round(g * 0.5);
+  if($('epNetBig')) $('epNetBig').innerText = fmtINR(g - eePF - eeESI - eeLWF);
+  if($('epCtcBig')) $('epCtcBig').innerText = fmtINR(totalCTC);
   $('epCTCInfo').innerHTML = `<b style="color:var(--ink)">Total CTC: <span class="money">${fmtINR(totalCTC)}</span></b> &nbsp;=&nbsp; Gross ${fmtINR(g)} + Employer PF ${fmtINR(er.erPF)} + ESI ${fmtINR(er.erESI)} + LWF ${fmtINR(er.erLWF)}${esiNote}${mwNote}
     <br><span style="color:var(--muted)">Basic (50% of gross): <b>${fmtINR(basic50)}</b> · Employer PF is 12% of Basic (capped ₹${(Number(S.pfCap)||15000).toLocaleString('en-IN')}), ESI 3.25% of gross${g > Number(S.esiLimit) ? ' (N/A here)' : ''}, LWF 0.2% capped ₹${Number(S.lwfE)||35}</span>
     <br>Employee deductions: PF ${fmtINR(eePF)} • ESI ${fmtINR(eeESI)} • LWF ${fmtINR(eeLWF)} &nbsp;→&nbsp; <b>Take-home ≈ ${fmtINR(g - eePF - eeESI - eeLWF)}</b>`;
@@ -5312,6 +5345,7 @@ function epFlagChanged(){
 $('epPF').addEventListener('change', epFlagChanged);
 $('epESI').addEventListener('change', epFlagChanged);
 $('epLWF').addEventListener('change', epFlagChanged);
+$('epPT') && $('epPT').addEventListener('change', epFlagChanged);
 $('epCTCBtn').addEventListener('click', () => epBuildFromCTC(false));
 
 $('epSaveBtn').addEventListener('click', async () => {
