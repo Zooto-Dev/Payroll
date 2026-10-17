@@ -4266,6 +4266,8 @@ function openNewEmpModal(){
   window._convertingWorkPass = null;
   window._convertingCandidate = null;
   window._epNewMode = true;
+  // naya employee -> koi purana snapshot nahi, saare field save hone chahiye
+  window._epRowSnap = null; window._epSalSnap = null;
   _wireExitAuto(); _wireEpTabs(); epSwitchTab('basic');
   populateDLs(); renderLines();
   const units = (SETTINGS && SETTINGS.units) || (getSettings().units || []);
@@ -4566,6 +4568,7 @@ async function openEmpModal(code){
   // Modal khulte waqt ki salary ka snapshot — Save par isi se compare hoga. Admin ne salary
   // ko haath hi nahi lagaya to salary aur uski approval DB me chhedi hi nahi jayegi.
   window._epSalSnap = nxCanonSal(epFormSalary());
+  window._epRowSnap = epFormRow();   // baaki saare field ka snapshot — sirf badla hua hi save hoga
   $('empModal').classList.add('show');
 }
 // standard split: Basic 50%, HRA 25%, remainder in Special Allowance (Code on Wages compliant)
@@ -5196,6 +5199,41 @@ function nxCanonSal(sal){
   return JSON.stringify({ earn: clean(sal.earn), ded: clean(sal.ded),
     wageType: String(sal.wageType || ''), skill: String(sal.skill || ''), otAllowed: !!sal.otAllowed });
 }
+// Profile form ke saare (non-salary) field ek object me — open par snapshot ke liye
+// aur save par compare ke liye, dono jagah YAHI function use hota hai.
+function epFormRow(){
+  return {
+    phone: $('epPhone').value, email: $('epEmail').value, father_name: $('epFather').value,
+    dob: $('epDOB').value || null, address: $('epAddr').value,
+    pf_applicable: $('epPF').checked, esi_applicable: $('epESI').checked, pt_applicable: $('epPT').checked,
+    lwf_applicable: $('epLWF').checked,
+    tax_regime: $('epRegime').value, tax_declarations: Number($('epDecl').value)||0,
+    bank_name: $('epBank').value, account_no: $('epAcc').value, ifsc: $('epIFSC').value,
+    pan: $('epPAN').value, uan: $('epUAN').value, esi_no: $('epESINo').value,
+    shift_id: Number($('epShift').value) || null,
+    grade: $('epGrade').value, category: $('epCatSel').value, employment_type: $('epType').value,
+    roll_type: (($('epRoll')||{}).value) || null,
+    contractor_name: ($('epType').value === 'Contract' ? ($('epContractor').value.trim() || null) : null),
+    contractor_phone: ($('epType').value === 'Contract' ? (($('epContractorPh').value||'').replace(/\D/g,'') || null) : null),
+    reporting_manager: $('epManager').value,
+    emergency_name: $('epEmName').value, emergency_phone: $('epEmPhone').value,
+    emergency_relation: ($('epEmRel')||{}).value || null,
+    nominee_name: ($('epNomName')||{}).value || null,
+    nominee_relation: ($('epNomRel')||{}).value || null,
+    marital_status: ($('epMarital')||{}).value || null,
+    aadhaar: ($('epAadhaar')||{}).value || null,
+    id_number: ($('epIdNo')||{}).value || null,
+    section: String((($('epSection')||{}).value) || '').trim().toUpperCase() || null,
+    gender: $('epGender').value || null,
+    exit_date: $('epExitDate').value || null, exit_reason: $('epExitReason').value || null,
+    ess_attendance: $('epEssAtt').checked
+  };
+}
+// null / '' / undefined ko ek hi cheez maano, warna har save me jhoota "badla hai" aata hai
+function _epValChanged(a, b){
+  const norm = v => (v === null || v === undefined) ? '' : (typeof v === 'boolean' ? v : String(v));
+  return norm(a) !== norm(b);
+}
 // Profile form me is waqt jo salary dikh rahi hai
 function epFormSalary(){
   const earn = {}, ded = {};
@@ -5418,32 +5456,16 @@ $('epSaveBtn').addEventListener('click', async () => {
     const _formSal = epFormSalary();
     const earn = _formSal.earn, ded = _formSal.ded;
     // salary / basic / hra / conveyance / special_allowance neeche SIRF zaroorat par jurte hain
-    const row = {
-      employee_code: $('epCode').value,
-      phone: $('epPhone').value, email: $('epEmail').value, father_name: $('epFather').value,
-      dob: $('epDOB').value || null, address: $('epAddr').value,
-      pf_applicable: $('epPF').checked, esi_applicable: $('epESI').checked, pt_applicable: $('epPT').checked,
-      lwf_applicable: $('epLWF').checked,
-      tax_regime: $('epRegime').value, tax_declarations: Number($('epDecl').value)||0,
-      bank_name: $('epBank').value, account_no: $('epAcc').value, ifsc: $('epIFSC').value,
-      pan: $('epPAN').value, uan: $('epUAN').value, esi_no: $('epESINo').value,
-      shift_id: Number($('epShift').value) || null,
-      grade: $('epGrade').value, category: $('epCatSel').value, employment_type: $('epType').value, roll_type: (($('epRoll')||{}).value)||null,
-      contractor_name: ($('epType').value === 'Contract' ? ($('epContractor').value.trim() || null) : null),
-      contractor_phone: ($('epType').value === 'Contract' ? (($('epContractorPh').value||'').replace(/\D/g,'') || null) : null),
-      reporting_manager: $('epManager').value,
-      emergency_name: $('epEmName').value, emergency_phone: $('epEmPhone').value,
-      emergency_relation: ($('epEmRel')||{}).value || null,
-      nominee_name: ($('epNomName')||{}).value || null,
-      nominee_relation: ($('epNomRel')||{}).value || null,
-      marital_status: ($('epMarital')||{}).value || null,
-      aadhaar: ($('epAadhaar')||{}).value || null,
-      id_number: ($('epIdNo')||{}).value || null,
-      section: String((($('epSection')||{}).value) || '').trim().toUpperCase() || null,
-      gender: $('epGender').value || null,
-      exit_date: $('epExitDate').value || null, exit_reason: $('epExitReason').value || null,
-      ess_attendance: $('epEssAtt').checked
-    };
+    // SIRF WAHI BHEJO JO SACH ME BADLA HAI. Pehle poora form har baar DB par likh diya jaata
+    // tha, isliye kisi aur ke purane/khali form se bhare hue field doosron ka data mita dete the
+    // (jaise Roll Type ya phone udd jaana). Ab modal khulte waqt ka snapshot (_epRowSnap) se
+    // compare hota hai aur sirf badle hue column bheje jaate hain.
+    const _nowRow = epFormRow();
+    const _snapRow = window._epRowSnap || null;
+    const row = { employee_code: $('epCode').value };
+    Object.keys(_nowRow).forEach(k => {
+      if(!_snapRow || _epValChanged(_snapRow[k], _nowRow[k])) row[k] = _nowRow[k];
+    });
     // ===== SALARY KO CHHEDO HI NAHI JAB TAK ADMIN NE KHUD NA BADLI HO =====
     // Pehle har Save par salary form se dobara likhi jaati thi, aur zara se farak par approval
     // PENDING chala jaata tha — isliye phone / address / shift / section jaisa koi bhi edit
