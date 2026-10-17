@@ -4267,7 +4267,7 @@ function openNewEmpModal(){
   window._convertingCandidate = null;
   window._epNewMode = true;
   // naya employee -> koi purana snapshot nahi, saare field save hone chahiye
-  window._epRowSnap = null; window._epSalSnap = null;
+  window._epRowSnap = null; window._epSalSnap = null; window._epOtSnap = null;
   _wireExitAuto(); _wireEpTabs(); epSwitchTab('basic');
   populateDLs(); renderLines();
   const units = (SETTINGS && SETTINGS.units) || (getSettings().units || []);
@@ -4568,6 +4568,7 @@ async function openEmpModal(code){
   // Modal khulte waqt ki salary ka snapshot — Save par isi se compare hoga. Admin ne salary
   // ko haath hi nahi lagaya to salary aur uski approval DB me chhedi hi nahi jayegi.
   window._epSalSnap = nxCanonSal(epFormSalary());
+  window._epOtSnap  = !!epFormSalary().otAllowed;   // OT tick alag se yaad rakho
   window._epRowSnap = epFormRow();   // baaki saare field ka snapshot — sirf badla hua hi save hoga
   $('empModal').classList.add('show');
 }
@@ -5196,8 +5197,10 @@ function nxCanonSal(sal){
   const clean = o => { const out = {};
     Object.keys(o || {}).sort().forEach(k => { const n = Number((o || {})[k]) || 0; if(n !== 0) out[k] = n; });
     return out; };
+  // otAllowed jaan-boojh kar BAHAR hai — wo paisa nahi, OT ki permission hai. Usko
+  // on/off karne par salary "badli" nahi maani jayegi aur CEO approval nahi jayega.
   return JSON.stringify({ earn: clean(sal.earn), ded: clean(sal.ded),
-    wageType: String(sal.wageType || ''), skill: String(sal.skill || ''), otAllowed: !!sal.otAllowed });
+    wageType: String(sal.wageType || ''), skill: String(sal.skill || '') });
 }
 // Profile form ke saare (non-salary) field ek object me — open par snapshot ke liye
 // aur save par compare ke liye, dono jagah YAHI function use hota hai.
@@ -5475,7 +5478,10 @@ $('epSaveBtn').addEventListener('click', async () => {
     const _prevSal      = (PROFILES[$('epCode').value] || {}).salary || {};
     const _isNewProfile = !PROFILES[$('epCode').value];
     const _userTouched  = nxCanonSal(_formSal) !== String(window._epSalSnap || '');
-    const _writeSalary  = _isNewProfile || _userTouched || !!window._epSalAutoFromCtc;
+    // OT ka tick salary JSON me hi rehta hai, to badalne par salary likhni to padegi —
+    // bas use "salary change" nahi maanenge (neeche _salaryChanged me nahi aata).
+    const _otToggled    = (!!_formSal.otAllowed) !== (!!window._epOtSnap);
+    const _writeSalary  = _isNewProfile || _userTouched || _otToggled || !!window._epSalAutoFromCtc;
     let _salaryChanged = false;
     if(_writeSalary){
       row.salary = { earn, ded, wageType: _formSal.wageType, skill: _formSal.skill,
