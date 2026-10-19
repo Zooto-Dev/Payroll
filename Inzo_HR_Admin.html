@@ -3678,7 +3678,8 @@ function renderSalaryApprovals(){
       <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-indian-rupee-sign" style="color:var(--brand)"></i> Salary Approvals Pending <span class="chip chip-warn">${pend.length}</span></h3>
       <div class="flex gap-2">
         <button class="btn btn-ghost btn-sm" onclick="approveSelectedSalaries()"><i class="fa-solid fa-check"></i> Approve Selected</button>
-        <button class="btn btn-primary btn-sm" onclick="approveAllSalaries()"><i class="fa-solid fa-check-double"></i> Approve All</button>
+        <!-- "Approve All" filhal hata diya gaya — har salary soch-samajh kar approve ho.
+             Wapas chahiye to yahi button lauta dein; approveAllSalaries() code me maujood hai. -->
       </div>
     </div>
     <div style="max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:12px">
@@ -3738,6 +3739,8 @@ async function approveSalary(code){
   notify('Salary approved', 'success');
   renderSalaryApprovals(); renderNoSalaryCard && renderNoSalaryCard();
 }
+// NOTE: iska button dashboard se filhal hata diya gaya hai (upar dekhein). Function
+// jaan-boojh kar rakha hai taaki zaroorat par button wapas lagaya ja sake.
 async function approveAllSalaries(){
   if(!isCEO()) return notify('Only the CEO can approve salaries', 'error');
   const pend = activeEmps().filter(e => String((PROFILES[e['Employee code']]||{}).salary_status||'').toUpperCase() === 'PENDING'
