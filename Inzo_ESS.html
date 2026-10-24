@@ -1158,7 +1158,7 @@ async function loadTeamApprovals(){
     $('teamApprCnt').innerText = reqs.length;
     $('teamApprBox').innerHTML = reqs.length ? reqs.map(r => {
       const when = r.src === 'LEAVE'
-        ? fmtDate(r.from_date) + ' \u2192 ' + fmtDate(r.to_date) + ' \u00b7 ' + r.days + (Number(r.days) === 1 ? ' din' : ' din')
+        ? fmtDate(r.from_date) + ' \u2192 ' + fmtDate(r.to_date) + ' \u00b7 ' + r.days + L(' days', ' din')
         : fmtDate(r.date);
       return `<div class="tm-ar">
         <div class="tm-ar-top">
@@ -1309,12 +1309,34 @@ var ESS_FAQ = [
   { t:'Supervisor: Team Attendance', b:'Team page → apni poori team ki mahine wise attendance dekho. Agar kisi ka din galti se ABSENT dikh raha hai (jabki wo aaya tha), to us employee ke liye gate photo + asli IN time ke saath present-request bhejo; HR verify karke approve karega.' },
   { t:'Request ka status', b:'Aapki har request Pending / Approved / Rejected me clearly dikhti hai. Pending request ko aap khud cancel bhi kar sakte ho. Yaad rakho: jab tak APPROVE na ho tab tak kisi bhi request ka pay/attendance par asar nahi padta. Bahut purani (backdated) ya duplicate request system reject kar deta hai.' },
 ];
+var ESS_FAQ_EN = [
+  { t:"Login & Password", b:"Log in with your Employee Code and password. Your first-time password is the mobile number registered with HR. If you forget it, HR can reset it — a reset restores the mobile number as the password, so log in and change it immediately. Always keep your mobile number updated with HR, as approvals and important messages are sent to it." },
+  { t:"Leave (CL / SL / EL)", b:"Open the Leave tile, then enter the leave type, from/to dates and a reason. The rule is simple: <b>only one leave per month is paid</b>. Any further leave in the same month stays <b>unpaid (LOP)</b> even if your manager approves it. There is no leave balance and unused leave does not carry forward — the chip at the top shows whether this month's paid leave is still available or already used. Apply for planned leave in advance; in an emergency you may apply on the day itself with a reason. On submission the request goes to your reporting manager (Super Admin is copied). Until the manager approves, the leave stays <b>Pending</b> and does not affect your pay. Once approved, a paid leave is counted as present in payroll. We do not operate a sandwich policy — Sundays and holidays around a leave are not deducted." },
+  { t:"Attendance Fix (wrong or missed punch)", b:"Use this when the kiosk missed your face punch or recorded the wrong time. Open the Att. Fix tile and enter the date, the actual IN time, the actual OUT time, a reason and proof (gate photo or screenshot). The request goes to HR, who verifies it against that day's gate CCTV or photo and then approves or rejects it. On approval that day's attendance is corrected — only then is the day counted as present. Nothing changes without approval." },
+  { t:"Field Duty (work outside the office)", b:"For client visits, deliveries, site work or any official work outside the premises. Open the Field Duty tile and enter the duration (single or multiple days), the date and a reason — ideally before the day itself. The request goes to your reporting manager (Super Admin is copied). <b>Important:</b> approval alone does not mark you present. Once approved, a <b>Punch In / Punch Out</b> button appears on your Home screen for the approved day. You must punch in yourself after reaching the field and punch out when the work ends — only then is that day's attendance recorded and counted as present. If you do not punch even after approval, the day remains absent." },
+  { t:"Gate Pass / Short Leave", b:"For leaving the premises briefly during your shift. Your normal IN punch must already be recorded. Open the Gate Pass tile and choose a slot (morning or evening short leave) or a half day, and give a reason. Your manager approves it. An approved gate pass means your early departure or late arrival is <b>excused</b> for that day — no late or half-day deduction applies and the full day's salary is paid. Leaving early without approval may be treated as late or absent." },
+  { t:"WFH (Work From Home)", b:"For working from home. Open the WFH tile and enter the date and a reason, before the day itself. Your manager approves it. An approved WFH day is paid as present and needs no face or kiosk punch. Do not apply for WFH on a day that already has attendance or leave recorded." },
+  { t:"Expenses / Reimbursement", b:"To recover money you spent on company work. Open the Expenses tile and enter the category, amount and a photo of the bill or receipt. <b>Note:</b> expenses older than 7 days cannot be claimed, so submit the bill promptly. The claim goes directly to ACCOUNTS — no reporting manager approval is required. Accounts verify the bill, date and amount and then approve or reject it; once approved and paid, the amount reaches you. The status is shown on the tile at every step." },
+  { t:"Advance / Loan", b:"An <b>advance</b> is a one-time amount recovered in full from your next salary. A <b>loan</b> follows CEO approval → Loan Agreement (to be accepted here in ESS) → disbursement by Accounts → monthly EMI deduction. Open the Advance / Loan tile and enter the type, amount and reason (plus the number of months for a loan). Manager, Accounts and the CEO approve it; the deduction is shown clearly on your payslip." },
+  { t:"Overtime (OT)", b:"OT is visible only to employees for whom it is enabled. Open the OT tile and enter the date, hours and a reason; a supervisor can also submit OT for the whole team at once. Rule: a day's actual OT = total hours worked that day − your shift hours (General shift = 8.5 hrs). If less than 20 minutes remains, that day's OT is zero. Work on a weekly off or Sunday counts as a full day of OT. Paid OT = min(hours approved, actual OT) — approval is an upper limit, not a guarantee. OT can only be applied for employees who are PRESENT that day (a punch must exist) — absent employees do not appear in the list. OT is paid only when (1) it is approved AND (2) the gate security has verified it in ViziTrack — both are required, otherwise it is zero. OT is paid at single rate, not double." },
+  { t:"Visitor Request (inviting a guest)", b:"If someone is visiting you from outside, register the entry in advance. Open the Visitor tile and enter the visitor's name, mobile, company, visit date and time, and the purpose. One request = one visitor. No approval is required — the entry goes live at the gate immediately and security identifies your guest by their mobile number (which is why a 10-digit mobile is mandatory). The guest's in and out times also appear on the same tile. Register the entry before the guest arrives; if plans change, cancel it from the same tile. To invite a visitor who has come before, pick them from the <b>Previous visitors</b> list at the top, or tap <b>Reinvite</b> on their earlier entry below — all details are filled in automatically, so you only pick a date and submit." },
+  { t:"Payslips", b:"Open the Payslip tile to view or download your payslip month by month. A payslip appears once HR finalises that month's payroll. It carries the full breakup of earnings (basic, HRA, allowances, OT) and deductions (PF, ESI, PT, LWF, TDS, advance)." },
+  { t:"My Assets", b:"Everything the company has issued to you — laptop, phone, SIM, tools and so on — is listed here. If you see a wrong entry, or an item you have already returned, tell HR or Admin so the record can be updated." },
+  { t:"Voice Box (Grievance / Suggestion / Kaizen)", b:"For raising a complaint, a suggestion, or an idea to improve the work (kaizen). Open the Voice Box tile and choose a type, then write your message. It goes directly to your reporting manager and HR. You may also send it confidentially, without your name. An accepted kaizen can earn a reward added to your payroll." },
+  { t:"Resign", b:"To leave the company, submit your resignation from the Resign tile (last working day and reason). The notice period applies as per company policy. HR then begins your Full & Final (F&F) settlement — pending salary, leave encashment, advance recovery, asset clearance, and the relieving and experience letters." },
+  { t:"Supervisor: Work Pass (Trial Worker)", b:"For a new trial worker, before they are added to payroll. Go to the Team page and create a Work Pass (name, mobile and department or line). The worker punches IN/OUT daily at the VMS/ViziTrack kiosk and their daily attendance is recorded. If the trial goes well, send a <b>Convert to Employee</b> request — only once HR approves do they become a regular employee on payroll. On conversion they are removed from the Trial Workers list." },
+  { t:"Supervisor: Team Attendance", b:"Go to the Team page to view your whole team's attendance month by month. If a day is wrongly showing ABSENT although the person did attend, send a present-request for that employee with a gate photo and the actual IN time; HR will verify and approve it." },
+  { t:"Request status", b:"Every request you raise is shown clearly as Pending, Approved or Rejected. You can cancel a pending request yourself. Remember: until a request is APPROVED it has no effect on your pay or attendance. Very old (backdated) or duplicate requests are rejected by the system." }
+];
+function essFaqList(){
+  return (essLang() === 'en' && window.ESS_FAQ_EN && ESS_FAQ_EN.length === ESS_FAQ.length) ? ESS_FAQ_EN : ESS_FAQ;
+}
 function essRenderFaq(){
   var host = document.getElementById('essFaqWrap'); if(!host) return;
   var q = String((document.getElementById('essFaqSearch')||{}).value||'').trim().toLowerCase();
-  var items = ESS_FAQ.filter(function(x){ return !q || (x.t+' '+x.b).toLowerCase().indexOf(q) > -1; });
+  var items = essFaqList().filter(function(x){ return !q || (x.t+' '+x.b).toLowerCase().indexOf(q) > -1; });
   host.innerHTML = items.length ? items.map(function(x){
-    return '<details style="border-bottom:1px solid var(--line)"><summary style="cursor:pointer;padding:10px 4px;font-weight:600;font-size:13px;list-style:none">▸ '+esc(x.t)+'</summary><div style="padding:0 6px 12px 16px;font-size:12.5px;color:var(--muted);line-height:1.6">'+esc(x.b)+'</div></details>';
+    return '<details style="border-bottom:1px solid var(--line)"><summary style="cursor:pointer;padding:10px 4px;font-weight:600;font-size:13px;list-style:none">▸ '+esc(x.t)+'</summary><div style="padding:0 6px 12px 16px;font-size:12.5px;color:var(--muted);line-height:1.6">'+x.b+'</div></details>';
   }).join('') : '<p class="text-xs" style="color:var(--muted)">Koi match nahi mila.</p>';
 }
 function _cancelChip(kind, id){
@@ -1345,10 +1367,13 @@ async function afPrefill(){
       if(note){
         note.classList.remove('hidden');
         note.innerHTML = rec.in_time && !rec.out_time
-          ? 'Is din <b>In ' + String(rec.in_time).substring(0,5) + '</b> hai, <b>Out missing</b> — sirf Out time bharo.'
+          ? L('This day has <b>In ' + String(rec.in_time).substring(0,5) + '</b> but <b>Out is missing</b> — fill in the Out time only.',
+              'Is din <b>In ' + String(rec.in_time).substring(0,5) + '</b> hai, <b>Out missing</b> — sirf Out time bharo.')
           : (!rec.in_time && rec.out_time
-            ? 'Is din <b>Out</b> hai, <b>In missing</b> — sirf In time bharo.'
-            : 'Is din ki dono punch already hain — correction sirf badlav ke liye bhejo.');
+            ? L('This day has <b>Out</b> but <b>In is missing</b> — fill in the In time only.',
+                'Is din <b>Out</b> hai, <b>In missing</b> — sirf In time bharo.')
+            : L('Both punches already exist for this day — send a correction only if something needs changing.',
+                'Is din ki dono punch already hain — correction sirf badlav ke liye bhejo.'));
       }
     } else {
       if(note){ note.classList.add('hidden'); }
@@ -1646,7 +1671,7 @@ function supMarkAsk(code, name, dt){
   ov.style.cssText = 'position:fixed;inset:0;z-index:210;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:20px';
   ov.innerHTML = `<div style="background:#fff;border-radius:16px;max-width:340px;width:100%;padding:20px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.3)">
     <div style="font-size:15px;font-weight:700;margin-bottom:4px">${esc(name)}</div>
-    <div style="font-size:12px;color:#64748b;margin-bottom:14px">${fmtD} ko ye employee <b>present</b> tha?<br><span style="font-size:11px;color:#94a3b8">(HR approve karega tabhi attendance lagegi)</span></div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:14px">${L(`Was this employee <b>present</b> on ${fmtD}?`, `${fmtD} ko ye employee <b>present</b> tha?`)}<br><span style="font-size:11px;color:#94a3b8">${L('(attendance is recorded only once HR approves)', '(HR approve karega tabhi attendance lagegi)')}</span></div>
     <div style="display:flex;gap:10px">
       <button id="supAskYes" style="flex:1;border:none;border-radius:12px;background:#059669;color:#fff;font-weight:800;padding:12px;font-size:15px">YES</button>
       <button id="supAskNo" style="flex:1;border:none;border-radius:12px;background:#f1f5f9;color:#334155;font-weight:700;padding:12px;font-size:15px">NO</button>
@@ -1655,7 +1680,7 @@ function supMarkAsk(code, name, dt){
   document.getElementById('supAskNo').onclick = () => { ov.remove(); };
   document.getElementById('supAskYes').onclick = () => {
     ov.remove();
-    const t = prompt('IN time daalo (HH:MM, 24-hour):', '09:00');
+    const t = prompt(L('Enter IN time (HH:MM, 24-hour):', 'IN time daalo (HH:MM, 24-hour):'), '09:00');
     if(!t) return;
     if(!/^[0-9]{1,2}:[0-9]{2}$/.test(t.trim())){ notify('Time galat — HH:MM format mein daalo'); return; }
     _supMark = { code, name, dt, time: t.trim() };
@@ -1663,7 +1688,7 @@ function supMarkAsk(code, name, dt){
   };
 }
 async function supCamOpen(name){
-  $('supCamName').innerText = name + ' — line par photo lo';
+  $('supCamName').innerText = name + L(' — take the photo on the line', ' — line par photo lo');
   $('supCam').style.display='flex';
   try{
     _supCamStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio:false });
@@ -1702,7 +1727,7 @@ async function supSubmit(imgData){
     const { data, error } = await sb.rpc('ess_sup_mark', { p_code:String(CODE||'').toUpperCase(), p_phone:PHONE, p_emp:m.code, p_name:m.name, p_date:m.dt, p_in:m.time, p_photo:photoUrl });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
-    notify('✓ Present-request bhej di ('+m.name+' · '+m.dt+' · IN '+m.time+') — HR approve karega');
+    notify(L('✓ Present-request sent (', '✓ Present-request bhej di (')+m.name+' · '+m.dt+' · IN '+m.time+L(') — pending HR approval', ') — HR approve karega'));
     _supMark = null;
   }catch(e){ notify('Failed: '+(e.message||e)); }
 }
@@ -1717,7 +1742,7 @@ async function wpEssCreate(){
     const { data, error } = await sb.rpc('wp_create', { p_name: nm, p_phone: dig, p_dept: ($('wpeDept').value||'').trim(), p_line: ($('wpeLine').value||'').trim(), p_sup: _wpSupTag() });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
-    notify('✓ Work Pass ban gaya: ' + data.pass_no + ' (3 din valid) — worker ab VMS kiosk par IN/OUT karega');
+    notify(L('✓ Work Pass created: ', '✓ Work Pass ban gaya: ') + data.pass_no + L(' (valid 3 days) — the worker can now punch IN/OUT at the VMS kiosk', ' (3 din valid) — worker ab VMS kiosk par IN/OUT karega'));
     ['wpeName','wpePhone','wpeDept','wpeLine'].forEach(i => { $(i).value = ''; });
     wpEssLoad();
     loadMyNotices();
@@ -1774,17 +1799,17 @@ async function wpEssConvert(id, nm){
     const { data, error } = await sb.rpc('wp_convert', { p_id: id });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
-    notify('✓ Request HR ko chali gayi — approve hote hi ' + nm + ' payroll mein aa jayega');
+    notify(L('✓ Request sent to HR — once approved, ', '✓ Request HR ko chali gayi — approve hote hi ') + nm + L(' moves onto payroll', ' payroll mein aa jayega'));
     wpEssLoad();
   }catch(e){ notify('Failed: ' + (e.message||e)); }
 }
 async function wpEssReject(id, nm){
-  if(!window.confirm(nm + ' ka trial REJECT karein? Ye trial worker hata diya jayega (payroll mein nahi aayega).')) return;
+  if(!window.confirm(nm + L(' — reject this trial? The trial worker will be removed and will not move onto payroll.', ' ka trial REJECT karein? Ye trial worker hata diya jayega (payroll mein nahi aayega).'))) return;
   try{
     const { data, error } = await sb.rpc('wp_decide', { p_id: id, p_approve: false });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
-    notify('✓ ' + nm + ' ka trial reject kar diya');
+    notify('✓ ' + nm + L(' — trial rejected', ' ka trial reject kar diya'));
     wpEssLoad();
   }catch(e){ notify('Failed: ' + (e.message||e)); }
 }
@@ -1953,9 +1978,9 @@ async function loadVisitorReq(){
       const extra = [r.visitor_company, r.visit_time ? String(r.visit_time).substring(0,5) : ''].filter(Boolean).join(' · ');
       const t = iso => { try { return new Date(iso).toLocaleTimeString('en-IN', { hour:'numeric', minute:'2-digit' }); } catch(e){ return ''; } };
       let act = '';
-      if(r.check_in_time && r.check_out_time)              act = `<span class="chip chip-gray" style="font-size:9px">Aaya ${t(r.check_in_time)} · Gaya ${t(r.check_out_time)}</span>`;
-      else if(r.check_in_time)                             act = `<span class="chip chip-ok" style="font-size:9px"><i class="fa-solid fa-door-open"></i> Andar hai · ${t(r.check_in_time)}</span>`;
-      else if(r.status === 'APPROVED' && upcoming)         act = `<span class="chip chip-warn" style="font-size:9px">Gate par intezaar</span>`;
+      if(r.check_in_time && r.check_out_time)              act = `<span class="chip chip-gray" style="font-size:9px">${L('In','Aaya')} ${t(r.check_in_time)} · ${L('Out','Gaya')} ${t(r.check_out_time)}</span>`;
+      else if(r.check_in_time)                             act = `<span class="chip chip-ok" style="font-size:9px"><i class="fa-solid fa-door-open"></i> ${L('Inside','Andar hai')} · ${t(r.check_in_time)}</span>`;
+      else if(r.status === 'APPROVED' && upcoming)         act = `<span class="chip chip-warn" style="font-size:9px">${L('Waiting at gate','Gate par intezaar')}</span>`;
       const canCancel = r.status !== 'CANCELLED' && upcoming && !r.check_in_time;
       const reBtn = canCancel ? '' : ` <button class="chip chip-gray" style="border:none;cursor:pointer;font-size:9px" onclick="essVisitorReinvite(${r.id})" title="Isi visitor ko dobara bulao"><i class="fa-solid fa-rotate-right"></i> Reinvite</button>`;
       return `<div class="row"><span>${fmtDate(r.visit_date)} · <b>${esc(r.visitor_name)}</b>${extra ? ' · ' + esc(extra) : ''}${act ? '<br>' + act : ''}</span><span><span class="chip ${chip}">${esc(label)}</span>${canCancel ? ` <button class="chip chip-gray" style="border:none;cursor:pointer;font-size:9px" onclick="essVisitorCancel(${r.id})" title="Cancel"><i class="fa-solid fa-xmark"></i></button>` : ''}${reBtn}${r.reject_reason ? `<div class="text-[10px]" style="color:var(--muted);text-align:right;width:100%">${esc(r.reject_reason)}</div>` : ''}</span></div>`;
@@ -2299,7 +2324,7 @@ function nxPrompt(msg, title, preset){
 }
 function notify(msg){
   const t = document.createElement('div');
-  t.className = 'toast'; t.textContent = msg;
+  t.className = 'toast'; t.textContent = T(msg);
   $('toastWrap').appendChild(t);
   setTimeout(() => t.remove(), 3200);
 }
@@ -2313,6 +2338,174 @@ let ATT_PAGE = 0;
    STAFF ke alawa sab kuch — WORKER ya khali — Hinglish, kyunki shop floor par
    English padhna mushkil hota hai. Naya text likhte waqt L('English','Hinglish')
    use karein, aur static HTML par data-en / data-hi daal dein. */
+/* Hinglish -> English lookup. Keys are the exact Hinglish text as it is
+   written in the markup / in a string, trimmed. Anything not listed here
+   simply stays as-is, so a missing entry degrades to Hinglish, never to blank. */
+var NX_EN = {
+ "10-digit mobile number daalo": "Enter a 10-digit mobile number",
+ "3 din valid": "Valid 3 days",
+ "7 din se purani expense claim allowed nahi — sirf pichhle 7 din tak ki hi apply kar sakte ho.": "Expenses older than 7 days cannot be claimed — only the last 7 days are allowed.",
+ "Aaj IN & OUT dono ho gaye": "Both IN and OUT done today",
+ "Aaj aaye": "In Today",
+ "Aaj ka IN mark karo": "Mark today's IN",
+ "Aaj ka OUT mark karo": "Mark today's OUT",
+ "Aaj ki Attendance": "Today's Attendance",
+ "Aap is month Short Leave le chuke hain — ab Half Day nahi milega (quota: 2 SL ya 1 HD).": "You have already taken a Short Leave this month — a Half Day is no longer available (quota: 2 SL or 1 HD).",
+ "Aapka sujhaav / hal…": "Your suggested solution…",
+ "Aapse milne aa rahe guest ki pehle se entry. Kisi approval ki zaroorat nahi — entry daalte hi gate par live ho jaati hai aur guest ko QR badge chala jaata hai (WhatsApp par mobile se, aur email daala ho to email par bhi). Security use mobile number ya QR se pehchan kar andar bhej deti hai. Guest kab andar aaya aur kab gaya, wo bhi yahin neeche dikhta rehta hai. Plan badal jaye to entry cancel bhi kar sakte ho.": "Pre-register a guest who is coming to meet you. No approval is needed — the entry goes live at the gate immediately and a QR badge is sent to the guest (by WhatsApp, and by email if you provide one). Security identifies them by mobile number or QR and lets them in. The guest's in and out times appear below. If plans change, you can cancel the entry.",
+ "Abhi kya dikkat hai…": "What is the problem right now…",
+ "Address ya email badla hai to yahan se bhejo — HR check karke record me update karega.": "If your address or email has changed, send it from here — HR will verify and update the record.",
+ "Andar hain": "In",
+ "Apna poora naam type karo — yahi aapka digital signature hai:": "Type your full name — this is your digital signature:",
+ "Apna registered mobile number dobara enter karo (verification):": "Re-enter your registered mobile number (verification):",
+ "Apni salary/attendance ki dikkat yahan bharein — HR check karega.": "Report a pay or attendance problem here — HR will review it.",
+ "App load nahi ho paya — internet check karke dobara \"View My HR\" dabao": "Could not load the app — check your connection and tap \"View My HR\" again",
+ "Aur kuch batana ho": "Anything else to add",
+ "Aur kuch kehna ho…": "Anything else to add…",
+ "Bill/receipt ki photo attach karna zaroori hai — bina bill claim nahi hoga": "A bill or receipt photo is mandatory — the claim will not go through without it",
+ "Camera nahi khula — photo ke bina attendance submit nahi ho sakti. Camera permission do aur dobara try karo.": "Camera did not open — attendance cannot be submitted without a photo. Allow camera access and try again.",
+ "Claim delete ho gaya ✓": "Claim deleted ✓",
+ "Closing bheji ✓ — CEO review karega": "Closing submitted ✓ — pending CEO review",
+ "Closing report likho pehle": "Write the closing report first",
+ "Contact Update Karo": "Update Contact",
+ "Correction request bheji ✓ — manager approve karega": "Correction request sent ✓ — pending manager approval",
+ "Date chuno": "Pick a date",
+ "Detail bhar di — date/time check karke \"Visitor Entry Banao\" dabao": "Details filled in — check the date and time, then tap \"Create Visitor Entry\"",
+ "Details neeche form mein aa gaye — sudhar ke Resubmit dabao": "Details loaded into the form below — correct them and tap Resubmit",
+ "ESS ki har request kaise, kab aur kis rule se hoti hai. Kisi bhi cheez par tap karo. Prepared by": "How, when and under which rule every ESS request works. Tap any item to expand. Prepared by",
+ "Employee Banao": "Convert to Employee",
+ "Employee Code (jiska fuel)": "Employee Code (whose fuel)",
+ "Employee code daalo": "Enter the employee code",
+ "Employee ke vehicle ka meter reading daalo. Distance = OUT − IN. Amount = distance × ₹/km. HR approve karega.": "Enter the employee's vehicle meter reading. Distance = OUT − IN. Amount = distance × ₹/km. Subject to HR approval.",
+ "Expense ki date daalein": "Enter the expense date",
+ "Future date ki expense allowed nahi.": "Expenses with a future date are not allowed.",
+ "Gate par intezaar": "Waiting at gate",
+ "Gate pass request bheji ✓ — manager approve karega": "Gate pass request sent ✓ — pending manager approval",
+ "Grievance — koi aur issue": "Grievance — any other issue",
+ "Half Day (aadhe din tak late maaf)": "Half Day (up to half a day excused)",
+ "Help / SOP — Har cheez ka tarika": "Help / SOP — How everything works",
+ "IN time daalo (HH:MM, 24-hour):": "Enter IN time (HH:MM, 24-hour):",
+ "In Time galat — 24-hour HH:MM daalo (jaise 09:30 ya 18:00)": "Invalid In Time — use 24-hour HH:MM (e.g. 09:30 or 18:00)",
+ "In ya Out — kam se kam ek time bharo": "Enter at least one of In or Out time",
+ "Is line par koi worker assign nahi hai.": "No workers are assigned to this line.",
+ "Is mahine ka koi data nahi. Agar team hai to HR se reporting manager check karwayein.": "No data for this month. If you have a team, ask HR to check the reporting manager.",
+ "Is month ka quota use ho chuka hai (1 Half Day liya gaya). Ab is month koi aur gate-pass nahi.": "This month's quota is used up (1 Half Day taken). No further gate pass this month.",
+ "Is month ki 2 Short Leave limit ho chuki hai.": "The limit of 2 Short Leaves for this month has been reached.",
+ "Kahan se aa rahe hain": "Where they are visiting from",
+ "Kaun se din ke absent galat hain?": "Which days are marked wrongly?",
+ "Kis month ki salary?": "Which month's salary?",
+ "Kisi din": "If a day shows",
+ "Kitne absent galat lage hain? (din)": "How many absents are wrong? (days)",
+ "Kitne paise kam aaye? (₹)": "How much was short? (₹)",
+ "Koi match nahi mila.": "No matches found.",
+ "Koi payment abhi nahi — approve hone ke baad accounts pay karega, yahan batch + proof dikhega.": "No payments yet — once approved, Accounts will pay and the batch and proof will appear here.",
+ "Koi pending request nahi — sab clear hai.": "No pending requests — all clear.",
+ "Kuch detail to bharein": "Please fill in some detail",
+ "Line (optional)": "Line (optional)",
+ "Mahine ki Attendance": "Monthly Attendance",
+ "Maine upar ka poora agreement padh liya hai aur saari terms samajh li hain. / I have read and understood all the terms above.": "I have read and understood all the terms above.",
+ "Meri Line — Aaj": "My Line — Today",
+ "Meri Poori Jaankari": "My Full Details",
+ "Meri Team": "My Team",
+ "Meter IN aur OUT dono daalo": "Enter both meter IN and OUT",
+ "Month chuno…": "Pick a month…",
+ "Naye worker ka 3-din trial pass banao. Worker gate kiosk par IN/OUT karega. Trial ke baad yahin se": "Create a 3-day trial pass for a new worker. The worker punches IN/OUT at the gate kiosk. After the trial, use",
+ "OUT reading IN se kam nahi ho sakti": "The OUT reading cannot be less than IN",
+ "Out Time galat — 24-hour HH:MM daalo (jaise 17:45)": "Invalid Out Time — use 24-hour HH:MM (e.g. 17:45)",
+ "Pehle aa chuke visitor — dobara bulao": "Previous visitors — invite again",
+ "Photo capture nahi hui — dobara try karo": "Photo was not captured — please try again",
+ "Photo upload fail — internet check karke dobara try karo. Attendance submit NAHI hui.": "Photo upload failed — check your connection and try again. Attendance was NOT submitted.",
+ "Photo upload ho rahi hai…": "Uploading photo…",
+ "Photo zaroori hai — attendance submit nahi hui": "A photo is required — attendance was not submitted",
+ "Poora naam": "Full name",
+ "Present (late bhi)": "Present (incl. late)",
+ "Present mark karo (HR approval)": "Mark present (HR approval)",
+ "Proof attach karna zaroori hai — bina proof correction nahi hogi": "Proof is mandatory — a correction cannot be filed without it",
+ "Punch miss ho gaya (kiosk issue / bhool)? Correct time ke saath request bhejo.": "Punch missed (kiosk issue or forgotten)? Send a request with the correct time.",
+ "Purpose / kaam": "Purpose",
+ "Reason / trip detail": "Reason / trip detail",
+ "Request nahi mili": "Request not found",
+ "Sahi 10-digit mobile number zaroori hai — bina number ke pass nahi banega": "A valid 10-digit mobile number is required — the pass cannot be created without it",
+ "Sahi UPI ID daalein (jaise name@okhdfcbank)": "Enter a valid UPI ID (e.g. name@okhdfcbank)",
+ "Salary Grievance — paise/attendance galat": "Salary Grievance — incorrect pay or attendance",
+ "Salary grievance submit ho gayi — HR check karega": "Salary grievance submitted — HR will review it",
+ "Seedhe aapko report karne wale log. Jiske neeche khud ki team hai, uspe dabao to uski list khul jayegi.": "People who report directly to you. Tap anyone who has a team of their own to expand their list.",
+ "Short Leave (3 hrs late maaf)": "Short Leave (up to 3 hrs excused)",
+ "Signature ke liye apna poora naam type karo": "Type your full name as your signature",
+ "Supabase library load nahi hui — internet check karke page refresh karo": "The Supabase library did not load — check your connection and refresh the page",
+ "Team me koi active employee nahi hai.": "No active employees in your team.",
+ "Time galat — HH:MM format mein daalo": "Invalid time — use HH:MM format",
+ "UPI saved ✓ — approved expenses ab isi par pay honge": "UPI saved ✓ — approved expenses will now be paid to this ID",
+ "Update Bhejo": "Send Update",
+ "Us din ki ek request pehle se hai": "A request for that date already exists",
+ "Visit date chunein": "Pick the visit date",
+ "Visitor Entry Banao": "Create Visitor Entry",
+ "Visitor entry cancel ho gayi — gate par ab allow nahi hoga": "Visitor entry cancelled — entry will no longer be allowed at the gate",
+ "Visitor ka 10 digit mobile daalein — gate par isi se pehchan hoti hai": "Enter the visitor's 10-digit mobile — the gate identifies them by it",
+ "Visitor ka naam": "Visitor name",
+ "Visitor ka naam daalein": "Enter the visitor name",
+ "WFH date chuno": "Pick the WFH date",
+ "WFH request bheji ✓ — manager approve karega": "WFH request sent ✓ — pending manager approval",
+ "Work Pass Banao": "Create Work Pass",
+ "Worker ka naam *": "Worker name *",
+ "Worker ka naam bharo": "Enter the worker name",
+ "Ye pending claim delete karein? Wapas nahi aayega.": "Delete this pending claim? It cannot be recovered.",
+ "badge email ke liye": "for the badge email",
+ "dikhe aur banda asli me aaya tha, to aaj ki date par ✏️ dabao — photo aur IN time ke saath HR ko present-request chali jayegi.": "but the person did attend, tap ✏️ on that date — a present-request goes to HR with the photo and IN time.",
+ "— CEO approval → Loan Agreement (yahan Accept karna hoga) → Accounts se disbursement → monthly EMI deduction.": "— CEO approval → Loan Agreement (to be accepted here) → disbursement by Accounts → monthly EMI deduction.",
+ "— HR approve karega to payroll me aa jayega.": "here — once HR approves, they move onto payroll.",
+ "— gate register photo, duty slip, ya koi supporting document. Manager approval par attendance record ban jayega.": "— a gate register photo, duty slip or any supporting document. The attendance record is created once your manager approves.",
+ "— naya visitor —": "— new visitor —",
+ "✉ Approval mail bhej di gayi": "✉ Approval email sent",
+ "✓ Aaj poora": "✓ Done today",
+ "✓ Agreement signed! Ab Accounts se disbursement hoga.": "✓ Agreement signed. Accounts will now process the disbursement.",
+ "✓ Gate par entry ban gayi — guest seedha aa sakta hai": "✓ Entry created at the gate — your guest can come straight in",
+ "📩 Visitor ko badge bhej diya": "📩 Badge sent to the visitor",
+ "🔍 Dhoondo (leave, OT, expense…)": "🔍 Search (leave, OT, expense…)"
+};
+// T(): translate one string for the current reader. Safe on anything.
+function T(s){
+  try{
+    if(essLang() !== 'en') return s;
+    var raw = String(s == null ? '' : s), k = raw.trim();
+    if(!k) return s;
+    var v = NX_EN[k];
+    return v === undefined ? s : raw.replace(k, function(){ return v; });
+  }catch(e){ return s; }
+}
+/* Walk every text node + placeholder/title under root and swap what the
+   dictionary knows. Translation is one-way (Hinglish key -> English value),
+   so re-running this is harmless: English text matches no key. */
+function essTranslateTree(root){
+  if(!root || essLang() !== 'en') return;
+  var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: function(n){
+      if(!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      var p = n.parentNode, tag = p && p.nodeName;
+      if(tag === 'SCRIPT' || tag === 'STYLE') return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  var hits = [], n;
+  while((n = w.nextNode())) hits.push(n);
+  hits.forEach(function(t){
+    var raw = t.nodeValue, k = raw.trim(), v = NX_EN[k];
+    if(v !== undefined && v !== k) t.nodeValue = raw.replace(k, function(){ return v; });
+  });
+  if(!root.querySelectorAll) return;
+  ['placeholder','title'].forEach(function(a){
+    root.querySelectorAll('[' + a + ']').forEach(function(el){
+      var v = NX_EN[String(el.getAttribute(a) || '').trim()];
+      if(v !== undefined) el.setAttribute(a, v);
+    });
+  });
+}
+var _langBusy = false, _langTimer = null;
+function _langSweep(){
+  _langBusy = true;
+  try{ essTranslateTree(document.body); }catch(e){}
+  _langBusy = false;
+}
 function essLang(){
   const c = String((((D || {}).profile) || {}).category || '').trim().toUpperCase();
   return c === 'STAFF' ? 'en' : 'hi';
@@ -2324,6 +2517,18 @@ function essApplyLang(){
     const v = en ? el.getAttribute('data-en') : (el.getAttribute('data-hi') || el.getAttribute('data-en'));
     if(v !== null) el.innerHTML = v;
   });
+  if(!en) return;
+  _langSweep();
+  // Every list on this portal is rendered later by JS, so one sweep is not
+  // enough -- watch the DOM and re-sweep whatever gets painted in.
+  if(!window._langObs && window.MutationObserver){
+    window._langObs = new MutationObserver(() => {
+      if(_langBusy) return;
+      clearTimeout(_langTimer);
+      _langTimer = setTimeout(_langSweep, 50);
+    });
+    window._langObs.observe(document.body, { childList:true, subtree:true, characterData:true });
+  }
 }
 
 /* ---------- Home: greeting + "aaj kitna time hua" live timer ---------- */
@@ -2587,9 +2792,9 @@ async function renderReportingInfo(){
     const { data: tr } = await sb.rpc('ess_team_tree', { p_code: String(CODE||'').toUpperCase(), p_phone: PHONE });
     if(tr && !tr.error && Number(tr.direct_count) > 0){
       const dc = Number(tr.direct_count), tc = Number(tr.total_count);
-      teamHtml = `<div class="pf-r"><span class="pf-r-k">Meri Team</span><span class="pf-r-v">`
-        + `${dc} seedha report${dc > 1 ? ' karte hain' : ' karta hai'}`
-        + (tc > dc ? ` <span class="chip chip-gray" style="font-size:9.5px">kul ${tc} under</span>` : '')
+      teamHtml = `<div class="pf-r"><span class="pf-r-k">${L('My Team','Meri Team')}</span><span class="pf-r-v">`
+        + L(`${dc} direct report${dc > 1 ? 's' : ''}`, `${dc} seedha report${dc > 1 ? ' karte hain' : ' karta hai'}`)
+        + (tc > dc ? ` <span class="chip chip-gray" style="font-size:9.5px">${L(`${tc} in total`, `kul ${tc} under`)}</span>` : '')
         + `</span></div>`;
     }
   }catch(e){}
@@ -3019,9 +3224,9 @@ $('fbBtn').addEventListener('click', async () => {
     const subject = 'Salary Grievance' + (month ? ' — ' + month : '');
     const details = [
       month ? 'Month: ' + month : '',
-      amt  ? 'Paise kam aaye: ₹' + amt : '',
-      absC ? 'Galat absent (din): ' + absC : '',
-      absD ? 'Kaun se din galat: ' + absD : '',
+      amt  ? L('Short by: ₹', 'Paise kam aaye: ₹') + amt : '',
+      absC ? L('Wrong absents (days): ', 'Galat absent (din): ') + absC : '',
+      absD ? L('Which days: ', 'Kaun se din galat: ') + absD : '',
       note ? 'Note: ' + note : ''
     ].filter(Boolean).join('\n');
     const b = $('fbBtn'); b.innerHTML = '<div class="loader-ring"></div> Submitting…'; b.disabled = true;
@@ -3131,7 +3336,7 @@ async function submitFuel(){
     });
     if(error) throw error;
     if(data && data.error) { b.disabled = false; return notify(data.error); }
-    notify(`✓ Fuel log bheja — ${data.distance}km · ₹${data.amount} (HR approve karega)`);
+    notify(L(`✓ Fuel log submitted — ${data.distance}km · ₹${data.amount} (pending HR approval)`, `✓ Fuel log bheja — ${data.distance}km · ₹${data.amount} (HR approve karega)`));
     $('fuelEmp').value=''; $('fuelIn').value=''; $('fuelOut').value=''; $('fuelNote').value='';
     $('fuelPreview').style.display='none';
     renderFuel();
@@ -3221,10 +3426,12 @@ async function loadWorkers(){
   if(note){
     if(data.future){
       note.style.background = '#fffbeb'; note.style.color = '#92400e';
-      note.innerHTML = `<b>${fmtDate(_otDate)}</b> aane wali date hai — us din ka attendance abhi nahi hai, isliye saare active employees dikh rahe hain.`;
+      note.innerHTML = L(`<b>${fmtDate(_otDate)}</b> is a future date — there is no attendance for it yet, so all active employees are listed.`,
+        `<b>${fmtDate(_otDate)}</b> aane wali date hai — us din ka attendance abhi nahi hai, isliye saare active employees dikh rahe hain.`);
     }else{
       note.style.background = '#ecfdf5'; note.style.color = '#065f46';
-      note.innerHTML = `Sirf <b>${fmtDate(_otDate)}</b> ko <b>present</b> (punch ho chuka) employees dikh rahe hain — <b>${rows.length}</b> log. Jo us din present nahi, unka OT apply nahi ho sakta.`;
+      note.innerHTML = L(`Showing only employees <b>present</b> (already punched) on <b>${fmtDate(_otDate)}</b> — <b>${rows.length}</b> people. OT cannot be applied for anyone absent that day.`,
+        `Sirf <b>${fmtDate(_otDate)}</b> ko <b>present</b> (punch ho chuka) employees dikh rahe hain — <b>${rows.length}</b> log. Jo us din present nahi, unka OT apply nahi ho sakta.`);
     }
   }
   // Filter dropdown ab SECTION ke hisaab se (department ki jagah)
@@ -3283,7 +3490,7 @@ $('otBtn').addEventListener('click', async () => {
       const { data, error } = await sb.rpc('ess_apply_ot_bulk', { p_code: CODE, p_phone: PHONE, p_date: $('otDate').value, p_hours: Number($('otHours').value), p_reason: $('otReason').value, p_workers: codes });
       if(error) throw error;
       if(data && data.error) return notify(data.error);
-      notify(`OT requested for ${data.inserted} worker(s)` + (data.skipped ? ` — ${data.skipped} already had OT for this date` : '') + (data.absent ? ` — ${data.absent} us din present nahi the, unka OT nahi laga` : '') + ' — pending approval');
+      notify(`OT requested for ${data.inserted} worker(s)` + (data.skipped ? ` — ${data.skipped} already had OT for this date` : '') + (data.absent ? L(` — ${data.absent} were not present that day, so no OT was applied`, ` — ${data.absent} us din present nahi the, unka OT nahi laga`) : '') + ' — pending approval');
       // OT request -> CEO ko approval email
       essSendApprovalEmail('ot', (data&&data.group_id)||'', 'Overtime Request — ' + ((D.employee&&D.employee.Name)||CODE), [
         ['Requested by', (D.employee&&D.employee.Name)||CODE], ['Date', $('otDate').value],
