@@ -538,7 +538,6 @@ body.no-confidential .confidential-col{display:none!important}
 
   <!-- ACTION-NEEDED WARNINGS (bottom) -->
   <div id="dashIncomplete" class="mt-4"></div>
-  <div id="dashSalaryApprovals" class="mt-4"></div>
   <div id="dashNoSalary" class="mt-4"></div>
 </div>
 
@@ -1533,6 +1532,9 @@ body.no-confidential .confidential-col{display:none!important}
   </div>
 </div>
 <div class="page" id="page-ctcreport">
+  <!-- Salary approval yahin hota hai (pehle Dashboard par tha) — CTC dekhte waqt
+       hi approve karna sahi rehta hai, kyunki approval se pehle CTC adhoori hai. -->
+  <div id="ctcSalaryApprovals" class="mb-4"></div>
   <div class="grid md:grid-cols-4 gap-3 mb-4">
     <div class="kpi"><div class="kpi-ic" style="background:#e0e7ff;color:#4f46e5"><i class="fa-solid fa-users"></i></div>
       <div><div class="kpi-lbl">Employees</div><div class="kpi-num" id="crKpiN">—</div><div class="kpi-sub" id="crKpiNs">—</div></div></div>
@@ -1553,7 +1555,9 @@ body.no-confidential .confidential-col{display:none!important}
       <button id="crCsvBtn" class="btn btn-ghost"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
     </div>
     <p class="text-[11px] m-0 px-4 py-2" style="color:var(--muted);background:var(--brand-soft)">
-      Ye page sirf <b>dekhne</b> ke liye hai. CTC badalni ho to <b>Employees \u2192 Profile \u2192 Salary</b>, ya <b>System \u2192 CTC Calculator</b> ki master table se.</p>
+      Salary approval upar wale card se hota hai. Jinki salary <b>pending</b> hai wo list me sabse <b>upar</b> hain —
+      payroll unhe poora <b>skip</b> kar deta hai, isliye unhe pehle nipta dein. CTC ka amount badalna ho to
+      <b>Employees \u2192 Profile \u2192 Salary</b>, ya <b>System \u2192 CTC Calculator</b> ki master table se.</p>
     <div style="overflow-x:auto"><table class="tbl" id="crTbl"><tbody></tbody></table></div>
   </div>
 </div>
@@ -1577,7 +1581,7 @@ body.no-confidential .confidential-col{display:none!important}
 
   <div class="card" style="border-left:3px solid var(--brand)">
     <h3 class="display font-bold mt-0 mb-1"><i class="fa-solid fa-circle-info" style="color:var(--brand)"></i> Salary edit — ab Profile se</h3>
-    <p class="text-xs mt-0 mb-0" style="color:var(--muted)">Kisi employee ka salary structure change karne ke liye <b>Employees → us employee ka Profile → Salary</b> section use karein. Yahan wala Quick CTC Calculator sirf ek helper hai (kisi employee par apply nahi karta). CEO approval Dashboard ke "Salary Approvals Pending" se hota hai.</p>
+    <p class="text-xs mt-0 mb-0" style="color:var(--muted)">Kisi employee ka salary structure change karne ke liye <b>Employees → us employee ka Profile → Salary</b> section use karein. Yahan wala Quick CTC Calculator sirf ek helper hai (kisi employee par apply nahi karta). CEO approval <b>Employee CTC</b> page ke "Salary Approvals Pending" card se hota hai.</p>
   </div>
 </div>
 <div class="page" id="page-settings">
@@ -3660,8 +3664,13 @@ function renderDeptWise(rows){
     </div>`;
   }).join('') : '<p style="color:var(--muted)">No data yet.</p>';
 }
+function nxAfterSalaryDecision(){
+  renderSalaryApprovals();
+  // CTC page khula ho to list dobara sort karo — approve hui row upar se niche chali jaye
+  try{ if(document.getElementById('crTbl') && typeof renderCtcReport === 'function') renderCtcReport(); }catch(e){}
+}
 function renderSalaryApprovals(){
-  const host = document.getElementById('dashSalaryApprovals');
+  const host = document.getElementById('ctcSalaryApprovals');
   if(!host) return;
   if(!isCEO()){ host.innerHTML = ''; return; }   // only the CEO sees/acts on approvals
   // Sirf PENDING + jinki gross > 0 (0-value wale bilkul nahi dikhenge)
@@ -3715,7 +3724,7 @@ async function rejectSalary(code){
   await sb.from('hr_profiles').update({ salary_status:'REJECTED', salary_approved_by: ME_EMAIL, salary_approved_at: new Date().toISOString() }).eq('employee_code', code);
   if(PROFILES[code]) PROFILES[code].salary_status = 'REJECTED';
   notify(nm + ' ki salary reject kar di', 'success');
-  renderSalaryApprovals(); renderNoSalaryCard && renderNoSalaryCard();
+  nxAfterSalaryDecision(); renderNoSalaryCard && renderNoSalaryCard();
 }
 async function approveSelectedSalaries(){
   if(!isCEO()) return notify('Only the CEO can approve salaries', 'error');
@@ -3729,7 +3738,7 @@ async function approveSelectedSalaries(){
   await sb.from('hr_profiles').update({ salary_status:'APPROVED', salary_approved_by: ME_EMAIL, salary_approved_at: new Date().toISOString() }).in('employee_code', codes);
   codes.forEach(c => { if(PROFILES[c]) PROFILES[c].salary_status = 'APPROVED'; });
   notify(codes.length + ' salaries approved', 'success');
-  renderSalaryApprovals();
+  nxAfterSalaryDecision();
 }
 async function approveSalary(code){
   if(!isCEO()) return notify('Only the CEO can approve salaries', 'error');
@@ -3737,7 +3746,7 @@ async function approveSalary(code){
   await sb.from('hr_profiles').update({ salary_status:'APPROVED', salary_approved_by: ME_EMAIL, salary_approved_at: new Date().toISOString() }).eq('employee_code', code);
   if(PROFILES[code]) PROFILES[code].salary_status = 'APPROVED';
   notify('Salary approved', 'success');
-  renderSalaryApprovals(); renderNoSalaryCard && renderNoSalaryCard();
+  nxAfterSalaryDecision(); renderNoSalaryCard && renderNoSalaryCard();
 }
 // NOTE: iska button dashboard se filhal hata diya gaya hai (upar dekhein). Function
 // jaan-boojh kar rakha hai taaki zaroorat par button wapas lagaya ja sake.
@@ -3752,7 +3761,7 @@ async function approveAllSalaries(){
   await sb.from('hr_profiles').update({ salary_status:'APPROVED', salary_approved_by: ME_EMAIL, salary_approved_at: new Date().toISOString() }).in('employee_code', codes);
   codes.forEach(c => { if(PROFILES[c]) PROFILES[c].salary_status = 'APPROVED'; });
   notify(codes.length + ' salaries approved', 'success');
-  renderSalaryApprovals();
+  nxAfterSalaryDecision();
 }
 function renderIncompleteCard(){
   const host = document.getElementById('dashIncomplete');
@@ -4910,6 +4919,7 @@ function crInit(){
     d.innerHTML = '<option value="ALL">Sab department</option>' + depts.map(x => `<option>${esc(x)}</option>`).join('');
   }
   renderCtcReport();
+  try{ renderSalaryApprovals(); }catch(e){}
 }
 function crBuild(){
   const q    = ($('crSearch').value || '').trim().toLowerCase();
@@ -4932,9 +4942,13 @@ function crBuild(){
     } else {
       gross = Object.values(empSalary(code)).reduce((a,b) => a + (Number(b)||0), 0);
     }
+    // Salary approval ki haalat: PENDING/REJECTED wale upar aayenge, kyunki
+    // payroll unhe poora skip kar deta hai — unhe pehle niptana hai.
+    const salSt = String(p.salary_status || 'APPROVED').toUpperCase();
+    const salRank = salSt === 'PENDING' ? 0 : (salSt === 'REJECTED' ? 1 : 2);
     return { code, name: e.Name || code, dept: e.DEPARTMENT || '', desig: e.DESIGNATION || '',
              sec: p.section || '', cat: ctcCatOf(code), status: e.Status || '',
-             ctcStatus: ctcStatusOf(code), annual, monthly, gross };
+             ctcStatus: ctcStatusOf(code), salStatus: salSt, salRank, annual, monthly, gross };
   }).filter(r => {
     if(dept !== 'ALL' && r.dept !== dept) return false;
     if(cat  !== 'ALL' && r.cat !== cat) return false;
@@ -4942,8 +4956,15 @@ function crBuild(){
     if(setf === 'NONE' &&  r.annual) return false;
     if(q && ![r.name, r.code, r.dept, r.desig, r.sec].join(' ').toLowerCase().includes(q)) return false;
     return true;
-  }).sort((a,b) => b.annual - a.annual || String(a.name).localeCompare(String(b.name)));
+  }).sort((a,b) => a.salRank - b.salRank
+                || b.annual - a.annual
+                || String(a.name).localeCompare(String(b.name)));
   return CR_ROWS;
+}
+function crSalChip(r){
+  if(r.salStatus === 'PENDING')  return '<span class="chip chip-warn" style="font-size:9px">Salary PENDING</span> ';
+  if(r.salStatus === 'REJECTED') return '<span class="chip chip-bad" style="font-size:9px">Salary REJECTED</span> ';
+  return '';
 }
 function crChip(r){
   if(r.ctcStatus === 'PENDING_CEO') return '<span class="chip chip-warn" style="font-size:9px">CEO ke paas</span>';
@@ -4965,7 +4986,7 @@ function renderCtcReport(){
   tbl.innerHTML = `<thead><tr>
       <th>#</th><th>Code</th><th>Name</th><th>Department</th><th>Section</th><th>Designation</th><th>Cat</th>
       <th style="${rt}">Monthly Gross</th><th style="${rt}">Monthly CTC</th><th style="${rt}">Annual CTC</th><th>Status</th></tr></thead>
-    <tbody>${rows.length ? rows.map((r,i) => `<tr>
+    <tbody>${rows.length ? rows.map((r,i) => `<tr${r.salRank < 2 ? ' style="background:#fffbeb"' : ''}>
       <td>${i+1}</td><td>${esc(r.code)}</td>
       <td class="font-semibold">${esc(r.name)}${String(r.status).toUpperCase() !== 'ACTIVE' ? ` <span class="chip chip-gray" style="font-size:9px">${esc(r.status||'INACTIVE')}</span>` : ''}</td>
       <td>${esc(r.dept||'\u2014')}</td><td>${esc(r.sec||'\u2014')}</td><td>${esc(r.desig||'\u2014')}</td>
@@ -4973,7 +4994,7 @@ function renderCtcReport(){
       <td class="money" style="${rt}">${r.gross ? fmtINR(r.gross) : '\u2014'}</td>
       <td class="money" style="${rt}">${r.monthly ? fmtINR(r.monthly) : '\u2014'}</td>
       <td class="money font-semibold" style="${rt}">${r.annual ? fmtINR(r.annual) : '\u2014'}</td>
-      <td>${crChip(r)}</td></tr>`).join('')
+      <td style="white-space:nowrap">${crSalChip(r)}${crChip(r)}</td></tr>`).join('')
       : '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:16px">Is filter par koi employee nahi mila.</td></tr>'}
     </tbody>`;
   try{ if(rows.length && typeof nxPaginate === 'function') nxPaginate(tbl.tBodies[0]); }catch(e){}
@@ -4985,12 +5006,12 @@ function renderCtcReport(){
 $('crCsvBtn') && $('crCsvBtn').addEventListener('click', () => {
   if(!CR_ROWS.length) return notify('Export karne ke liye kuch nahi hai', 'error');
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
-  const lines = ['S.No,Emp Code,Employee Name,Department,Section,Designation,Category,Status,Monthly Gross,Monthly CTC,Annual CTC,CTC Status'];
+  const lines = ['S.No,Emp Code,Employee Name,Department,Section,Designation,Category,Status,Monthly Gross,Monthly CTC,Annual CTC,CTC Status,Salary Approval'];
   CR_ROWS.forEach((r,i) => lines.push([i+1, q(r.code), q(r.name), q(r.dept), q(r.sec), q(r.desig),
     r.cat === 'STAFF' ? 'Staff' : 'Worker', q(r.status), r.gross || 0, r.monthly || 0, r.annual || 0,
-    q(r.ctcStatus || (r.annual ? 'SET' : 'NOT SET'))].join(',')));
+    q(r.ctcStatus || (r.annual ? 'SET' : 'NOT SET')), q(r.salStatus || '')].join(',')));
   const tot = CR_ROWS.reduce((a,r) => a + (r.annual||0), 0);
-  lines.push(['','','','','','','','TOTAL','', Math.round(tot/12), tot, ''].join(','));
+  lines.push(['','','','','','','','TOTAL','', Math.round(tot/12), tot, '', ''].join(','));
   dlText('Employee_CTC_' + todayISO() + '.csv', lines.join('\n'), 'text/csv');
   notify('Exported ' + CR_ROWS.length + ' employee(s)', 'success');
 });
@@ -12654,7 +12675,7 @@ const FAQ_SOP = [
   { c:'Documents', t:'ID Cards', b:'<li>Employee choose → ID card generate/print (photo + code + department).</li>' },
   { c:'Documents', t:'Exit & Full-Final (F&F)', b:'<li>Resignation → notice → F&F: pending salary, leave encashment, advances recovery, assets clearance.</li><li>Relieving + Experience + No-Dues bundle CEO approval ke saath.</li>' },
   { c:'System', t:'Blank Joining Form', b:'<li>Employees page → Blank Form: ek A4 par nominee + saare fields + office-use (Employment Type, Offered Salary, Roll Type) + 3 signature blocks; declaration last me.</li>' },
-  { c:'System', t:'CTC Calculator', b:'<li>Sirf helper: CTC daalo → Basic/HRA/allowances + gross + deductions preview.</li><li>Kisi ka salary structure Profile → Salary se hi change hota hai (CEO approval Dashboard Salary Approvals se).</li>' },
+  { c:'System', t:'CTC Calculator', b:'<li>Sirf helper: CTC daalo → Basic/HRA/allowances + gross + deductions preview.</li><li>Kisi ka salary structure Profile → Salary se hi change hota hai (CEO approval Employee CTC page ke Salary Approvals card se).</li>' },
   { c:'System', t:'Assets', b:'<li>Company assets employee ko issue/return; employee ESS "My Assets" me dekhta hai.</li>' },
   { c:'System', t:'Voice Box (Grievance / Suggestion / Kaizen)', b:'<li>ESS se aata hai; reporting manager ko mail. Kaizen reward payroll me jodta hai.</li>' },
   { c:'System', t:'MIS & Analytics', b:'<li>Attendance, expense, manpower trends; department/category deep-dives.</li>' },
