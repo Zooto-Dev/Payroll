@@ -292,14 +292,12 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <div class="display text-2xl font-bold" style="color:var(--ok)" id="stPresent">—</div>
         </div>
         <div class="card m-0 hm-stat">
-          <p class="lbl m-0">Aaj office me</p>
+          <p class="lbl m-0">Aaj ki duty</p>
           <div class="display text-2xl font-bold" style="color:var(--brand)" id="stOnFloor">—</div>
           <p class="text-[11px] mt-1 mb-0" id="stOnFloorSub" style="color:var(--muted)">—</p>
         </div>
       </div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-bullhorn" style="color:var(--brand)"></i> Announcements</h3><div id="annBox" class="text-sm space-y-2"></div></div>
-      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-cake-candles" style="color:#e11d48"></i> Birthdays &amp; Anniversaries <span class="text-[10px] font-normal" style="color:var(--muted)">— is hafte</span></h3><div id="bdayBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
-      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-envelope-open-text" style="color:#e11d48"></i> My Wishes <span class="text-[10px] font-normal" style="color:var(--muted)">— aapke liye aaye message</span></h3><div id="myWishesBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
       <div class="card">
         <div class="flex items-center justify-between mb-3">
           <button id="calPrev" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-chevron-left"></i></button>
@@ -324,6 +322,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <div id="attBox"></div>
       </div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-lightbulb" style="color:var(--brand)"></i> Kaizen Wall <span class="text-[10px] font-normal" style="color:var(--muted)">— ideas approved across the team</span></h3><div id="kaizenWall"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-cake-candles" style="color:#e11d48"></i> Birthdays &amp; Anniversaries <span class="text-[10px] font-normal" style="color:var(--muted)">— is hafte</span></h3><div id="bdayBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-envelope-open-text" style="color:#e11d48"></i> My Wishes <span class="text-[10px] font-normal" style="color:var(--muted)">— aapke liye aaye message</span></h3><div id="myWishesBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-calendar-check" style="color:var(--warn)"></i> Holidays This Year</h3><div id="holBox" class="text-sm space-y-1"></div></div>
       <div class="card m-0"><p class="lbl m-0"><i class="fa-solid fa-indian-rupee-sign" style="color:var(--brand)"></i> Last Net Pay</p><div class="display text-2xl font-bold" style="color:var(--brand)" id="stNet">—</div><p class="text-[11px] mt-1 mb-0" style="color:var(--muted)">Detailed payslip ke liye Requests → Payslips kholo.</p></div>
     </div>
@@ -2167,34 +2167,20 @@ async function kaizenSubmitClosing(id){
     loadKaizenCongrats();
   }catch(err){ notify(err.message || 'Failed'); }
 }
-function _mmdd(d){ if(!d) return null; const s=String(d); const m=s.match(/(\d{4})-(\d{2})-(\d{2})/); if(m) return m[2]+'-'+m[3]; const m2=s.match(/(\d{2})\/(\d{2})\/(\d{4})/); if(m2) return m2[2]+'-'+m2[1]; return null; }
-function _within7(mmdd){
-  if(!mmdd) return -1;
-  const now = new Date();
-  for(let i=0;i<7;i++){ const d=new Date(now); d.setDate(now.getDate()+i);
-    const t=String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-    if(t===mmdd) return i;
-  }
-  return -1;
-}
 async function loadBirthdays(){
   const host = $('bdayBox'); if(!host) return;
   let rows = [];
   try{
-    const [empRes, profRes] = await Promise.all([
-      sb.from('employees').select('"Employee code",Name,DOJ,DEPARTMENT,Status'),
-      sb.from('hr_profiles').select('employee_code,dob')
-    ]);
-    const dobMap = {}; (profRes.data||[]).forEach(p => dobMap[p.employee_code]=p.dob);
-    (empRes.data||[]).forEach(e => {
-      if(String(e.Status||'').toUpperCase()!=='ACTIVE') return;
-      const code = e['Employee code'];
-      const bMM = _mmdd(dobMap[code]); const aMM = _mmdd(e.DOJ);
-      const bIn = _within7(bMM), aIn = _within7(aMM);
-      if(bIn>=0) rows.push({ code, name:e.Name, dept:e.DEPARTMENT, occasion:'BIRTHDAY', inDays:bIn });
-      if(aIn>=0 && e.DOJ) rows.push({ code, name:e.Name, dept:e.DEPARTMENT, occasion:'ANNIVERSARY', inDays:aIn });
-    });
-    rows.sort((a,b)=>a.inDays-b.inDays);
+    // ess_celebrations = SECURITY DEFINER RPC. Pehle yahan se seedha hr_profiles padha jaata
+    // tha, par ESS anon key par chalti hai aur us table par anon ka SELECT policy nahi hai —
+    // isliye DOB kabhi aati hi nahi thi aur list hamesha khali rehti thi.
+    const { data, error } = await sb.rpc('ess_celebrations', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE });
+    if(error) throw error;
+    if(data && data.error) throw new Error(data.error);
+    rows = ((data && data.rows) || []).map(r => ({
+      code: r.code, name: r.name, dept: r.dept, occasion: r.occasion,
+      inDays: Number(r.in_days) || 0, years: Number(r.years) || 0
+    }));
   }catch(e){ host.innerHTML='<p class="m-0 text-xs" style="color:var(--muted)">Could not load.</p>'; return; }
   if(!rows.length){ host.innerHTML='<p class="m-0 text-xs" style="color:var(--muted)">No birthdays or anniversaries this week.</p>'; return; }
   // which ones have I already wished?
@@ -2212,7 +2198,7 @@ async function loadBirthdays(){
     return `<div class="bd-item">
       <div class="bd-ic" style="background:${bg}">${ic}</div>
       <div><div class="bd-name">${esc(r.name)}${isMe?' (You)':''}</div>
-        <div class="bd-sub">${r.occasion==='BIRTHDAY'?'Birthday':'Work Anniversary'} · ${when}${r.dept?' · '+esc(r.dept):''}</div></div>
+        <div class="bd-sub">${r.occasion==='BIRTHDAY'?'Birthday':(r.years?r.years+' saal poore':'Work Anniversary')} · ${when}${r.dept?' · '+esc(r.dept):''}</div></div>
       ${isMe ? '' : `<button class="bd-wish" ${alreadyWished?'disabled':''} onclick="openWish('${esc(r.code)}','${esc(r.name)}','${r.occasion}')">${alreadyWished?'Wished ✓':'Wish'}</button>`}
     </div>`;
   }).join('');
