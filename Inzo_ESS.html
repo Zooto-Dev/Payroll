@@ -448,7 +448,6 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <div><label class="lbl">From</label><input id="lvFrom" type="date" class="inp"></div>
           <div><label class="lbl">To</label><input id="lvTo" type="date" class="inp"></div>
         </div>
-        <label class="flex items-center gap-2 text-sm mb-3"><input type="checkbox" id="lvHalf"> Half day (From date only)</label>
         <label class="lbl">Reason</label>
         <input id="lvReason" class="inp mb-4" placeholder="Optional">
         <button id="lvBtn" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Submit for Approval</button>
@@ -3281,9 +3280,7 @@ function minLeaveDate(){
   return d.toISOString().slice(0, 10);
 }
 try { $('lvFrom').min = minLeaveDate(); $('lvTo').min = minLeaveDate(); } catch(e){}
-$('lvHalf').addEventListener('change', () => { if($('lvHalf').checked) $('lvTo').value = $('lvFrom').value; });
 $('lvBtn').addEventListener('click', async () => {
-  if($('lvHalf').checked) $('lvTo').value = $('lvFrom').value;
   if(!$('lvFrom').value || !$('lvTo').value) return notify('Select From and To dates');
   if($('lvFrom').value < minLeaveDate()) return notify('Leave must be applied at least 2 days in advance. For emergencies, contact HR directly.');
   const btn = $('lvBtn');
@@ -3292,7 +3289,7 @@ $('lvBtn').addEventListener('click', async () => {
     const { data, error } = await sb.rpc('ess_apply_leave_v2', {
       p_code: CODE, p_phone: PHONE, p_type: $('lvType').value,
       p_from: $('lvFrom').value, p_to: $('lvTo').value, p_reason: $('lvReason').value,
-      p_half: $('lvHalf').checked
+      p_half: false   // Leave me half-day ka option hata diya gaya — aadhe din ke liye Gate Pass use karein
     });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
