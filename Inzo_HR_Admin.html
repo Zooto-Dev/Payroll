@@ -4810,7 +4810,15 @@ function ctcAnnualOf(code){
   // warna agar approved salary set hai to usse nikaalo
   if(p.salary && p.salary.earn){
     const gross = Object.values(empSalary(code)).reduce((a,b)=>a+(Number(b)||0),0);
-    const f = p.salary.flags || { pf:true, esi: gross<=Number(getSettings().esiLimit), lwf:true, tds:false };
+    // Flags SIRF hr_profiles ke column se — wahi payroll aur employee list bhi
+    // padhte hain. Pehle yahan p.salary.flags padha jaata tha, jo zyadatar
+    // profiles me hota hi nahi hai, aur tab default pf:true/lwf:true lag jaata
+    // tha — yaani jinka PF band hai unka CTC report me employer PF (₹1,800/mahina)
+    // jhoot-much jud jaata tha.
+    const f = { pf:  p.pf_applicable  !== false,
+                esi: p.esi_applicable !== false && gross <= Number(getSettings().esiLimit),
+                lwf: p.lwf_applicable !== false,
+                tds: false };
     return ctcParts(gross, f).annualCTC;
   }
   return 0;
@@ -6012,7 +6020,7 @@ function candStageActions(c){
     const g = Number(c.agreed_salary)||0;
     const alloc = g ? splitGross(g) : null;
     html += `<div class="grid grid-cols-3 gap-3 mb-2">
-      <div><label class="lbl">Annual CTC (₹)</label><input id="candCTC" type="number" class="inp" value="${g ? ctcParts(g).annualCTC : ''}" oninput="candCtcChanged()"></div>
+      <div><label class="lbl">Annual CTC (₹)</label><input id="candCTC" type="number" class="inp" value="${g ? ctcParts(g, candStatFlags(c)).annualCTC : ''}" oninput="candCtcChanged()"></div>
       <div><label class="lbl">Monthly Gross (₹) <span style="font-weight:400;color:var(--muted)">(auto)</span></label><input id="candAgreed" type="number" class="inp" value="${c.agreed_salary||''}" oninput="candGrossChanged()"></div>
       <div><label class="lbl">Joining Date</label><input id="candJoinDate" type="date" class="inp" value="${c.join_date||''}"></div>
     </div>
