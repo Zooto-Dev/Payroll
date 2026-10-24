@@ -264,6 +264,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <div>
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
+          <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
           <p class="text-[8px] m-0" style="color:#cbd5e1">Build B69</p>
         </div>
       </div>
@@ -280,24 +281,17 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <h3 class="display font-bold mt-0 mb-2 text-sm" style="color:#1d4ed8"><i class="fa-solid fa-calendar-star"></i> Schedule Changes</h3>
         <div id="specialDayBox" class="text-xs space-y-2"></div>
       </div>
-      <div class="hm-hero">
-        <div>
-          <div class="hm-hi" id="hmHi">—</div>
-          <div class="hm-day" id="hmDay">—</div>
-        </div>
-      </div>
       <div class="hm-stats mb-3">
         <div class="card m-0 hm-stat">
-          <p class="lbl m-0">Present (This Month)</p>
+          <p class="lbl m-0" data-en="Present (This Month)" data-hi="Is mahine present">Present (This Month)</p>
           <div class="display text-2xl font-bold" style="color:var(--ok)" id="stPresent">—</div>
         </div>
         <div class="card m-0 hm-stat">
-          <p class="lbl m-0">Aaj ki duty</p>
+          <p class="lbl m-0" data-en="Hours Today" data-hi="Aaj kitna time hua">Hours Today</p>
           <div class="display text-2xl font-bold" style="color:var(--brand)" id="stOnFloor">—</div>
           <p class="text-[11px] mt-1 mb-0" id="stOnFloorSub" style="color:var(--muted)">—</p>
         </div>
       </div>
-      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-bullhorn" style="color:var(--brand)"></i> Announcements</h3><div id="annBox" class="text-sm space-y-2"></div></div>
       <div class="card">
         <div class="flex items-center justify-between mb-3">
           <button id="calPrev" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-chevron-left"></i></button>
@@ -312,7 +306,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       </div>
       <div class="card">
         <div class="flex items-center justify-between mb-2">
-          <h3 class="display font-bold m-0 text-sm">Day-wise Detail</h3>
+          <h3 class="display font-bold m-0 text-sm" data-en="Day-wise Detail" data-hi="Din-wise detail">Day-wise Detail</h3>
           <span class="flex items-center gap-1">
             <button id="attPrev" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-chevron-left"></i></button>
             <span class="chip chip-blue" id="attPageInfo">1/1</span>
@@ -321,11 +315,12 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         </div>
         <div id="attBox"></div>
       </div>
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-bullhorn" style="color:var(--brand)"></i> <span data-en="Announcements" data-hi="Soochna">Announcements</span></h3><div id="annBox" class="text-sm space-y-2"></div></div>
       <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-lightbulb" style="color:var(--brand)"></i> Kaizen Wall <span class="text-[10px] font-normal" style="color:var(--muted)">— ideas approved across the team</span></h3><div id="kaizenWall"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
-      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-cake-candles" style="color:#e11d48"></i> Birthdays &amp; Anniversaries <span class="text-[10px] font-normal" style="color:var(--muted)">— is hafte</span></h3><div id="bdayBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
-      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-envelope-open-text" style="color:#e11d48"></i> My Wishes <span class="text-[10px] font-normal" style="color:var(--muted)">— aapke liye aaye message</span></h3><div id="myWishesBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
-      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-calendar-check" style="color:var(--warn)"></i> Holidays This Year</h3><div id="holBox" class="text-sm space-y-1"></div></div>
-      <div class="card m-0"><p class="lbl m-0"><i class="fa-solid fa-indian-rupee-sign" style="color:var(--brand)"></i> Last Net Pay</p><div class="display text-2xl font-bold" style="color:var(--brand)" id="stNet">—</div><p class="text-[11px] mt-1 mb-0" style="color:var(--muted)">Detailed payslip ke liye Requests → Payslips kholo.</p></div>
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-cake-candles" style="color:#e11d48"></i> <span data-en="Birthdays &amp; Anniversaries" data-hi="Birthday aur Work Anniversary">Birthdays &amp; Anniversaries</span> <span class="text-[10px] font-normal" style="color:var(--muted)" data-en="— this week" data-hi="— is hafte">— this week</span></h3><div id="bdayBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-envelope-open-text" style="color:#e11d48"></i> <span data-en="My Wishes" data-hi="Meri Wishes">My Wishes</span> <span class="text-[10px] font-normal" style="color:var(--muted)" data-en="— messages for you" data-hi="— aapke liye aaye message">— messages for you</span></h3><div id="myWishesBox"><p class="m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
+      <div class="card"><h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-calendar-check" style="color:var(--warn)"></i> <span data-en="Holidays This Year" data-hi="Is saal ki chhuttiyan">Holidays This Year</span></h3><div id="holBox" class="text-sm space-y-1"></div></div>
+      <div class="card m-0"><p class="lbl m-0"><i class="fa-solid fa-indian-rupee-sign" style="color:var(--brand)"></i> <span data-en="Last Net Pay" data-hi="Pichhli salary (net)">Last Net Pay</span></p><div class="display text-2xl font-bold" style="color:var(--brand)" id="stNet">—</div><p class="text-[11px] mt-1 mb-0" style="color:var(--muted)" data-en="Open Requests → Payslips for the full payslip." data-hi="Poori payslip ke liye Requests → Payslips kholo.">Open Requests → Payslips for the full payslip.</p></div>
     </div>
 
     <div class="page" id="p-req">
@@ -2182,7 +2177,8 @@ async function loadBirthdays(){
       inDays: Number(r.in_days) || 0, years: Number(r.years) || 0
     }));
   }catch(e){ host.innerHTML='<p class="m-0 text-xs" style="color:var(--muted)">Could not load.</p>'; return; }
-  if(!rows.length){ host.innerHTML='<p class="m-0 text-xs" style="color:var(--muted)">No birthdays or anniversaries this week.</p>'; return; }
+  if(!rows.length){ host.innerHTML='<p class="m-0 text-xs" style="color:var(--muted)">'
+    + L('No birthdays or anniversaries this week.', 'Is hafte koi birthday ya anniversary nahi hai.') + '</p>'; return; }
   // which ones have I already wished?
   let wished = new Set();
   try{
@@ -2198,7 +2194,7 @@ async function loadBirthdays(){
     return `<div class="bd-item">
       <div class="bd-ic" style="background:${bg}">${ic}</div>
       <div><div class="bd-name">${esc(r.name)}${isMe?' (You)':''}</div>
-        <div class="bd-sub">${r.occasion==='BIRTHDAY'?'Birthday':(r.years?r.years+' saal poore':'Work Anniversary')} · ${when}${r.dept?' · '+esc(r.dept):''}</div></div>
+        <div class="bd-sub">${r.occasion==='BIRTHDAY'?'Birthday':(r.years?L(r.years+' years completed', r.years+' saal poore'):'Work Anniversary')} · ${when}${r.dept?' · '+esc(r.dept):''}</div></div>
       ${isMe ? '' : `<button class="bd-wish" ${alreadyWished?'disabled':''} onclick="openWish('${esc(r.code)}','${esc(r.name)}','${r.occasion}')">${alreadyWished?'Wished ✓':'Wish'}</button>`}
     </div>`;
   }).join('');
@@ -2221,7 +2217,8 @@ async function loadMyWishes(){
     const { data } = await sb.from('wishes').select('*').eq('to_code', CODE).order('created_at',{ascending:false}).limit(20);
     rows = data || [];
   }catch(e){ host.innerHTML='<p class="m-0 text-xs" style="color:var(--muted)">Could not load.</p>'; return; }
-  if(!rows.length){ host.innerHTML='<p class="m-0 text-xs" style="color:var(--muted)">No wishes yet.</p>'; return; }
+  if(!rows.length){ host.innerHTML='<p class="m-0 text-xs" style="color:var(--muted)">'
+    + L('No wishes yet.', 'Abhi koi wish nahi aayi.') + '</p>'; return; }
   host.innerHTML = rows.map(w => `<div class="wish-item">
     <div class="wish-from">${esc(w.from_name||w.from_code)} <span style="font-weight:400;color:#94a3b8;font-size:10px">· ${w.occasion==='BIRTHDAY'?'🎂 Birthday':'🎉 Anniversary'}</span></div>
     <div class="wish-msg">${esc(w.message||'')}</div>
@@ -2311,7 +2308,25 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;
 const fmtDate = iso => { if(!iso) return '—'; const d = new Date(iso + (String(iso).length === 10 ? 'T00:00:00' : '')); return isNaN(d) ? iso : d.toLocaleDateString('en-IN', { day:'2-digit', month:'short' }); };
 
 let ATT_PAGE = 0;
-/* ---------- Home: greeting + "aaj office me kitni der" live timer ---------- */
+/* ---------- Bhasha: STAFF ko English, WORKER ko Hinglish ----------
+   Category hr_profiles se aati hai (ess_get_data ab 'category' bhi bhejta hai).
+   STAFF ke alawa sab kuch — WORKER ya khali — Hinglish, kyunki shop floor par
+   English padhna mushkil hota hai. Naya text likhte waqt L('English','Hinglish')
+   use karein, aur static HTML par data-en / data-hi daal dein. */
+function essLang(){
+  const c = String((((D || {}).profile) || {}).category || '').trim().toUpperCase();
+  return c === 'STAFF' ? 'en' : 'hi';
+}
+function L(en, hi){ return essLang() === 'en' ? en : hi; }
+function essApplyLang(){
+  const en = essLang() === 'en';
+  document.querySelectorAll('[data-en]').forEach(el => {
+    const v = en ? el.getAttribute('data-en') : (el.getAttribute('data-hi') || el.getAttribute('data-en'));
+    if(v !== null) el.innerHTML = v;
+  });
+}
+
+/* ---------- Home: greeting + "aaj kitna time hua" live timer ---------- */
 // toISOString UTC deta hai — raat 12 se 5:30 ke beech wo KAL ki date dikhata, isliye local date.
 function essToday(){
   const d = new Date();
@@ -2319,13 +2334,14 @@ function essToday(){
 }
 function hmGreeting(){
   const h = new Date().getHours();
-  return h < 12 ? 'Good morning' : (h < 17 ? 'Good afternoon' : 'Good evening');
+  if(essLang() === 'en') return h < 12 ? 'Good morning' : (h < 17 ? 'Good afternoon' : 'Good evening');
+  return h < 12 ? 'Suprabhat' : (h < 17 ? 'Namaste' : 'Shubh sandhya');
 }
 function hmPaintHero(){
-  const hi = $('hmHi'), dy = $('hmDay'); if(!hi) return;
-  const nm = String(((D && D.employee) || {}).Name || CODE || '').trim().split(/\s+/)[0] || '';
-  hi.innerText = hmGreeting() + (nm ? ', ' + nm.charAt(0) + nm.slice(1).toLowerCase() : '');
-  if(dy) dy.innerText = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
+  const g = $('hGreet'); if(!g) return;
+  const day = new Date().toLocaleDateString(essLang() === 'en' ? 'en-IN' : 'en-IN',
+    { weekday:'short', day:'numeric', month:'short' });
+  g.innerText = hmGreeting() + '  \u00b7  ' + day;
 }
 function hmTick(){
   const el = $('stOnFloor'), sub = $('stOnFloorSub'); if(!el) return;
@@ -2333,7 +2349,7 @@ function hmTick(){
   const rec = ((D && D.attendance) || []).find(a => String(a.date||'').slice(0,10) === today);
   if(!rec || !rec.in_time){
     el.innerHTML = '—';
-    if(sub) sub.innerText = 'Aaj ka punch abhi nahi hua';
+    if(sub) sub.innerText = L('No punch yet today', 'Aaj ka punch abhi nahi hua');
     return;
   }
   const inStr = String(rec.in_time).substring(0,8);
@@ -2344,8 +2360,8 @@ function hmTick(){
   const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
   el.innerHTML = (done ? '' : '<span class="hm-live"></span>') + h + 'h ' + String(m).padStart(2,'0') + 'm';
   if(sub) sub.innerText = done
-    ? 'IN ' + inStr.slice(0,5) + ' · OUT ' + String(rec.out_time).slice(0,5) + ' — shift poori'
-    : 'IN ' + inStr.slice(0,5) + ' se chal raha hai';
+    ? 'IN ' + inStr.slice(0,5) + ' · OUT ' + String(rec.out_time).slice(0,5) + L(' — shift complete', ' — shift poori')
+    : 'IN ' + inStr.slice(0,5) + L(' — running', ' se chal raha hai');
 }
 if(!window._hmTimer) window._hmTimer = setInterval(() => { try{ hmTick(); }catch(e){} }, 30000);
 
@@ -2473,7 +2489,7 @@ function render(){
   const ym = new Date().toISOString().slice(0,7);
   const att = D.attendance || [];
   $('stPresent').innerText = att.filter(a => a.date && a.date.startsWith(ym)).length;
-  try{ hmPaintHero(); hmTick(); }catch(e){}
+  try{ essApplyLang(); hmPaintHero(); hmTick(); }catch(e){}
   const slips = D.payslips || [];
   $('stNet').innerText = slips.length ? fmtINR(slips[0].net_pay) : '—';
   const ann = D.announcements || [];
@@ -3306,10 +3322,15 @@ function renderLeaveBalance(){
   const paid = Math.min(taken, 1);
   const unpaid = +(taken - paid).toFixed(1);
   host.innerHTML =
-    `<span class="chip ${paid >= 1 ? 'chip-gray' : 'chip-blue'}">Is mahine: ${paid >= 1 ? 'paid leave use ho gayi' : '1 paid leave baaki'}</span>`
-    + (taken ? `<span class="chip chip-blue" style="margin-left:6px">Li: ${taken} din</span>` : '')
-    + (unpaid > 0 ? `<span class="chip chip-bad" style="margin-left:6px">${unpaid} din unpaid (LOP)</span>` : '')
-    + `<span class="chip chip-gray" style="margin-left:6px">Koi balance / carry-forward nahi</span>`;
+    `<span class="chip ${paid >= 1 ? 'chip-gray' : 'chip-blue'}">`
+      + (paid >= 1 ? L('This month: paid leave used', 'Is mahine: paid leave use ho gayi')
+                   : L('This month: 1 paid leave left', 'Is mahine: 1 paid leave baaki')) + `</span>`
+    + (taken ? `<span class="chip chip-blue" style="margin-left:6px">`
+        + L('Taken: ' + taken + (taken == 1 ? ' day' : ' days'), 'Li: ' + taken + ' din') + `</span>` : '')
+    + (unpaid > 0 ? `<span class="chip chip-bad" style="margin-left:6px">`
+        + L(unpaid + (unpaid == 1 ? ' day' : ' days') + ' unpaid (LOP)', unpaid + ' din unpaid (LOP)') + `</span>` : '')
+    + `<span class="chip chip-gray" style="margin-left:6px">`
+      + L('No balance or carry-forward', 'Koi balance / carry-forward nahi') + `</span>`;
 }
 function renderLeaves(){
   const lv = D.leaves || [];
