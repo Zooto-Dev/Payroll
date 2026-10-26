@@ -1559,11 +1559,6 @@ body.no-confidential .confidential-col{display:none!important}
       <button id="crApproveSelBtn" class="btn btn-primary hidden" onclick="approveSelectedSalaries()"><i class="fa-solid fa-check"></i> Approve Selected</button>
       <span id="crPendChip" class="chip chip-warn hidden" style="align-self:center"></span>
     </div>
-    <p class="text-[11px] m-0 px-4 py-2" style="color:var(--muted);background:var(--brand-soft)">
-      Jinki salary <b>pending</b> hai wo isi list me sabse <b>upar</b> hain, aur unhe aakhri column se
-      wahin <b>approve / reject</b> kar sakte hain — payroll pending salary wale ko poora <b>skip</b> kar deta hai.
-      CTC ka amount badalna ho to <b>Employees \u2192 Profile \u2192 Salary</b>, ya
-      <b>System \u2192 CTC Calculator</b> ki master table se.</p>
     <div style="overflow-x:auto"><table class="tbl tbl-compact" id="crTbl"><tbody></tbody></table></div>
   </div>
 </div>
@@ -1634,7 +1629,7 @@ body.no-confidential .confidential-col{display:none!important}
         <div><label class="lbl">OT Rate Multiplier</label><input id="setOTMult" type="number" step="0.5" class="inp" value="1" title="1 = single rate, 2 = double"></div>
         <div><label class="lbl">OT Counts After (mins beyond shift)</label><input id="setOTAfter" type="number" class="inp" value="20" title="Itne minute se kam OT bache to us din ka OT count nahi hoga"></div>
         <div class="lg:col-span-2 p-2 rounded text-[11px]" style="background:var(--brand-soft);color:#334155">
-          <b>Leave policy (fix hai, badalti nahi):</b> har mahine <b>1 leave paid</b>. Usi mahine ki usse zyada leave, approved ho to bhi, <b>unpaid (LOP)</b> hai. Koi leave balance, carry-forward, rollover ya encashment nahi \u2014 bachi hui leave mahine ke aakhir me lapse ho jaati hai.
+          <b>Leave policy (fix hai, badalti nahi):</b> har mahine <b>1 leave paid</b>. Usi mahine ki usse zyada leave, approved ho to bhi, <b>unpaid (LOP)</b> hai. Koi leave balance, carry-forward, rollover ya encashment nahi — bachi hui leave mahine ke aakhir me lapse ho jaati hai.
         </div>
         <div class="lg:col-span-2"><label class="lbl">Leave Types Offered <span class="text-[10px]" style="color:var(--muted)">(only ticked types show in the leave form)</span></label>
           <div id="setLeaveTypes" style="display:flex;flex-wrap:wrap;gap:10px;padding:8px 0">
