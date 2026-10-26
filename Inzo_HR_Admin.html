@@ -207,6 +207,12 @@ body.not-super .super-only{display:none !important;}
 .tbl th{text-align:left;padding:10px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--line);background:var(--surface-2);font-weight:600;white-space:nowrap;position:sticky;top:0;z-index:1}
 .tbl td{padding:10px 12px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
 .tbl tbody tr:hover{background:var(--surface-2)}
+/* Employee CTC list: zyada row ek screen me aa jayein */
+.tbl-compact{font-size:12px}
+.tbl-compact th{padding:6px 8px;font-size:10px}
+.tbl-compact td{padding:5px 8px}
+.tbl-compact .btn-sm{padding:3px 7px;font-size:11px}
+.tbl-compact .chip{padding:1px 6px}
 .chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600}
 .chip-ok{background:#e9f3ec;color:#2f7d54}
 .chip-warn{background:#faf1e0;color:#a9701e}
@@ -1544,7 +1550,7 @@ body.no-confidential .confidential-col{display:none!important}
   </div>
   <div class="card" style="padding:0;overflow:hidden">
     <div class="p-4 border-b flex items-end gap-3 flex-wrap" style="border-color:var(--line)">
-      <div style="flex:1;min-width:190px"><label class="lbl">Search</label><input id="crSearch" class="inp" placeholder="Naam, code, department ya designation"></div>
+      <div style="flex:1;min-width:190px"><label class="lbl">Search</label><input id="crSearch" class="inp" placeholder="Naam, code, department, section ya designation"></div>
       <div><label class="lbl">Department</label><select id="crDept" class="inp" style="min-width:180px"></select></div>
       <div><label class="lbl">Category</label><select id="crCat" class="inp"><option value="ALL">Sab</option><option value="STAFF">Staff</option><option value="WORKER">Worker</option></select></div>
       <div><label class="lbl">CTC</label><select id="crSet" class="inp"><option value="ALL">Sab</option><option value="SET">Jinki set hai</option><option value="NONE">Jinki set nahi</option></select></div>
@@ -1558,7 +1564,7 @@ body.no-confidential .confidential-col{display:none!important}
       wahin <b>approve / reject</b> kar sakte hain — payroll pending salary wale ko poora <b>skip</b> kar deta hai.
       CTC ka amount badalna ho to <b>Employees \u2192 Profile \u2192 Salary</b>, ya
       <b>System \u2192 CTC Calculator</b> ki master table se.</p>
-    <div style="overflow-x:auto"><table class="tbl" id="crTbl"><tbody></tbody></table></div>
+    <div style="overflow-x:auto"><table class="tbl tbl-compact" id="crTbl"><tbody></tbody></table></div>
   </div>
 </div>
 <div class="page" id="page-ctccalc">
@@ -4941,18 +4947,18 @@ function renderCtcReport(){
   if(selBtn)   selBtn.classList.toggle('hidden', !(ceo && nPend));
   if(pendChip){ pendChip.classList.toggle('hidden', !nPend);
                 pendChip.innerText = nPend + ' salary approval pending'; }
-  const nCols = 11 + (ceo ? 2 : 0);
+  const nCols = 9 + (ceo ? 2 : 0);
   tbl.innerHTML = `<thead><tr>
       ${ceo ? `<th style="width:30px"><input type="checkbox" id="salSelAll" onclick="document.querySelectorAll('.sal-cb').forEach(c=>c.checked=this.checked)"></th>` : ''}
-      <th>#</th><th>Code</th><th>Name</th><th>Department</th><th>Section</th><th>Designation</th><th>Cat</th>
-      <th style="${rt}">Monthly Gross</th><th style="${rt}">Monthly CTC</th><th style="${rt}">Annual CTC</th><th>Status</th>
+      <th>#</th><th>Code</th><th>Name</th><th>Department</th><th>Cat</th>
+      <th style="${rt}">Gross</th><th style="${rt}">Monthly CTC</th><th style="${rt}">Annual CTC</th><th>Status</th>
       ${ceo ? '<th>Approval</th>' : ''}</tr></thead>
     <tbody>${rows.length ? rows.map((r,i) => `<tr${r.salRank < 2 ? ' style="background:#fffbeb"' : ''}>
       ${ceo ? `<td>${r.salStatus === 'PENDING' && !isMyOwnProfile(r.code)
         ? `<input type="checkbox" class="sal-cb" value="${esc(r.code)}">` : ''}</td>` : ''}
       <td>${i+1}</td><td>${esc(r.code)}</td>
       <td class="font-semibold">${esc(r.name)}${String(r.status).toUpperCase() !== 'ACTIVE' ? ` <span class="chip chip-gray" style="font-size:9px">${esc(r.status||'INACTIVE')}</span>` : ''}</td>
-      <td>${esc(r.dept||'\u2014')}</td><td>${esc(r.sec||'\u2014')}</td><td>${esc(r.desig||'\u2014')}</td>
+      <td>${esc(r.dept||'\u2014')}</td>
       <td>${r.cat === 'STAFF' ? 'Staff' : 'Worker'}</td>
       <td class="money" style="${rt}">${r.gross ? fmtINR(r.gross) : '\u2014'}</td>
       <td class="money" style="${rt}">${r.monthly ? fmtINR(r.monthly) : '\u2014'}</td>
