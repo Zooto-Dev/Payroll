@@ -4075,7 +4075,9 @@ if($('dPunchSearch')) $('dPunchSearch').addEventListener('input', renderDPunchLi
 // kaun extra aaya aur unme se kiski attendance ab tak nahi bani (wo log absent count honge).
 async function loadBlockedPunches(){
   const host = $('blkList'); if(!host) return;
-  if($('blkDate') && !$('blkDate').value) $('blkDate').value = todayISO();
+  // Jab tak user ne khud koi purani date na chuni ho, ye list AAJ par rehti hai.
+  // (Warna page raat bhar khula rehne par kal ka data dikhta rehta tha.)
+  if($('blkDate') && (!$('blkDate').value || !window._blkUserPicked)) $('blkDate').value = todayISO();
   const d = (($('blkDate')||{}).value) || todayISO();
   host.innerHTML = '<p style="color:var(--muted)">Loading…</p>';
   try{
@@ -4140,7 +4142,11 @@ async function loadBlockedPunches(){
 }
 if($('blkDate')) $('blkDate').value = todayISO();
 if($('blkRefreshBtn')) $('blkRefreshBtn').addEventListener('click', loadBlockedPunches);
-if($('blkDate')) $('blkDate').addEventListener('change', loadBlockedPunches);
+if($('blkDate')) $('blkDate').addEventListener('change', () => {
+  // user ne khud date chuni — ab usko aaj par wapas na kheenchein
+  window._blkUserPicked = ($('blkDate').value !== todayISO());
+  loadBlockedPunches();
+});
 
 /* ---------------- Employees ---------------- */
 function renderEmployees(filter){
@@ -7488,13 +7494,34 @@ async function loadDeployment(){
       <div class="progress-track"><div class="progress-fill" style="width:${pct}%;${full ? 'background:var(--bad)' : ''}"></div></div></div>`;
   }).join('');
   const logs = logRes.data || [];
-  $('deployLogs').innerHTML = logs.length ? `<p class="lbl" style="margin:8px 0 6px">Blocked punches today (${logs.length})</p>` + logs.map(g => {
-    const spoof = g.status === 'LIVENESS_FAIL';
-    return `<div class="flex items-center justify-between p-2 rounded-lg text-sm mb-1" style="background:${spoof ? '#fff7ed' : '#fef2f2'}">
-      <span><b>${esc(g.name || g.employee_code)}</b> <span style="color:var(--muted)">(${esc(g.employee_code)})</span> ${spoof ? 'failed the liveness check' : 'tried <b>' + esc(g.line) + '</b>'} at ${esc((g.time||'').substring(0,5))}</span>
-      <span class="chip chip-bad">${spoof ? 'SPOOF ATTEMPT?' : 'MANPOWER FULL'}</span>
+  // Ek bande ki saari koshishein ek hi row me (Excess Manpower card jaisa) — warna
+  // 45 baar try karne wale ki 45 row ban jaati hain.
+  const _byPerson = {};
+  logs.forEach(g => {
+    const k = String(g.employee_code || '').toUpperCase() + '|' + String(g.status || '');
+    const t = String(g.time || '').substring(0,5);
+    const o = _byPerson[k] || (_byPerson[k] = { code: g.employee_code, name: g.name || g.employee_code,
+      line: g.line || '', status: g.status || '', tries: 0, first: t, last: t });
+    o.tries++;
+    if(t){ if(!o.first || t < o.first) o.first = t; if(!o.last || t > o.last) o.last = t; }
+    if(g.line) o.line = g.line;
+  });
+  const _blkRows = Object.values(_byPerson).sort((a,b) => String(a.first).localeCompare(String(b.first)));
+  // Label asli status se — pehle LIVENESS_FAIL ke alawa sab kuch "MANPOWER FULL" chhapta tha.
+  const _statusLabel = st => st === 'MANPOWER_FULL' ? 'MANPOWER FULL'
+                           : st === 'LIVENESS_FAIL' ? 'SPOOF ATTEMPT?'
+                           : String(st || 'BLOCKED').replace(/_/g, ' ');
+  $('deployLogs').innerHTML = _blkRows.length
+    ? `<p class="lbl" style="margin:8px 0 6px">Blocked punches today (${_blkRows.length} ${_blkRows.length === 1 ? 'person' : 'log'}, ${logs.length} attempts)</p>`
+      + _blkRows.map(g => {
+        const spoof = g.status === 'LIVENESS_FAIL';
+        const when = g.first + (g.last && g.last !== g.first ? ' – ' + g.last : '');
+        return `<div class="flex items-center justify-between p-2 rounded-lg text-sm mb-1" style="background:${spoof ? '#fff7ed' : '#fef2f2'}">
+      <span><b>${esc(g.name)}</b> <span style="color:var(--muted)">(${esc(g.code)})</span> ${spoof ? 'failed the liveness check' : 'tried <b>' + esc(g.line || '—') + '</b>'} at ${esc(when)}${g.tries > 1 ? ` <span style="color:var(--muted)">• ${g.tries} attempts</span>` : ''}</span>
+      <span class="chip chip-bad">${esc(_statusLabel(g.status))}</span>
     </div>`;
-  }).join('') : '<p class="text-xs m-0" style="color:var(--muted)">No blocked punches today.</p>';
+      }).join('')
+    : '<p class="text-xs m-0" style="color:var(--muted)">No blocked punches today.</p>';
 }
 $('deployRefreshBtn').addEventListener('click', loadDeployment);
 
