@@ -10192,7 +10192,8 @@ $('empImportBtn').addEventListener('click', () => {
 });
 
 $('empExportBtn').addEventListener('click', async () => {
-  // Export me SAB employees — Active, Inactive aur Exited — (Status column me pata chal jayega).
+  // Export me SAB employees — Active aur Inactive dono — aur Status column
+  // (naam ke theek baad) batata hai kaun kaun hai.
   const list = EMP.slice();
   if(!list.length) return notify('No employees to export', 'error');
   const _cntInactive = list.filter(e => String(e.Status||'').toUpperCase() !== 'ACTIVE').length;
@@ -10200,13 +10201,16 @@ $('empExportBtn').addEventListener('click', async () => {
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
   const fmtD = d => d ? String(d).split('-').reverse().join('/') : '';   // yyyy-mm-dd -> dd/mm/yyyy
   const mask = v => full ? (v==null?'':v) : '';   // confidential column — blank if no permission
+  // Khali Status ko 'Active' maan lena galat hoga, isliye 'Unknown'.
+  const stat = v => { const t = String(v == null ? '' : v).trim();
+    return t ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : 'Unknown'; };
   // === FIXED FORMAT (jaisa HR ne maanga) ===
-  const header = ['S.No','Emp Code','Employee Name','Designation','DOJ','DOB','Reporting Manager','Department','Section','Category','Gender','Accounts No.','IFSC Code','ESIC No','UAN No','PAN Card','Adhaar Number','ID','Mobile No','Address','Marital Status','E-Mail ID','Emergency Contact Name','Number','Relation','Nominee Name','Relation'];
+  const header = ['S.No','Emp Code','Employee Name','Status','Designation','DOJ','DOB','Reporting Manager','Department','Section','Category','Gender','Accounts No.','IFSC Code','ESIC No','UAN No','PAN Card','Adhaar Number','ID','Mobile No','Address','Marital Status','E-Mail ID','Emergency Contact Name','Number','Relation','Nominee Name','Relation'];
   const lines = [header.join(',')];
   list.forEach((e, i) => {
     const code = e['Employee code']; const p = PROFILES[code] || {};
     const row = [
-      i + 1, code, e.Name, e.DESIGNATION, fmtD(e.DOJ), fmtD(p.dob), p.reporting_manager, e.DEPARTMENT, p.section,
+      i + 1, code, e.Name, stat(e.Status), e.DESIGNATION, fmtD(e.DOJ), fmtD(p.dob), p.reporting_manager, e.DEPARTMENT, p.section,
       String(p.category || 'WORKER').toUpperCase() === 'STAFF' ? 'Staff' : 'Worker', p.gender,
       mask(p.account_no), mask(p.ifsc), mask(p.esi_no), mask(p.uan), mask(p.pan), mask(p.aadhaar), mask(p.id_number),
       p.phone, p.address, p.marital_status, p.email,
