@@ -2461,6 +2461,38 @@ function shiftHours(s){
    Weekly-off / holiday / Sunday par kaam kiya to poora worked time OT.
    Threshold (Settings > "OT Counts After") se kam bacha to OT = 0. */
 function nxHrsOf(t){ if(!t) return 0; const q = String(t).split(':').map(Number); return (q[0]||0) + (q[1]||0)/60 + (q[2]||0)/3600; }
+// ===== Naye attendance niyam (Oct 2026 se) =====
+// Dono threshold Settings se badle ja sakte hain; default 4 ghante aur 20 minute.
+// 0 daalne par wo niyam BAND ho jata hai (Settings -> shortDayHrs / earlyLeaveMins).
+// Khali/galat value par default lagta hai: 4 ghante aur 20 minute.
+function nxShortDayHrs(){
+  const raw = (getSettings()||{}).shortDayHrs;
+  if(raw === 0 || raw === '0') return 0;                 // niyam band
+  const v = Number(raw); return (isFinite(v) && v > 0) ? v : 4;
+}
+function nxEarlyLeaveMins(){
+  const raw = (getSettings()||{}).earlyLeaveMins;
+  if(raw === 0 || raw === '0') return 0;                 // niyam band
+  const v = Number(raw); return (isFinite(v) && v > 0) ? v : 20;
+}
+// shift khatam hone ka waqt, minute me (00:00 se)
+function nxShiftEndMins(code){
+  try{
+    const s = shiftOf(code); const p = String(s.end_time || '').split(':');
+    const h = Number(p[0]), m = Number(p[1]) || 0;
+    return isFinite(h) ? (h * 60 + m) : 0;
+  }catch(e){ return 0; }
+}
+// kitne minute PEHLE nikal gaya (+ = jaldi gaya, - = der tak ruka).
+// Raat ki shift aur aadhi raat paar karne wale case ko wrap se sambhala hai.
+function nxEarlyOutMins(row, shiftEndMins){
+  const t = String((row||{}).out_time || '').substring(0,5); if(!t) return 0;
+  const p = t.split(':'); const out = Number(p[0]) * 60 + (Number(p[1]) || 0);
+  let diff = shiftEndMins - out;
+  if(diff >  12 * 60) diff -= 24 * 60;
+  if(diff < -12 * 60) diff += 24 * 60;
+  return diff;
+}
 function nxShiftHrsOf(code){
   // shift set nahi hai to General (8.5h) maano — SHIFTS[0] jo bhi ho uspe mat jao
   if(!((PROFILES[code] || {}).shift_id)) return 8.5;
@@ -7806,15 +7838,34 @@ async function runPayroll(){
       const sh = shiftOf(code);
       const shHrs = shiftHours(sh);
       let present = 0, lates = 0, otHours = 0, wfhDays = 0;
+      let shortDayLeave = 0, earlyOuts = 0, hoursUnknown = 0;
+      const shortDays = [], unknownDays = [], earlyDays = [];
+      const _SHORT_HRS = nxShortDayHrs();        // 4
+      const _EARLY_MIN = nxEarlyLeaveMins();     // 20
+      const _shEnd     = nxShiftEndMins(code);
       const myWfh = wfhMap[code] || new Set();
       dayMeta.forEach(x => {
         // approved WFH day without a punch = paid working day
         if(!days[x.iso] && myWfh.has(x.iso) && !x.isWO && !x.isH){ present++; wfhDays++; return; }
         const r = days[x.iso];
         if(r && !x.isWO && !x.isH){
+          // approved gate pass (short leave / half day) = us din ke dono niyam maaf
+          const _gp = ((gateSLMap[code]||new Set()).has(x.iso))
+                   || (((window._gateHDMap||{})[code]||new Set()).has(x.iso));
+          const _hrsKnown = !!(r.in_time && r.out_time);
+          const _wh = _hrsKnown ? nxWorkedHrs(r) : 0;
+          // NIYAM: 4 ghante se kam kaam + us din gate pass nahi -> wo din LEAVE gina jayega
+          // (present nahi). Ghante pata na hon (OUT punch missing) to ye niyam NAHI lagta —
+          // "pata nahi" aur "zero" ek cheez nahi hai, warna OUT bhoolne par poora din kat jata.
+          if(_SHORT_HRS > 0 && _hrsKnown && _wh > 0 && _wh < _SHORT_HRS && !_gp){
+            shortDayLeave++; shortDays.push(x.iso); return;
+          }
+          if(!_hrsKnown){ hoursUnknown++; unknownDays.push(x.iso); }
           present++;
-          // approved SHORT-LEAVE gate pass = late excused (pura paisa, manager-approved)
-          if(isRowLate(r) && !((gateSLMap[code]||new Set()).has(x.iso)) && !(((window._gateHDMap||{})[code]||new Set()).has(x.iso))) lates++;
+          // NIYAM: late = der se aaya, YA shift khatam hone se 20+ minute pehle chala gaya
+          const _early = _EARLY_MIN > 0 && _hrsKnown && _shEnd > 0 && nxEarlyOutMins(r, _shEnd) > _EARLY_MIN;
+          if(_early){ earlyOuts++; earlyDays.push(x.iso); }
+          if((isRowLate(r) || _early) && !_gp) lates++;
         }
       });
       // ===== OT =====
@@ -7849,6 +7900,9 @@ async function runPayroll(){
       // aur pichhle mahine ka hisaab is mahine par kabhi asar nahi daalta.
       // (Yahi appointment letter me likha hai: "one (1) paid leave per month; unavailed
       //  leave shall lapse at month-end and shall not be carried forward or encashed".)
+      // 4 ghante se kam wale din bhi isi leave ginti me jaate hain — yani mahine ki
+      // 1 paid leave bachi ho to wahan lag jayegi, warna unpaid (LOP) ho jayenge.
+      leaveDaysRaw += shortDayLeave;
       const MAX_PAID_LEAVE = 1;
       const leaveDays = Math.min(leaveDaysRaw, MAX_PAID_LEAVE);
       const lopLeave  = +(leaveDaysRaw - leaveDays).toFixed(1);
@@ -8020,6 +8074,8 @@ async function runPayroll(){
       return { code, name: e.Name, dept: e.DEPARTMENT, desig: e.DESIGNATION,
         isContract: isContractEmp(code), contractor: (PROFILES[code]||{}).contractor_name || '',
         dim, present, lates, lateLOP, baseLateLOP, lateFgEligible, lateDecision, usedSL, usedHD,
+        shortDayLeave, shortDays, earlyOuts, earlyDays, hoursUnknown, unknownDays,
+        shortHrsRule: _SHORT_HRS, earlyMinRule: _EARLY_MIN,
         leaveDays, unauthAbs, outsideDays, lwpDays, paidDays: +paidDays.toFixed(1), lop,
         earnedWO, earnedH, wfhDays, offNotEarned, absentWorking: (unauthAbs + trailingAbs), trailingAbs,
         shiftName: sh.name, shHrs, perHour,
