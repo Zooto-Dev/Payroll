@@ -2475,6 +2475,14 @@ function nxEarlyLeaveMins(){
   if(raw === 0 || raw === '0') return 0;                 // niyam band
   const v = Number(raw); return (isFinite(v) && v > 0) ? v : 20;
 }
+// Shift ke itne hisse se kam kaam = HALF DAY (0.75 = 75%). 0 daalne par band.
+// Shift ke hisaab se khud adjust ho jata hai, isliye 12 ghante wale ko 9h 50m
+// par saza nahi milti jabki 8.5 ghante wale ki line 6h 22m par rehti hai.
+function nxHalfDayPct(){
+  const raw = (getSettings()||{}).halfDayPct;
+  if(raw === 0 || raw === '0') return 0;                 // niyam band
+  const v = Number(raw); return (isFinite(v) && v > 0 && v < 1) ? v : 0.75;
+}
 // shift khatam hone ka waqt, minute me (00:00 se)
 function nxShiftEndMins(code){
   try{
@@ -7842,10 +7850,12 @@ async function runPayroll(){
       const sh = shiftOf(code);
       const shHrs = shiftHours(sh);
       let present = 0, lates = 0, otHours = 0, wfhDays = 0;
-      let shortDayLeave = 0, earlyOuts = 0, hoursUnknown = 0, shiftMismatch = 0;
-      const shortDays = [], unknownDays = [], earlyDays = [], mismatchDays = [];
-      const _SHORT_HRS = nxShortDayHrs();        // 4
-      const _EARLY_MIN = nxEarlyLeaveMins();     // 20
+      let shortDayLeave = 0, earlyOuts = 0, hoursUnknown = 0, shiftMismatch = 0, halfDays = 0;
+      const shortDays = [], unknownDays = [], earlyDays = [], mismatchDays = [], halfDayList = [];
+      const _SHORT_HRS = nxShortDayHrs();        // 4 ghante -> leave
+      const _EARLY_MIN = nxEarlyLeaveMins();     // 20 minute -> late
+      const _HALF_PCT  = nxHalfDayPct();         // 0.75 -> half day
+      const _HALF_LINE = _HALF_PCT > 0 ? nxShiftHrsOf(code) * _HALF_PCT : 0;
       // Agar kami shift ke aadhe se bhi zyada nikle to ye jaldi jaana nahi,
       // shift hi galat lagi hui hai (banda apni assigned shift me kaam hi nahi
       // kar raha). Aise din par late mark nahi lagate — unhe alag ginte hain.
@@ -7868,6 +7878,11 @@ async function runPayroll(){
             shortDayLeave++; shortDays.push(x.iso); return;
           }
           if(!_hrsKnown){ hoursUnknown++; unknownDays.push(x.iso); }
+          // NIYAM 2: shift ke 75% se kam kaam -> AADHA DIN. Leave se neeche aur
+          // late se upar — ek din ek hi seedhi par aata hai, dono saza nahi.
+          if(_HALF_LINE > 0 && _hrsKnown && _wh > 0 && _wh < _HALF_LINE && !_gp){
+            present += 0.5; halfDays++; halfDayList.push(x.iso); return;
+          }
           present++;
           // NIYAM: late = der se aaya, YA shift khatam hone se 20+ minute pehle chala gaya
           const _eMin  = (_EARLY_MIN > 0 && _hrsKnown) ? nxShortfallMins(code, r) : 0;
@@ -8083,9 +8098,11 @@ async function runPayroll(){
 
       return { code, name: e.Name, dept: e.DEPARTMENT, desig: e.DESIGNATION,
         isContract: isContractEmp(code), contractor: (PROFILES[code]||{}).contractor_name || '',
-        dim, present, lates, lateLOP, baseLateLOP, lateFgEligible, lateDecision, usedSL, usedHD,
+        dim, present: +present.toFixed(1),   // half day par .5 me aata hai
+        lates, lateLOP, baseLateLOP, lateFgEligible, lateDecision, usedSL, usedHD,
         shortDayLeave, shortDays, earlyOuts, earlyDays, hoursUnknown, unknownDays,
-        shiftMismatch, mismatchDays,
+        shiftMismatch, mismatchDays, halfDays, halfDayList,
+        halfPctRule: _HALF_PCT,
         shortHrsRule: _SHORT_HRS, earlyMinRule: _EARLY_MIN,
         leaveDays, unauthAbs, outsideDays, lwpDays, paidDays: +paidDays.toFixed(1), lop,
         earnedWO, earnedH, wfhDays, offNotEarned, absentWorking: (unauthAbs + trailingAbs), trailingAbs,
