@@ -929,6 +929,25 @@ body.no-confidential .confidential-col{display:none!important}
       <div class="stat-num money" style="color:var(--brand)" id="payTotal">₹0</div>
     </div>
   </div>
+  <!-- Missing OUT punch: HR yahin OUT time bhar kar CEO approval ko bhejta hai.
+       Jab tak OUT nahi bharta, us din ke kaam ke ghante pata nahi chalte — aur
+       ghanton par chalne wale niyam (4 ghante se kam = leave) bharosa nahi kar sakte. -->
+  <div class="card mb-4 hidden" id="missOutCard" style="border-left:3px solid var(--warn)">
+    <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+      <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-clock" style="color:var(--warn)"></i>
+        Missing OUT punch <span class="chip chip-warn" id="missOutCnt">0</span></h3>
+      <div class="flex gap-2">
+        <button id="missOutRefreshBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate"></i> Refresh</button>
+        <button id="missOutSubmitBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-paper-plane"></i> Bhari hui rows approval ko bhejo</button>
+      </div>
+    </div>
+    <p class="text-[11px] mt-0 mb-2" style="color:var(--muted)">
+      Jin dino IN hai par OUT nahi. OUT time bhar kar bhejein — approve hone par hi attendance me lagega.
+      Jo khali chhod denge wo waise hi rahenge.</p>
+    <div style="max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:12px">
+      <table class="tbl tbl-compact" id="missOutTbl"><tbody></tbody></table>
+    </div>
+  </div>
   <div class="card" style="padding:0;overflow:hidden">
     <div style="overflow-x:auto">
       <table class="tbl" id="payTable">
@@ -7532,11 +7551,109 @@ $('payRunBtn').addEventListener('click', runPayroll);
 // Calculate dabane ki zaroorat nahi, aur ye DOBARA calculate nahi karta (sirf snapshot dikhata hai).
 $('payMonth').addEventListener('change', async () => {
   const ym = $('payMonth').value; if(!ym) return;
+  try{ loadMissingOut(); }catch(e){}
   try{
     const { data } = await sb.from('payroll_locks').select('status').eq('month', ym).limit(1);
     if(data && data[0] && String(data[0].status).toUpperCase() === 'FINALIZED') runPayroll();
   }catch(e){}
 });
+/* ===== Missing OUT punch — HR bhare, CEO approve kare =====
+   Raasta maujooda ATT_FIX ka hi hai: row ess_att_requests me PENDING jaati hai,
+   Approvals inbox me dikhti hai, aur approve par nx_apply_att_fix out_time +
+   total_hours likh deta hai. Isliye koi naya table ya naya approval nahi banaya.
+   Dhyaan: ess_att_requests par UNIQUE(employee_code, date) hai — jis din us bande
+   ki koi aur request pehle se hai, uske liye ye raasta band hai, wo alag dikhaye
+   jaate hain. */
+let MISS_OUT_ROWS = [];
+async function loadMissingOut(){
+  const tbl = $('missOutTbl'), card = $('missOutCard');
+  if(!tbl || !card) return;
+  const ym = $('payMonth').value;
+  if(!ym){ card.classList.add('hidden'); return; }
+  const from = ym + '-01', to = _lastDay(ym);
+  tbl.innerHTML = '<tbody><tr><td style="padding:12px;color:var(--muted)">Loading…</td></tr></tbody>';
+  card.classList.remove('hidden');
+  try{
+    const [attRes, reqRes] = await Promise.all([
+      sb.from('attendance').select('employee_code,date,in_time').is('out_time', null)
+        .not('in_time','is',null).gte('date', from).lte('date', to).order('date'),
+      sb.from('ess_att_requests').select('employee_code,date,req_type,status,fix_out')
+        .gte('date', from).lte('date', to)
+    ]);
+    // us din pehle se koi request hai? (UNIQUE(code,date) ki wajah se maayne rakhta hai)
+    const busy = {};
+    (reqRes.data || []).forEach(r => {
+      busy[String(r.employee_code||'').toUpperCase() + '|' + r.date] = r;
+    });
+    const nameOf2 = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
+    MISS_OUT_ROWS = (attRes.data || []).map(a => {
+      const code = String(a.employee_code||'').toUpperCase();
+      const ex = busy[code + '|' + a.date] || null;
+      return { code, date: a.date, name: nameOf2(a.employee_code) || code,
+               inT: String(a.in_time||'').substring(0,5),
+               shift: (typeof shiftNameOf === 'function' ? shiftNameOf(a.employee_code) : ''),
+               ex };
+    });
+    const open = MISS_OUT_ROWS.filter(r => !r.ex);
+    const sent = MISS_OUT_ROWS.filter(r => r.ex && r.ex.req_type === 'ATT_FIX' && String(r.ex.status).toUpperCase() === 'PENDING');
+    const blocked = MISS_OUT_ROWS.filter(r => r.ex && !(r.ex.req_type === 'ATT_FIX' && String(r.ex.status).toUpperCase() === 'PENDING'));
+    $('missOutCnt').innerText = MISS_OUT_ROWS.length + ' din'
+      + (sent.length ? ' • ' + sent.length + ' approval me' : '')
+      + (blocked.length ? ' • ' + blocked.length + ' blocked' : '');
+    if(!MISS_OUT_ROWS.length){
+      $('missOutCnt').className = 'chip chip-ok';
+      tbl.innerHTML = '<tbody><tr><td style="padding:12px;color:var(--muted)">Is mahine sabka OUT punch maujood hai \u2713</td></tr></tbody>';
+      return;
+    }
+    $('missOutCnt').className = 'chip chip-warn';
+    const rowHtml = r => {
+      const key = r.code + '|' + r.date;
+      let right;
+      if(r.ex && r.ex.req_type === 'ATT_FIX' && String(r.ex.status).toUpperCase() === 'PENDING'){
+        right = `<span class="chip chip-warn" style="font-size:9px">approval me${r.ex.fix_out ? ' \u00b7 ' + esc(String(r.ex.fix_out).substring(0,5)) : ''}</span>`;
+      } else if(r.ex){
+        right = `<span class="chip chip-gray" style="font-size:9px" title="Ek din par ek hi request ho sakti hai">us din ${esc(r.ex.req_type||'request')} hai</span>`;
+      } else {
+        right = `<input type="time" class="inp m-0 miss-out-in" data-key="${esc(key)}" style="width:118px;padding:4px 6px">`;
+      }
+      return `<tr><td class="font-mono">${esc(r.code)}</td><td class="font-semibold">${esc(r.name)}</td>
+        <td>${fmtDate(r.date)}</td><td>IN ${esc(r.inT)}</td>
+        <td style="color:var(--muted)">${esc(r.shift||'')}</td><td>${right}</td></tr>`;
+    };
+    tbl.innerHTML = '<thead><tr><th>Code</th><th>Name</th><th>Date</th><th>IN</th><th>Shift</th><th>OUT time</th></tr></thead>'
+      + '<tbody>' + open.concat(sent, blocked).map(rowHtml).join('') + '</tbody>';
+  }catch(err){
+    tbl.innerHTML = '<tbody><tr><td style="padding:12px;color:var(--muted)">Load nahi hui: ' + esc(err.message || err) + '</td></tr></tbody>';
+  }
+}
+async function submitMissingOut(){
+  const inputs = Array.from(document.querySelectorAll('.miss-out-in')).filter(i => i.value);
+  if(!inputs.length) return notify('Pehle kisi row me OUT time bharein', 'error');
+  const byKey = {}; MISS_OUT_ROWS.forEach(r => byKey[r.code + '|' + r.date] = r);
+  const rows = [];
+  for(const i of inputs){
+    const r = byKey[i.dataset.key]; if(!r) continue;
+    const t = String(i.value).substring(0,5);
+    if(!/^[0-9]{2}:[0-9]{2}$/.test(t)) return notify('Galat time: ' + r.name + ' ' + fmtDate(r.date), 'error');
+    rows.push({ employee_code: r.code, name: r.name, date: r.date, req_type: 'ATT_FIX',
+                status: 'PENDING', fix_out: t + ':00',
+                reason: 'HR: OUT punch missing — payroll screen se bhara gaya' });
+  }
+  if(!(await nxConfirm(rows.length + ' din ka OUT time approval ke liye bhejein?\n\nApprove hone par hi attendance me lagega.', 'Send for approval'))) return;
+  const btn = $('missOutSubmitBtn'); const _html = btn.innerHTML;
+  btn.innerHTML = '<div class="loader-ring"></div> Bhej rahe hain…'; btn.disabled = true;
+  try{
+    const { error } = await sb.from('ess_att_requests').insert(rows);
+    if(error) throw error;
+    notify(rows.length + ' request approval ke liye bhej di \u2713 — Approvals page se approve karein', 'success');
+    await loadMissingOut();
+    if(typeof loadApprovals === 'function') { try{ loadApprovals(); }catch(e){} }
+  }catch(err){
+    notify('Bhej nahi paye: ' + (err.message || err), 'error');
+  }finally{ btn.innerHTML = _html; btn.disabled = false; }
+}
+$('missOutSubmitBtn') && $('missOutSubmitBtn').addEventListener('click', submitMissingOut);
+$('missOutRefreshBtn') && $('missOutRefreshBtn').addEventListener('click', loadMissingOut);
 async function runPayroll(){
   const ym = $('payMonth').value; if(!ym) return notify('Please select a month', 'error');
   PAY_MONTH = ym;
@@ -7923,6 +8040,7 @@ async function runPayroll(){
     renderPayTable();
     renderContractTable(); // contract employees report (payroll ke niche) — with total
     renderPayLockUI();     // Lock/Unlock buttons + CEO late-LOP approval panel
+    try{ loadMissingOut(); }catch(e){}   // jin dino OUT nahi hai — HR wahin bhar sake
     $('payPrintAllBtn').classList.remove('hidden');
     $('payBankBtn').classList.remove('hidden');
     $('payLopBtn').classList.remove('hidden');
