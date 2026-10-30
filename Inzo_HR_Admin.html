@@ -10191,6 +10191,23 @@ $('empImportBtn').addEventListener('click', () => {
   $('impModal').classList.add('show');
 });
 
+function empPayForExport(code){
+  const S = getSettings(), p = PROFILES[code] || {};
+  const sal = empSalary(code);
+  const g = Object.values(sal).reduce((a,b) => a + (Number(b)||0), 0);
+  if(!g) return { gross:0, ctc:0, net:0, has:false };
+  let pfW = 0;
+  (S.earnComps || []).forEach(c => { if(c.pf) pfW += Number(sal[c.k]) || 0; });
+  const pfOn  = p.pf_applicable  !== false;
+  const esiOn = p.esi_applicable !== false;
+  const lwfOn = p.lwf_applicable !== false;
+  const er = employerSides(g, pfW, pfOn, esiOn, lwfOn);
+  const pfBase = Number(S.pfCap) > 0 ? Math.min(pfW, Number(S.pfCap)) : pfW;
+  const eePF  = pfOn ? Math.round(pfBase * Number(S.pfPct) / 100) : 0;
+  const eeESI = (esiOn && g > 0 && g <= Number(S.esiLimit)) ? Math.ceil(g * Number(S.esiPct) / 100) : 0;
+  const eeLWF = lwfOn ? lwfEE(g) : 0;
+  return { gross: g, ctc: g + er.total, net: g - eePF - eeESI - eeLWF, has:true };
+}
 $('empExportBtn').addEventListener('click', async () => {
   // Export me SAB employees — Active aur Inactive dono — aur Status column
   // (naam ke theek baad) batata hai kaun kaun hai.
@@ -10205,7 +10222,8 @@ $('empExportBtn').addEventListener('click', async () => {
   const stat = v => { const t = String(v == null ? '' : v).trim();
     return t ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : 'Unknown'; };
   // === FIXED FORMAT (jaisa HR ne maanga) ===
-  const header = ['S.No','Emp Code','Employee Name','Status','Designation','DOJ','DOB','Reporting Manager','Department','Section','Category','Gender','Accounts No.','IFSC Code','ESIC No','UAN No','PAN Card','Adhaar Number','ID','Mobile No','Address','Marital Status','E-Mail ID','Emergency Contact Name','Number','Relation','Nominee Name','Relation'];
+  const header = ['S.No','Emp Code','Employee Name','Status','Designation','DOJ','DOB','Reporting Manager','Department','Section','Category','Gender','Accounts No.','IFSC Code','ESIC No','UAN No','PAN Card','Adhaar Number','ID','Mobile No','Address','Marital Status','E-Mail ID','Emergency Contact Name','Number','Relation','Nominee Name','Relation',
+    'Monthly Gross','Monthly CTC','Monthly Net (take-home)'];
   const lines = [header.join(',')];
   list.forEach((e, i) => {
     const code = e['Employee code']; const p = PROFILES[code] || {};
@@ -10214,7 +10232,10 @@ $('empExportBtn').addEventListener('click', async () => {
       String(p.category || 'WORKER').toUpperCase() === 'STAFF' ? 'Staff' : 'Worker', p.gender,
       mask(p.account_no), mask(p.ifsc), mask(p.esi_no), mask(p.uan), mask(p.pan), mask(p.aadhaar), mask(p.id_number),
       p.phone, p.address, p.marital_status, p.email,
-      p.emergency_name, p.emergency_phone, p.emergency_relation, p.nominee_name, p.nominee_relation
+      p.emergency_name, p.emergency_phone, p.emergency_relation, p.nominee_name, p.nominee_relation,
+      // Salary bhi confidential hai — bank detail ki tarah bina permission blank
+      ...(() => { const f = empPayForExport(code);
+                  return f.has ? [mask(f.gross), mask(f.ctc), mask(f.net)] : ['', '', '']; })()
     ];
     lines.push(row.map(q).join(','));
   });
