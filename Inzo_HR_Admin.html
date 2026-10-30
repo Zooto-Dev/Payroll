@@ -753,16 +753,16 @@ body.no-confidential .confidential-col{display:none!important}
       <div class="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h3 class="display font-bold m-0"><i class="fa-solid fa-calendar-days" style="color:var(--brand)"></i> Shift Roster <span class="chip chip-blue">date-wise</span></h3>
-          <p class="text-[11px] mt-1 mb-0" style="color:var(--muted)">Jinki shift badalti rehti hai unke liye. <b>Khali cell = assigned shift</b> — yani jo nahi bhara wo pehle jaisa hi chalega. Log chuno → neeche se shift aur date range dekar <b>Lagao</b>. Rotation ke liye <b>2-shift pattern</b> ek click me pura mahina bhar deta hai.</p>
+          <p class="text-[11px] mt-1 mb-0" style="color:var(--muted)">Roster <b>sabka nahi hota</b> — General wale hamesha General me hi aate hain. Ye list sirf un logon ki hai jinki shift din-raat badalti rehti hai. <b>Khali cell = assigned shift.</b> Log chuno → shift aur date range dekar <b>Lagao</b>; rotation ke liye <b>2-shift pattern</b> ek click me pura mahina bhar deta hai.</p>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
           <input type="month" id="rgMonth" class="inp" style="max-width:150px">
           <select id="rgDept" class="inp" style="max-width:180px"></select>
           <select id="rgLine" class="inp" style="max-width:160px"></select>
           <input id="rgSearch" class="inp" placeholder="Naam / code" style="max-width:150px">
-          <select id="rgWho" class="inp" style="max-width:190px">
-            <option value="rot">Sirf rotate hone wale</option>
-            <option value="ros">Jinka roster bhara hai</option>
+          <select id="rgWho" class="inp" style="max-width:210px">
+            <option value="rot">Roster list — rotating shift</option>
+            <option value="sug">Suggested — punch se lagta hai rotate karte hain</option>
             <option value="all">Sab employees</option>
           </select>
           <button id="rgRefreshBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate"></i> Refresh</button>
@@ -791,10 +791,13 @@ body.no-confidential .confidential-col{display:none!important}
         <div style="width:1px;align-self:stretch;background:var(--line)"></div>
         <div class="flex items-end gap-2 flex-wrap">
           <button id="rgCopyBtn" class="btn btn-ghost btn-sm" title="Pichhle 7 din ka roster aage ke 7 din par chipka do"><i class="fa-solid fa-copy"></i> Pichhla hafta aage copy</button>
+          <button id="rgAddBtn" class="btn btn-ghost btn-sm" title="Chune hue logon ko roster list me daal do — tabhi inka date-wise roster banega"><i class="fa-solid fa-user-plus"></i> Roster list me daalo</button>
+          <button id="rgDropBtn" class="btn btn-ghost btn-sm" title="Roster list se nikaal do — inki assigned shift hi chalegi"><i class="fa-solid fa-user-minus"></i> List se nikaalo</button>
         </div>
       </div>
       <p class="text-[11px] mt-2 mb-0" style="color:var(--muted)">
         <span id="rgSelChip" class="chip" style="background:#e0e7ff;color:#3730a3">0 chune hue</span>
+        <span id="rgListChip" class="chip" style="background:#f1f5f9;color:#334155">—</span>
         Sunday / chutti ke din roster nahi bharte — un dinon par niyam lagte hi nahi.
         Kisi ek din ko badalna ho to seedha us <b>cell par click</b> karo (upar chuni hui Shift lag jaayegi).
       </p>
@@ -11312,6 +11315,34 @@ function rgShort(name){
 function rgIsNight(sh){ return !!(sh && (sh.is_night || _rosToMin(sh.start_time) >= 16*60)); }
 function rgShiftById(id){ return (SHIFTS||[]).find(x => String(x.id) === String(id)) || null; }
 function rgKey(code, iso){ return String(code).toUpperCase() + '|' + iso; }
+// Roster list me hai ya nahi — yahi tay karta hai ki iska date-wise roster banega ya nahi.
+function rgOnList(code){
+  const up = String(code).toUpperCase();
+  return !!((PROFILES[code] || PROFILES[up] || {}).shift_rotating);
+}
+async function rgSetList(on){
+  const codes = rgSelCodes();
+  if(!codes.length) return notify('Pehle employee chuno', 'info');
+  const todo = codes.filter(c => rgOnList(c) !== on);
+  if(!todo.length) return notify(on ? 'Ye sab pehle se roster list me hain' : 'Inme se koi roster list me nahi hai', 'info');
+  const ok = await nxAsk({ title:'Roster list',
+    msg: `${todo.length} employee ko roster list ${on ? 'me daala' : 'se nikaala'} jaayega.`
+       + (on ? ' Inka date-wise roster ban sakega.' : ' Ab inki assigned shift hi chalegi (roster entries waise hi rahengi).') });
+  if(!ok) return;
+  let done = 0, fail = 0;
+  for(const c of todo){
+    try{
+      const { error } = await sb.from('hr_profiles').update({ shift_rotating: on }).eq('employee_code', c);
+      if(error) throw error;
+      if(PROFILES[c]) PROFILES[c].shift_rotating = on;
+      else PROFILES[c] = { employee_code: c, shift_rotating: on };
+      done++;
+    }catch(e){ fail++; }
+  }
+  RG_SEL = {};
+  notify(`${done} employee roster list ${on ? 'me aa gaye' : 'se hat gaye'} ✓${fail ? ', ' + fail + ' fail' : ''}`, fail ? 'error' : 'success');
+  rgRender();
+}
 // Is din ka asarkari (effective) shift_id: dirty > saved roster > assigned
 function rgEff(code, iso){
   const k = rgKey(code, iso);
@@ -11330,6 +11361,13 @@ function rgSyncChips(){
   if(b){ b.style.display = d ? '' : 'none'; b.textContent = d; }
   const n = Object.keys(RG_SEL).length, c = $('rgSelChip');
   if(c) c.textContent = n + ' chune hue';
+  const lc = $('rgListChip');
+  if(lc){
+    const total = (EMP||[]).filter(e => String(e.Status||'').toUpperCase().includes('ACTIVE') && rgOnList(e['Employee code'])).length;
+    const sug = (EMP||[]).filter(e => { const u = String(e['Employee code']||'').toUpperCase();
+      return RG_ROT[u] && !rgOnList(e['Employee code']); }).length;
+    lc.innerHTML = `Roster list me <b>${total}</b> log` + (sug ? ` · <b>${sug}</b> aur rotate karte dikh rahe hain` : '');
+  }
 }
 function rgDates(){
   const f = $('rgFrom').value, t = $('rgTo').value;
@@ -11397,8 +11435,11 @@ function rgRows(){
     if(dept && String(e.DEPARTMENT||'').trim() !== dept) return false;
     if(line && String(e.LINE||'').trim() !== line) return false;
     if(q && !(up.includes(q) || String(e.Name||'').toUpperCase().includes(q))) return false;
-    if(who === 'rot' && !RG_ROT[up] && !RG_SEL[up]) return false;
-    if(who === 'ros' && !Object.keys(ROSTER[up] || {}).length && !RG_SEL[up]) return false;
+    const onList = rgOnList(code);
+    // "Roster list" = jinki shift badalti hai. General wale yahan aate hi nahi.
+    if(who === 'rot' && !onList && !RG_SEL[up]) return false;
+    // "Suggested" = punch se lagta hai rotate karte hain, par abhi list me nahi
+    if(who === 'sug' && (onList || !RG_ROT[up]) && !RG_SEL[up]) return false;
     return true;
   }).sort((a,b) => String(a.Name||'').localeCompare(String(b.Name||'')));
 }
@@ -11416,7 +11457,11 @@ function rgRender(){
 
   const list = rgRows();
   if(!list.length){
-    tb.innerHTML = `<tr><td class="rg-nm" colspan="${RG_META.length+1}" style="text-align:center;padding:28px;color:var(--muted)">Koi employee nahi mila — filter badlo.</td></tr>`;
+    const who = $('rgWho').value;
+    const msg = who === 'rot'
+      ? 'Roster list abhi khali hai. <b>Suggested</b> filter kholo — jo log punch ke hisaab se din-raat dono kar rahe hain wo wahan milenge; unhe chun kar <b>Roster list me daalo</b> dabao.'
+      : (who === 'sug' ? 'Is mahine kisi ka din-raat dono ka pattern nahi mila.' : 'Koi employee nahi mila — filter badlo.');
+    tb.innerHTML = `<tr><td class="rg-nm" colspan="${RG_META.length+1}" style="text-align:center;padding:28px;color:var(--muted)">${msg}</td></tr>`;
     rgSyncChips(); return;
   }
   tb.innerHTML = list.map(e => {
@@ -11441,7 +11486,10 @@ function rgRender(){
       <td class="rg-nm"><label class="flex items-center gap-1" style="cursor:pointer">
         <input type="checkbox" class="rg-pick" data-code="${esc(code)}"${RG_SEL[up]?' checked':''}>
         <span><b>${esc(e.Name||'')}</b> <span style="color:var(--muted)">${esc(code)}</span>
-        <br><span class="text-[10px]" style="color:var(--muted)">${esc(asg ? asg.name : 'shift nahi')}${RG_ROT[up]?' · <b style="color:#b45309">rotate</b>':''}</span></span>
+        <br><span class="text-[10px]" style="color:var(--muted)">${esc(asg ? asg.name : 'shift nahi')}${
+          rgOnList(code) ? ' · <b style="color:#4338ca">roster list</b>'
+                         : (RG_ROT[up] ? ' · <b style="color:#b45309">rotate karta hai — list me nahi</b>' : '')
+        }</span></span>
       </label></td>${cells}</tr>`;
   }).join('');
   rgSyncChips();
@@ -11582,6 +11630,8 @@ $('rgClearBtn') && $('rgClearBtn').addEventListener('click', rgClearRange);
 $('rgPatBtn')   && $('rgPatBtn').addEventListener('click', rgPattern);
 $('rgCopyBtn')  && $('rgCopyBtn').addEventListener('click', rgCopyWeek);
 $('rgSaveBtn')  && $('rgSaveBtn').addEventListener('click', rgSave);
+$('rgAddBtn')   && $('rgAddBtn').addEventListener('click', () => rgSetList(true));
+$('rgDropBtn')  && $('rgDropBtn').addEventListener('click', () => rgSetList(false));
 $('rgResetBtn') && $('rgResetBtn').addEventListener('click', () => {
   if(!rgDirtyCount()) return notify('Koi change nahi hai', 'info');
   RG_DIRTY = {}; rgRender(); notify('Changes hata diye', 'info');
