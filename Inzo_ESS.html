@@ -277,6 +277,10 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <h3 class="display font-bold mt-0 mb-2 text-sm" style="color:#b91c1c"><i class="fa-solid fa-triangle-exclamation"></i> Attendance Notices</h3>
         <div id="attNoticeBox" class="text-xs space-y-2"></div>
       </div>
+      <div id="myShiftCard" class="card hidden" style="border:1.5px solid #c7d2fe;background:linear-gradient(135deg,#eef2ff,#ffffff)">
+        <h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-calendar-days" style="color:var(--brand)"></i> Meri Aane Wali Shift</h3>
+        <div id="myShiftBox" class="text-xs space-y-1"></div>
+      </div>
       <div id="specialDayCard" class="card hidden" style="border:1.5px solid #bfdbfe;background:linear-gradient(135deg,#eff6ff,#ffffff)">
         <h3 class="display font-bold mt-0 mb-2 text-sm" style="color:#1d4ed8"><i class="fa-solid fa-calendar-star"></i> Schedule Changes</h3>
         <div id="specialDayBox" class="text-xs space-y-2"></div>
@@ -706,6 +710,32 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <span class="chip chip-gray" id="teamDate">—</span>
     </div>
     <div id="teamBox"><p class="tm-empty"><i class="fa-solid fa-spinner"></i>Loading…</p></div>
+  </div>
+
+  <div class="card hidden" id="supRosCard">
+    <div class="tm-ch">
+      <h3><i class="fa-solid fa-calendar-days" style="color:var(--brand)"></i> Shift Roster — Meri Line</h3>
+      <span class="chip chip-gray" id="supRosRange">—</span>
+    </div>
+    <p class="text-xs mt-0 mb-2" style="color:var(--muted)">Aage ke dinon ki shift yahan se set karo. Jo din khali hai us din wahi shift chalegi jo profile me lagi hai. Pichhli tareekh HR hi badal sakta hai.</p>
+    <div class="grid grid-cols-2 gap-2 mb-2">
+      <div><label class="lbl">Shift</label><select id="supRosShift" class="inp m-0"></select></div>
+      <div><label class="lbl">Kitne din</label>
+        <select id="supRosDays" class="inp m-0">
+          <option value="7">Aane wale 7 din</option>
+          <option value="14">Aane wale 14 din</option>
+          <option value="30">Aane wale 30 din</option>
+        </select></div>
+    </div>
+    <div class="grid grid-cols-2 gap-2 mb-2">
+      <div><label class="lbl">Kis din se</label><input type="date" id="supRosFrom" class="inp m-0"></div>
+      <div><label class="lbl">Kis din tak</label><input type="date" id="supRosTo" class="inp m-0"></div>
+    </div>
+    <div id="supRosList" class="mb-2"></div>
+    <div class="flex gap-2">
+      <button class="btn btn-primary w-full" onclick="supRosApply()" style="background:#059669;border-color:#059669"><i class="fa-solid fa-check"></i> Chune hue logon par lagao</button>
+      <button class="btn w-full" onclick="supRosApply(true)" title="Chune hue logon ki in dinon ki roster entry hata do"><i class="fa-solid fa-eraser"></i> Khali karo</button>
+    </div>
   </div>
 
   <!-- photo capture overlay for present-marking -->
@@ -2402,6 +2432,26 @@ let ATT_PAGE = 0;
    written in the markup / in a string, trimmed. Anything not listed here
    simply stays as-is, so a missing entry degrades to Hinglish, never to blank. */
 var NX_EN = {
+ "Meri Aane Wali Shift": "My Upcoming Shifts",
+ "Shift Roster — Meri Line": "Shift Roster — My Line",
+ "Aage ke dinon ki shift yahan se set karo. Jo din khali hai us din wahi shift chalegi jo profile me lagi hai. Pichhli tareekh HR hi badal sakta hai.": "Set the coming days' shifts here. A day left blank keeps the shift set on the profile. Past dates can only be changed by HR.",
+ "Kitne din": "How many days",
+ "Aane wale 7 din": "Next 7 days",
+ "Aane wale 14 din": "Next 14 days",
+ "Aane wale 30 din": "Next 30 days",
+ "Kis din se": "From",
+ "Kis din tak": "To",
+ "Chune hue logon par lagao": "Apply to selected",
+ "Khali karo": "Clear",
+ "Chune hue logon ki in dinon ki roster entry hata do": "Remove the roster entries for the selected people on these days",
+ "Sab chuno": "Select all",
+ "roster khali": "no roster",
+ "shift nahi": "no shift",
+ "Pehle employee chuno": "Select an employee first",
+ "Tareekh theek karo": "Check the dates",
+ "Shift chuno": "Choose a shift",
+ "Kuch bhejne layak nahi mila": "Nothing to send",
+ "Is line par koi active employee nahi.": "No active employee on this line.",
  "10-digit mobile number daalo": "Enter a 10-digit mobile number",
  "3 din valid": "Valid 3 days",
  "7 din se purani expense claim allowed nahi — sirf pichhle 7 din tak ki hi apply kar sakte ho.": "Expenses older than 7 days cannot be claimed — only the last 7 days are allowed.",
@@ -2524,6 +2574,29 @@ var NX_EN = {
  "🔍 Dhoondo (leave, OT, expense…)": "🔍 Search (leave, OT, expense…)"
 };
 var NX_HI = {
+ "Meri Aane Wali Shift": "मेरी आने वाली शिफ़्ट",
+ "My Upcoming Shifts": "मेरी आने वाली शिफ़्ट",
+ "Shift Roster — Meri Line": "शिफ़्ट रोस्टर — मेरी लाइन",
+ "Aage ke dinon ki shift yahan se set karo. Jo din khali hai us din wahi shift chalegi jo profile me lagi hai. Pichhli tareekh HR hi badal sakta hai.": "आगे के दिनों की शिफ़्ट यहाँ से तय करें। जो दिन ख़ाली है उस दिन वही शिफ़्ट चलेगी जो प्रोफ़ाइल में लगी है। पिछली तारीख़ सिर्फ़ HR बदल सकता है।",
+ "Kitne din": "कितने दिन",
+ "Aane wale 7 din": "आने वाले 7 दिन",
+ "Aane wale 14 din": "आने वाले 14 दिन",
+ "Aane wale 30 din": "आने वाले 30 दिन",
+ "Kis din se": "किस दिन से",
+ "Kis din tak": "किस दिन तक",
+ "Chune hue logon par lagao": "चुने हुए लोगों पर लगाएँ",
+ "Khali karo": "ख़ाली करें",
+ "Chune hue logon ki in dinon ki roster entry hata do": "चुने हुए लोगों की इन दिनों की रोस्टर एंट्री हटा दें",
+ "Sab chuno": "सब चुनें",
+ "roster khali": "रोस्टर ख़ाली",
+ "shift nahi": "शिफ़्ट नहीं",
+ "Pehle employee chuno": "पहले कर्मचारी चुनें",
+ "Tareekh theek karo": "तारीख़ ठीक करें",
+ "Shift chuno": "शिफ़्ट चुनें",
+ "Kuch bhejne layak nahi mila": "भेजने लायक़ कुछ नहीं मिला",
+ "Is line par koi active employee nahi.": "इस लाइन पर कोई सक्रिय कर्मचारी नहीं है।",
+ "Shift": "शिफ़्ट",
+ "profile": "प्रोफ़ाइल",
  ". Requires reporting manager approval. Approved passes are fully paid.": "। रिपोर्टिंग मैनेजर की मंज़ूरी ज़रूरी है। मंज़ूर हुए पास का पूरा वेतन मिलता है।",
  "1 Half Day OR 2 Short Leaves": "1 आधा दिन या 2 शॉर्ट लीव",
  "10 digit": "10 अंक",
@@ -3002,8 +3075,141 @@ document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () =>
   document.querySelectorAll('.page').forEach(p => p.classList.remove('show'));
   $('p-' + t.dataset.p).classList.add('show');
   window.scrollTo(0, 0);
-  if(t.dataset.p === 'team') loadLineToday();
+  if(t.dataset.p === 'team'){ loadLineToday(); supRosDaysChanged(); }
 }));
+
+/* ================= SHIFT ROSTER (ESS) ================= */
+let SUP_ROS = null;      // ess_roster_get ka data
+let SUP_ROS_SEL = {};    // worker code -> true
+
+function _rosT(en, hi){ return essLang() === 'en' ? en : hi; }   // renderSupRoster ke andar `L` line-variable hai
+function _rosIso(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function _rosAdd(iso, n){ const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate()+n); return _rosIso(d); }
+
+/* ---- employee: apni aane wali shift ---- */
+async function loadMyShifts(){
+  const card = $('myShiftCard'), box = $('myShiftBox');
+  if(!card || !box) return;
+  const from = _rosIso(new Date()), to = _rosAdd(from, 20);
+  try{
+    const { data, error } = await sb.rpc('ess_my_shifts', { p_code: CODE, p_phone: PHONE, p_from: from, p_to: to });
+    if(error || !data || data.error){ card.classList.add('hidden'); return; }
+    const days = data.days || [];
+    if(!days.length){ card.classList.add('hidden'); return; }   // roster khali = kuch dikhane ki zarurat nahi
+    card.classList.remove('hidden');
+    box.innerHTML = days.slice(0, 14).map(d => {
+      const t = String(d.start_time||'').slice(0,5) + '–' + String(d.end_time||'').slice(0,5);
+      return `<div class="row" style="display:flex;justify-content:space-between;align-items:center">
+        <span>${esc(fmtDate(d.date))}</span>
+        <span class="chip ${d.is_night ? 'chip-blue' : 'chip-warn'}">${esc(d.shift)} · ${esc(t)}</span>
+      </div>`;
+    }).join('');
+    essApplyLang();
+  }catch(e){ card.classList.add('hidden'); }
+}
+
+/* ---- supervisor: apni line ka roster ---- */
+async function loadSupRoster(){
+  const card = $('supRosCard'); if(!card) return;
+  const from = $('supRosFrom').value || _rosIso(new Date());
+  const to   = $('supRosTo').value   || _rosAdd(from, 6);
+  try{
+    const { data, error } = await sb.rpc('ess_roster_get', { p_code: CODE, p_phone: PHONE, p_from: from, p_to: to });
+    if(error || !data || data.error){ card.classList.add('hidden'); return; }
+    const lines = data.lines || [];
+    if(!lines.length){ card.classList.add('hidden'); return; }
+    SUP_ROS = data;
+    card.classList.remove('hidden');
+    $('supRosFrom').value = from; $('supRosTo').value = to;
+    $('supRosFrom').min = data.today || from;
+    $('supRosTo').min   = data.today || from;
+    $('supRosRange').innerText = fmtDate(from) + ' – ' + fmtDate(to);
+    const shifts = (data.shifts || []).slice().sort((a,b) => String(a.start_time).localeCompare(String(b.start_time)));
+    const keep = $('supRosShift').value;
+    $('supRosShift').innerHTML = shifts.map(x =>
+      `<option value="${x.id}">${esc(x.name)} (${String(x.start_time).slice(0,5)}–${String(x.end_time).slice(0,5)})</option>`).join('');
+    if(keep) $('supRosShift').value = keep;
+    renderSupRoster();
+  }catch(e){ card.classList.add('hidden'); }
+}
+
+function renderSupRoster(){
+  const host = $('supRosList'); if(!host || !SUP_ROS) return;
+  const shById = {}; (SUP_ROS.shifts||[]).forEach(x => shById[String(x.id)] = x);
+  host.innerHTML = (SUP_ROS.lines||[]).map(L => {
+    const ws = L.workers || [];
+    return `<div style="margin-bottom:10px">
+      <div class="tm-ch" style="margin-bottom:6px"><span class="tm-pn">${esc(L.line)}</span>
+        <button class="btn btn-sm btn-ghost" onclick="supRosPickAll('${esc(L.line)}')">${_rosT('Sab chuno', 'सब चुनें')}</button></div>
+      ${ws.length ? ws.map(w => {
+        const ros = w.roster || {};
+        const ids = [...new Set(Object.values(ros).map(String))];
+        const names = ids.map(i => (shById[i]||{}).name).filter(Boolean);
+        const asg = shById[String(w.assigned_shift_id)];
+        const n = Object.keys(ros).length;
+        return `<label class="row" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer">
+          <span style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" class="sup-ros-pick" data-code="${esc(w.code)}"${SUP_ROS_SEL[w.code]?' checked':''}>
+            <span><b>${esc(w.name)}</b><br>
+              <span class="text-[10px]" style="color:var(--muted)">${esc(w.code)} · ${_rosT('profile', 'प्रोफ़ाइल')}: ${esc(asg ? asg.name : _rosT('shift nahi', 'शिफ़्ट नहीं'))}</span></span>
+          </span>
+          <span class="chip ${n ? 'chip-blue' : 'chip-gray'}">${n ? esc(names.join(' / ')) + ' · ' + n + ' ' + _rosT('din', 'दिन') : _rosT('roster khali', 'रोस्टर ख़ाली')}</span>
+        </label>`;
+      }).join('') : `<p class="tm-empty">${_rosT('Is line par koi active employee nahi.', 'इस लाइन पर कोई सक्रिय कर्मचारी नहीं है।')}</p>`}
+    </div>`;
+  }).join('');
+  host.querySelectorAll('.sup-ros-pick').forEach(el => el.addEventListener('change', e => {
+    const c = e.target.dataset.code;
+    if(e.target.checked) SUP_ROS_SEL[c] = true; else delete SUP_ROS_SEL[c];
+  }));
+  essApplyLang();
+}
+
+function supRosPickAll(line){
+  const L = (SUP_ROS && SUP_ROS.lines || []).find(x => x.line === line); if(!L) return;
+  const ws = L.workers || [];
+  const allOn = ws.every(w => SUP_ROS_SEL[w.code]);
+  ws.forEach(w => { if(allOn) delete SUP_ROS_SEL[w.code]; else SUP_ROS_SEL[w.code] = true; });
+  renderSupRoster();
+}
+
+async function supRosApply(clear){
+  const codes = Object.keys(SUP_ROS_SEL);
+  if(!codes.length) return notify('Pehle employee chuno');
+  const from = $('supRosFrom').value, to = $('supRosTo').value;
+  if(!from || !to || to < from) return notify('Tareekh theek karo');
+  const sid = clear ? null : Number($('supRosShift').value);
+  if(!clear && !sid) return notify('Shift chuno');
+  const entries = [];
+  for(let iso = from, g = 0; iso <= to && g < 70; iso = _rosAdd(iso, 1), g++){
+    codes.forEach(c => entries.push({ code: c, date: iso, shift_id: sid }));
+  }
+  if(!entries.length) return notify('Kuch bhejne layak nahi mila');
+  try{
+    const { data, error } = await sb.rpc('ess_roster_set', { p_code: CODE, p_phone: PHONE, p_entries: entries });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    const skipped = Number(data && data.skipped) || 0;
+    const nSaved = Number(data && data.saved) || 0;
+    notify('✓ ' + nSaved + ' ' + (clear ? L('din khali hue', 'दिन ख़ाली हुए') : L('din set hue', 'दिन सेट हुए'))
+      + (skipped ? ' · ' + skipped + ' ' + L('chhoote (pichhli tareekh ya aapki line ka nahi)',
+                                             'छूटे (पिछली तारीख़ या आपकी लाइन के नहीं)') : ''));
+    SUP_ROS_SEL = {};
+    await loadSupRoster();
+  }catch(e){ notify('Nahi ho paya: ' + (e.message || e)); }
+}
+
+function supRosDaysChanged(){
+  const n = Number($('supRosDays').value) || 7;
+  const from = _rosIso(new Date());
+  $('supRosFrom').value = from;
+  $('supRosTo').value = _rosAdd(from, n - 1);
+  loadSupRoster();
+}
+$('supRosDays') && $('supRosDays').addEventListener('change', supRosDaysChanged);
+$('supRosFrom') && $('supRosFrom').addEventListener('change', loadSupRoster);
+$('supRosTo')   && $('supRosTo').addEventListener('change', loadSupRoster);
+
 async function loadLineToday(){
   const card = $('teamLineCard'), box = $('teamBox');
   const hide = () => { if(card) card.classList.add('hidden'); };
@@ -3123,6 +3329,7 @@ function render(){
   renderOT();
   loadFeedback();
   loadMyAssets();
+  loadMyShifts();          // roster se aane wali shift — entry na ho to card chhupa rehta hai
   // calendar
   CAL_CACHE = {}; CAL_YM = new Date().toISOString().slice(0,7);
   renderCalendar();
