@@ -2483,24 +2483,19 @@ function nxShiftEndMins(code){
     return isFinite(h) ? (h * 60 + m) : 0;
   }catch(e){ return 0; }
 }
-// kitne minute PEHLE nikal gaya (+ = jaldi gaya, - = der tak ruka).
-// OUT ko IN ke BAAD ka pehla waqt maanta hai (jaise worked-hours karta hai), aur
-// shift end ko shift start ke baad ka pehla waqt. Isse raat ki shift aur aadhi
-// raat paar karne wali day shift, dono theek nikalte hain — koi 12-ghante ka
-// wrap nahi, jahan "jaldi gaya" aur "der tak ruka" ek jaise dikhne lagte the.
-function _nxMins(t){
-  const x = String(t || '').substring(0,5); if(!x) return null;
-  const p = x.split(':'); const h = Number(p[0]), m = Number(p[1]) || 0;
-  return isFinite(h) ? (h * 60 + m) : null;
-}
-function nxEarlyOutMins(row, shift){
-  const inM = _nxMins((row||{}).in_time), outM = _nxMins((row||{}).out_time);
-  if(inM === null || outM === null) return 0;
-  const st = _nxMins((shift||{}).start_time), en = _nxMins((shift||{}).end_time);
-  if(st === null || en === null) return 0;
-  const outAbs = outM + (outM < inM ? 1440 : 0);   // OUT, IN ke baad
-  const endAbs = en   + (en  <= st  ? 1440 : 0);   // shift end, start ke baad
-  return endAbs - outAbs;
+// "Jaldi gaya" = shift ke ghanton se kitne minute KAM kaam hua (+ = kam, - = zyada).
+//
+// Pehle ise clock se napa ja raha tha (shift end se kitna pehle nikla). Wo galat
+// tha: der se aane wale par wo pakda hi nahi jaata. Jaise 09:00-17:30 wali shift
+// me koi 10:02 aaya aur 18:08 gaya — clock se wo 38 minute "der tak ruka" dikhta
+// hai, par kaam sirf 8h 06m hua, yani 8.5 ghante se 24 minute KAM.
+//
+// Ghanton se napne ke do aur fayde: der se aana apne aap pakad me aa jata hai,
+// aur galat lagi hui shift se bemaani numbers nahi nikalte.
+function nxShortfallMins(code, row){
+  const w = nxWorkedHrs(row);                 // raat bhar wale case ko khud sambhalta hai
+  if(!w || w <= 0) return 0;
+  return Math.round(nxShiftHrsOf(code) * 60 - w * 60);
 }
 function nxShiftHrsOf(code){
   // shift set nahi hai to General (8.5h) maano — SHIFTS[0] jo bhi ho uspe mat jao
@@ -7851,8 +7846,7 @@ async function runPayroll(){
       const shortDays = [], unknownDays = [], earlyDays = [], mismatchDays = [];
       const _SHORT_HRS = nxShortDayHrs();        // 4
       const _EARLY_MIN = nxEarlyLeaveMins();     // 20
-      const _shift     = (function(){ try{ return shiftOf(code); }catch(e){ return null; } })();
-      // Agar "jaldi" shift ke aadhe se bhi zyada nikle to ye jaldi jaana nahi,
+      // Agar kami shift ke aadhe se bhi zyada nikle to ye jaldi jaana nahi,
       // shift hi galat lagi hui hai (banda apni assigned shift me kaam hi nahi
       // kar raha). Aise din par late mark nahi lagate — unhe alag ginte hain.
       const _earlyCap   = Math.round(nxShiftHrsOf(code) * 60 / 2);
@@ -7876,7 +7870,7 @@ async function runPayroll(){
           if(!_hrsKnown){ hoursUnknown++; unknownDays.push(x.iso); }
           present++;
           // NIYAM: late = der se aaya, YA shift khatam hone se 20+ minute pehle chala gaya
-          const _eMin  = (_EARLY_MIN > 0 && _hrsKnown && _shift) ? nxEarlyOutMins(r, _shift) : 0;
+          const _eMin  = (_EARLY_MIN > 0 && _hrsKnown) ? nxShortfallMins(code, r) : 0;
           const _shiftMismatch = _eMin > _earlyCap;
           const _early = _EARLY_MIN > 0 && _eMin > _EARLY_MIN && !_shiftMismatch;
           if(_early){ earlyOuts++; earlyDays.push(x.iso); }
