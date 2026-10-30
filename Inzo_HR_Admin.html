@@ -357,6 +357,24 @@ body.no-confidential .confidential-col{display:none!important}
 .ep-tabs .ep-tab:hover{color:var(--ink);background:var(--brand-soft)}
 .ep-tabs .ep-tab.active{color:var(--brand);border-bottom-color:var(--brand)}
 .ep-tab i{margin-right:5px}
+
+/* ===== date-wise shift roster grid ===== */
+.rg-tbl{ border-collapse:separate; border-spacing:0; font-size:11px }
+.rg-tbl th, .rg-tbl td{ padding:3px 4px; white-space:nowrap }
+.rg-tbl thead th{ position:sticky; top:0; z-index:3; background:var(--card,#fff) }
+.rg-tbl .rg-nm{ position:sticky; left:0; z-index:2; background:var(--card,#fff); text-align:left; min-width:190px;
+                box-shadow:1px 0 0 var(--line) }
+.rg-tbl thead .rg-nm{ z-index:4 }
+.rg-tbl .rg-off{ background:#f1f5f9 }
+.rg-cell{ cursor:pointer; text-align:center; min-width:34px; font-weight:600; font-size:10px;
+          border:1px solid transparent; border-radius:4px }
+.rg-cell:hover{ outline:2px solid var(--brand); outline-offset:-2px }
+.rg-day{  background:#fef3c7; color:#92400e }
+.rg-night{ background:#e0e7ff; color:#3730a3 }
+.rg-base{ color:#cbd5e1; font-weight:400 }
+.rg-chg{ box-shadow:inset 0 0 0 2px #16a34a }
+.rg-tbl tbody tr:hover .rg-nm{ background:#f8fafc }
+
 </style>
 </head>
 <body><div id="nxSplash"><div class="nx-glow"></div><img src="nexus-logo.png" alt="Nexus" class="nx-logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="nx-word" style="display:none"><span class="nx-l">N</span><span class="nx-l nx-c">E</span><span class="nx-l">X</span><span class="nx-l nx-c">U</span><span class="nx-l">S</span></div><div class="nx-sub">HR &nbsp;SUITE</div><div class="nx-bar"><i></i></div></div>
@@ -726,6 +744,75 @@ body.no-confidential .confidential-col{display:none!important}
         </tr></thead>
         <tbody><tr><td colspan="8" class="text-center py-8" style="color:var(--muted)">Loading…</td></tr></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- ============ DATE-WISE SHIFT ROSTER ============ -->
+  <div class="card" id="rgCard" style="padding:0;overflow:hidden;margin-top:16px">
+    <div class="p-4 border-b" style="border-color:var(--line)">
+      <div class="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h3 class="display font-bold m-0"><i class="fa-solid fa-calendar-days" style="color:var(--brand)"></i> Shift Roster <span class="chip chip-blue">date-wise</span></h3>
+          <p class="text-[11px] mt-1 mb-0" style="color:var(--muted)">Jinki shift badalti rehti hai unke liye. <b>Khali cell = assigned shift</b> — yani jo nahi bhara wo pehle jaisa hi chalega. Log chuno → neeche se shift aur date range dekar <b>Lagao</b>. Rotation ke liye <b>2-shift pattern</b> ek click me pura mahina bhar deta hai.</p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <input type="month" id="rgMonth" class="inp" style="max-width:150px">
+          <select id="rgDept" class="inp" style="max-width:180px"></select>
+          <select id="rgLine" class="inp" style="max-width:160px"></select>
+          <input id="rgSearch" class="inp" placeholder="Naam / code" style="max-width:150px">
+          <select id="rgWho" class="inp" style="max-width:190px">
+            <option value="rot">Sirf rotate hone wale</option>
+            <option value="ros">Jinka roster bhara hai</option>
+            <option value="all">Sab employees</option>
+          </select>
+          <button id="rgRefreshBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate"></i> Refresh</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- bulk tools -->
+    <div class="p-3 border-b" style="border-color:var(--line);background:var(--soft,#f8fafc)">
+      <div class="flex items-start gap-4 flex-wrap">
+        <div class="flex items-end gap-2 flex-wrap">
+          <div class="fld" style="width:160px"><label class="lbl">Shift</label>
+            <select id="rgShift" class="inp"></select></div>
+          <div class="fld" style="width:140px"><label class="lbl">From</label><input type="date" id="rgFrom" class="inp"></div>
+          <div class="fld" style="width:140px"><label class="lbl">To</label><input type="date" id="rgTo" class="inp"></div>
+          <button id="rgApplyBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-wand-magic-sparkles"></i> Lagao</button>
+          <button id="rgClearBtn" class="btn btn-ghost btn-sm" title="Chune hue logon ki is range ki roster entry hata do (assigned shift par wapas)"><i class="fa-solid fa-eraser"></i> Khali karo</button>
+        </div>
+        <div style="width:1px;align-self:stretch;background:var(--line)"></div>
+        <div class="flex items-end gap-2 flex-wrap">
+          <div class="fld" style="width:150px"><label class="lbl">Rotation — Shift A</label><select id="rgPatA" class="inp"></select></div>
+          <div class="fld" style="width:150px"><label class="lbl">Shift B</label><select id="rgPatB" class="inp"></select></div>
+          <div class="fld" style="width:110px"><label class="lbl">Har ? din badlo</label><input type="number" id="rgPatCycle" class="inp" value="7" min="1" max="31"></div>
+          <button id="rgPatBtn" class="btn btn-primary btn-sm" title="Chune hue logon ko do group me baant kar A/B rotation lagata hai"><i class="fa-solid fa-arrows-rotate"></i> 2-group rotation lagao</button>
+        </div>
+        <div style="width:1px;align-self:stretch;background:var(--line)"></div>
+        <div class="flex items-end gap-2 flex-wrap">
+          <button id="rgCopyBtn" class="btn btn-ghost btn-sm" title="Pichhle 7 din ka roster aage ke 7 din par chipka do"><i class="fa-solid fa-copy"></i> Pichhla hafta aage copy</button>
+        </div>
+      </div>
+      <p class="text-[11px] mt-2 mb-0" style="color:var(--muted)">
+        <span id="rgSelChip" class="chip" style="background:#e0e7ff;color:#3730a3">0 chune hue</span>
+        Sunday / chutti ke din roster nahi bharte — un dinon par niyam lagte hi nahi.
+        Kisi ek din ko badalna ho to seedha us <b>cell par click</b> karo (upar chuni hui Shift lag jaayegi).
+      </p>
+    </div>
+
+    <div style="overflow:auto;max-height:66vh">
+      <table class="tbl rg-tbl" id="rgTable">
+        <thead><tr id="rgHead"></tr></thead>
+        <tbody><tr><td colspan="4" class="text-center py-8" style="color:var(--muted)">Month chuno aur Refresh dabao.</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="p-3 border-t flex items-center justify-between flex-wrap gap-2" style="border-color:var(--line)">
+      <span class="text-xs" style="color:var(--muted)">Save karne tak kuch database me nahi jaata.</span>
+      <div class="flex items-center gap-2">
+        <button id="rgResetBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-xmark"></i> Changes hatao</button>
+        <button id="rgSaveBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk"></i> Roster Save <span id="rgDirty" class="chip" style="background:#fee2e2;color:#991b1b;display:none">0</span></button>
+      </div>
     </div>
   </div>
 </div>
@@ -2338,6 +2425,8 @@ let PAY_MONTH = "";
 let PAY_LOCK = null;      // payroll_locks row for PAY_MONTH (null = not locked)
 let LATE_REVIEWS = {};    // employee_code -> 'PENDING'|'APPROVED'|'REJECTED' (CEO late-LOP decision)
 let SHIFTS = [];         // shift master
+let ROSTER = {};         // date-wise roster: UPPERCASE code -> { 'YYYY-MM-DD': shift_id }
+let ROSTER_RANGE = '';   // kis range ka roster load hai (dobara load na karna pade)
 let LINES = [];          // production lines
 let LEAVES_CACHE = [];   // month leaves for register
 const $ = id => document.getElementById(id);
@@ -2445,9 +2534,79 @@ function grossOf(code){
   const s = empSalary(code);
   return Object.values(s).reduce((a,b) => a + b, 0);
 }
-function shiftOf(code){
+// ===== DATE-WISE ROSTER =====
+// Roster me us din ki entry mile to WAHI shift us din ke liye final hai.
+// Entry na ho to employee ki assigned shift (hr_profiles.shift_id) — purana behaviour.
+function nxRosterShiftId(code, iso){
+  if(!iso) return null;
+  const m = ROSTER[String(code || '').toUpperCase()];
+  const v = m && m[iso];
+  return (v === undefined || v === null) ? null : v;
+}
+// Ek range ka roster load karke ROSTER me bhar deta hai (cache ke saath).
+async function ensureRoster(from, to){
+  const key = from + '~' + to;
+  if(ROSTER_RANGE === key) return ROSTER;
+  const map = {};
+  try{
+    const PAGE = 1000;
+    for(let f = 0; f < 200000; f += PAGE){
+      const { data, error } = await sb.from('employee_shifts')
+        .select('employee_code, date, shift_id')
+        .gte('date', from).lte('date', to)
+        .order('date', { ascending: true })
+        .range(f, f + PAGE - 1);
+      if(error) throw error;
+      (data || []).forEach(r => {
+        const c = String(r.employee_code || '').toUpperCase(); if(!c) return;
+        (map[c] = map[c] || {})[String(r.date).slice(0,10)] = r.shift_id;
+      });
+      if(!data || data.length < PAGE) break;
+    }
+    ROSTER = map; ROSTER_RANGE = key;
+  }catch(err){
+    // Roster na mile to kuch nahi bigadta — assigned shift par chalega.
+    console.warn('roster load failed', err && err.message);
+    ROSTER = {}; ROSTER_RANGE = '';
+  }
+  return ROSTER;
+}
+async function ensureRosterMonth(ym){ return ensureRoster(ym + '-01', _lastDay(ym)); }
+// iso do to us din ki shift, warna assigned shift.
+function shiftOf(code, iso){
   const p = PROFILES[code] || {};
-  return SHIFTS.find(s => String(s.id) === String(p.shift_id)) || SHIFTS[0] || { name:'General', start_time:'09:30', end_time:'18:00', grace_mins:10 };
+  const rid = nxRosterShiftId(code, iso);
+  const sid = (rid !== null) ? rid : p.shift_id;
+  return SHIFTS.find(s => String(s.id) === String(sid)) || SHIFTS[0] || { name:'General', start_time:'09:30', end_time:'18:00', grace_mins:10 };
+}
+// Month/range ka shift label: roster se shift badalti hai to saari dikhao.
+function nxShiftLabel(code, isoList){
+  const base = (() => { const p = PROFILES[code] || {};
+    const s = SHIFTS.find(x => String(x.id) === String(p.shift_id));
+    return s ? s.name : (SHIFTS[0] ? SHIFTS[0].name : 'General'); })();
+  if(!isoList || !isoList.length) return base;
+  const names = []; let anyBlank = false;
+  isoList.forEach(iso => {
+    const rid = nxRosterShiftId(code, iso);
+    if(rid === null){ anyBlank = true; return; }
+    const s = SHIFTS.find(x => String(x.id) === String(rid));
+    if(s && names.indexOf(s.name) < 0) names.push(s.name);
+  });
+  if(!names.length) return base;
+  // kuch din roster se, kuch din assigned shift par -> dono dikhao
+  if(anyBlank && names.indexOf(base) < 0) names.unshift(base);
+  return names.join(' / ');
+}
+// Us din late tha ya nahi. Roster entry ho to usi shift ke hisaab se dobara naapo —
+// kiosk ne jo is_late likha tha wo assigned shift ke hisaab se tha.
+function nxIsLateOn(code, iso, r){
+  if(!r) return false;
+  if(nxRosterShiftId(code, iso) === null) return isRowLate(r);
+  const sh = shiftOf(code, iso);
+  if(!sh || !sh.start_time) return isRowLate(r);
+  const t = String(r.in_time || '').match(/(\d{1,2}:\d{2})/);
+  if(!t) return isRowLate(r);
+  return isLateFor(t[1], sh);
 }
 function shiftHours(s){
   const [sh,sm] = s.start_time.split(':').map(Number);
@@ -2484,9 +2643,9 @@ function nxHalfDayPct(){
   const v = Number(raw); return (isFinite(v) && v > 0 && v < 1) ? v : 0.75;
 }
 // shift khatam hone ka waqt, minute me (00:00 se)
-function nxShiftEndMins(code){
+function nxShiftEndMins(code, iso){
   try{
-    const s = shiftOf(code); const p = String(s.end_time || '').split(':');
+    const s = shiftOf(code, iso); const p = String(s.end_time || '').split(':');
     const h = Number(p[0]), m = Number(p[1]) || 0;
     return isFinite(h) ? (h * 60 + m) : 0;
   }catch(e){ return 0; }
@@ -2500,15 +2659,16 @@ function nxShiftEndMins(code){
 //
 // Ghanton se napne ke do aur fayde: der se aana apne aap pakad me aa jata hai,
 // aur galat lagi hui shift se bemaani numbers nahi nikalte.
-function nxShortfallMins(code, row){
+function nxShortfallMins(code, row, iso){
   const w = nxWorkedHrs(row);                 // raat bhar wale case ko khud sambhalta hai
   if(!w || w <= 0) return 0;
-  return Math.round(nxShiftHrsOf(code) * 60 - w * 60);
+  return Math.round(nxShiftHrsOf(code, iso) * 60 - w * 60);
 }
-function nxShiftHrsOf(code){
-  // shift set nahi hai to General (8.5h) maano — SHIFTS[0] jo bhi ho uspe mat jao
-  if(!((PROFILES[code] || {}).shift_id)) return 8.5;
-  let h = 0; try{ h = shiftHours(shiftOf(code)); }catch(e){ h = 0; }
+function nxShiftHrsOf(code, iso){
+  // shift set nahi hai (na roster me, na profile me) to General (8.5h) maano
+  const rid = nxRosterShiftId(code, iso);
+  if(rid === null && !((PROFILES[code] || {}).shift_id)) return 8.5;
+  let h = 0; try{ h = shiftHours(shiftOf(code, iso)); }catch(e){ h = 0; }
   return h > 0 ? h : 8.5;
 }
 function nxWorkedHrs(row){
@@ -2520,10 +2680,10 @@ function nxWorkedHrs(row){
   }
   return w > 0 ? w : 0;
 }
-function nxOtDayHours(code, row, minHrs, isOffDay){
+function nxOtDayHours(code, row, minHrs, isOffDay, iso){
   const worked = nxWorkedHrs(row);
   if(worked <= 0) return 0;
-  const ot = isOffDay ? worked : Math.max(0, worked - nxShiftHrsOf(code));
+  const ot = isOffDay ? worked : Math.max(0, worked - nxShiftHrsOf(code, iso));
   return ot > (Number(minHrs) || 0) ? ot : 0;
 }
 function nxOtMinHrs(){ const v = Number((getSettings() || {}).otAfter); return (isFinite(v) && v > 0 ? v : 20) / 60; }
@@ -3510,7 +3670,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if(page === 'voice') loadVoice();
     if(page === 'attendance') loadDeployment();
     if(page === 'workhours') whInit();
-    if(page === 'shifts') loadRoster();
+    if(page === 'shifts'){ loadRoster(); rgLoad(); }
     if(page === 'hiring') loadHiring();
     if(page === 'expenses') loadExpenses();
     if(page === 'assets') loadAssets();
@@ -3546,6 +3706,7 @@ $('otrLoadBtn').addEventListener('click', async () => {
   const [y, mo] = m.split('-').map(Number);
   const dim = new Date(y, mo, 0).getDate();
   const from = m + '-01', to = m + '-' + String(dim).padStart(2, '0');
+  await ensureRoster(from, to);
   const { data, error } = await sb.from('ot_requests').select('employee_code, ot_date, hours, ot_verified').eq('status', 'APPROVED').gte('ot_date', from).lte('ot_date', to);
   if(error) return notify(error.message, 'error');
   // attendance per code/date — OT = total worked hours − shift hours (>= threshold), approved hrs tak cap
@@ -3564,7 +3725,7 @@ $('otrLoadBtn').addEventListener('click', async () => {
     if(!r) return;                                   // punch hi nahi -> OT 0
     v.worked += nxWorkedHrs(r);
     const isOff = new Date(o.ot_date + 'T00:00:00').getDay() === 0;   // Sunday = off day, poora din OT
-    const actual = nxOtDayHours(code, r, OT_MIN, isOff);
+    const actual = nxOtDayHours(code, r, OT_MIN, isOff, o.ot_date);
     v.actual += actual;
     const pay = Math.min(h, actual);                 // approved hours = CAP
     if(o.ot_verified === true) v.phours += pay;      // gate: sirf guard-verified OT payable
@@ -4145,7 +4306,7 @@ async function loadBlockedPunches(){
   host.innerHTML = '<p style="color:var(--muted)">Loading…</p>';
   try{
     const [logRes, attRes] = await Promise.all([
-      sb.from('deployment_logs').select('employee_code,name,line,time').eq('date', d).eq('status','MANPOWER_FULL'),
+      sb.from('deployment_logs').select('employee_code,name,line,time,status').eq('date', d).in('status',['MANPOWER_FULL','SHIFT_WINDOW']),
       sb.from('attendance').select('employee_code,in_time').eq('date', d)
     ]);
     const att = {};
@@ -4155,8 +4316,9 @@ async function loadBlockedPunches(){
     (logRes.data || []).forEach(g => {
       const c = String(g.employee_code || '').toUpperCase(); if(!c) return;
       const t = String(g.time || '').substring(0,5);
-      const o = by[c] || (by[c] = { code:c, name:g.name || c, line:g.line || '—', tries:0, first:t, last:t });
+      const o = by[c] || (by[c] = { code:c, name:g.name || c, line:g.line || '—', tries:0, first:t, last:t, full:0, shiftWin:0 });
       o.tries++;
+      if(String(g.status) === 'SHIFT_WINDOW') o.shiftWin++; else o.full++;
       if(t){ if(!o.first || t < o.first) o.first = t; if(!o.last || t > o.last) o.last = t; }
       if(g.line) o.line = g.line;
     });
@@ -4178,13 +4340,15 @@ async function loadBlockedPunches(){
       (ph || []).forEach(x => { const c = String(x.employee_code||'').toUpperCase(); if(!photo[c]) photo[c] = x.in_photo_url; });
     }catch(e){ /* photo na mile to naam hi sahi */ }
     const pending = rows.filter(r => !att[r.code]).length;
+    const swCount = rows.filter(r => r.shiftWin > 0).length;
     if($('blkCount')){
       $('blkCount').className = 'chip ' + (pending ? 'chip-bad' : 'chip-warn');
-      $('blkCount').innerText = rows.length + ' extra' + (pending ? ' • ' + pending + ' ki attendance nahi' : '');
+      $('blkCount').innerText = rows.length + ' blocked' + (pending ? ' • ' + pending + ' ki attendance nahi' : '');
     }
     host.innerHTML =
-      `<p class="text-[11px] mb-2" style="color:${pending ? 'var(--bad)' : 'var(--muted)'}">Capacity se jyada log aaye — kiosk ne inka punch nahi liya`
+      `<p class="text-[11px] mb-2" style="color:${pending ? 'var(--bad)' : 'var(--muted)'}">Kiosk ne inka punch nahi liya`
       + (pending ? `. <b>${pending} ki attendance abhi tak nahi bani</b>, ye absent count honge.` : '. Sabki attendance ban chuki hai.')
+      + (swCount ? ` <b>${swCount} log apni shift ke bahar aaye</b> — inka roster Shifts page se theek karo.` : '')
       + `</p>`
       + rows.map(r => {
         const inT = att[r.code], pu = photo[r.code];
@@ -4195,7 +4359,8 @@ async function loadBlockedPunches(){
                  : '<div class="w-8 h-8 rounded-full" style="background:var(--line)"></div>'}
             <div>
               <div class="font-semibold text-xs">${esc(r.name)} <span style="color:var(--muted)">(${esc(r.code)})</span></div>
-              <div class="text-[10px]" style="color:var(--muted)">${esc(r.line)} • ${r.tries} koshish • ${esc(r.first)}${r.last && r.last !== r.first ? ' – ' + esc(r.last) : ''}</div>
+              <div class="text-[10px]" style="color:var(--muted)">${esc(r.line)} • ${r.tries} koshish • ${esc(r.first)}${r.last && r.last !== r.first ? ' – ' + esc(r.last) : ''}
+                • ${r.shiftWin && !r.full ? '<b style="color:#b45309">shift ke bahar</b>' : (r.shiftWin ? '<b style="color:#b45309">manpower full + shift ke bahar</b>' : 'manpower full')}</div>
             </div>
           </div>
           <span class="chip ${inT ? 'chip-ok' : 'chip-bad'}">${inT ? 'IN ' + esc(String(inT).substring(0,5)) : 'ATTENDANCE NAHI'}</span>
@@ -7459,6 +7624,7 @@ async function loadRegister(){
   const wrap = $('attRegisterWrap');
   wrap.innerHTML = '<div class="loader-ring loader-dark"></div>';
   try{
+    await ensureRosterMonth(ym);
     const rows = await fetchMonthAttendance(ym);
     const { attMap, dayMeta } = buildDayStatus(ym, rows);
     const lvMap = await fetchMonthLeaves(ym);
@@ -7480,7 +7646,7 @@ async function loadRegister(){
     let head = '<tr><th class="name-cell">Employee</th>' + dayMeta.map(x => `<th>${x.d}</th>`).join('') + '<th>P</th><th>L</th><th>A</th></tr>';
     let body = emps.map(e => {
       const code = e['Employee code'];
-      const sh = shiftOf(code);
+      const sh = { name: nxShiftLabel(code, dayMeta.map(x => x.iso)) };
       const lvSet = lvMap[code] || new Set();
       let p = 0, l = 0, a = 0, lv = 0, wfh = 0;
       const cells = dayMeta.map(x => {
@@ -7490,7 +7656,7 @@ async function loadRegister(){
         if(r){
           const hasSL = (gateSLRegMap[code]||new Set()).has(x.iso);
           const hasHD = (gateHDRegMap[code]||new Set()).has(x.iso);
-          const isL = isRowLate(r) && !hasHD;   // is_late already accounts for morning short-leave grace; half-day fully excused
+          const isL = nxIsLateOn(code, x.iso, r) && !hasHD;   // is_late already accounts for morning short-leave grace; half-day fully excused
           cls = hasHD ? 'c-WFH' : (isL ? 'c-L' : 'c-P');
           txt = hasHD ? 'HD' : (hasSL ? 'SL' : (isL ? 'L' : 'P'));
           p++; if(isL) l++;
@@ -7706,6 +7872,7 @@ async function runPayroll(){
   window._payPendingNote = '';
   try{
     const S = getSettings();
+    await ensureRosterMonth(ym);            // date-wise shift roster — iske bina shift assigned wali hi maani jaayegi
     const rows = await fetchMonthAttendance(ym);
     // ===== NEXT-MONTH activity (trailing off-day rule) =====
     // Jis employee ne is month ke aakhir me off-days ke baad kaam chhod diya lagta hai,
@@ -7847,19 +8014,28 @@ async function runPayroll(){
       const code = e['Employee code'];
       const p = PROFILES[code] || {};
       const days = attMap[code] || {};
-      const sh = shiftOf(code);
-      const shHrs = shiftHours(sh);
+      const _monthIsos = dayMeta.map(x => x.iso);
+      const sh = { ...shiftOf(code), name: nxShiftLabel(code, _monthIsos) };
+      // Roster se shift badal sakti hai, to mahine ka AVERAGE shift-hours lo —
+      // per-hour rate (OT/LOP) isi se banta hai. Roster khali ho to assigned shift hi.
+      const shHrs = (() => {
+        let t = 0, n = 0;
+        _monthIsos.forEach(iso => { const m = dayMetaMap[iso];
+          if(m && (m.isWO || m.isH)) return; t += nxShiftHrsOf(code, iso); n++; });
+        return n ? (t / n) : nxShiftHrsOf(code);
+      })();
       let present = 0, lates = 0, otHours = 0, wfhDays = 0;
       let shortDayLeave = 0, earlyOuts = 0, hoursUnknown = 0, shiftMismatch = 0, halfDays = 0;
       const shortDays = [], unknownDays = [], earlyDays = [], mismatchDays = [], halfDayList = [];
       const _SHORT_HRS = nxShortDayHrs();        // 4 ghante -> leave
       const _EARLY_MIN = nxEarlyLeaveMins();     // 20 minute -> late
       const _HALF_PCT  = nxHalfDayPct();         // 0.75 -> half day
-      const _HALF_LINE = _HALF_PCT > 0 ? nxShiftHrsOf(code) * _HALF_PCT : 0;
+      // _HALF_LINE aur _earlyCap har din ki shift par depend karte hain (roster se shift badal sakti hai),
+      // isliye ye day-loop ke andar nikalte hain — yahan sirf default rakha hai.
       // Agar kami shift ke aadhe se bhi zyada nikle to ye jaldi jaana nahi,
       // shift hi galat lagi hui hai (banda apni assigned shift me kaam hi nahi
       // kar raha). Aise din par late mark nahi lagate — unhe alag ginte hain.
-      const _earlyCap   = Math.round(nxShiftHrsOf(code) * 60 / 2);
+
       const myWfh = wfhMap[code] || new Set();
       dayMeta.forEach(x => {
         // approved WFH day without a punch = paid working day
@@ -7871,6 +8047,10 @@ async function runPayroll(){
                    || (((window._gateHDMap||{})[code]||new Set()).has(x.iso));
           const _hrsKnown = !!(r.in_time && r.out_time);
           const _wh = _hrsKnown ? nxWorkedHrs(r) : 0;
+          // us DIN ki shift ke ghante (roster se badal sakti hai)
+          const _dayShiftHrs = nxShiftHrsOf(code, x.iso);
+          const _HALF_LINE   = _HALF_PCT > 0 ? _dayShiftHrs * _HALF_PCT : 0;
+          const _earlyCap    = Math.round(_dayShiftHrs * 60 / 2);
           // NIYAM: 4 ghante se kam kaam + us din gate pass nahi -> wo din LEAVE gina jayega
           // (present nahi). Ghante pata na hon (OUT punch missing) to ye niyam NAHI lagta —
           // "pata nahi" aur "zero" ek cheez nahi hai, warna OUT bhoolne par poora din kat jata.
@@ -7885,12 +8065,12 @@ async function runPayroll(){
           }
           present++;
           // NIYAM: late = der se aaya, YA shift khatam hone se 20+ minute pehle chala gaya
-          const _eMin  = (_EARLY_MIN > 0 && _hrsKnown) ? nxShortfallMins(code, r) : 0;
+          const _eMin  = (_EARLY_MIN > 0 && _hrsKnown) ? nxShortfallMins(code, r, x.iso) : 0;
           const _shiftMismatch = _eMin > _earlyCap;
           const _early = _EARLY_MIN > 0 && _eMin > _EARLY_MIN && !_shiftMismatch;
           if(_early){ earlyOuts++; earlyDays.push(x.iso); }
           if(_shiftMismatch){ shiftMismatch++; mismatchDays.push(x.iso); }
-          if((isRowLate(r) || _early) && !_gp) lates++;
+          if((nxIsLateOn(code, x.iso, r) || _early) && !_gp) lates++;
         }
       });
       // ===== OT =====
@@ -7907,7 +8087,7 @@ async function runPayroll(){
         const appr = Number(myOtByDate[iso]) || 0;
         if(appr <= 0) return;
         const meta = dayMetaMap[iso];
-        const actual = nxOtDayHours(code, days[iso], _otMin, !!(meta && (meta.isWO || meta.isH)));
+        const actual = nxOtDayHours(code, days[iso], _otMin, !!(meta && (meta.isWO || meta.isH)), iso);
         otHours += Math.min(appr, actual);         // approved hours = CAP
       });
       if((p.salary || {}).otAllowed === false) otHours = 0; // OT not allowed for this employee
@@ -9818,14 +9998,15 @@ document.body.addEventListener('click', async e => {
   }
   if(act === 'cmp-muster'){
     const ym = PAYX().ym;
+    await ensureRosterMonth(ym);
     const rows = await fetchMonthAttendance(ym);
     const { attMap, dayMeta } = buildDayStatus(ym, rows);
     const S = getSettings();
     const body = activeEmps().map((e, idx) => {
-      const code = e['Employee code']; const sh = shiftOf(code);
+      const code = e['Employee code'];
       const cells = dayMeta.map(x => {
         const r = (attMap[code]||{})[x.iso];
-        if(r) return '<td>' + (isLateFor(r.in_time, sh) ? 'L' : 'P') + '</td>';
+        if(r) return '<td>' + (isLateFor(r.in_time, shiftOf(code, x.iso)) ? 'L' : 'P') + '</td>';
         if(x.isH) return '<td>H</td>';
         if(x.isWO) return '<td>WO</td>';
         return x.iso > todayISO() ? '<td></td>' : '<td>A</td>';
@@ -11114,6 +11295,319 @@ $('rosRefreshBtn').addEventListener('click', loadRoster);
 $('rosDept').addEventListener('change', renderRoster);
 $('rosMisOnly').addEventListener('change', renderRoster);
 $('rosMonth').addEventListener('change', loadRoster);
+
+/* ---------------- DATE-WISE SHIFT ROSTER ---------------- */
+let RG_DIRTY = {};     // 'CODE|YYYY-MM-DD' -> shift_id (number) | '' (hatao)
+let RG_SEL   = {};     // CODE -> true
+let RG_META  = [];     // dayMeta (isWO/isH ke saath)
+let RG_ROT   = {};     // CODE -> true (jo din-raat dono karta hai)
+
+function rgShort(name){
+  const n = String(name || '').trim();
+  if(!n) return '?';
+  const w = n.split(/\s+/);
+  if(w.length > 1) return w.map(x => x[0]).join('').toUpperCase().slice(0,3);
+  return n.slice(0,3).toUpperCase();
+}
+function rgIsNight(sh){ return !!(sh && (sh.is_night || _rosToMin(sh.start_time) >= 16*60)); }
+function rgShiftById(id){ return (SHIFTS||[]).find(x => String(x.id) === String(id)) || null; }
+function rgKey(code, iso){ return String(code).toUpperCase() + '|' + iso; }
+// Is din ka asarkari (effective) shift_id: dirty > saved roster > assigned
+function rgEff(code, iso){
+  const k = rgKey(code, iso);
+  if(RG_DIRTY[k] !== undefined) return RG_DIRTY[k] === '' ? null : RG_DIRTY[k];
+  const sv = nxRosterShiftId(code, iso);
+  return sv === null ? null : sv;
+}
+function rgShiftOptions(withBlank){
+  return (withBlank ? '<option value="">— koi nahi —</option>' : '')
+    + (SHIFTS||[]).slice().sort((a,b) => String(a.start_time).localeCompare(String(b.start_time)))
+      .map(x => `<option value="${x.id}">${esc(x.name)} (${String(x.start_time).slice(0,5)}–${String(x.end_time).slice(0,5)})</option>`).join('');
+}
+function rgDirtyCount(){ return Object.keys(RG_DIRTY).length; }
+function rgSyncChips(){
+  const d = rgDirtyCount(), b = $('rgDirty');
+  if(b){ b.style.display = d ? '' : 'none'; b.textContent = d; }
+  const n = Object.keys(RG_SEL).length, c = $('rgSelChip');
+  if(c) c.textContent = n + ' chune hue';
+}
+function rgDates(){
+  const f = $('rgFrom').value, t = $('rgTo').value;
+  if(!f || !t || t < f) return [];
+  const out = []; let iso = f;
+  for(let g = 0; g < 400 && iso <= t; g++){
+    out.push(iso);
+    const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + 1);
+    iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  return out;
+}
+function rgIsOff(iso){ const m = RG_META.find(x => x.iso === iso); return !!(m && (m.isWO || m.isH)); }
+function rgSelCodes(){ return Object.keys(RG_SEL); }
+
+async function rgLoad(){
+  if(!$('rgMonth').value) $('rgMonth').value = todayISO().slice(0,7);
+  const ym = $('rgMonth').value;
+  // dropdowns
+  const depts = [...new Set((EMP||[]).map(e => String(e.DEPARTMENT||'').trim()).filter(Boolean))].sort();
+  const lines = [...new Set((EMP||[]).map(e => String(e.LINE||'').trim()).filter(Boolean))].sort();
+  const kd = $('rgDept').value, kl = $('rgLine').value;
+  $('rgDept').innerHTML = '<option value="">— Saare department —</option>' + depts.map(d => `<option>${esc(d)}</option>`).join('');
+  $('rgLine').innerHTML = '<option value="">— Saari line —</option>' + lines.map(d => `<option>${esc(d)}</option>`).join('');
+  if(kd) $('rgDept').value = kd; if(kl) $('rgLine').value = kl;
+  ['rgShift','rgPatA','rgPatB'].forEach(id => {
+    const el = $(id); if(!el) return; const k = el.value;
+    el.innerHTML = rgShiftOptions(id === 'rgShift');
+    if(k) el.value = k;
+  });
+  RG_META = buildDayStatus(ym, []).dayMeta;
+  if(!$('rgFrom').value || !$('rgFrom').value.startsWith(ym)) $('rgFrom').value = ym + '-01';
+  if(!$('rgTo').value   || !$('rgTo').value.startsWith(ym))   $('rgTo').value   = _lastDay(ym);
+
+  const tb = $('rgTable').querySelector('tbody');
+  tb.innerHTML = '<tr><td colspan="4" class="text-center py-8" style="color:var(--muted)">Loading…</td></tr>';
+  ROSTER_RANGE = '';                      // dobara taaza load
+  await ensureRosterMonth(ym);
+  // kaun rotate karta hai — us mahine ke punch se (din + raat dono)
+  RG_ROT = {};
+  try{
+    const rows = await fetchMonthAttendance(ym);
+    const agg = {};
+    (rows||[]).forEach(r => {
+      const c = String(r.employee_code||'').toUpperCase(); if(!c || !r.in_time) return;
+      const m = _rosToMin(r.in_time); if(m === null) return;
+      const o = agg[c] || (agg[c] = { d:0, n:0 });
+      if(m >= 16*60 || m < 5*60) o.n++; else o.d++;
+    });
+    Object.entries(agg).forEach(([c,o]) => { if(o.d >= 2 && o.n >= 2) RG_ROT[c] = true; });
+  }catch(e){ /* attendance na mile to "sirf rotate wale" filter khali rahega */ }
+  RG_DIRTY = {}; RG_SEL = {};
+  rgRender();
+}
+
+function rgRows(){
+  const dept = $('rgDept').value, line = $('rgLine').value;
+  const q = String($('rgSearch').value||'').trim().toUpperCase();
+  const who = $('rgWho').value;
+  return (EMP||[]).filter(e => {
+    const st = String(e.Status||e.STATUS||'').toUpperCase();
+    if(st && !st.includes('ACTIVE')) return false;
+    const code = e['Employee code']; if(!code) return false;
+    const up = String(code).toUpperCase();
+    if(dept && String(e.DEPARTMENT||'').trim() !== dept) return false;
+    if(line && String(e.LINE||'').trim() !== line) return false;
+    if(q && !(up.includes(q) || String(e.Name||'').toUpperCase().includes(q))) return false;
+    if(who === 'rot' && !RG_ROT[up] && !RG_SEL[up]) return false;
+    if(who === 'ros' && !Object.keys(ROSTER[up] || {}).length && !RG_SEL[up]) return false;
+    return true;
+  }).sort((a,b) => String(a.Name||'').localeCompare(String(b.Name||'')));
+}
+
+function rgRender(){
+  const head = $('rgHead'), tb = $('rgTable').querySelector('tbody');
+  if(!head) return;
+  head.innerHTML = '<th class="rg-nm"><label class="flex items-center gap-1" style="font-weight:600">'
+    + '<input type="checkbox" id="rgAll"> Employee</label></th>'
+    + RG_META.map(x => {
+        const dow = ['R','S','M','M','G','S','S'][new Date(x.iso + 'T00:00:00').getDay()];  // Ravi Som Mangal Budh Guru Shukra Shani
+        return `<th class="${(x.isWO||x.isH)?'rg-off':''}" title="${x.iso}${x.isH?' · chutti':''}">${x.d}`
+             + `<br><span style="font-weight:400;color:var(--muted);font-size:9px">${x.isH ? 'C' : dow}</span></th>`;
+      }).join('');
+
+  const list = rgRows();
+  if(!list.length){
+    tb.innerHTML = `<tr><td class="rg-nm" colspan="${RG_META.length+1}" style="text-align:center;padding:28px;color:var(--muted)">Koi employee nahi mila — filter badlo.</td></tr>`;
+    rgSyncChips(); return;
+  }
+  tb.innerHTML = list.map(e => {
+    const code = e['Employee code'], up = String(code).toUpperCase();
+    const asg = rgShiftById((PROFILES[code]||PROFILES[up]||{}).shift_id);
+    const cells = RG_META.map(x => {
+      const off = x.isWO || x.isH;
+      const eff = rgEff(code, x.iso);
+      const dirty = RG_DIRTY[rgKey(code, x.iso)] !== undefined;
+      const sh = eff !== null ? rgShiftById(eff) : null;
+      const shown = sh || asg;
+      const cls = ['rg-cell'];
+      if(off) cls.push('rg-off');
+      if(sh) cls.push(rgIsNight(sh) ? 'rg-night' : 'rg-day'); else cls.push('rg-base');
+      if(dirty) cls.push('rg-chg');
+      const txt = shown ? rgShort(shown.name) : '—';
+      const tip = (shown ? shown.name + ' ' + String(shown.start_time).slice(0,5) + '–' + String(shown.end_time).slice(0,5) : 'shift nahi')
+                + (sh ? ' (roster)' : ' (assigned)') + (off ? ' · chutti' : '');
+      return `<td class="${cls.join(' ')}" data-code="${esc(code)}" data-iso="${x.iso}" title="${esc(tip)}">${esc(txt)}</td>`;
+    }).join('');
+    return `<tr>
+      <td class="rg-nm"><label class="flex items-center gap-1" style="cursor:pointer">
+        <input type="checkbox" class="rg-pick" data-code="${esc(code)}"${RG_SEL[up]?' checked':''}>
+        <span><b>${esc(e.Name||'')}</b> <span style="color:var(--muted)">${esc(code)}</span>
+        <br><span class="text-[10px]" style="color:var(--muted)">${esc(asg ? asg.name : 'shift nahi')}${RG_ROT[up]?' · <b style="color:#b45309">rotate</b>':''}</span></span>
+      </label></td>${cells}</tr>`;
+  }).join('');
+  rgSyncChips();
+}
+
+function rgSetCells(codes, isos, shiftId, skipOff){
+  let n = 0;
+  codes.forEach(code => isos.forEach(iso => {
+    if(skipOff && rgIsOff(iso)) return;
+    const k = rgKey(code, iso);
+    const saved = nxRosterShiftId(code, iso);
+    const want = shiftId === '' ? '' : Number(shiftId);
+    // jo pehle se wahi hai use dirty mat banao
+    if(want === '' ? (saved === null) : (String(saved) === String(want))) { delete RG_DIRTY[k]; return; }
+    RG_DIRTY[k] = want; n++;
+  }));
+  return n;
+}
+
+function rgApply(){
+  const codes = rgSelCodes();
+  if(!codes.length) return notify('Pehle employee chuno (naam ke aage tick karo)', 'info');
+  const isos = rgDates();
+  if(!isos.length) return notify('From / To date theek karo', 'error');
+  const sid = $('rgShift').value;
+  if(!sid) return notify('Shift chuno', 'error');
+  const n = rgSetCells(codes, isos, sid, true);
+  rgRender();
+  notify(n ? `${n} din set hue — Save dabana baaki hai` : 'Sab already wahi shift par hain', n ? 'success' : 'info');
+}
+
+function rgClearRange(){
+  const codes = rgSelCodes();
+  if(!codes.length) return notify('Pehle employee chuno', 'info');
+  const isos = rgDates();
+  if(!isos.length) return notify('From / To date theek karo', 'error');
+  const n = rgSetCells(codes, isos, '', false);
+  rgRender();
+  notify(n ? `${n} din khali hue (assigned shift par wapas) — Save dabana baaki hai` : 'In dinon par koi roster entry nahi thi', n ? 'success' : 'info');
+}
+
+function rgPattern(){
+  const codes = rgSelCodes();
+  if(!codes.length) return notify('Pehle employee chuno', 'info');
+  const isos = rgDates();
+  if(!isos.length) return notify('From / To date theek karo', 'error');
+  const A = $('rgPatA').value, B = $('rgPatB').value;
+  if(!A || !B) return notify('Shift A aur Shift B dono chuno', 'error');
+  if(String(A) === String(B)) return notify('A aur B alag shift honi chahiye', 'error');
+  const cyc = Math.max(1, Math.min(31, Number($('rgPatCycle').value) || 7));
+  const d0 = new Date(isos[0] + 'T00:00:00');
+  let n = 0;
+  codes.forEach((code, i) => {
+    const startsA = (i % 2 === 0);             // ek-ek chhod kar do group
+    isos.forEach(iso => {
+      if(rgIsOff(iso)) return;
+      const diff = Math.floor((new Date(iso + 'T00:00:00') - d0) / 86400000);
+      const blk  = Math.floor(diff / cyc);
+      const useA = (blk % 2 === 0) ? startsA : !startsA;
+      n += rgSetCells([code], [iso], useA ? A : B, true);
+    });
+  });
+  rgRender();
+  const g1 = codes.filter((c,i) => i % 2 === 0).length;
+  notify(`Rotation lag gaya — ${g1} log Shift A se shuru, ${codes.length-g1} log Shift B se, har ${cyc} din badal. ${n} din set. Save dabana baaki hai.`, 'success');
+}
+
+function rgCopyWeek(){
+  const codes = rgSelCodes();
+  if(!codes.length) return notify('Pehle employee chuno', 'info');
+  const from = $('rgFrom').value;
+  if(!from) return notify('From date chuno — usse pichhle 7 din copy honge', 'error');
+  const isoAdd = (iso, k) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate()+k);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+  let n = 0, miss = 0;
+  codes.forEach(code => {
+    for(let k = 0; k < 7; k++){
+      const src = isoAdd(from, k - 7), dst = isoAdd(from, k);
+      const sv = rgEff(code, src);
+      if(sv === null){ miss++; continue; }
+      if(rgIsOff(dst)) continue;
+      n += rgSetCells([code], [dst], sv, true);
+    }
+  });
+  rgRender();
+  notify(n ? `${n} din copy hue${miss?` (${miss} din source me khali the)`:''} — Save dabana baaki hai`
+           : 'Pichhle hafte me copy karne layak kuch nahi mila', n ? 'success' : 'info');
+}
+
+async function rgSave(){
+  const keys = Object.keys(RG_DIRTY);
+  if(!keys.length) return notify('Koi change nahi hai', 'info');
+  const ok = await nxAsk({ title:'Shift Roster', msg:`${keys.length} din ka roster save hoga. Aage badhein?` });
+  if(!ok) return;
+  const btn = $('rgSaveBtn'), html = btn.innerHTML;
+  btn.innerHTML = '<div class="loader-ring"></div> Saving…'; btn.disabled = true;
+  const ups = [], delBy = {};
+  keys.forEach(k => {
+    const [code, iso] = k.split('|');
+    const v = RG_DIRTY[k];
+    if(v === '') (delBy[code] = delBy[code] || []).push(iso);
+    else ups.push({ employee_code: code, date: iso, shift_id: Number(v), source: 'HR', set_by: ME_EMAIL || null, set_at: new Date().toISOString() });
+  });
+  let saved = 0, removed = 0, fail = 0;
+  try{
+    for(let i = 0; i < ups.length; i += 500){
+      const chunk = ups.slice(i, i + 500);
+      const { error } = await sb.from('employee_shifts').upsert(chunk, { onConflict: 'employee_code,date' });
+      if(error) throw error;
+      saved += chunk.length;
+    }
+    for(const [code, isos] of Object.entries(delBy)){
+      for(let i = 0; i < isos.length; i += 200){
+        const { error } = await sb.from('employee_shifts').delete()
+          .eq('employee_code', code).in('date', isos.slice(i, i + 200));
+        if(error) throw error;
+        removed += Math.min(200, isos.length - i);
+      }
+    }
+  }catch(err){ fail = 1; notify('Save fail: ' + (err.message || err), 'error'); }
+  btn.innerHTML = html; btn.disabled = false;
+  if(!fail){
+    RG_DIRTY = {};
+    notify(`Roster save ho gaya ✓ ${saved} set${removed?`, ${removed} khali`:''}`, 'success');
+    ROSTER_RANGE = '';
+    await ensureRosterMonth($('rgMonth').value);
+    rgRender();
+  }
+}
+
+/* events */
+$('rgRefreshBtn') && $('rgRefreshBtn').addEventListener('click', rgLoad);
+$('rgMonth')  && $('rgMonth').addEventListener('change', rgLoad);
+['rgDept','rgLine','rgWho'].forEach(id => $(id) && $(id).addEventListener('change', rgRender));
+$('rgSearch') && $('rgSearch').addEventListener('input', rgRender);
+$('rgApplyBtn') && $('rgApplyBtn').addEventListener('click', rgApply);
+$('rgClearBtn') && $('rgClearBtn').addEventListener('click', rgClearRange);
+$('rgPatBtn')   && $('rgPatBtn').addEventListener('click', rgPattern);
+$('rgCopyBtn')  && $('rgCopyBtn').addEventListener('click', rgCopyWeek);
+$('rgSaveBtn')  && $('rgSaveBtn').addEventListener('click', rgSave);
+$('rgResetBtn') && $('rgResetBtn').addEventListener('click', () => {
+  if(!rgDirtyCount()) return notify('Koi change nahi hai', 'info');
+  RG_DIRTY = {}; rgRender(); notify('Changes hata diye', 'info');
+});
+$('rgTable') && $('rgTable').addEventListener('change', e => {
+  if(e.target.id === 'rgAll'){
+    const on = e.target.checked;
+    if(on) rgRows().forEach(x => RG_SEL[String(x['Employee code']).toUpperCase()] = true);
+    else RG_SEL = {};
+    rgRender(); return;
+  }
+  const p = e.target.closest('.rg-pick');
+  if(p){
+    const up = String(p.dataset.code).toUpperCase();
+    if(p.checked) RG_SEL[up] = true; else delete RG_SEL[up];
+    rgSyncChips();
+  }
+});
+$('rgTable') && $('rgTable').addEventListener('click', e => {
+  const c = e.target.closest('.rg-cell'); if(!c) return;
+  const sid = $('rgShift').value;
+  const code = c.dataset.code, iso = c.dataset.iso;
+  // Shift chuni hai to wo lagao; "koi nahi" chuna hai to us din ki entry hata do.
+  rgSetCells([code], [iso], sid || '', false);
+  rgRender();
+});
 
 /* ---------------- LEAVES ---------------- */
 $('lvMonth').value = todayISO().slice(0,7);

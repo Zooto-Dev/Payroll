@@ -590,6 +590,50 @@
     </div>
 
     <script>
+
+        // ===== DATE-WISE SHIFT ROSTER (kiosk) =====
+        // Roster me aaj ki entry ho to WAHI shift aaj ke liye final hai; warna assigned shift.
+        function nxTodayISO(){
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        }
+        async function nxLoadTodayRoster(){
+            const day = nxTodayISO();
+            // kal ka cache aaj kaam ka nahi
+            try{
+                const c = JSON.parse(localStorage.getItem('cached_roster_today') || 'null');
+                window.NX_ROSTER_TODAY = (c && c.date === day) ? c : { date: day, map: {} };
+            }catch(e){ window.NX_ROSTER_TODAY = { date: day, map: {} }; }
+            if(!navigator.onLine || typeof supabaseClient === 'undefined' || !supabaseClient) return;
+            try{
+                const { data, error } = await supabaseClient.from('employee_shifts')
+                    .select('employee_code, shift_id').eq('date', day).limit(5000);
+                if(error) throw error;
+                const m = {};
+                (data||[]).forEach(r => { m[String(r.employee_code||'').toUpperCase()] = r.shift_id; });
+                window.NX_ROSTER_TODAY = { date: day, map: m };
+                localStorage.setItem('cached_roster_today', JSON.stringify(window.NX_ROSTER_TODAY));
+            }catch(e){ console.warn('roster today warn', e && e.message); }
+        }
+        // Aaj is bande ki shift (roster > assigned). Shape wahi jo NX_SHIFTMAP ka hai.
+        function nxShiftOf(code){
+            const up = String(code||'').toUpperCase();
+            const base = (window.NX_SHIFTMAP||{})[up] || {};
+            const rt = window.NX_ROSTER_TODAY;
+            if(rt && rt.date === nxTodayISO()){
+                const sid = rt.map ? rt.map[up] : undefined;
+                if(sid !== undefined && sid !== null){
+                    const sh = (window.NX_SHIFTS_BY_ID||{})[String(sid)];
+                    if(sh){
+                        const night = !!sh.is_night || (sh.end_time && sh.start_time && String(sh.end_time) < String(sh.start_time));
+                        return { night: !!night, start: sh.start_time||'', end: sh.end_time||'',
+                                 name: sh.name||'', category: base.category || '', fromRoster: true };
+                    }
+                }
+            }
+            return base;
+        }
+
 /* NEXUS splash: minimum 1.5s cinematic display, then fade into the app */
 window._nxT0 = Date.now();
 function nxHideSplash(){
@@ -925,6 +969,7 @@ function nxConfirm(msg, title){
                                 const night = sh ? (!!sh.is_night || (sh.end_time && sh.start_time && String(sh.end_time) < String(sh.start_time))) : false; smap[String(p.employee_code).toUpperCase()] = { night: !!night, start: (sh&&sh.start_time)||'', end: (sh&&sh.end_time)||'', name: (sh&&sh.name)||'', category: String(p.category||'').toUpperCase() };
                             });
                             window.NX_SHIFTMAP = smap; localStorage.setItem('cached_shiftmap', JSON.stringify(smap));
+                            window.NX_SHIFTS_BY_ID = shById; localStorage.setItem('cached_shifts_by_id', JSON.stringify(shById));
                         } catch(e){ console.warn('shift map warn', e); }
                         localStorage.setItem('cfg_ts', String(Date.now()));
                     }catch(e){ console.warn('cfg fetch warn', e); }
@@ -935,6 +980,10 @@ function nxConfirm(msg, title){
                 window.productionLines = window.productionLines || [];
                 if(!window.NX_SHIFTMAP){ const csm = localStorage.getItem('cached_shiftmap'); if(csm){ try{ window.NX_SHIFTMAP = JSON.parse(csm); }catch(e){} } }
                 window.NX_SHIFTMAP = window.NX_SHIFTMAP || {};
+                if(!window.NX_SHIFTS_BY_ID){ const csi = localStorage.getItem('cached_shifts_by_id'); if(csi){ try{ window.NX_SHIFTS_BY_ID = JSON.parse(csi); }catch(e){} } }
+                window.NX_SHIFTS_BY_ID = window.NX_SHIFTS_BY_ID || {};
+                // ---- AAJ KA ROSTER ---- (date-wise shift; TTL ke bahar, har load par taaza)
+                await nxLoadTodayRoster();
 
                 labeledFaceDescriptors = [];
                 employeeDataMap.clear();
@@ -1854,16 +1903,25 @@ function nxConfirm(msg, title){
             let isLate = timeStr > lateCutoff;
 
             // ===== SHIFT-WINDOW GATE (sirf live punch) =====
+            // Shift roster se tay hoti hai: pehle aaj ki roster entry, warna assigned shift.
             // Night shift: IN sirf 19:30–20:30, OUT sirf subah 10:00 tak. Iske bahar -> BLOCK.
             // Day/Morning: shift ke bahar punch par sirf message (punch fir bhi record hoga).
             if(!offlineProcessData){
-                const _sm = (window.NX_SHIFTMAP||{})[String(empCode).toUpperCase()] || {};
+                const _sm = nxShiftOf(empCode);
                 const _mins = localDate.getHours()*60 + localDate.getMinutes();
                 const _toMin = t => { const m = String(t||'').match(/(\d{1,2}):(\d{2})/); return m ? (+m[1]*60 + +m[2]) : null; };
                 if(_sm.night){
                     const _inWin  = _mins >= (19*60+30) && _mins <= (20*60+30);   // 19:30–20:30 (IN)
                     const _outWin = _mins <= (10*60);                             // subah 10:00 tak (OUT)
                     if(!(_inWin || _outWin)){
+                        // Pehle ye chup-chaap mana kar deta tha — kahin log hi nahi hota tha, is liye
+                        // galat shift/roster ki wajah se chhooti attendance kabhi pakdi nahi jaati thi.
+                        try{
+                            await supabaseClient.from('deployment_logs').insert([{
+                                employee_code: empCode, name: empName || empCode,
+                                line: (empData && empData.LINE) || null,
+                                date: _nowDate, time: _nowTime, status: 'SHIFT_WINDOW' }]);
+                        }catch(e){ console.warn('shift-window log warn', e && e.message); }
                         showFeedback('spoof', '<i class="fa-solid fa-ban" style="color:#fca5a5"></i>', 'Entry not allowed', 'Night shift: IN raat 7:30–8:30, OUT subah 10:00 tak', 'danger', 4200);
                         speakText('Kripya apni shift mein aayen. Night shift ka punch raat saade saat se saade aath tak, aur subah das baje tak hi hota hai. Koi samasya ho to H R se sampark karein.');
                         resumeScanning();
