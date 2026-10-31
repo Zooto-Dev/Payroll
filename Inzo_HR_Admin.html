@@ -1042,7 +1042,7 @@ body.no-confidential .confidential-col{display:none!important}
     <div style="overflow-x:auto">
       <table class="tbl" id="payTable">
         <thead><tr>
-          <th>Employee</th><th>Paid Days</th><th>Leave</th><th>LOP</th><th>Earned Gross</th><th>OT Hrs</th><th>OT Pay</th><th>PF</th><th>ESI</th><th>PT</th><th>LWF</th><th>TDS</th><th>Advance</th><th>Other Ded.</th><th>Bonus</th><th>Net Pay</th><th></th>
+          <th>Employee</th><th>Paid Days</th><th>Leave</th><th>LOP</th><th>Earned Gross</th><th>PF</th><th>ESI</th><th>PT</th><th>LWF</th><th>TDS</th><th>Advance</th><th>Other Ded.</th><th>Bonus</th><th>Net Pay</th><th></th>
         </tr></thead>
         <tbody><tr><td colspan="17" class="text-center py-8" style="color:var(--muted)">Run payroll to see calculations. Salary structures are set on the Employees page.</td></tr></tbody>
       </table>
@@ -1064,7 +1064,7 @@ body.no-confidential .confidential-col{display:none!important}
     <div style="overflow-x:auto">
       <table class="tbl" id="contractTable">
         <thead><tr>
-          <th>Employee</th><th>Contractor</th><th>Paid Days</th><th>Present / Late</th><th>OT Hrs</th><th>Amount</th><th></th>
+          <th>Employee</th><th>Contractor</th><th>Paid Days</th><th>Present / Late</th><th>Amount</th><th></th>
         </tr></thead>
         <tbody></tbody>
       </table>
@@ -8083,17 +8083,15 @@ async function runPayroll(){
       //   • Weekly-off / holiday par kaam: us din ka poora worked time OT.
       // Example: shift 8.5h, approval 3h, verified; banda 12h ruka to actual OT 3.5h -> 3h paid (cap);
       //          sirf 10.5h ruka to actual 2h -> 2h paid. Approval amount decide nahi karta, sirf cap karta hai.
+      // ===== OT PAYROLL ME NAHI JAATA =====
+      // Faisla: overtime ka paisa salary ke saath nahi diya jaata. OT request,
+      // approval aur OT Report sab waise ke waise chalte rahenge — par payroll me
+      // na OT ka column aata hai, na ek rupaya. Isliye yahan hamesha 0.
+      //
+      // (Pehle bhi ye paisa asal me kabhi pay nahi hota tha: netOf() me otPay tha
+      //  hi nahi. Payslip ke "Gross" me jud kar sirf DIKHTA tha, jisse Gross aur
+      //  Net ka hisaab aapas me nahi milta tha. Ab wo gadbad bhi khatam.)
       otHours = 0;
-      const _otMin = nxOtMinHrs();
-      const myOtByDate = otApprovedByDate[code] || {};
-      Object.keys(myOtByDate).forEach(iso => {
-        const appr = Number(myOtByDate[iso]) || 0;
-        if(appr <= 0) return;
-        const meta = dayMetaMap[iso];
-        const actual = nxOtDayHours(code, days[iso], _otMin, !!(meta && (meta.isWO || meta.isH)), iso);
-        otHours += Math.min(appr, actual);         // approved hours = CAP
-      });
-      if((p.salary || {}).otAllowed === false) otHours = 0; // OT not allowed for this employee
       // leaves this month (skip punched days)
       const myLeaves = yearLeaves.filter(L => L.employee_code === code && PAID_LEAVES.includes(L.leave_type));
       let leaveDaysRaw = 0;
@@ -8293,7 +8291,7 @@ async function runPayroll(){
         basic: Math.round(basic), comps, dedBreak, customDed,
         earnedGross: Math.round(earnedGross), pf, esi, pt, lwf,
         hasPay: (present + leaveDays) > 0 && paidDays > 0 && Math.round(earnedGross) > 0,
-        otHours, otPay: Math.round(perHour * otHours * Number(S.otMult)),
+        otHours: 0, otPay: 0,            // OT payroll me nahi jaata
         tds, arrears, reward, lopLeave, otApprovedMode: otApproved[code] !== undefined,
         erPF, erESI, erLWF,
         advDed: Math.round(advDed), advRefs: advs.map(a => a.id),
@@ -8351,11 +8349,11 @@ function calcTDS(monthlyGross, regime, declarations){
 
 function renderPayTable(){
   const tb = $('payTable').querySelector('tbody');
-  const T = { gross:0, ot:0, pf:0, esi:0, ptl:0, tds:0, adv:0, net:0 };
+  const T = { gross:0, pf:0, esi:0, ptl:0, tds:0, adv:0, net:0 };
   let total = 0;
   tb.innerHTML = PAY_ROWS.map((r, i) => {
     const net = netOf(r); total += net;
-    T.gross += r.earnedGross; T.ot += r.otPay||0; T.pf += r.pf; T.esi += r.esi;
+    T.gross += r.earnedGross; T.pf += r.pf; T.esi += r.esi;
     T.ptl += r.pt + (r.customDed||0); T.lwf = (T.lwf||0) + (r.lwf||0); T.tds += r.tds||0; T.adv += r.advDed; T.net += net;
     const warn = r.hasSalary ? '' : ' <span class="chip chip-bad">No salary set</span>';
     return `<tr>
@@ -8364,8 +8362,6 @@ function renderPayTable(){
       <td class="money" style="color:${r.leaveDays ? '#7c3aed' : 'var(--muted)'}" title="${r.lopLeave ? r.lopLeave + ' day(s) beyond balance went to LOP' : ''}">${r.leaveDays}${r.lopLeave ? '<span style="color:var(--bad)">+' + r.lopLeave + 'L</span>' : ''}</td>
       <td class="money" style="color:${r.lop > 0 ? 'var(--bad)' : 'var(--muted)'}">${r.lop}${lateBadge(r)}</td>
       <td class="money font-semibold">${fmtINR(r.earnedGross)}</td>
-      <td><input type="number" step="0.5" class="inp money" style="width:70px;padding:5px 8px;${r.otApprovedMode ? 'border-color:var(--ok)' : ''}" title="${r.otApprovedMode ? 'From approved OT requests' : 'Auto-calculated from hours worked'}" value="${r.otHours}" data-pay="otHours" data-i="${i}"></td>
-      <td class="money" id="otpay-${i}">${fmtINR(r.otPay)}</td>
       <td class="money">${fmtINR(r.pf)}</td>
       <td class="money">${fmtINR(r.esi)}</td>
       <td class="money" title="PT ${r.pt}${r.customDed ? ' + Fixed deductions ' + r.customDed : ''}">${fmtINR(r.pt + (r.customDed||0))}</td>
@@ -8379,7 +8375,7 @@ function renderPayTable(){
     </tr>`;
   }).join('') + `<tr style="background:#faf8f4;font-weight:700;border-top:2px solid var(--line)">
     <td>TOTAL — ${PAY_ROWS.length} employees</td><td></td><td></td><td></td>
-    <td class="money">${fmtINR(T.gross)}</td><td></td><td class="money">${fmtINR(T.ot)}</td>
+    <td class="money">${fmtINR(T.gross)}</td>
     <td class="money">${fmtINR(T.pf)}</td><td class="money">${fmtINR(T.esi)}</td>
     <td class="money">${fmtINR(T.ptl)}</td><td class="money">${fmtINR(T.lwf||0)}</td><td class="money">${fmtINR(T.tds)}</td>
     <td class="money">${fmtINR(T.adv)}</td><td></td><td></td>
@@ -8402,12 +8398,11 @@ function renderContractTable(){
       <td>${esc(r.contractor || '—')}</td>
       <td class="money">${r.paidDays}/${r.dim}</td>
       <td class="money">${r.present}P / ${r.lates}L</td>
-      <td class="money">${r.otHours||0}</td>
       <td class="money font-bold" style="color:#92400e">${fmtINR(amt)}</td>
       <td><button class="btn btn-ghost btn-sm" data-act="view-cslip" data-i="${i}"><i class="fa-solid fa-receipt"></i></button></td>
     </tr>`;
   }).join('') + `<tr style="background:#fffbeb;font-weight:700;border-top:2px solid #fde68a">
-    <td>TOTAL — ${CONTRACT_ROWS.length} contract employee(s)</td><td></td><td></td><td></td><td></td>
+    <td>TOTAL — ${CONTRACT_ROWS.length} contract employee(s)</td><td></td><td></td><td></td>
     <td class="money" style="color:#92400e">${fmtINR(totalAmt)}</td><td></td></tr>`;
   $('contractTotal').innerText = fmtINR(totalAmt);
 }
@@ -8416,7 +8411,7 @@ $('contractCsvBtn') && $('contractCsvBtn').addEventListener('click', () => {
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
   const n = v => Math.round(Number(v)||0);
   const header = ['S.No','Emp Code','Employee Name','Contractor','Contractor Phone','Department','Section','Designation','Shift',
-    'Month Days','Present','Paid Days','Late','OT Hrs','Amount (payable to contractor)'];
+    'Month Days','Present','Paid Days','Late','Amount (payable to contractor)'];
   const rows = CONTRACT_ROWS.slice().sort((a,b)=>String(a.contractor||'').localeCompare(String(b.contractor||'')) || String(a.name||'').localeCompare(String(b.name||'')));
   const lines = [header.join(',')];
   let tot = 0;
@@ -8424,10 +8419,10 @@ $('contractCsvBtn') && $('contractCsvBtn').addEventListener('click', () => {
     const amt = n(r.earnedGross); tot += amt;
     const ph = (PROFILES[r.code]||{}).contractor_phone || '';
     lines.push([ i+1, q(r.code), q(r.name), q(r.contractor||''), q(ph), q(r.dept||''), q((PROFILES[r.code]||{}).section||''), q(r.desig||''), q(r.shiftName||''),
-      n(r.dim), n(r.present), r.paidDays, n(r.lates), n(r.otHours), amt ].join(','));
+      n(r.dim), n(r.present), r.paidDays, n(r.lates), amt ].join(','));
   });
   const t = new Array(header.length).fill('');
-  t[1] = q('TOTAL — '+rows.length+' contract employee(s)'); t[14] = tot;
+  t[1] = q('TOTAL — '+rows.length+' contract employee(s)'); t[13] = tot;
   lines.push(t.join(','));
   dlText('Contractor_Payroll_'+PAY_MONTH+'.csv', String.fromCharCode(0xFEFF)+lines.join('\n'), 'text/csv;charset=utf-8');
   notify('Contractor payroll sheet download ho gaya — '+rows.length+' employees', 'success');
@@ -8437,11 +8432,6 @@ $('payTable').addEventListener('input', e => {
   if(!inp.dataset.pay) return;
   const i = Number(inp.dataset.i);
   PAY_ROWS[i][inp.dataset.pay] = Number(inp.value) || 0;
-  if(inp.dataset.pay === 'otHours'){
-    const r = PAY_ROWS[i];
-    r.otPay = Math.round(r.perHour * r.otHours * Number(getSettings().otMult));
-    $('otpay-' + i).innerText = fmtINR(r.otPay);
-  }
   $('net-' + i).innerText = fmtINR(netOf(PAY_ROWS[i]));
   $('payTotal').innerText = fmtINR(PAY_ROWS.reduce((a,r) => a + netOf(r), 0));
 });
@@ -8806,7 +8796,7 @@ function slipHTML(r){
       <thead><tr><th style="width:26%">Earnings</th><th style="width:13%;text-align:right">Full Salary (₹)</th><th style="width:13%;text-align:right">Earned (₹)</th><th style="width:33%">Deductions</th><th style="width:15%;text-align:right">Amount (₹)</th></tr></thead>
       <tbody>
         ${bodyRows}
-        <tr><th>Gross</th><th style="text-align:right;color:#64748b">${(r.fullGross || (r.comps ? r.comps.reduce((a,c)=>a+(c.full||0),0) : 0)).toLocaleString('en-IN')}</th><th style="text-align:right">${(r.earnedGross + r.bonus + (r.otPay||0) + (r.arrears||0) + (r.reward||0) + (r.encash||0)).toLocaleString('en-IN')}</th><th>Total Deductions</th><th style="text-align:right">${totalDed.toLocaleString('en-IN')}</th></tr>
+        <tr><th>Gross</th><th style="text-align:right;color:#64748b">${(r.fullGross || (r.comps ? r.comps.reduce((a,c)=>a+(c.full||0),0) : 0)).toLocaleString('en-IN')}</th><th style="text-align:right">${(r.earnedGross + r.bonus + (r.arrears||0) + (r.reward||0) + (r.encash||0)).toLocaleString('en-IN')}</th><th>Total Deductions</th><th style="text-align:right">${totalDed.toLocaleString('en-IN')}</th></tr>
       </tbody>
     </table>
     <div style="display:flex;justify-content:space-between;align-items:center;background:#2a2824;color:#fff;border-radius:10px;padding:12px 16px;margin-top:10px">
@@ -8934,7 +8924,7 @@ function downloadPayrollReport(rollFilter){   // '' = all, 'ONR', 'OFR'
   const header = ['S.No','Emp Code','Employee Name','Department','Section','Designation','Category','Roll Type',
     'Month Days','Present','Paid Leave','Earned Week-Off','Earned Holiday','Absent (LOP days)','Paid Days',
     'Full Gross','Earned Gross','Basic','HRA','Conveyance','Special Allowance',
-    'OT Pay','Bonus','Arrears','Kaizen Reward','Leave Encash','Total Earnings',
+    'Bonus','Arrears','Kaizen Reward','Leave Encash','Total Earnings',
     'PF','ESI','Prof. Tax','LWF','TDS','Advance/Loan EMI','Other Deduction','Total Deductions',
     'NET PAY','Employer PF','Employer ESI','Employer LWF','Status'];
   let rows = PAY_ROWS.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
@@ -8943,8 +8933,8 @@ function downloadPayrollReport(rollFilter){   // '' = all, 'ONR', 'OFR'
   const lines = [header.join(',')];
   let T = { eg:0, earn:0, ded:0, net:0, erpf:0, eresi:0, erlwf:0 };
   rows.forEach((r,i) => {
-    const otPay=n(r.otPay), bonus=n(r.bonus), arrears=n(r.arrears), reward=n(r.reward), encash=n(r.encash);
-    const totalEarn = n(r.earnedGross)+otPay+bonus+arrears+reward+encash;
+    const bonus=n(r.bonus), arrears=n(r.arrears), reward=n(r.reward), encash=n(r.encash);
+    const totalEarn = n(r.earnedGross)+bonus+arrears+reward+encash;   // OT payroll me nahi jaata
     const pf=n(r.pf), esi=n(r.esi), pt=n(r.pt), lwf=n(r.lwf), tds=n(r.tds), adv=n(r.advDed), oth=n(r.customDed)+n(r.otherDed);
     const totalDed = pf+esi+pt+lwf+tds+adv+oth;
     const net = (r.net!=null? n(r.net) : (totalEarn-totalDed));
@@ -8955,15 +8945,15 @@ function downloadPayrollReport(rollFilter){   // '' = all, 'ONR', 'OFR'
       i+1, q(r.code), q(r.name), q(r.dept||''), q(secOf(r.code)), q(r.desig||''), q(r.category||''), q(rollOf(r.code)||'—'),
       n(r.dim), n(r.present), n(r.leaveDays), n(r.earnedWO), n(r.earnedH), n(r.absentWorking), r.paidDays,
       n(r.fullGross), n(r.earnedGross), comp(r,'basic'), comp(r,'hra'), comp(r,'conveyance'), comp(r,'special_allowance'),
-      otPay, bonus, arrears, reward, encash, totalEarn,
+      bonus, arrears, reward, encash, totalEarn,
       pf, esi, pt, lwf, tds, adv, oth, totalDed,
       net, n(r.erPF), n(r.erESI), n(r.erLWF), q(stU==='ACTIVE'?'Active':stU==='EXITED'?'Exited':'Inactive')
     ].join(','));
   });
   const tot = new Array(header.length).fill('');
   tot[1] = q('TOTAL — '+rows.length+' employees');
-  tot[16] = T.eg; tot[26] = T.earn; tot[34] = T.ded; tot[35] = T.net;
-  tot[36] = T.erpf; tot[37] = T.eresi; tot[38] = T.erlwf;
+  tot[16] = T.eg; tot[25] = T.earn; tot[33] = T.ded; tot[34] = T.net;
+  tot[35] = T.erpf; tot[36] = T.eresi; tot[37] = T.erlwf;
   lines.push(tot.join(','));
   const suffix = rollFilter ? ('_'+rollFilter) : '';
   dlText('Payroll_Detailed'+suffix+'_'+PAY_MONTH+'.csv', String.fromCharCode(0xFEFF)+lines.join('\n'), 'text/csv;charset=utf-8');
@@ -9995,7 +9985,7 @@ document.body.addEventListener('click', async e => {
         <td style="text-align:right">${Math.round(ded).toLocaleString('en-IN')}</td><td style="text-align:right"><b>${r.net.toLocaleString('en-IN')}</b></td></tr>`;
     }).join('');
     printHTML(`<div class="paper" style="min-height:auto;width:auto"><h2 style="margin:0 0 2px;font-size:15px">Register of Wages (Form B) — ${esc(S.name)}</h2>
-      <p style="margin:0 0 10px;font-size:11px;color:#64748b">${esc(S.addr)} • Wage period: ${monthLabel(ym)}</p>
+      <p style="margin:0 0 10px;font-size:11px;color:#64748b">${esc(S.addr)} • Wage period: ${monthLabel(ym)} • Overtime is not paid through payroll, so the OT columns read nil.</p>
       <table class="ann" style="font-size:10px"><thead><tr><th>#</th><th>Employee</th><th>Father's Name</th><th>Designation</th><th>Days</th><th>OT Hrs</th><th>Earnings</th><th>OT Pay</th><th>Deductions</th><th>Net Paid</th></tr></thead><tbody>${rows}</tbody></table>
       <div style="margin-top:30px;text-align:right"><div style="height:44px"></div><p style="border-top:1px solid #94a3b8;display:inline-block;padding-top:4px">Authorised Signatory — ${esc(S.hr||'')}</p></div></div>`);
   }
@@ -12809,13 +12799,13 @@ async function loadReports(){
     // payroll aggregates by month
     const byMonth = {};
     (slipRes.data||[]).forEach(s => {
-      const m = byMonth[s.month] = byMonth[s.month] || { gross:0, net:0, pf:0, esi:0, ot:0 };
+      const m = byMonth[s.month] = byMonth[s.month] || { gross:0, net:0, pf:0, esi:0 };
       m.net += Number(s.net_pay)||0;
       const d = s.data || {};
-      m.gross += Number(d.earnedGross)||0; m.pf += Number(d.pf)||0; m.esi += Number(d.esi)||0; m.ot += Number(d.otPay)||0;
+      m.gross += Number(d.earnedGross)||0; m.pf += Number(d.pf)||0; m.esi += Number(d.esi)||0;
     });
     const months = Object.keys(byMonth).sort().slice(-6);
-    const last = months.length ? byMonth[months[months.length-1]] : { gross:0, net:0, pf:0, esi:0, ot:0 };
+    const last = months.length ? byMonth[months[months.length-1]] : { gross:0, net:0, pf:0, esi:0 };
     const stat = (label, val, color) => `<div class="card"><p class="lbl m-0">${label}</p><div class="stat-num" style="font-size:24px;color:${color||'var(--ink)'}">${val}</div></div>`;
     $('rpStats').innerHTML =
       stat('Total Employees', total, 'var(--brand)') +
@@ -12824,8 +12814,7 @@ async function loadReports(){
       stat('Gender M / F', male + ' / ' + female) +
       stat('Attendance % (MTD)', attPct + '%', attPct >= 90 ? 'var(--ok)' : 'var(--warn)') +
       stat('Last Month Gross', fmtINR(last.gross)) +
-      stat('PF + ESI (last)', fmtINR(last.pf + last.esi)) +
-      stat('OT Cost (last)', fmtINR(last.ot), 'var(--warn)');
+      stat('PF + ESI (last)', fmtINR(last.pf + last.esi));
     // dept bars
     const dept = {};
     emps.forEach(e => { const d = e.DEPARTMENT || 'Other'; dept[d] = (dept[d]||0) + 1; });
