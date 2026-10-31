@@ -2662,6 +2662,24 @@ function nxShiftEndMins(code, iso){
 //
 // Ghanton se napne ke do aur fayde: der se aana apne aap pakad me aa jata hai,
 // aur galat lagi hui shift se bemaani numbers nahi nikalte.
+// Banda us din apni shift ke shuru hone se PEHLE (ya theek us waqt) aaya tha?
+//
+// 20 minute ki chhoot sirf usi ko milti hai jo time par aaya ho. Jo der se aaya,
+// usse poore ghante ki ummeed hai — warna der se aana aur jaldi jaana dono ek
+// saath muft me ho jaate. Staff ko 10:00 tak aane ki chhoot hai, to wo 09:30 aa
+// kar bhi late nahi hai — par phir usse 18:00 tak ruk kar apne 8.5 ghante pure
+// karne hain.
+function nxArrivedOnTime(code, iso, row){
+  if(!row || !row.in_time) return true;             // waqt hi nahi pata -> fayda bande ko
+  const _m = t => { const x = String(t||'').match(/(\d{1,2}):(\d{2})/); return x ? (+x[1]*60 + +x[2]) : null; };
+  const sh = shiftOf(code, iso);
+  const st = _m(sh && sh.start_time), im = _m(row.in_time);
+  if(st === null || im === null) return true;
+  let d = im - st;                                   // raat ki shift ka wrap sambhalo
+  if(d >  720) d -= 1440;
+  if(d < -720) d += 1440;
+  return d <= 0;
+}
 function nxShortfallMins(code, row, iso){
   const w = nxWorkedHrs(row);                 // raat bhar wale case ko khud sambhalta hai
   if(!w || w <= 0) return 0;
@@ -8070,7 +8088,11 @@ async function runPayroll(){
           // NIYAM: late = der se aaya, YA shift khatam hone se 20+ minute pehle chala gaya
           const _eMin  = (_EARLY_MIN > 0 && _hrsKnown) ? nxShortfallMins(code, r, x.iso) : 0;
           const _shiftMismatch = _eMin > _earlyCap;
-          const _early = _EARLY_MIN > 0 && _eMin > _EARLY_MIN && !_shiftMismatch;
+          // Time par aaya -> 20 minute ki chhoot. Shift start ke baad aaya -> chhoot 0,
+          // yani poore ghante karne honge. (_EARLY_MIN 0 ho to ye niyam band hai.)
+          const _onTime = nxArrivedOnTime(code, x.iso, r);
+          const _allow  = _onTime ? _EARLY_MIN : 0;
+          const _early = _EARLY_MIN > 0 && _hrsKnown && _eMin > _allow && !_shiftMismatch;
           if(_early){ earlyOuts++; earlyDays.push(x.iso); }
           if(_shiftMismatch){ shiftMismatch++; mismatchDays.push(x.iso); }
           if((nxIsLateOn(code, x.iso, r) || _early) && !_gp) lates++;
@@ -8284,7 +8306,7 @@ async function runPayroll(){
         shortDayLeave, shortDays, earlyOuts, earlyDays, hoursUnknown, unknownDays,
         shiftMismatch, mismatchDays, halfDays, halfDayList,
         halfPctRule: _HALF_PCT,
-        shortHrsRule: _SHORT_HRS, earlyMinRule: _EARLY_MIN,
+        shortHrsRule: _SHORT_HRS, earlyMinRule: _EARLY_MIN, lateArrivalNoGrace: true,
         leaveDays, unauthAbs, outsideDays, lwpDays, paidDays: +paidDays.toFixed(1), lop,
         earnedWO, earnedH, wfhDays, offNotEarned, absentWorking: (unauthAbs + trailingAbs), trailingAbs,
         shiftName: sh.name, shHrs, perHour,
