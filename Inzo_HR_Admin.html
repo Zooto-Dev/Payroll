@@ -2604,12 +2604,30 @@ function nxShiftLabel(code, isoList){
 // kiosk ne jo is_late likha tha wo assigned shift ke hisaab se tha.
 function nxIsLateOn(code, iso, r){
   if(!r) return false;
-  if(nxRosterShiftId(code, iso) === null) return isRowLate(r);
-  const sh = shiftOf(code, iso);
-  if(!sh || !sh.start_time) return isRowLate(r);
+  if(nxRosterShiftId(code, iso) === null) return isRowLate(r);   // roster nahi -> kiosk ka flag
   const t = String(r.in_time || '').match(/(\d{1,2}:\d{2})/);
   if(!t) return isRowLate(r);
-  return isLateFor(t[1], sh);
+  const sh = shiftOf(code, iso);
+  // Yahan bilkul wahi niyam chalna chahiye jo kiosk (nx_punch_in) par chalta hai,
+  // warna roster bharte hi cutoff badal jaata:
+  //   • General shift  -> cutoff CATEGORY se: flexible STAFF 10:00, baki sab 09:10
+  //   • baaki shifts   -> shift start + uska grace
+  // (General ka grace 60 hai, isliye seedha isLateFor() lagane par har WORKER ko
+  //  bhi 10:00 tak ki chhoot mil jaati thi — jo sirf staff ke liye hai.)
+  if(sh && sh.start_time && String(sh.name || '').trim().toUpperCase() !== 'GENERAL'){
+    return isLateFor(t[1], sh);
+  }
+  const e = (EMP || []).find(x => x['Employee code'] === code) || {};
+  return isLateNow(t[1], e.DEPARTMENT, (PROFILES[code] || {}).category);
+}
+// Is bande ko aane me chhoot (flexible timing) hai ya nahi — sirf STAFF ko,
+// aur un departments ko chhod kar jahan flexibility nahi hai (Production/Store).
+function nxHasFlexTiming(code){
+  const e = (EMP || []).find(x => x['Employee code'] === code) || {};
+  const d = String(e.DEPARTMENT || '').toUpperCase();
+  const noFlex = String((SETTINGS && SETTINGS.earlyDepts) || 'PRODUCTION,STORE')
+    .toUpperCase().split(',').map(x => x.trim()).filter(Boolean).some(x => d.includes(x));
+  return String((PROFILES[code] || {}).category || '').toUpperCase() === 'STAFF' && !noFlex;
 }
 function shiftHours(s){
   const [sh,sm] = s.start_time.split(':').map(Number);
