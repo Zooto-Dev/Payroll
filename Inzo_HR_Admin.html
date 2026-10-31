@@ -8740,8 +8740,18 @@ function viewLoanAgreement(code, name, amount, months, signed){
 function slipHTML(r){
   const S = getSettings();
   const p = PROFILES[r.code] || {};
-  const net = netOf(r);
-  const totalDed = r.pf + r.esi + r.pt + (r.lwf||0) + (r.customDed||0) + (r.tds||0) + r.advDed + r.otherDed;
+  // Contract employee ka paisa CONTRACTOR ko jaata hai — poora gross, bina kisi katauti ke
+  // (finalize me bhi net = earnedGross hi save hota hai). Isliye uski slip par PF/ESI/LWF
+  // dikhana galat tha: jo kata hi nahi, wo deduction me nahi aana chahiye.
+  const isC = !!r.isContract;
+  const net = isC ? Math.round(r.earnedGross || 0) : netOf(r);
+  const totalDed = isC ? 0
+    : (r.pf + r.esi + r.pt + (r.lwf||0) + (r.customDed||0) + (r.tds||0) + r.advDed + r.otherDed);
+  // Katauti kamai se zyada ho to net 0 par ruk jaata hai — us bache hue hisse ko
+  // chupana nahi hai, neeche saaf likh dete hain.
+  const dedShort = isC ? 0 : Math.max(0, Math.round(
+    (r.pf + r.esi + r.pt + (r.lwf||0) + (r.customDed||0) + (r.tds||0) + r.advDed + r.otherDed)
+    - (r.earnedGross + r.bonus + (r.arrears||0) + (r.reward||0) + (r.encash||0))));
   const earnRows = [];   // [name, fullMonthly, earnedThisMonth]
   if(r.comps && r.comps.length){
     r.comps.forEach(c => { if(c.amt > 0 || c.full > 0) earnRows.push([c.name, c.full||c.amt||0, c.amt||0]); });
@@ -8750,11 +8760,17 @@ function slipHTML(r){
   }
   if(r.arrears) earnRows.push(['Arrears', '', r.arrears]);
   if(r.reward) earnRows.push(['Kaizen Reward', '', r.reward]);
+  if(r.encash) earnRows.push(['Leave Encashment', '', r.encash]);
   earnRows.push(['Bonus / Incentive', '', r.bonus||0]);
-  const dedRows = [['Provident Fund', r.pf], ['ESI', r.esi], ['Professional Tax', r.pt], ['LWF', r.lwf||0]];
-  if(r.tds) dedRows.push(['TDS (Income Tax)', r.tds]);
-  (r.dedBreak||[]).forEach(d => dedRows.push([d.name, d.amt]));
-  dedRows.push(['Advance Recovery', r.advDed], ['Other Deduction', r.otherDed]);
+  const dedRows = [];
+  if(!isC){
+    dedRows.push(['Provident Fund', r.pf], ['ESI', r.esi], ['Professional Tax', r.pt], ['LWF', r.lwf||0]);
+    if(r.tds) dedRows.push(['TDS (Income Tax)', r.tds]);
+    (r.dedBreak||[]).forEach(d => dedRows.push([d.name, d.amt]));
+    dedRows.push(['Advance Recovery', r.advDed], ['Other Deduction', r.otherDed]);
+  } else {
+    dedRows.push(['No deductions — paid through contractor', '']);
+  }
   const nRows = Math.max(earnRows.length, dedRows.length);
   let bodyRows = '';
   for(let i = 0; i < nRows; i++){
@@ -8762,7 +8778,7 @@ function slipHTML(r){
     bodyRows += `<tr><td>${eR ? esc(eR[0]) : ''}</td>
       <td style="text-align:right;color:#64748b">${eR && eR[1] !== '' ? Math.round(eR[1]).toLocaleString('en-IN') : ''}</td>
       <td style="text-align:right">${eR ? Math.round(eR[2]).toLocaleString('en-IN') : ''}</td>
-      <td>${dR ? esc(dR[0]) : ''}</td><td style="text-align:right">${dR ? Math.round(dR[1]).toLocaleString('en-IN') : ''}</td></tr>`;
+      <td>${dR ? esc(dR[0]) : ''}</td><td style="text-align:right">${dR && dR[1] !== '' ? Math.round(dR[1]).toLocaleString('en-IN') : ''}</td></tr>`;
   }
   const mm = r.month || PAY_MONTH;
   const vc = slipVC(r.code, mm, net);
@@ -8800,7 +8816,7 @@ function slipHTML(r){
       </tbody>
     </table>
     <div style="display:flex;justify-content:space-between;align-items:center;background:#2a2824;color:#fff;border-radius:10px;padding:12px 16px;margin-top:10px">
-      <div><b style="letter-spacing:.05em">NET PAY</b><br><span style="font-size:10.5px;color:#94a3b8">Rupees ${esc(numToWords(net))} Only • Bank Transfer</span></div>
+      <div><b style="letter-spacing:.05em">${isC ? 'PAYABLE TO CONTRACTOR' : 'NET PAY'}</b><br><span style="font-size:10.5px;color:#94a3b8">Rupees ${esc(numToWords(net))} Only • ${isC ? esc(r.contractor || 'Contractor') : 'Bank Transfer'}</span>${dedShort ? `<br><span style="font-size:10.5px;color:#fca5a5">Deductions exceeded earnings by ₹${dedShort.toLocaleString('en-IN')} — net held at zero</span>` : ''}</div>
       <div class="money" style="font-size:24px;font-weight:700">₹ ${net.toLocaleString('en-IN')}</div>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e8f0;margin-top:16px;padding-top:10px">
