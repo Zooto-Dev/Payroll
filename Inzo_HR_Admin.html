@@ -8140,16 +8140,20 @@ async function runPayroll(){
         Object.keys(exp).forEach(iso => { if(!days[iso]) leaveDaysRaw += exp[iso]; });
       });
       // ===== LEAVE KA EK HI NIYAM =====
-      // Har mahine SIRF 1 leave PAID. Usi mahine ki 1 din se zyada jo leave hai — approved
-      // ho ya na ho — wo UNPAID (LOP) hai. Leave balance, carry-forward, rollover, pichhle
-      // mahine ka udhaar, encashment — aisa kuch nahi hai. Har mahina apne aap me alag hai,
-      // aur pichhle mahine ka hisaab is mahine par kabhi asar nahi daalta.
-      // (Yahi appointment letter me likha hai: "one (1) paid leave per month; unavailed
-      //  leave shall lapse at month-end and shall not be carried forward or encashed".)
-      // 4 ghante se kam wale din bhi isi leave ginti me jaate hain — yani mahine ki
-      // 1 paid leave bachi ho to wahan lag jayegi, warna unpaid (LOP) ho jayenge.
+      // Paid leave SIRF STAFF ko milti hai — mahine me 1. WORKER ki leave, approved ho
+      // ya na ho, kabhi paid nahi hoti: uske saare leave din LOP hain.
+      // Staff ke liye: usi mahine ki 1 din se zyada jo leave hai — approved ho ya na ho —
+      // wo UNPAID (LOP) hai. Leave balance, carry-forward, rollover, pichhle mahine ka
+      // udhaar, encashment — aisa kuch nahi hai. Har mahina apne aap me alag hai, aur
+      // pichhle mahine ka hisaab is mahine par kabhi asar nahi daalta.
+      // (Staff ke appointment letter me yahi likha hai: "one (1) paid leave per month;
+      //  unavailed leave shall lapse at month-end and shall not be carried forward or
+      //  encashed".)
+      // 4 ghante se kam wale din bhi isi leave ginti me jaate hain — yani staff ki mahine
+      // wali 1 paid leave bachi ho to wahan lag jayegi, warna unpaid (LOP) ho jayenge.
+      // Worker ke liye MAX_PAID_LEAVE 0 hai, to uske aise din seedhe LOP me jaate hain.
       leaveDaysRaw += shortDayLeave;
-      const MAX_PAID_LEAVE = 1;
+      const MAX_PAID_LEAVE = String(p.category || 'WORKER').toUpperCase() === 'STAFF' ? 1 : 0;
       const leaveDays = Math.min(leaveDaysRaw, MAX_PAID_LEAVE);
       const lopLeave  = +(leaveDaysRaw - leaveDays).toFixed(1);
       otHours = Math.round(otHours * 2) / 2; // nearest 0.5
