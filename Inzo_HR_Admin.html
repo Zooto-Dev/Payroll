@@ -7898,6 +7898,7 @@ async function loadMissingOut(){
       const ex = busy[code + '|' + a.date] || null;
       return { code, date: a.date, name: nameOf2(a.employee_code) || code,
                inT: String(a.in_time||'').substring(0,5),
+               sec: (PROFILES[a.employee_code] || {}).section || '',
                shift: (typeof shiftNameOf === 'function' ? shiftNameOf(a.employee_code) : ''),
                ex };
     });
@@ -7928,12 +7929,13 @@ async function loadMissingOut(){
               + `<td><button type="button" class="btn btn-ghost btn-sm miss-swap" data-key="${esc(key)}"`
               + ` title="Ye time asal me OUT hai \u2014 ise OUT me le jao aur IN khali kar do"><i class="fa-solid fa-right-left"></i></button></td>`;
       }
-      const hay = (r.code + ' ' + r.name + ' ' + r.date + ' ' + fmtDate(r.date) + ' ' + (r.shift||'')).toLowerCase();
+      const hay = (r.code + ' ' + r.name + ' ' + (r.sec||'') + ' ' + r.date + ' ' + fmtDate(r.date) + ' ' + (r.shift||'')).toLowerCase();
       return `<tr data-hay="${esc(hay)}"><td class="font-mono">${esc(r.code)}</td><td class="font-semibold">${esc(r.name)}</td>
+        <td style="color:var(--muted)">${esc(r.sec || '—')}</td>
         <td>${fmtDate(r.date)}</td><td class="font-mono" style="color:var(--muted)">${esc(r.inT)}</td>
         <td style="color:var(--muted)">${esc(r.shift||'')}</td>${cells}</tr>`;
     };
-    tbl.innerHTML = '<thead><tr><th>Code</th><th>Name</th><th>Date</th><th>Punch</th><th>Shift</th><th>IN</th><th>OUT</th><th></th></tr></thead>'
+    tbl.innerHTML = '<thead><tr><th>Code</th><th>Name</th><th>Section</th><th>Date</th><th>Punch</th><th>Shift</th><th>IN</th><th>OUT</th><th></th></tr></thead>'
       + '<tbody>' + open.concat(sent, blocked).map(rowHtml).join('') + '</tbody>';
     missOutApplySearch();
   }catch(err){
