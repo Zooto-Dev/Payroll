@@ -1634,15 +1634,23 @@ async function loadMyNotices(){
           <span style="color:#7f1d1d">You were absent on a working day without an approved leave or request. As per company policy, this is counted as <b>2 days' absence</b> and will be adjusted in your salary. If this is incorrect, please contact HR immediately.</span>
         </div>`).join('');
     }
-    if(sp.length){
+    // Guzre hue din ki soochna rakhne ka koi matlab nahi — 1 Nov ko "attendance
+    // mandatory" batana ab bekaar hai. Sirf aaj aur aage ke din, ek-ek line me.
+    // Poori baat chip ke tooltip me rehti hai, taaki card chhota rahe.
+    const _todayIso = new Date().toISOString().slice(0, 10);
+    const spNext = sp.filter(o => String(o.date || '') >= _todayIso);
+    if(spNext.length){
       $('specialDayCard').classList.remove('hidden');
-      $('specialDayBox').innerHTML = sp.map(o =>
-        `<div class="p-2 rounded-lg" style="background:#fff;border:1px solid #bfdbfe">
-          <b>${fmtD(o.date)}</b> — ${o.otype === 'WORKING'
-            ? '<span style="color:#1d4ed8">This is a <b>WORKING DAY</b> (schedule change). Attendance is mandatory; absence without approval will be treated as unauthorised.</span>'
-            : '<span style="color:#166534">This is a declared <b>OFF DAY</b>. No attendance is required. Any approved leave on this date has been credited back.</span>'}
-          ${o.note ? '<br><span style="color:var(--muted)">' + esc(o.note) + '</span>' : ''}
-        </div>`).join('');
+      $('specialDayBox').innerHTML = spNext.map(o => {
+        const work = o.otype === 'WORKING';
+        const why = work
+          ? 'Working day (schedule change). Attendance is required; absence without approval counts as unauthorised.'
+          : 'Declared off day. No attendance needed. Any approved leave on this date has been credited back.';
+        return `<div class="flex items-center justify-between gap-2" style="padding:3px 0">
+          <span><b>${fmtD(o.date)}</b>${o.note ? ' <span style="color:var(--muted)">· ' + esc(o.note) + '</span>' : ''}</span>
+          <span class="chip ${work ? 'chip-blue' : 'chip-ok'}" style="font-size:10px;white-space:nowrap" title="${esc(why)}">${work ? 'Working day' : 'Off day'}</span>
+        </div>`;
+      }).join('');
     }
   }catch(e){}
 }
@@ -3529,12 +3537,13 @@ async function renderCalendar(){
     let cls = 'd-none', tip = iso;
     const hasG = window._myGateSet && window._myGateSet.has(iso);
     if(r){ let late = essLate(r); if(hasG) late = false;
-      // OUT darj nahi hua aur din guzar chuka hai -> grey. Aaj ka din chhoda hai,
-      // kyunki abhi OUT karna baaki ho sakta hai.
-      const noOut = !r.out_time && iso < today;
+      // OUT darj nahi -> grey, aaj ka din bhi. Niche "Day-wise Detail" bhi yahi
+      // dikhata hai, dono jagah ek jaisa rehna chahiye. Late ki baat tooltip me.
+      const noOut = !r.out_time;
       cls = noOut ? 'd-MO' : (late ? 'd-L' : 'd-P');
       tip += ` | IN ${(r.in_time||'').substring(0,5)}${r.out_time ? ' OUT ' + r.out_time.substring(0,5) : ''}`;
-      if(noOut) tip += ' | OUT missing — hours unknown, short-hours/half-day rules skipped (a late arrival still counts)';
+      if(noOut) tip += ' | OUT missing — hours unknown, short-hours/half-day rules skipped'
+                     + (late ? ' (but the late arrival still counts)' : '');
       if(hasG) tip += ' | Gate Pass approved — late maaf'; }
     else if(window._myWfhSet && window._myWfhSet.has(iso)){ cls = 'd-WFH'; tip += ' | Work From Home (paid)'; }
     else if(lvSet.has(iso)) cls = 'd-LV';
