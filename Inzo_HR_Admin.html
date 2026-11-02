@@ -1026,14 +1026,19 @@ body.no-confidential .confidential-col{display:none!important}
     <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
       <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-clock" style="color:var(--warn)"></i>
         Missing OUT punch <span class="chip chip-warn" id="missOutCnt">0</span></h3>
-      <div class="flex gap-2">
+      <div class="flex gap-2 items-center flex-wrap">
+        <input id="missOutSearch" class="inp m-0" placeholder="Code ya naam se dhoondho…"
+               style="width:210px;padding:5px 9px;font-size:12px" autocomplete="off">
         <button id="missOutRefreshBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate"></i> Refresh</button>
         <button id="missOutSubmitBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-paper-plane"></i> Bhari hui rows approval ko bhejo</button>
       </div>
     </div>
     <p class="text-[11px] mt-0 mb-2" style="color:var(--muted)">
       Jin dino IN hai par OUT nahi. OUT time bhar kar bhejein — approve hone par hi attendance me lagega.
-      Jo khali chhod denge wo waise hi rahenge.</p>
+      Jo khali chhod denge wo waise hi rahenge.<br>
+      Jo time darj hai wo asal me <b>OUT</b> ho (subah ka punch chhoot gaya ho) to
+      <i class="fa-solid fa-right-left" style="color:var(--warn)"></i> dabaiye — wo time OUT me chala jayega
+      aur IN khali ho jayega, usme asli IN bhar dijiye.</p>
     <div style="max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:12px">
       <table class="tbl tbl-compact" id="missOutTbl"><tbody></tbody></table>
     </div>
@@ -7910,38 +7915,77 @@ async function loadMissingOut(){
     $('missOutCnt').className = 'chip chip-warn';
     const rowHtml = r => {
       const key = r.code + '|' + r.date;
-      let right;
+      let cells;
       if(r.ex && r.ex.req_type === 'ATT_FIX' && String(r.ex.status).toUpperCase() === 'PENDING'){
-        right = `<span class="chip chip-warn" style="font-size:9px">approval me${r.ex.fix_out ? ' \u00b7 ' + esc(String(r.ex.fix_out).substring(0,5)) : ''}</span>`;
+        cells = `<td colspan="3"><span class="chip chip-warn" style="font-size:9px">approval me${r.ex.fix_out ? ' \u00b7 ' + esc(String(r.ex.fix_out).substring(0,5)) : ''}</span></td>`;
       } else if(r.ex){
-        right = `<span class="chip chip-gray" style="font-size:9px" title="Ek din par ek hi request ho sakti hai">us din ${esc(r.ex.req_type||'request')} hai</span>`;
+        cells = `<td colspan="3"><span class="chip chip-gray" style="font-size:9px" title="Ek din par ek hi request ho sakti hai">us din ${esc(r.ex.req_type||'request')} hai</span></td>`;
       } else {
-        right = `<input type="time" class="inp m-0 miss-out-in" data-key="${esc(key)}" style="width:118px;padding:4px 6px">`;
+        // IN pehle se bhara aata hai (jo punch hua tha). Swap button use OUT me le jaata
+        // hai aur IN khali kar deta hai \u2014 un dino ke liye jab subah ka punch chhoot gaya ho.
+        cells = `<td><input type="time" class="inp m-0 miss-in" data-key="${esc(key)}" data-orig="${esc(r.inT)}" value="${esc(r.inT)}" style="width:106px;padding:4px 6px"></td>`
+              + `<td><input type="time" class="inp m-0 miss-out" data-key="${esc(key)}" style="width:106px;padding:4px 6px"></td>`
+              + `<td><button type="button" class="btn btn-ghost btn-sm miss-swap" data-key="${esc(key)}"`
+              + ` title="Ye time asal me OUT hai \u2014 ise OUT me le jao aur IN khali kar do"><i class="fa-solid fa-right-left"></i></button></td>`;
       }
-      return `<tr><td class="font-mono">${esc(r.code)}</td><td class="font-semibold">${esc(r.name)}</td>
-        <td>${fmtDate(r.date)}</td><td>IN ${esc(r.inT)}</td>
-        <td style="color:var(--muted)">${esc(r.shift||'')}</td><td>${right}</td></tr>`;
+      const hay = (r.code + ' ' + r.name + ' ' + r.date + ' ' + fmtDate(r.date) + ' ' + (r.shift||'')).toLowerCase();
+      return `<tr data-hay="${esc(hay)}"><td class="font-mono">${esc(r.code)}</td><td class="font-semibold">${esc(r.name)}</td>
+        <td>${fmtDate(r.date)}</td><td class="font-mono" style="color:var(--muted)">${esc(r.inT)}</td>
+        <td style="color:var(--muted)">${esc(r.shift||'')}</td>${cells}</tr>`;
     };
-    tbl.innerHTML = '<thead><tr><th>Code</th><th>Name</th><th>Date</th><th>IN</th><th>Shift</th><th>OUT time</th></tr></thead>'
+    tbl.innerHTML = '<thead><tr><th>Code</th><th>Name</th><th>Date</th><th>Punch</th><th>Shift</th><th>IN</th><th>OUT</th><th></th></tr></thead>'
       + '<tbody>' + open.concat(sent, blocked).map(rowHtml).join('') + '</tbody>';
+    missOutApplySearch();
   }catch(err){
     tbl.innerHTML = '<tbody><tr><td style="padding:12px;color:var(--muted)">Load nahi hui: ' + esc(err.message || err) + '</td></tr></tbody>';
   }
 }
+/* Search sirf rows chhupata hai, dobara render nahi karta — warna bhara hua
+   time mit jata. */
+function missOutApplySearch(){
+  const box = $('missOutSearch'); if(!box) return;
+  const q = String(box.value || '').trim().toLowerCase();
+  document.querySelectorAll('#missOutTbl tbody tr').forEach(tr => {
+    tr.style.display = (!q || String(tr.dataset.hay || '').includes(q)) ? '' : 'none';
+  });
+}
+function missOutFind(cls, key){
+  return document.querySelector('.' + cls + '[data-key="' + (window.CSS && CSS.escape ? CSS.escape(key) : key) + '"]');
+}
 async function submitMissingOut(){
-  const inputs = Array.from(document.querySelectorAll('.miss-out-in')).filter(i => i.value);
-  if(!inputs.length) return notify('Pehle kisi row me OUT time bharein', 'error');
   const byKey = {}; MISS_OUT_ROWS.forEach(r => byKey[r.code + '|' + r.date] = r);
   const rows = [];
-  for(const i of inputs){
-    const r = byKey[i.dataset.key]; if(!r) continue;
-    const t = String(i.value).substring(0,5);
-    if(!/^[0-9]{2}:[0-9]{2}$/.test(t)) return notify('Galat time: ' + r.name + ' ' + fmtDate(r.date), 'error');
-    rows.push({ employee_code: r.code, name: r.name, date: r.date, req_type: 'ATT_FIX',
-                status: 'PENDING', fix_out: t + ':00',
-                reason: 'HR: OUT punch missing — payroll screen se bhara gaya' });
+  for(const outEl of Array.from(document.querySelectorAll('.miss-out'))){
+    const key = outEl.dataset.key, r = byKey[key];
+    if(!r) continue;
+    const inEl = missOutFind('miss-in', key);
+    const outV = String(outEl.value || '').substring(0,5);
+    const inV  = String((inEl && inEl.value) || '').substring(0,5);
+    const orig = String((inEl && inEl.dataset.orig) || '').substring(0,5);
+    const inChanged = !!inV && inV !== orig;
+    if(!outV && !inChanged) continue;                    // is row me kuch nahi bhara
+    const who = r.name + ' — ' + fmtDate(r.date);
+    if(!inV)  return notify(who + ': IN khali hai, bhar dein', 'error');
+    if(!outV) return notify(who + ': OUT time bhi bharna padega', 'error');
+    if(!/^[0-9]{2}:[0-9]{2}$/.test(inV) || !/^[0-9]{2}:[0-9]{2}$/.test(outV))
+      return notify('Galat time: ' + who, 'error');
+    const row = { employee_code: r.code, name: r.name, date: r.date, req_type: 'ATT_FIX',
+                  status: 'PENDING', fix_out: outV + ':00',
+                  reason: 'HR: OUT punch missing — payroll screen se bhara gaya' };
+    if(inChanged){
+      // IN tabhi badlega jab ye jhanda saath jaaye — ESS ki apni requests isse
+      // kabhi nahi bhejtin, isliye employee apna punch-in time nahi badal sakta.
+      row.fix_in = inV + ':00';
+      row.fix_replace_in = true;
+      row.reason = 'HR: darj time (' + orig + ') asal me OUT tha — IN ' + inV + ', OUT ' + outV;
+    }
+    rows.push(row);
   }
-  if(!(await nxConfirm(rows.length + ' din ka OUT time approval ke liye bhejein?\n\nApprove hone par hi attendance me lagega.', 'Send for approval'))) return;
+  if(!rows.length) return notify('Pehle kisi row me OUT time bharein', 'error');
+  const nSwap = rows.filter(x => x.fix_replace_in).length;
+  if(!(await nxConfirm(rows.length + ' din approval ke liye bhejein?'
+       + (nSwap ? '\n\nInme se ' + nSwap + ' me IN time bhi badla ja raha hai.' : '')
+       + '\n\nApprove hone par hi attendance me lagega.', 'Send for approval'))) return;
   const btn = $('missOutSubmitBtn'); const _html = btn.innerHTML;
   btn.innerHTML = '<div class="loader-ring"></div> Bhej rahe hain…'; btn.disabled = true;
   try{
@@ -7956,6 +8000,18 @@ async function submitMissingOut(){
 }
 $('missOutSubmitBtn') && $('missOutSubmitBtn').addEventListener('click', submitMissingOut);
 $('missOutRefreshBtn') && $('missOutRefreshBtn').addEventListener('click', loadMissingOut);
+$('missOutSearch') && $('missOutSearch').addEventListener('input', missOutApplySearch);
+/* Swap: darj time ko OUT me le jao, IN khali karke cursor wahan rakh do. */
+$('missOutTbl') && $('missOutTbl').addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.miss-swap');
+  if(!b) return;
+  const key = b.dataset.key;
+  const i = missOutFind('miss-in', key), o = missOutFind('miss-out', key);
+  if(!i || !o) return;
+  const t = i.value || i.dataset.orig || '';
+  if(!t) return;
+  o.value = t; i.value = ''; i.focus();
+});
 async function runPayroll(){
   const ym = $('payMonth').value; if(!ym) return notify('Please select a month', 'error');
   PAY_MONTH = ym;
