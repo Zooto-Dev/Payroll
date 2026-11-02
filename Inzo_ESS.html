@@ -141,6 +141,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .d-LV{background:#e9d5ff;color:#6b21a8}
 /* IN hua par OUT nahi — payroll is din ko chhod deta hai, isliye grey (na hara, na laal) */
 .d-MO{background:#e2e8f0;color:#475569}
+/* Half day — aadha Present ka hara, aadha Absent ka gulabi */
+.d-HD{background:linear-gradient(135deg,#bbf7d0 0 50%,#fbcfe8 50%);color:#334155}
 .day{position:relative}
 .gflag{position:absolute;top:-3px;right:-3px;font-size:8px;font-weight:800;background:#7c3aed;color:#fff;border-radius:50%;width:12px;height:12px;line-height:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.25)}
 .d-none{color:#cbd5e1}
@@ -307,7 +309,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <div class="cal" id="calGrid"></div>
         <div class="legend">
           <span class="chip d-P">Present</span><span class="chip d-L">Late</span><span class="chip d-A">Absent</span>
-          <span class="chip d-WO">Week Off</span><span class="chip d-H">Holiday</span><span class="chip d-LV">Leave</span><span class="chip d-WFH">WFH</span><span class="chip d-MO">OUT missing</span>
+          <span class="chip d-WO">Week Off</span><span class="chip d-H">Holiday</span><span class="chip d-LV">Leave</span><span class="chip d-WFH">WFH</span><span class="chip d-HD">Half Day</span><span class="chip d-MO">OUT missing</span>
         </div>
       </div>
       <div class="card">
@@ -3081,7 +3083,9 @@ function renderAttPage(){
             'No OUT punch, so the hours worked on this day are not known. The short-hours and half-day rules are not applied to it. A late arrival is still counted.',
             'OUT पंच नहीं हुआ, इसलिए इस दिन के काम के घंटे पता नहीं हैं। कम घंटे और हाफ डे के नियम इस दिन पर नहीं लगते। देर से आने का मार्क फिर भी लगता है।'
           ))}">${L('OUT missing', 'OUT नहीं हुआ')}</span>` }
-      ${a.total_hours ? `<span class="chip chip-blue">${esc(a.total_hours.substring(0,5))} h</span>` : ''}</span></div>`;
+      ${a.total_hours ? `<span class="chip chip-blue">${esc(a.total_hours.substring(0,5))} h</span>` : ''}
+      ${(!(window._myGateSet && window._myGateSet.has(a.date)) && essHalfDay(a))
+        ? `<span class="chip d-HD">${L('Half day', '\u0906\u0927\u093e \u0926\u093f\u0928')}</span>` : ''}</span></div>`;
   }).join('') : '<p class="m-0" style="color:var(--muted)">No attendance in the last 35 days.</p>';
   $('attPageInfo').innerText = (ATT_PAGE + 1) + '/' + pages;
 }
@@ -3478,6 +3482,24 @@ async function monthRows(ym){
   CAL_CACHE[ym] = data || [];
   return CAL_CACHE[ym];
 }
+function essWorkedHrs(r){
+  const m = String((r && r.total_hours) || '').match(/^(\d+):(\d{2})/);
+  return m ? (+m[1]) + (+m[2]) / 60 : 0;
+}
+/* Wahi niyam jo payroll chalata hai: 4 ghante se kam kaam = leave (half day nahi),
+   uske upar aur us din ki shift ke 75% se kam = HALF DAY. Dono threshold settings se
+   aate hain aur shift ke ghante RPC bhejta hai (roster ke hisaab se), taaki portal
+   aur payroll kabhi alag na bolein. Gate pass wale din par ye niyam lagta hi nahi. */
+function essHalfDay(r){
+  const S  = (D && D.company) || {};
+  const pc = (Number(S.halfDayPct) > 0 && Number(S.halfDayPct) < 1) ? Number(S.halfDayPct) : 0.75;
+  const sd = Number(S.shortDayHrs) > 0 ? Number(S.shortDayHrs) : 4;
+  const sh = Number(r && r.shift_hrs) > 0 ? Number(r.shift_hrs) : 8.5;
+  const w  = essWorkedHrs(r);
+  if(!(w > 0) || !pc || !r || !r.out_time) return false;
+  if(w < sd) return false;                 // 4 ghante se kam -> leave, half day nahi
+  return w < sh * pc;
+}
 function essLate(r){
   if(!r) return false;
   if(typeof r.is_late === 'boolean') return r.is_late;   // trust the column (SL/HD approved = false = not late)
@@ -3540,10 +3562,14 @@ async function renderCalendar(){
       // OUT darj nahi -> grey, aaj ka din bhi. Niche "Day-wise Detail" bhi yahi
       // dikhata hai, dono jagah ek jaisa rehna chahiye. Late ki baat tooltip me.
       const noOut = !r.out_time;
-      cls = noOut ? 'd-MO' : (late ? 'd-L' : 'd-P');
+      const half  = !noOut && !hasG && essHalfDay(r);
+      cls = noOut ? 'd-MO' : (half ? 'd-HD' : (late ? 'd-L' : 'd-P'));
       tip += ` | IN ${(r.in_time||'').substring(0,5)}${r.out_time ? ' OUT ' + r.out_time.substring(0,5) : ''}`;
       if(noOut) tip += ' | OUT missing — hours unknown, short-hours/half-day rules skipped'
                      + (late ? ' (but the late arrival still counts)' : '');
+      if(half) tip += ' | Half day — worked under '
+                    + Math.round(((Number((D.company||{}).halfDayPct) || 0.75)) * 100)
+                    + '% of the shift';
       if(hasG) tip += ' | Gate Pass approved — late maaf'; }
     else if(window._myWfhSet && window._myWfhSet.has(iso)){ cls = 'd-WFH'; tip += ' | Work From Home (paid)'; }
     else if(lvSet.has(iso)) cls = 'd-LV';
