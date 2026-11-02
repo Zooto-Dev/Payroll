@@ -914,7 +914,7 @@ function nxCfgSave(c){
 }
 function nxCfgPick(d){
   if(d && d.url && d.key) return d;
-  throw new Error(d && d.error ? ('GAS error: ' + d.error) : 'GAS se url/key nahi aayi');
+  throw new Error(d && d.error ? ('GAS error: ' + d.error) : 'Server did not return the app config');
 }
 // Rasta 1 — fetch. credentials:'omit' se Google ki cookie nahi jaati, isliye multi-account
 // wala account-chooser redirect nahi hota (incognito jaisa vyavhaar).
@@ -926,7 +926,7 @@ async function nxCfgViaFetch(ms){
       { cache: 'no-store', credentials: 'omit', redirect: 'follow', signal: ac ? ac.signal : undefined });
     const txt = await r.text();
     const m = txt.match(/\{[\s\S]*\}/);          // nxCfgF({...}) me se sirf JSON
-    if(!m) throw new Error('config ka jawab samajh nahi aaya');
+    if(!m) throw new Error('The config response could not be read');
     return nxCfgPick(JSON.parse(m[0]));
   } finally { clearTimeout(t); }
 }
@@ -937,7 +937,7 @@ function nxCfgViaJsonp(ms){
     const cb = 'nxCfg' + Math.floor(Math.random() * 1e6);
     const done = fn => (x) => { if(settled) return; settled = true; clearTimeout(timer);
       try{ delete window[cb]; s.remove(); }catch(e){} fn(x); };
-    const timer = setTimeout(() => done(reject)(new Error('GAS ne jawab nahi diya')), ms || 8000);
+    const timer = setTimeout(() => done(reject)(new Error('The server did not respond')), ms || 8000);
     window[cb] = d => { try{ done(resolve)(nxCfgPick(d)); }catch(e){ done(reject)(e); } };
     const s = document.createElement('script');
     s.src = NX_CONFIG_URL + '?callback=' + cb + '&t=' + Date.now();
@@ -972,8 +972,8 @@ async function NX_CFG_LOADER(){
     try{ return nxCfgSave(await nxCfgOnce(8000)); }
     catch(e){ lastErr = e; }
   }
-  throw new Error('Nexus abhi khul nahi paaya (' + ((lastErr && lastErr.message) || 'config load fail') +
-    '). Internet check karke "View My HR" dobara dabao. HR: GAS Deploy \u2192 "Who has access" = Anyone, "Execute as" = Me \u2192 New version.');
+  throw new Error('Nexus could not open (' + ((lastErr && lastErr.message) || 'config load fail') +
+    '). Check your internet and press "View My HR" again. For HR: GAS Deploy \u2192 "Who has access" = Anyone, "Execute as" = Me \u2192 New version.');
 }
 let SUPABASE_URL = '', SUPABASE_ANON_KEY = '';
 let sb = null;
@@ -982,7 +982,7 @@ let sb = null;
 window._sbReady = nxLoadConfig().then(c => {
   SUPABASE_URL = c.url; SUPABASE_ANON_KEY = c.key;
   if(typeof supabase === 'undefined' || !supabase || !supabase.createClient)
-    throw new Error('Supabase library load nahi hui — internet check karke page refresh karo');
+    throw new Error('The Supabase library did not load. Check your internet and refresh the page.');
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   // valid last day of a month (September/April/June/Nov have 30, Feb 28/29 — never use '-31')
   window._lastDay = function(ym){ const p = String(ym).split('-'); const y = +p[0], m = +p[1]; return `${ym}-${String(new Date(y, m, 0).getDate()).padStart(2,'0')}`; };
@@ -1212,7 +1212,7 @@ async function loadTeamApprovals(){
           <button class="tm-n" onclick="teamDecide(${r.id},'REJECTED','${esc(r.src||'ATT')}')"><i class="fa-solid fa-xmark"></i> Reject</button>
         </div>
       </div>`;
-    }).join('') : '<p class="tm-empty"><i class="fa-solid fa-circle-check"></i>Koi pending request nahi \u2014 sab clear hai.</p>';
+    }).join('') : '<p class="tm-empty"><i class="fa-solid fa-circle-check"></i>No pending requests \u2014 all clear.</p>';
   }catch(e){ _dbg('team-ERROR', e); }
 }
 // Reporting structure — direct reports, aur jiske neeche khud ki team hai uska count + list
@@ -1298,7 +1298,7 @@ async function loadTeamToday(){
         </div>
         <div class="tm-pr">${st}${t ? `<div class="tm-pt">${esc(t)}</div>` : ''}</div>
       </div>`;
-    }).join('') : '<p class="tm-empty"><i class="fa-solid fa-users-slash"></i>Team me koi active employee nahi hai.</p>';
+    }).join('') : '<p class="tm-empty"><i class="fa-solid fa-users-slash"></i>No active employees in your team.</p>';
   }catch(e){ _dbg('teamtoday-ERROR', e); }
 }
 async function teamDecide(id, action, src){
@@ -1307,7 +1307,7 @@ async function teamDecide(id, action, src){
     const { data, error } = await sb.rpc('ess_team_decide', { p_code: codeU, p_phone: PHONE, p_id: id, p_action: action, p_src: src || 'ATT' });
     if(error) throw error;
     if(data && data.error) throw new Error(data.error);
-    notify(action === 'APPROVED' ? 'Approved ✓ — unke ESS par turant dikh jayega' : 'Rejected');
+    notify(action === 'APPROVED' ? 'Approved \u2713 \u2014 it shows on their portal right away' : 'Rejected');
     loadTeamApprovals();
   }catch(err){ notify(err.message || 'Failed'); }
 }
@@ -1340,7 +1340,7 @@ var ESS_FAQ = [
   { t:'Overtime (OT)', b:'OT sirf unhe dikhta hai jinhe allowed hai. OT tile → date + hours + reason; supervisor poori team ka OT ek saath bhi bhej sakta hai. Rule: din ka actual OT = us din ke total kaam ke ghante − aapke shift ke ghante (General shift = 8.5 hrs). 20 minute se kam bache to us din ka OT 0. Weekly-off/Sunday ko kaam kiya to poora din OT. Paid OT = min(jitne ghante approve hue, jitna actual OT hua) — yaani approval ek upper limit hai. OT sirf unhi logon ka lag sakta hai jo us din PRESENT hain (punch hua ho) — absent bande ki list me hi nahi aayenge. Paid tabhi hoga jab (1) OT approve ho AUR (2) gate par guard/security ne ViziTrack se verify kiya ho — dono zaroori, warna 0. Single rate par pay hota hai, double pay nahi.' },
   { t:'Visitor Request (guest ko bulana)', b:'Aapse milne koi bahar se aa raha hai to pehle se entry kar do. Visitor tile → visitor ka naam, mobile, company, visit date/time aur purpose bharo. Ek request = ek visitor. Koi approval nahi lagti — entry daalte hi gate par live ho jaati hai aur security aapke guest ko uske mobile number se pehchan kar andar bhej deti hai (isliye visitor ka 10 digit mobile zaroori hai). Guest kab andar aaya aur kab bahar gaya, wo bhi isi tile me dikhta rehta hai. Guest aane se pehle entry daal dena; plan badal jaye to usi tile se cancel kar do. Jo visitor pehle aa chuka hai use dobara bulana ho to upar "Pehle aa chuke visitor" wali list me se chun lo, ya neeche uski purani entry par <b>Reinvite</b> dabao — saari detail apne aap bhar jayegi, bas date chun kar bhej do.' },
   { t:'Payslips', b:'Payslip tile → mahine wise apna payslip dekho/download karo. Payslip tab dikhta hai jab HR us mahine ka payroll finalize kar deta hai. Isme earnings (basic/HRA/allowance/OT) aur deductions (PF/ESI/PT/LWF/TDS/advance) sab breakup me hote hain.' },
-  { t:'My Assets', b:'Company ne jo saaman (laptop, phone, SIM, tools…) aapko issue kiya hai wo yahan list hota hai. Koi galat entry ya wapas kiya hua item abhi bhi dikhe to HR/Admin ko batao taaki record update ho.' },
+  { t:'My Assets', b:'Everything the company has issued to you (laptop, phone, SIM, tools and so on) is listed here. If an entry is wrong, or an item you have already returned still shows, tell HR/Admin so the record can be corrected.' },
   { t:'Voice Box (Grievance / Suggestion / Kaizen)', b:'Apni shikayat, sujhaav ya kaam behtar karne ka idea (kaizen) bhejne ke liye. Voice Box tile → type + message. Ye seedha reporting manager/HR ko jaata hai. Chaho to confidential (naam chhupa kar) bhi bhej sakte ho. Accept kiya gaya kaizen reward payroll me jud sakta hai.' },
   { t:'Resign', b:'Naukri chhodni ho to Resign tile se resignation daalo (last working day + reason). Notice period company policy ke hisaab se lagega. Iske baad HR aapka Full & Final (F&F) shuru karta hai — pending salary, leave encashment, advance recovery, assets clearance, aur relieving/experience letter.' },
   { t:'Supervisor: Work Pass (Trial Worker)', b:'Naye trial worker ke liye (payroll me aane se pehle). Team page → Work Pass banao (naam + mobile + dept/line). Wo worker VMS/ViziTrack kiosk par roz IN/OUT karega aur uski daily attendance record hoti rahegi. Trial theek chale to "Employee Banao / Convert" request bhejo — HR approve karega tabhi wo regular employee ban kar payroll me aayega. Convert hote hi wo Trial Workers list se hat jaata hai.' },
@@ -1397,7 +1397,7 @@ function essRenderFaq(){
   var items = essFaqList().filter(function(x){ return !q || (x.t+' '+x.b).toLowerCase().indexOf(q) > -1; });
   host.innerHTML = items.length ? items.map(function(x){
     return '<details style="border-bottom:1px solid var(--line)"><summary style="cursor:pointer;padding:10px 4px;font-weight:600;font-size:13px;list-style:none">▸ '+esc(x.t)+'</summary><div style="padding:0 6px 12px 16px;font-size:12.5px;color:var(--muted);line-height:1.6">'+x.b+'</div></details>';
-  }).join('') : '<p class="text-xs" style="color:var(--muted)">Koi match nahi mila.</p>';
+  }).join('') : '<p class="text-xs" style="color:var(--muted)">No match found.</p>';
 }
 function _cancelChip(kind, id){
   return ` <button class="chip chip-gray" style="border:none;cursor:pointer;font-size:9px" onclick="essCancelReq('${kind}',${id})" title="Cancel request"><i class="fa-solid fa-xmark"></i></button>`;
@@ -1462,13 +1462,13 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('#afBtn'); if(!b) return;
   const codeU = String(CODE||'').trim().toUpperCase();
   const d = $('afDate').value, tin = ($('afIn').value||'').trim(), tout = ($('afOut').value||'').trim();
-  if(!d) return notify('Date chuno');
-  if(!tin && !tout) return notify('In ya Out — kam se kam ek time bharo');
+  if(!d) return notify('Select a date');
+  if(!tin && !tout) return notify('Enter at least one time, IN or OUT');
   const T24 = /^([01]\d|2[0-3]):[0-5]\d$/;
-  if(tin && !T24.test(tin)) return notify('In Time galat — 24-hour HH:MM daalo (jaise 09:30 ya 18:00)');
-  if(tout && !T24.test(tout)) return notify('Out Time galat — 24-hour HH:MM daalo (jaise 17:45)');
+  if(tin && !T24.test(tin)) return notify('IN time is not valid. Use 24-hour HH:MM, for example 09:30 or 18:00');
+  if(tout && !T24.test(tout)) return notify('OUT time is not valid. Use 24-hour HH:MM, for example 17:45');
   const f = $('afProof').files && $('afProof').files[0];
-  if(!f) return notify('Proof attach karna zaroori hai — bina proof correction nahi hogi');
+  if(!f) return notify('Proof must be attached. A correction cannot be raised without it.');
   b.disabled = true;
   // DUPLICATE PROOF CHECK
   const dup = await nxCheckProofDuplicate(f, 'attfix');
@@ -1530,7 +1530,7 @@ document.addEventListener('click', async e => {
 });
 async function openLoanAgreement(id){
   const r = (await sb.from('money_requests').select('*').eq('id', id)).data;
-  const q = r && r[0]; if(!q) return notify('Request nahi mili');
+  const q = r && r[0]; if(!q) return notify('Request not found');
   const emi = Math.ceil(Number(q.amount)/(Number(q.months)||1));
   const nm = (D.employee && D.employee.Name) || q.name || CODE;
   const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' });
@@ -1592,8 +1592,8 @@ async function openLoanAgreement(id){
 async function loanSignStep(id){
   const phone = String((document.getElementById('_agrPhone')||{}).value || '').replace(/\D/g,'');
   const nameSig = String((document.getElementById('_agrName')||{}).value || '').trim();
-  if(phone.length !== 10) return notify('10-digit mobile number daalo');
-  if(nameSig.length < 3) return notify('Signature ke liye apna poora naam type karo');
+  if(phone.length !== 10) return notify('Enter a 10-digit mobile number');
+  if(nameSig.length < 3) return notify('Type your full name to sign');
   const btn = document.getElementById('_agrSignBtn'); btn.disabled = true; btn.innerText = 'Signing…';
   try{
     let ip = '';
@@ -1742,7 +1742,7 @@ function supMarkAsk(code, name, dt){
     ov.remove();
     const t = prompt(L('Enter IN time (HH:MM, 24-hour):', 'आने का समय डालें (HH:MM, 24 घंटे):'), '09:00');
     if(!t) return;
-    if(!/^[0-9]{1,2}:[0-9]{2}$/.test(t.trim())){ notify('Time galat — HH:MM format mein daalo'); return; }
+    if(!/^[0-9]{1,2}:[0-9]{2}$/.test(t.trim())){ notify('Time is not valid. Use the HH:MM format.'); return; }
     _supMark = { code, name, dt, time: t.trim() };
     supCamOpen(name);
   };
@@ -1755,21 +1755,21 @@ async function supCamOpen(name){
     $('supCamVideo').srcObject = _supCamStream;
   }catch(e){
     try{ _supCamStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:false }); $('supCamVideo').srcObject=_supCamStream; }
-    catch(e2){ notify('Camera nahi khula — photo ke bina attendance submit nahi ho sakti. Camera permission do aur dobara try karo.'); supCamClose(); _supMark = null; }
+    catch(e2){ notify('The camera did not open. Attendance cannot be submitted without a photo. Allow camera access and try again.'); supCamClose(); _supMark = null; }
   }
 }
 function supCamClose(){ try{ if(_supCamStream) _supCamStream.getTracks().forEach(t=>t.stop()); }catch(e){} _supCamStream=null; const el=$('supCam'); if(el) el.style.display='none'; }
 function supCamShoot(){
   const v = $('supCamVideo'); let img = null;
   try{ const c = document.createElement('canvas'); c.width=v.videoWidth||480; c.height=v.videoHeight||640; c.getContext('2d').drawImage(v,0,0,c.width,c.height); img = c.toDataURL('image/jpeg',0.75); }catch(e){}
-  if(!img || img.length < 2000){ notify('Photo capture nahi hui — dobara try karo'); return; }   // photo zaroori
+  if(!img || img.length < 2000){ notify('The photo was not captured. Please try again.'); return; }   // photo zaroori
   supCamClose();
   supSubmit(img);
 }
 async function supSubmit(imgData){
   if(!_supMark) return;
   const m = _supMark;
-  if(!imgData){ notify('Photo zaroori hai — attendance submit nahi hui'); return; }
+  if(!imgData){ notify('A photo is required. Attendance was not submitted.'); return; }
   notify('Photo upload ho rahi hai…');
   try{
     let photoUrl = '';
@@ -1781,7 +1781,7 @@ async function supSubmit(imgData){
       if(up.error) throw up.error;
       photoUrl = SUPABASE_URL + '/storage/v1/object/public/attendance-photos/' + fn;
     }catch(upErr){
-      notify('Photo upload fail — internet check karke dobara try karo. Attendance submit NAHI hui.');
+      notify('Photo upload failed. Check your internet and try again. Attendance was NOT submitted.');
       return;   // bina photo request nahi jayegi
     }
     const { data, error } = await sb.rpc('ess_sup_mark', { p_code:String(CODE||'').toUpperCase(), p_phone:PHONE, p_emp:m.code, p_name:m.name, p_date:m.dt, p_in:m.time, p_photo:photoUrl });
@@ -1793,11 +1793,11 @@ async function supSubmit(imgData){
 }
 async function wpEssCreate(){
   const nm = ($('wpeName').value||'').trim();
-  if(!nm) return notify('Worker ka naam bharo');
+  if(!nm) return notify('Enter the worker\'s name');
   // Mobile number MANDATORY + valid 10-digit (verify)
   let dig = (($('wpePhone').value||'').trim()).replace(/[^0-9]/g,'');
   if(dig.length===12 && dig.slice(0,2)==='91') dig = dig.slice(2);
-  if(dig.length!==10) return notify('Sahi 10-digit mobile number zaroori hai — bina number ke pass nahi banega');
+  if(dig.length!==10) return notify('A valid 10-digit mobile number is required. The pass cannot be created without it.');
   try{
     const { data, error } = await sb.rpc('wp_create', { p_name: nm, p_phone: dig, p_dept: ($('wpeDept').value||'').trim(), p_line: ($('wpeLine').value||'').trim(), p_sup: _wpSupTag() });
     if(error) throw error;
@@ -1874,7 +1874,7 @@ async function wpEssReject(id, nm){
   }catch(e){ notify('Failed: ' + (e.message||e)); }
 }
 async function loanDecision(id, accept){
-  if(!window.confirm(accept ? 'Loan Agreement ACCEPT karein? Terms ke hisab se EMI salary se katega.' : 'Agreement DECLINE karein? Loan cancel ho jayega.')) return;
+  if(!window.confirm(accept ? 'Accept the loan agreement? The EMI will be deducted from your salary as per the terms.' : 'Decline the agreement? The loan will be cancelled.')) return;
   try{
     const { data, error } = await sb.rpc('ess_loan_decision', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: id, p_accept: !!accept });
     if(error) throw error;
@@ -1961,7 +1961,7 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('#gpBtn'); if(!b) return;
   const codeU = String(CODE||'').trim().toUpperCase();
   const d = $('gpDate').value;
-  if(!d) return notify('Date chuno');
+  if(!d) return notify('Select a date');
   // Monthly quota: YA TO 2 Short Leave YA 1 Half Day (dono nahi — mutually exclusive).
   // Official gate pass company ke kaam ka hai, isliye wo quota me ginta hi nahi —
   // na ye check uspe lagta hai, na wo quota kharch karta hai.
@@ -1975,8 +1975,8 @@ document.addEventListener('click', async e => {
       const slUsed = per.filter(g => g.req_type === 'GATE_SL').length;
       const hdUsed = per.filter(g => g.req_type === 'GATE_HD').length;
       // ek HD lene par poora quota khatam; SL lene par HD band aur SL max 2
-      if(hdUsed >= 1) return notify('Is month ka quota use ho chuka hai (1 Half Day liya gaya). Ab is month koi aur gate-pass nahi.');
-      if(kind === 'HD' && slUsed >= 1) return notify('Aap is month Short Leave le chuke hain — ab Half Day nahi milega (quota: 2 SL ya 1 HD).');
+      if(hdUsed >= 1) return notify('This month\'s quota is used up (one half day taken). No further gate pass this month.');
+      if(kind === 'HD' && slUsed >= 1) return notify('You have already taken a short leave this month, so a half day is not available (quota: 2 short leaves or 1 half day).');
       if(kind === 'SL' && slUsed >= 2) return notify('Is month ki 2 Short Leave limit ho chuki hai.');
     }catch(e){}
   }
@@ -2022,7 +2022,7 @@ function vrFill(v){
   const card = $('vrName').closest('.card') || $('vrName');
   try{ card.scrollIntoView({ behavior:'smooth', block:'start' }); }catch(e){}
   $('vrDate').focus();
-  notify('Detail bhar di — date/time check karke "Visitor Entry Banao" dabao');
+  notify('Details filled in. Check the date and time, then press "Create Visitor Entry".');
 }
 function essVisitorReinvite(id){
   vrFill(VR_MINE.find(r => Number(r.id) === Number(id)));
@@ -2077,7 +2077,7 @@ async function essVisitorCancel(id){
     const { data, error } = await sb.rpc('ess_visitor_cancel', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: id });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
-    notify('Visitor entry cancel ho gayi — gate par ab allow nahi hoga');
+    notify('Visitor entry cancelled. They will no longer be allowed at the gate.');
     loadVisitorReq();
   }catch(err){ notify(err.message || 'Cancel fail'); }
 }
@@ -2137,7 +2137,7 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('#wfhBtn'); if(!b) return;
   const codeU = String(CODE||'').trim().toUpperCase();
   const d = $('wfhDate').value;
-  if(!d) return notify('WFH date chuno');
+  if(!d) return notify('Select the work-from-home date');
   try{
     const { data: wRow, error } = await sb.from('ess_att_requests').insert([{ employee_code: codeU, name: (D.employee&&D.employee.Name)||codeU, date: d, reason: $('wfhReason').value.trim()||null, status: 'PENDING', req_type: 'WFH' }]).select('id').single();
     if(!error) essSendApprovalEmail('wfh', (wRow&&wRow.id)||'', 'WFH Request — ' + ((D.employee&&D.employee.Name)||codeU), [['Employee',(D.employee&&D.employee.Name)||codeU],['Date',d],['Reason',$('wfhReason').value.trim()||'—']]);
@@ -2253,7 +2253,7 @@ async function loadKaizenCongrats(){
 async function kaizenSubmitClosing(id){
   const ta = document.getElementById('kzcl_' + id);
   const txt = ta ? ta.value.trim() : '';
-  if(!txt) return notify('Closing report likho pehle');
+  if(!txt) return notify('Write the closing report first');
   try{
     let filePath = null;
     const fi = document.getElementById('kzclf_' + id);
@@ -2446,23 +2446,23 @@ var NX_EN = {
  "Chune hue logon par lagao": "Apply to selected",
  "Khali karo": "Clear",
  "Chune hue logon ki in dinon ki roster entry hata do": "Remove the roster entries for the selected people on these days",
- "Sab chuno": "Select all",
+ "Select all": "Select all",
  "roster khali": "no roster",
- "shift nahi": "no shift",
- "Pehle employee chuno": "Select an employee first",
- "Tareekh theek karo": "Check the dates",
- "Shift chuno": "Choose a shift",
- "Kuch bhejne layak nahi mila": "Nothing to send",
+ "no shift": "no shift",
+ "Select an employee first": "Select an employee first",
+ "Check the dates": "Check the dates",
+ "Select a shift": "Choose a shift",
+ "Nothing to send": "Nothing to send",
  "Is line par koi active employee nahi.": "No active employee on this line.",
- "10-digit mobile number daalo": "Enter a 10-digit mobile number",
+ "Enter a 10-digit mobile number": "Enter a 10-digit mobile number",
  "3 din valid": "Valid 3 days",
- "7 din se purani expense claim allowed nahi — sirf pichhle 7 din tak ki hi apply kar sakte ho.": "Expenses older than 7 days cannot be claimed — only the last 7 days are allowed.",
+ "Expenses older than 7 days cannot be claimed. Only the last 7 days are allowed.": "Expenses older than 7 days cannot be claimed — only the last 7 days are allowed.",
  "Aaj IN & OUT dono ho gaye": "Both IN and OUT done today",
  "Aaj aaye": "In Today",
  "Aaj ka IN mark karo": "Mark today's IN",
  "Aaj ka OUT mark karo": "Mark today's OUT",
  "Aaj ki Attendance": "Today's Attendance",
- "Aap is month Short Leave le chuke hain — ab Half Day nahi milega (quota: 2 SL ya 1 HD).": "You have already taken a Short Leave this month — a Half Day is no longer available (quota: 2 SL or 1 HD).",
+ "You have already taken a short leave this month, so a half day is not available (quota: 2 short leaves or 1 half day).": "You have already taken a Short Leave this month — a Half Day is no longer available (quota: 2 SL or 1 HD).",
  "Aapka sujhaav / hal…": "Your suggested solution…",
  "Aapse milne aa rahe guest ki pehle se entry. Kisi approval ki zaroorat nahi — entry daalte hi gate par live ho jaati hai aur guest ko QR badge chala jaata hai (WhatsApp par mobile se, aur email daala ho to email par bhi). Security use mobile number ya QR se pehchan kar andar bhej deti hai. Guest kab andar aaya aur kab gaya, wo bhi yahin neeche dikhta rehta hai. Plan badal jaye to entry cancel bhi kar sakte ho.": "Pre-register a guest who is coming to meet you. No approval is needed — the entry goes live at the gate immediately and a QR badge is sent to the guest (by WhatsApp, and by email if you provide one). Security identifies them by mobile number or QR and lets them in. The guest's in and out times appear below. If plans change, you can cancel the entry.",
  "Abhi kya dikkat hai…": "What is the problem right now…",
@@ -2474,34 +2474,34 @@ var NX_EN = {
  "App load nahi ho paya — internet check karke dobara \"View My HR\" dabao": "Could not load the app — check your connection and tap \"View My HR\" again",
  "Aur kuch batana ho": "Anything else to add",
  "Aur kuch kehna ho…": "Anything else to add…",
- "Bill/receipt ki photo attach karna zaroori hai — bina bill claim nahi hoga": "A bill or receipt photo is mandatory — the claim will not go through without it",
- "Camera nahi khula — photo ke bina attendance submit nahi ho sakti. Camera permission do aur dobara try karo.": "Camera did not open — attendance cannot be submitted without a photo. Allow camera access and try again.",
+ "A photo of the bill or receipt must be attached. The claim cannot be made without it.": "A bill or receipt photo is mandatory — the claim will not go through without it",
+ "The camera did not open. Attendance cannot be submitted without a photo. Allow camera access and try again.": "Camera did not open — attendance cannot be submitted without a photo. Allow camera access and try again.",
  "Claim delete ho gaya ✓": "Claim deleted ✓",
  "Closing bheji ✓ — CEO review karega": "Closing submitted ✓ — pending CEO review",
- "Closing report likho pehle": "Write the closing report first",
+ "Write the closing report first": "Write the closing report first",
  "Contact Update Karo": "Update Contact",
  "Correction request bheji ✓ — manager approve karega": "Correction request sent ✓ — pending manager approval",
- "Date chuno": "Pick a date",
+ "Select a date": "Pick a date",
  "Detail bhar di — date/time check karke \"Visitor Entry Banao\" dabao": "Details filled in — check the date and time, then tap \"Create Visitor Entry\"",
- "Details neeche form mein aa gaye — sudhar ke Resubmit dabao": "Details loaded into the form below — correct them and tap Resubmit",
+ "The details are loaded in the form below. Correct them and press Resubmit.": "Details loaded into the form below — correct them and tap Resubmit",
  "ESS ki har request kaise, kab aur kis rule se hoti hai. Kisi bhi cheez par tap karo. Prepared by": "How, when and under which rule every ESS request works. Tap any item to expand. Prepared by",
  "Employee Banao": "Convert to Employee",
  "Employee Code (jiska fuel)": "Employee Code (whose fuel)",
- "Employee code daalo": "Enter the employee code",
+ "Enter the employee code": "Enter the employee code",
  "Employee ke vehicle ka meter reading daalo. Distance = OUT − IN. Amount = distance × ₹/km. HR approve karega.": "Enter the employee's vehicle meter reading. Distance = OUT − IN. Amount = distance × ₹/km. Subject to HR approval.",
  "Expense ki date daalein": "Enter the expense date",
- "Future date ki expense allowed nahi.": "Expenses with a future date are not allowed.",
+ "An expense cannot be dated in the future.": "Expenses with a future date are not allowed.",
  "Gate par intezaar": "Waiting at gate",
  "Gate pass request bheji ✓ — manager approve karega": "Gate pass request sent ✓ — pending manager approval",
  "Grievance — koi aur issue": "Grievance — any other issue",
  "Half Day (aadhe din tak late maaf)": "Half Day (up to half a day excused)",
  "Help / SOP — Har cheez ka tarika": "Help / SOP — How everything works",
  "IN time daalo (HH:MM, 24-hour):": "Enter IN time (HH:MM, 24-hour):",
- "In Time galat — 24-hour HH:MM daalo (jaise 09:30 ya 18:00)": "Invalid In Time — use 24-hour HH:MM (e.g. 09:30 or 18:00)",
- "In ya Out — kam se kam ek time bharo": "Enter at least one of In or Out time",
- "Is line par koi worker assign nahi hai.": "No workers are assigned to this line.",
+ "IN time is not valid. Use 24-hour HH:MM, for example 09:30 or 18:00": "Invalid In Time — use 24-hour HH:MM (e.g. 09:30 or 18:00)",
+ "Enter at least one time, IN or OUT": "Enter at least one of In or Out time",
+ "No workers are assigned to this line.": "No workers are assigned to this line.",
  "Is mahine ka koi data nahi. Agar team hai to HR se reporting manager check karwayein.": "No data for this month. If you have a team, ask HR to check the reporting manager.",
- "Is month ka quota use ho chuka hai (1 Half Day liya gaya). Ab is month koi aur gate-pass nahi.": "This month's quota is used up (1 Half Day taken). No further gate pass this month.",
+ "This month's quota is used up (one half day taken). No further gate pass this month.": "This month's quota is used up (1 Half Day taken). No further gate pass this month.",
  "Is month ki 2 Short Leave limit ho chuki hai.": "The limit of 2 Short Leaves for this month has been reached.",
  "Kahan se aa rahe hain": "Where they are visiting from",
  "Kaun se din ke absent galat hain?": "Which days are marked wrongly?",
@@ -2509,59 +2509,59 @@ var NX_EN = {
  "Kisi din": "If a day shows",
  "Kitne absent galat lage hain? (din)": "How many absents are wrong? (days)",
  "Kitne paise kam aaye? (₹)": "How much was short? (₹)",
- "Koi match nahi mila.": "No matches found.",
- "Koi payment abhi nahi — approve hone ke baad accounts pay karega, yahan batch + proof dikhega.": "No payments yet — once approved, Accounts will pay and the batch and proof will appear here.",
+ "No match found.": "No matches found.",
+ "No payments yet. Once approved, Accounts will pay and the batch and proof will appear here.": "No payments yet — once approved, Accounts will pay and the batch and proof will appear here.",
  "Koi pending request nahi — sab clear hai.": "No pending requests — all clear.",
- "Kuch detail to bharein": "Please fill in some detail",
+ "Please add some detail": "Please fill in some detail",
  "Line (optional)": "Line (optional)",
  "Mahine ki Attendance": "Monthly Attendance",
  "Maine upar ka poora agreement padh liya hai aur saari terms samajh li hain. / I have read and understood all the terms above.": "I have read and understood all the terms above.",
  "Meri Line — Aaj": "My Line — Today",
  "Meri Poori Jaankari": "My Full Details",
  "Meri Team": "My Team",
- "Meter IN aur OUT dono daalo": "Enter both meter IN and OUT",
+ "Enter both the IN and OUT meter readings": "Enter both meter IN and OUT",
  "Month chuno…": "Pick a month…",
  "Naye worker ka 3-din trial pass banao. Worker gate kiosk par IN/OUT karega. Trial ke baad yahin se": "Create a 3-day trial pass for a new worker. The worker punches IN/OUT at the gate kiosk. After the trial, use",
- "OUT reading IN se kam nahi ho sakti": "The OUT reading cannot be less than IN",
- "Out Time galat — 24-hour HH:MM daalo (jaise 17:45)": "Invalid Out Time — use 24-hour HH:MM (e.g. 17:45)",
+ "The OUT reading cannot be lower than the IN reading": "The OUT reading cannot be less than IN",
+ "OUT time is not valid. Use 24-hour HH:MM, for example 17:45": "Invalid Out Time — use 24-hour HH:MM (e.g. 17:45)",
  "Pehle aa chuke visitor — dobara bulao": "Previous visitors — invite again",
- "Photo capture nahi hui — dobara try karo": "Photo was not captured — please try again",
- "Photo upload fail — internet check karke dobara try karo. Attendance submit NAHI hui.": "Photo upload failed — check your connection and try again. Attendance was NOT submitted.",
+ "The photo was not captured. Please try again.": "Photo was not captured — please try again",
+ "Photo upload failed. Check your internet and try again. Attendance was NOT submitted.": "Photo upload failed — check your connection and try again. Attendance was NOT submitted.",
  "Photo upload ho rahi hai…": "Uploading photo…",
- "Photo zaroori hai — attendance submit nahi hui": "A photo is required — attendance was not submitted",
+ "A photo is required. Attendance was not submitted.": "A photo is required — attendance was not submitted",
  "Poora naam": "Full name",
  "Present (late bhi)": "Present (incl. late)",
  "Present mark karo (HR approval)": "Mark present (HR approval)",
- "Proof attach karna zaroori hai — bina proof correction nahi hogi": "Proof is mandatory — a correction cannot be filed without it",
+ "Proof must be attached. A correction cannot be raised without it.": "Proof is mandatory — a correction cannot be filed without it",
  "Punch miss ho gaya (kiosk issue / bhool)? Correct time ke saath request bhejo.": "Punch missed (kiosk issue or forgotten)? Send a request with the correct time.",
  "Purpose / kaam": "Purpose",
  "Reason / trip detail": "Reason / trip detail",
- "Request nahi mili": "Request not found",
- "Sahi 10-digit mobile number zaroori hai — bina number ke pass nahi banega": "A valid 10-digit mobile number is required — the pass cannot be created without it",
+ "Request not found": "Request not found",
+ "A valid 10-digit mobile number is required. The pass cannot be created without it.": "A valid 10-digit mobile number is required — the pass cannot be created without it",
  "Sahi UPI ID daalein (jaise name@okhdfcbank)": "Enter a valid UPI ID (e.g. name@okhdfcbank)",
  "Salary Grievance — paise/attendance galat": "Salary Grievance — incorrect pay or attendance",
  "Salary grievance submit ho gayi — HR check karega": "Salary grievance submitted — HR will review it",
  "Seedhe aapko report karne wale log. Jiske neeche khud ki team hai, uspe dabao to uski list khul jayegi.": "People who report directly to you. Tap anyone who has a team of their own to expand their list.",
  "Short Leave (3 hrs late maaf)": "Short Leave (up to 3 hrs excused)",
- "Signature ke liye apna poora naam type karo": "Type your full name as your signature",
- "Supabase library load nahi hui — internet check karke page refresh karo": "The Supabase library did not load — check your connection and refresh the page",
- "Team me koi active employee nahi hai.": "No active employees in your team.",
- "Time galat — HH:MM format mein daalo": "Invalid time — use HH:MM format",
+ "Type your full name to sign": "Type your full name as your signature",
+ "The Supabase library did not load. Check your internet and refresh the page.": "The Supabase library did not load — check your connection and refresh the page",
+ "No active employees in your team.": "No active employees in your team.",
+ "Time is not valid. Use the HH:MM format.": "Invalid time — use HH:MM format",
  "UPI saved ✓ — approved expenses ab isi par pay honge": "UPI saved ✓ — approved expenses will now be paid to this ID",
  "Update Bhejo": "Send Update",
  "Us din ki ek request pehle se hai": "A request for that date already exists",
  "Visit date chunein": "Pick the visit date",
  "Visitor Entry Banao": "Create Visitor Entry",
- "Visitor entry cancel ho gayi — gate par ab allow nahi hoga": "Visitor entry cancelled — entry will no longer be allowed at the gate",
+ "Visitor entry cancelled. They will no longer be allowed at the gate.": "Visitor entry cancelled — entry will no longer be allowed at the gate",
  "Visitor ka 10 digit mobile daalein — gate par isi se pehchan hoti hai": "Enter the visitor's 10-digit mobile — the gate identifies them by it",
  "Visitor ka naam": "Visitor name",
  "Visitor ka naam daalein": "Enter the visitor name",
- "WFH date chuno": "Pick the WFH date",
+ "Select the work-from-home date": "Pick the WFH date",
  "WFH request bheji ✓ — manager approve karega": "WFH request sent ✓ — pending manager approval",
  "Work Pass Banao": "Create Work Pass",
  "Worker ka naam *": "Worker name *",
- "Worker ka naam bharo": "Enter the worker name",
- "Ye pending claim delete karein? Wapas nahi aayega.": "Delete this pending claim? It cannot be recovered.",
+ "Enter the worker's name": "Enter the worker name",
+ "Delete this pending claim? This cannot be undone.": "Delete this pending claim? It cannot be recovered.",
  "badge email ke liye": "for the badge email",
  "dikhe aur banda asli me aaya tha, to aaj ki date par ✏️ dabao — photo aur IN time ke saath HR ko present-request chali jayegi.": "but the person did attend, tap ✏️ on that date — a present-request goes to HR with the photo and IN time.",
  "— CEO approval → Loan Agreement (yahan Accept karna hoga) → Accounts se disbursement → monthly EMI deduction.": "— CEO approval → Loan Agreement (to be accepted here) → disbursement by Accounts → monthly EMI deduction.",
@@ -2589,29 +2589,29 @@ var NX_HI = {
  "Chune hue logon par lagao": "चुने हुए लोगों पर लगाएँ",
  "Khali karo": "ख़ाली करें",
  "Chune hue logon ki in dinon ki roster entry hata do": "चुने हुए लोगों की इन दिनों की रोस्टर एंट्री हटा दें",
- "Sab chuno": "सब चुनें",
+ "Select all": "सब चुनें",
  "roster khali": "रोस्टर ख़ाली",
- "shift nahi": "शिफ़्ट नहीं",
- "Pehle employee chuno": "पहले कर्मचारी चुनें",
- "Tareekh theek karo": "तारीख़ ठीक करें",
- "Shift chuno": "शिफ़्ट चुनें",
- "Kuch bhejne layak nahi mila": "भेजने लायक़ कुछ नहीं मिला",
+ "no shift": "शिफ़्ट नहीं",
+ "Select an employee first": "पहले कर्मचारी चुनें",
+ "Check the dates": "तारीख़ ठीक करें",
+ "Select a shift": "शिफ़्ट चुनें",
+ "Nothing to send": "भेजने लायक़ कुछ नहीं मिला",
  "Is line par koi active employee nahi.": "इस लाइन पर कोई सक्रिय कर्मचारी नहीं है।",
  "Shift": "शिफ़्ट",
  "profile": "प्रोफ़ाइल",
  ". Requires reporting manager approval. Approved passes are fully paid.": "। रिपोर्टिंग मैनेजर की मंज़ूरी ज़रूरी है। मंज़ूर हुए पास का पूरा वेतन मिलता है।",
  "1 Half Day OR 2 Short Leaves": "1 आधा दिन या 2 शॉर्ट लीव",
  "10 digit": "10 अंक",
- "10-digit mobile number daalo": "10 अंकों का मोबाइल नंबर डालें",
+ "Enter a 10-digit mobile number": "10 अंकों का मोबाइल नंबर डालें",
  "3 din valid": "3 दिन के लिए मान्य",
- "7 din se purani expense claim allowed nahi — sirf pichhle 7 din tak ki hi apply kar sakte ho.": "7 दिन से पुराने ख़र्च का दावा नहीं हो सकता — सिर्फ़ पिछले 7 दिन तक का ही भेज सकते हैं।",
+ "Expenses older than 7 days cannot be claimed. Only the last 7 days are allowed.": "7 दिन से पुराने ख़र्च का दावा नहीं हो सकता — सिर्फ़ पिछले 7 दिन तक का ही भेज सकते हैं।",
  "APPROVED": "मंज़ूर",
  "Aaj IN & OUT dono ho gaye": "आज IN और OUT दोनों हो गए",
  "Aaj aaye": "आज आए",
  "Aaj ka IN mark karo": "आज का IN लगाएँ",
  "Aaj ka OUT mark karo": "आज का OUT लगाएँ",
  "Aaj ki Attendance": "आज की हाज़िरी",
- "Aap is month Short Leave le chuke hain — ab Half Day nahi milega (quota: 2 SL ya 1 HD).": "आप इस महीने शॉर्ट लीव ले चुके हैं — अब आधा दिन नहीं मिलेगा (कोटा: 2 शॉर्ट लीव या 1 आधा दिन)।",
+ "You have already taken a short leave this month, so a half day is not available (quota: 2 short leaves or 1 half day).": "आप इस महीने शॉर्ट लीव ले चुके हैं — अब आधा दिन नहीं मिलेगा (कोटा: 2 शॉर्ट लीव या 1 आधा दिन)।",
  "Aapka sujhaav / hal…": "आपका सुझाव / हल…",
  "Aapse milne aa rahe guest ki pehle se entry. Kisi approval ki zaroorat nahi — entry daalte hi gate par live ho jaati hai aur guest ko QR badge chala jaata hai (WhatsApp par mobile se, aur email daala ho to email par bhi). Security use mobile number ya QR se pehchan kar andar bhej deti hai. Guest kab andar aaya aur kab gaya, wo bhi yahin neeche dikhta rehta hai. Plan badal jaye to entry cancel bhi kar sakte ho.": "आपसे मिलने आ रहे मेहमान की पहले से एंट्री। किसी मंज़ूरी की ज़रूरत नहीं — एंट्री डालते ही वह गेट पर पहुँच जाती है और मेहमान को QR बैज चला जाता है (WhatsApp पर मोबाइल से, और ईमेल डाला हो तो ईमेल पर भी)। सुरक्षाकर्मी उन्हें मोबाइल नंबर या QR से पहचान कर अंदर भेज देते हैं। मेहमान कब अंदर आए और कब गए, यह भी नीचे दिखता रहता है। योजना बदल जाए तो एंट्री रद्द भी कर सकते हैं।",
  "Abhi kya dikkat hai…": "अभी क्या दिक़्क़त है…",
@@ -2642,10 +2642,10 @@ var NX_HI = {
  "Attendance • Leaves • Payslips • Profile": "हाज़िरी • छुट्टी • वेतन पर्ची • प्रोफ़ाइल",
  "Aur kuch batana ho": "और कुछ बताना हो",
  "Aur kuch kehna ho…": "और कुछ कहना हो…",
- "Bill/receipt ki photo attach karna zaroori hai — bina bill claim nahi hoga": "बिल या रसीद की फ़ोटो लगाना ज़रूरी है — बिल के बिना दावा नहीं होगा",
+ "A photo of the bill or receipt must be attached. The claim cannot be made without it.": "बिल या रसीद की फ़ोटो लगाना ज़रूरी है — बिल के बिना दावा नहीं होगा",
  "Birthdays & Anniversaries": "जन्मदिन और वर्षगाँठ",
  "CANCELLED": "रद्द",
- "Camera nahi khula — photo ke bina attendance submit nahi ho sakti. Camera permission do aur dobara try karo.": "कैमरा नहीं खुला — फ़ोटो के बिना हाज़िरी नहीं भेजी जा सकती। कैमरे की अनुमति दें और दोबारा कोशिश करें।",
+ "The camera did not open. Attendance cannot be submitted without a photo. Allow camera access and try again.": "कैमरा नहीं खुला — फ़ोटो के बिना हाज़िरी नहीं भेजी जा सकती। कैमरे की अनुमति दें और दोबारा कोशिश करें।",
  "Cancel": "रद्द करें",
  "Casual Leave": "कैजुअल लीव",
  "Category": "श्रेणी",
@@ -2654,7 +2654,7 @@ var NX_HI = {
  "Clear": "हटाएँ",
  "Client visit taxi fare…": "क्लाइंट विज़िट का टैक्सी किराया…",
  "Closing bheji ✓ — CEO review karega": "क्लोज़िंग भेज दी ✓ — CEO समीक्षा करेगा",
- "Closing report likho pehle": "पहले क्लोज़िंग रिपोर्ट लिखें",
+ "Write the closing report first": "पहले क्लोज़िंग रिपोर्ट लिखें",
  "Company / Firm": "कंपनी / फ़र्म",
  "Confirm": "पुष्टि करें",
  "Confirm New Password": "नया पासवर्ड दोबारा लिखें",
@@ -2666,13 +2666,13 @@ var NX_HI = {
  "Current Password": "मौजूदा पासवर्ड",
  "Current Problem": "अभी क्या दिक़्क़त है",
  "Date": "तारीख़",
- "Date chuno": "तारीख़ चुनें",
+ "Select a date": "तारीख़ चुनें",
  "Day-wise Detail": "दिन-वार ब्यौरा",
  "Department": "विभाग",
  "Describe the issue / idea…": "समस्या या सुझाव लिखें…",
  "Detail bhar di — date/time check karke \"Visitor Entry Banao\" dabao": "ब्यौरा भर दिया — तारीख़ और समय जाँच कर \"मुलाक़ाती की एंट्री बनाएँ\" दबाएँ",
  "Details": "ब्यौरा",
- "Details neeche form mein aa gaye — sudhar ke Resubmit dabao": "ब्यौरा नीचे फ़ॉर्म में आ गया — सुधार कर दोबारा भेजें",
+ "The details are loaded in the form below. Correct them and press Resubmit.": "ब्यौरा नीचे फ़ॉर्म में आ गया — सुधार कर दोबारा भेजें",
  "Duration": "अवधि",
  "ESS ki har request kaise, kab aur kis rule se hoti hai. Kisi bhi cheez par tap karo. Prepared by": "पोर्टल का हर अनुरोध कैसे, कब और किस नियम से होता है। किसी भी विषय पर दबाएँ। तैयार किया",
  "Each photo must be under 5 MB": "हर फ़ोटो 5 MB से कम होनी चाहिए",
@@ -2682,7 +2682,7 @@ var NX_HI = {
  "Employee Code": "कर्मचारी कोड",
  "Employee Code (jiska fuel)": "कर्मचारी कोड (जिसका ईंधन)",
  "Employee Portal": "कर्मचारी पोर्टल",
- "Employee code daalo": "कर्मचारी कोड डालें",
+ "Enter the employee code": "कर्मचारी कोड डालें",
  "Employee ke vehicle ka meter reading daalo. Distance = OUT − IN. Amount = distance × ₹/km. HR approve karega.": "कर्मचारी के वाहन की मीटर रीडिंग डालें। दूरी = OUT − IN। रक़म = दूरी × ₹/किमी। HR मंज़ूरी देगा।",
  "Enter a subject": "विषय डालें",
  "Enter a valid amount": "सही रक़म डालें",
@@ -2700,7 +2700,7 @@ var NX_HI = {
  "From": "से",
  "Fuel Meter": "फ़्यूल मीटर",
  "Fuel Meter Reading": "फ़्यूल मीटर रीडिंग",
- "Future date ki expense allowed nahi.": "आगे की तारीख़ का ख़र्च नहीं भेजा जा सकता।",
+ "An expense cannot be dated in the future.": "आगे की तारीख़ का ख़र्च नहीं भेजा जा सकता।",
  "Gate Pass": "गेट पास",
  "Gate par intezaar": "गेट पर इंतज़ार",
  "Gate pass / WFH": "गेट पास / WFH",
@@ -2719,12 +2719,12 @@ var NX_HI = {
  "Hours Today": "आज कितना समय हुआ",
  "IN time daalo (HH:MM, 24-hour):": "आने का समय डालें (HH:MM, 24 घंटे):",
  "In Time (24h)": "आने का समय (24 घंटे)",
- "In Time galat — 24-hour HH:MM daalo (jaise 09:30 ya 18:00)": "आने का समय ग़लत — 24 घंटे वाला HH:MM डालें (जैसे 09:30 या 18:00)",
- "In ya Out — kam se kam ek time bharo": "आने या जाने का — कम से कम एक समय डालें",
+ "IN time is not valid. Use 24-hour HH:MM, for example 09:30 or 18:00": "आने का समय ग़लत — 24 घंटे वाला HH:MM डालें (जैसे 09:30 या 18:00)",
+ "Enter at least one time, IN or OUT": "आने या जाने का — कम से कम एक समय डालें",
  "Install App": "ऐप इंस्टॉल करें",
- "Is line par koi worker assign nahi hai.": "इस लाइन पर कोई कर्मचारी नहीं लगा है।",
+ "No workers are assigned to this line.": "इस लाइन पर कोई कर्मचारी नहीं लगा है।",
  "Is mahine ka koi data nahi. Agar team hai to HR se reporting manager check karwayein.": "इस महीने का कोई डेटा नहीं। अगर आपकी टीम है तो HR से रिपोर्टिंग मैनेजर जाँच करवाएँ।",
- "Is month ka quota use ho chuka hai (1 Half Day liya gaya). Ab is month koi aur gate-pass nahi.": "इस महीने का कोटा ख़त्म हो चुका है (1 आधा दिन ले लिया)। अब इस महीने कोई और गेट पास नहीं।",
+ "This month's quota is used up (one half day taken). No further gate pass this month.": "इस महीने का कोटा ख़त्म हो चुका है (1 आधा दिन ले लिया)। अब इस महीने कोई और गेट पास नहीं।",
  "Is month ki 2 Short Leave limit ho chuki hai.": "इस महीने की 2 शॉर्ट लीव की सीमा पूरी हो चुकी है।",
  "Kahan se aa rahe hain": "कहाँ से आ रहे हैं",
  "Kaizen Wall": "कायज़ेन वॉल",
@@ -2734,10 +2734,10 @@ var NX_HI = {
  "Kisi din": "किसी दिन",
  "Kitne absent galat lage hain? (din)": "कितनी ग़ैरहाज़िरी ग़लत लगी है? (दिन)",
  "Kitne paise kam aaye? (₹)": "कितने पैसे कम आए? (₹)",
- "Koi match nahi mila.": "कुछ नहीं मिला।",
- "Koi payment abhi nahi — approve hone ke baad accounts pay karega, yahan batch + proof dikhega.": "अभी कोई भुगतान नहीं — मंज़ूरी के बाद अकाउंट्स भुगतान करेगा, बैच और सबूत यहीं दिखेगा।",
+ "No match found.": "कुछ नहीं मिला।",
+ "No payments yet. Once approved, Accounts will pay and the batch and proof will appear here.": "अभी कोई भुगतान नहीं — मंज़ूरी के बाद अकाउंट्स भुगतान करेगा, बैच और सबूत यहीं दिखेगा।",
  "Koi pending request nahi — sab clear hai.": "कोई अनुरोध बाक़ी नहीं — सब साफ़ है।",
- "Kuch detail to bharein": "कुछ ब्यौरा तो भरें",
+ "Please add some detail": "कुछ ब्यौरा तो भरें",
  "Last Net Pay": "पिछला शुद्ध वेतन",
  "Late": "देर से",
  "Leave": "छुट्टी",
@@ -2759,7 +2759,7 @@ var NX_HI = {
  "Meri Poori Jaankari": "मेरी पूरी जानकारी",
  "Meri Team": "मेरी टीम",
  "Meter IN (start)": "मीटर IN (शुरुआत)",
- "Meter IN aur OUT dono daalo": "मीटर IN और OUT दोनों डालें",
+ "Enter both the IN and OUT meter readings": "मीटर IN और OUT दोनों डालें",
  "Meter OUT (end)": "मीटर OUT (अंत)",
  "Mobile": "मोबाइल",
  "Month chuno…": "महीना चुनें…",
@@ -2782,14 +2782,14 @@ var NX_HI = {
  "OFFICIAL": "ऑफ़िशियल",
  "OT request submitted — pending approval": "OT का अनुरोध भेज दिया — मंज़ूरी बाक़ी",
  "OTHER": "अन्य",
- "OUT reading IN se kam nahi ho sakti": "OUT रीडिंग IN से कम नहीं हो सकती",
+ "The OUT reading cannot be lower than the IN reading": "OUT रीडिंग IN से कम नहीं हो सकती",
  "Official": "ऑफ़िशियल",
  "Official (company work)": "ऑफ़िशियल (कंपनी का काम)",
  "Open Requests → Payslips for the full payslip.": "पूरी वेतन पर्ची के लिए अनुरोध → वेतन पर्ची खोलें।",
  "Optional": "ज़रूरी नहीं",
  "Other": "अन्य",
  "Out Time (24h, optional)": "जाने का समय (24 घंटे, ज़रूरी नहीं)",
- "Out Time galat — 24-hour HH:MM daalo (jaise 17:45)": "जाने का समय ग़लत — 24 घंटे वाला HH:MM डालें (जैसे 17:45)",
+ "OUT time is not valid. Use 24-hour HH:MM, for example 17:45": "जाने का समय ग़लत — 24 घंटे वाला HH:MM डालें (जैसे 17:45)",
  "Overtime": "ओवरटाइम",
  "PENDING": "विचाराधीन",
  "PERSONAL": "निजी",
@@ -2803,10 +2803,10 @@ var NX_HI = {
  "Pending": "विचाराधीन",
  "Pending Approvals": "मंज़ूरी बाक़ी",
  "Personal": "निजी",
- "Photo capture nahi hui — dobara try karo": "फ़ोटो नहीं खिंची — दोबारा कोशिश करें",
- "Photo upload fail — internet check karke dobara try karo. Attendance submit NAHI hui.": "फ़ोटो अपलोड नहीं हुई — इंटरनेट जाँच कर दोबारा कोशिश करें। हाज़िरी नहीं भेजी गई।",
+ "The photo was not captured. Please try again.": "फ़ोटो नहीं खिंची — दोबारा कोशिश करें",
+ "Photo upload failed. Check your internet and try again. Attendance was NOT submitted.": "फ़ोटो अपलोड नहीं हुई — इंटरनेट जाँच कर दोबारा कोशिश करें। हाज़िरी नहीं भेजी गई।",
  "Photo upload ho rahi hai…": "फ़ोटो अपलोड हो रही है…",
- "Photo zaroori hai — attendance submit nahi hui": "फ़ोटो ज़रूरी है — हाज़िरी नहीं भेजी गई",
+ "A photo is required. Attendance was not submitted.": "फ़ोटो ज़रूरी है — हाज़िरी नहीं भेजी गई",
  "Poora naam": "पूरा नाम",
  "Present": "हाज़िर",
  "Present (This Month)": "इस महीने हाज़िर",
@@ -2816,7 +2816,7 @@ var NX_HI = {
  "Profile": "प्रोफ़ाइल",
  "Profile photo updated ✓": "प्रोफ़ाइल फ़ोटो बदल गई ✓",
  "Proof (photo/document) *": "सबूत (फ़ोटो / दस्तावेज़) *",
- "Proof attach karna zaroori hai — bina proof correction nahi hogi": "सबूत लगाना ज़रूरी है — सबूत के बिना सुधार नहीं होगा",
+ "Proof must be attached. A correction cannot be raised without it.": "सबूत लगाना ज़रूरी है — सबूत के बिना सुधार नहीं होगा",
  "Proof mandatory": "सबूत ज़रूरी है",
  "Proposed Solution": "सुझाया गया हल",
  "Punch miss ho gaya (kiosk issue / bhool)? Correct time ke saath request bhejo.": "पंच छूट गया (कियोस्क की दिक़्क़त या भूल)? सही समय के साथ अनुरोध भेजें।",
@@ -2840,7 +2840,7 @@ var NX_HI = {
  "Request already sent for today": "आज का अनुरोध पहले से भेजा जा चुका है",
  "Request approval for working outside the premises. Once your reporting manager approves, the Punch In/Out option appears on your Home screen for the approved day(s).": "कंपनी के बाहर काम करने की मंज़ूरी लें। आपके रिपोर्टिंग मैनेजर की मंज़ूरी मिलने पर, मंज़ूर हुए दिन आपकी होम स्क्रीन पर पंच इन / पंच आउट का बटन आ जाएगा।",
  "Request cancelled": "अनुरोध रद्द कर दिया",
- "Request nahi mili": "अनुरोध नहीं मिला",
+ "Request not found": "अनुरोध नहीं मिला",
  "Request sent to your reporting manager ✓": "अनुरोध आपके रिपोर्टिंग मैनेजर को भेज दिया ✓",
  "Request submitted for HR approval ✓": "अनुरोध HR की मंज़ूरी के लिए भेज दिया ✓",
  "Requests": "अनुरोध",
@@ -2849,7 +2849,7 @@ var NX_HI = {
  "Resignation": "इस्तीफ़ा",
  "SECURITY": "सुरक्षा",
  "Safety Improvement": "सुरक्षा में सुधार",
- "Sahi 10-digit mobile number zaroori hai — bina number ke pass nahi banega": "सही 10 अंकों का मोबाइल नंबर ज़रूरी है — नंबर के बिना पास नहीं बनेगा",
+ "A valid 10-digit mobile number is required. The pass cannot be created without it.": "सही 10 अंकों का मोबाइल नंबर ज़रूरी है — नंबर के बिना पास नहीं बनेगा",
  "Sahi UPI ID daalein (jaise name@okhdfcbank)": "सही UPI ID डालें (जैसे name@okhdfcbank)",
  "Salary Advance": "वेतन एडवांस",
  "Salary Grievance — paise/attendance galat": "वेतन की शिकायत — पैसे या हाज़िरी ग़लत",
@@ -2869,7 +2869,7 @@ var NX_HI = {
  "Short title": "छोटा शीर्षक",
  "Sick Leave": "बीमारी की छुट्टी",
  "Sign out": "साइन आउट",
- "Signature ke liye apna poora naam type karo": "हस्ताक्षर के लिए अपना पूरा नाम लिखें",
+ "Type your full name to sign": "हस्ताक्षर के लिए अपना पूरा नाम लिखें",
  "Single day": "एक दिन",
  "Subject": "विषय",
  "Subject / Kaizen Title": "विषय / कायज़ेन का शीर्षक",
@@ -2880,14 +2880,14 @@ var NX_HI = {
  "Submit for Approval": "मंज़ूरी के लिए भेजें",
  "Suggestion — a problem you see + your solutions": "सुझाव — आपको दिखी समस्या और उसके हल",
  "Sunday": "रविवार",
- "Supabase library load nahi hui — internet check karke page refresh karo": "लाइब्रेरी लोड नहीं हुई — इंटरनेट जाँच कर पेज रिफ़्रेश करें",
+ "The Supabase library did not load. Check your internet and refresh the page.": "लाइब्रेरी लोड नहीं हुई — इंटरनेट जाँच कर पेज रिफ़्रेश करें",
  "TRAVEL": "यात्रा",
  "Tap to change photo": "फ़ोटो बदलने के लिए दबाएँ",
  "Team": "टीम",
- "Team me koi active employee nahi hai.": "टीम में कोई सक्रिय कर्मचारी नहीं है।",
+ "No active employees in your team.": "टीम में कोई सक्रिय कर्मचारी नहीं है।",
  "Thank you — receipt confirmed": "धन्यवाद — रसीद की पुष्टि हो गई",
  "Time Saving": "समय की बचत",
- "Time galat — HH:MM format mein daalo": "समय ग़लत — HH:MM रूप में डालें",
+ "Time is not valid. Use the HH:MM format.": "समय ग़लत — HH:MM रूप में डालें",
  "To": "तक",
  "Type": "प्रकार",
  "Type here…": "यहाँ लिखें…",
@@ -2902,21 +2902,21 @@ var NX_HI = {
  "Visitor Entry Banao": "मुलाक़ाती की एंट्री बनाएँ",
  "Visitor Request": "मुलाक़ाती का अनुरोध",
  "Visitor email": "मुलाक़ाती का ईमेल",
- "Visitor entry cancel ho gayi — gate par ab allow nahi hoga": "मुलाक़ाती की एंट्री रद्द हो गई — अब गेट पर प्रवेश नहीं मिलेगा",
+ "Visitor entry cancelled. They will no longer be allowed at the gate.": "मुलाक़ाती की एंट्री रद्द हो गई — अब गेट पर प्रवेश नहीं मिलेगा",
  "Visitor ka 10 digit mobile daalein — gate par isi se pehchan hoti hai": "मुलाक़ाती का 10 अंकों का मोबाइल डालें — गेट पर इसी से पहचान होती है",
  "Visitor ka naam": "मुलाक़ाती का नाम",
  "Visitor ka naam daalein": "मुलाक़ाती का नाम डालें",
  "Visitor mobile": "मुलाक़ाती का मोबाइल",
  "Voice Box": "वॉइस बॉक्स",
- "WFH date chuno": "WFH की तारीख़ चुनें",
+ "Select the work-from-home date": "WFH की तारीख़ चुनें",
  "WFH request bheji ✓ — manager approve karega": "WFH का अनुरोध भेज दिया ✓ — मैनेजर की मंज़ूरी बाक़ी",
  "Week Off": "साप्ताहिक छुट्टी",
  "Work From Home": "घर से काम",
  "Work Pass Banao": "वर्क पास बनाएँ",
  "Work Pass — Trial Worker": "वर्क पास — ट्रायल कर्मचारी",
  "Worker ka naam *": "कर्मचारी का नाम *",
- "Worker ka naam bharo": "कर्मचारी का नाम डालें",
- "Ye pending claim delete karein? Wapas nahi aayega.": "यह बाक़ी दावा हटा दें? यह वापस नहीं आएगा।",
+ "Enter the worker's name": "कर्मचारी का नाम डालें",
+ "Delete this pending claim? This cannot be undone.": "यह बाक़ी दावा हटा दें? यह वापस नहीं आएगा।",
  "Your 2–3 Best Solutions": "आपके 2–3 सबसे अच्छे हल",
  "Your UPI ID": "आपकी UPI ID",
  "badge email ke liye": "बैज ईमेल के लिए",
@@ -3066,9 +3066,9 @@ function renderAttPage(){
       ${a.out_time
         ? `<span class="chip chip-gray">OUT ${esc(a.out_time.substring(0,5))}</span>`
         : `<span class="chip chip-gray" style="font-style:italic" title="${esc(L(
-            'No OUT punch was recorded. Payroll skips this day — it is not counted as short hours, half day or a late mark.',
-            'OUT punch darj nahi hua. Payroll is din ko chhod deta hai — na kam ghante gine jaate hain, na half day, na late.'
-          ))}">${L('OUT missing', 'OUT nahi hua')}</span>` }
+            'No OUT punch, so the hours worked on this day are not known. The short-hours and half-day rules are not applied to it. A late arrival is still counted.',
+            'OUT पंच नहीं हुआ, इसलिए इस दिन के काम के घंटे पता नहीं हैं। कम घंटे और हाफ डे के नियम इस दिन पर नहीं लगते। देर से आने का मार्क फिर भी लगता है।'
+          ))}">${L('OUT missing', 'OUT नहीं हुआ')}</span>` }
       ${a.total_hours ? `<span class="chip chip-blue">${esc(a.total_hours.substring(0,5))} h</span>` : ''}</span></div>`;
   }).join('') : '<p class="m-0" style="color:var(--muted)">No attendance in the last 35 days.</p>';
   $('attPageInfo').innerText = (ATT_PAGE + 1) + '/' + pages;
@@ -3147,7 +3147,7 @@ function renderSupRoster(){
     const ws = L.workers || [];
     return `<div style="margin-bottom:10px">
       <div class="tm-ch" style="margin-bottom:6px"><span class="tm-pn">${esc(L.line)}</span>
-        <button class="btn btn-sm btn-ghost" onclick="supRosPickAll('${esc(L.line)}')">${_rosT('Sab chuno', 'सब चुनें')}</button></div>
+        <button class="btn btn-sm btn-ghost" onclick="supRosPickAll('${esc(L.line)}')">${_rosT('Select all', 'सब चुनें')}</button></div>
       ${ws.length ? ws.map(w => {
         const ros = w.roster || {};
         const ids = [...new Set(Object.values(ros).map(String))];
@@ -3158,7 +3158,7 @@ function renderSupRoster(){
           <span style="display:flex;align-items:center;gap:8px">
             <input type="checkbox" class="sup-ros-pick" data-code="${esc(w.code)}"${SUP_ROS_SEL[w.code]?' checked':''}>
             <span><b>${esc(w.name)}</b><br>
-              <span class="text-[10px]" style="color:var(--muted)">${esc(w.code)} · ${_rosT('profile', 'प्रोफ़ाइल')}: ${esc(asg ? asg.name : _rosT('shift nahi', 'शिफ़्ट नहीं'))}</span></span>
+              <span class="text-[10px]" style="color:var(--muted)">${esc(w.code)} · ${_rosT('profile', 'प्रोफ़ाइल')}: ${esc(asg ? asg.name : _rosT('no shift', 'शिफ़्ट नहीं'))}</span></span>
           </span>
           <span class="chip ${n ? 'chip-blue' : 'chip-gray'}">${n ? esc(names.join(' / ')) + ' · ' + n + ' ' + _rosT('din', 'दिन') : _rosT('roster khali', 'रोस्टर ख़ाली')}</span>
         </label>`;
@@ -3182,16 +3182,16 @@ function supRosPickAll(line){
 
 async function supRosApply(clear){
   const codes = Object.keys(SUP_ROS_SEL);
-  if(!codes.length) return notify('Pehle employee chuno');
+  if(!codes.length) return notify('Select an employee first');
   const from = $('supRosFrom').value, to = $('supRosTo').value;
-  if(!from || !to || to < from) return notify('Tareekh theek karo');
+  if(!from || !to || to < from) return notify('Check the dates');
   const sid = clear ? null : Number($('supRosShift').value);
-  if(!clear && !sid) return notify('Shift chuno');
+  if(!clear && !sid) return notify('Select a shift');
   const entries = [];
   for(let iso = from, g = 0; iso <= to && g < 70; iso = _rosAdd(iso, 1), g++){
     codes.forEach(c => entries.push({ code: c, date: iso, shift_id: sid }));
   }
-  if(!entries.length) return notify('Kuch bhejne layak nahi mila');
+  if(!entries.length) return notify('Nothing to send');
   try{
     const { data, error } = await sb.rpc('ess_roster_set', { p_code: CODE, p_phone: PHONE, p_entries: entries });
     if(error) throw error;
@@ -3199,11 +3199,11 @@ async function supRosApply(clear){
     const skipped = Number(data && data.skipped) || 0;
     const nSaved = Number(data && data.saved) || 0;
     notify('✓ ' + nSaved + ' ' + (clear ? L('din khali hue', 'दिन ख़ाली हुए') : L('din set hue', 'दिन सेट हुए'))
-      + (skipped ? ' · ' + skipped + ' ' + L('chhoote (pichhli tareekh ya aapki line ka nahi)',
+      + (skipped ? ' · ' + skipped + ' ' + L('skipped (past date, or not on your line)',
                                              'छूटे (पिछली तारीख़ या आपकी लाइन के नहीं)') : ''));
     SUP_ROS_SEL = {};
     await loadSupRoster();
-  }catch(e){ notify('Nahi ho paya: ' + (e.message || e)); }
+  }catch(e){ notify('Could not save: ' + (e.message || e)); }
 }
 
 function supRosDaysChanged(){
@@ -3246,7 +3246,7 @@ async function loadLineToday(){
           <div><div class="tm-pn">${esc(w.name)}</div><div class="tm-ps">${esc(w.code)}</div></div>
           <div class="tm-pr">${st}${inT ? `<div class="tm-pt">IN ${esc(inT)}${outT ? '  \u00b7  OUT ' + esc(outT) : ''}</div>` : ''}</div>
         </div>`;
-      }).join('') : '<p class="tm-empty" style="padding:12px">Is line par koi worker assign nahi hai.</p>'}
+      }).join('') : '<p class="tm-empty" style="padding:12px">No workers are assigned to this line.</p>'}
     </div>`;
   }).join('');
 }
@@ -3267,9 +3267,9 @@ $('loginBtn').addEventListener('click', async () => {
         SUPABASE_URL = c.url; SUPABASE_ANON_KEY = c.key;
         if(typeof supabase !== 'undefined' && supabase && supabase.createClient)
           sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      }catch(e){ throw new Error(e.message || 'Config load nahi hui'); }
+      }catch(e){ throw new Error(e.message || 'The app config could not be loaded'); }
     }
-    if(!sb) throw new Error('App load nahi ho paya — internet check karke dobara "View My HR" dabao');
+    if(!sb) throw new Error('The app could not load. Check your internet and press "View My HR" again.');
     const { data, error } = await sb.rpc('ess_get_data', { p_code: CODE, p_phone: PHONE });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
@@ -3361,19 +3361,27 @@ function render(){
   $('pfDesig').innerText = e.DESIGNATION || '—';
   $('pfMeta').innerText = [e['Employee code'], e.DEPARTMENT, p.section].filter(Boolean).join('  ·  ');
   const chip = (l, v) => `<div class="pf-chip"><div class="pf-chip-l">${esc(l)}</div><div class="pf-chip-v">${esc(v || '—')}</div></div>`;
+  // Location pehle work_location se aata tha, jo poore system me kisi ka bhara hi
+  // nahi hai — isliye hamesha khali dikhta tha. Asli jagah UNIT me hai; settings se
+  // uska naam nikaal lete hain (ZM01 -> ZF Unit 1), na mile to code hi dikha do.
+  const _unit = (((D.company || {}).units) || []).find(u => String(u.code || '') === String(e.UNIT || ''));
   $('pfChips').innerHTML =
       chip('Joining', e.DOJ ? fmtDate(e.DOJ) : '')
     + chip('Employment', p.employment_type)
     + chip('Grade', p.grade)
-    + chip('Location', p.work_location);
+    + chip('Location', (_unit && _unit.name) || e.UNIT || '');
   const SEC = [
     ['Contact', 'address-book', [['Mobile', p.phone], ['Email', p.email], ['Address', p.address]]],
     ['Bank', 'building-columns', [['Bank', p.bank_name], ['Account No.', p.account_no], ['IFSC', p.ifsc]]],
     ['Statutory', 'file-shield', [['PAN', p.pan], ['UAN', p.uan], ['ESI No.', p.esi_no]]],
-    ['Emergency', 'phone-volume', [
-      ['Naam', p.emergency_name],
-      ['Number', p.emergency_phone],
-      ['Rishta', p.emergency_relation]
+    ['Emergency Contact', 'phone-volume', [
+      ['Name', p.emergency_name],
+      ['Phone', p.emergency_phone],
+      ['Relation', p.emergency_relation]
+    ]],
+    ['Nominee', 'user-shield', [
+      ['Name', p.nominee_name],
+      ['Relation', p.nominee_relation]
     ]]
   ];
   $('meBox').innerHTML = SEC.map(([title, ic, rows]) => `<div class="pf-sec">
@@ -3522,7 +3530,7 @@ async function renderCalendar(){
       const noOut = !r.out_time && iso < today;
       cls = noOut ? 'd-MO' : (late ? 'd-L' : 'd-P');
       tip += ` | IN ${(r.in_time||'').substring(0,5)}${r.out_time ? ' OUT ' + r.out_time.substring(0,5) : ''}`;
-      if(noOut) tip += ' | OUT missing — payroll is din ko chhod deta hai';
+      if(noOut) tip += ' | OUT missing — hours unknown, short-hours/half-day rules skipped (a late arrival still counts)';
       if(hasG) tip += ' | Gate Pass approved — late maaf'; }
     else if(window._myWfhSet && window._myWfhSet.has(iso)){ cls = 'd-WFH'; tip += ' | Work From Home (paid)'; }
     else if(lvSet.has(iso)) cls = 'd-LV';
@@ -3538,7 +3546,7 @@ async function renderCalendar(){
 
 /* ---------- Requests: expenses + resignation ---------- */
 async function delExpense(id){
-  if(!window.confirm('Ye pending claim delete karein? Wapas nahi aayega.')) return;
+  if(!window.confirm('Delete this pending claim? This cannot be undone.')) return;
   try{
     const { data, error } = await sb.rpc('ess_delete_expense', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: id });
     if(error) throw error;
@@ -3640,7 +3648,7 @@ async function loadMyPayments(){
         </div>
         <div class="text-[10px] mt-1" style="color:var(--muted)">${rows.map(x => esc(x.category) + ' ' + fmtINR(x.amount)).join(' · ')}</div>
       </div>`;
-    }).join('') : '<p class="m-0 text-xs" style="color:var(--muted)">Koi payment abhi nahi — approve hone ke baad accounts pay karega, yahan batch + proof dikhega.</p>';
+    }).join('') : '<p class="m-0 text-xs" style="color:var(--muted)">No payments yet. Once approved, Accounts will pay and the batch and proof will appear here.</p>';
   }catch(e){ host.innerHTML = ''; }
 }
 function renderRejectedClaims(){
@@ -3670,7 +3678,7 @@ function essFixResubmit(id){
   $('exDate').value = r.expense_date || '';
   $('exNote').value = r.note || '';
   $('exBtn').innerHTML = '<i class="fa-solid fa-rotate-right"></i> Resubmit Claim';
-  notify('Details neeche form mein aa gaye — sudhar ke Resubmit dabao');
+  notify('The details are loaded in the form below. Correct them and press Resubmit.');
   $('exAmt').scrollIntoView({ behavior:'smooth', block:'center' });
 }
 function essViewProof(path){
@@ -3725,10 +3733,10 @@ $('exBtn').addEventListener('click', async () => {
     const _today0 = new Date(new Date().toISOString().slice(0,10) + 'T00:00:00');
     const _lim0   = new Date(_today0.getTime() - 7*86400000);
     const _selD   = new Date(_sel + 'T00:00:00');
-    if(_selD < _lim0) return notify('7 din se purani expense claim allowed nahi — sirf pichhle 7 din tak ki hi apply kar sakte ho.');
-    if(_selD > _today0) return notify('Future date ki expense allowed nahi.');
+    if(_selD < _lim0) return notify('Expenses older than 7 days cannot be claimed. Only the last 7 days are allowed.');
+    if(_selD > _today0) return notify('An expense cannot be dated in the future.');
   }
-  if(!window._editExpId && !(($('exFiles').files || []).length)) return notify('Bill/receipt ki photo attach karna zaroori hai — bina bill claim nahi hoga');
+  if(!window._editExpId && !(($('exFiles').files || []).length)) return notify('A photo of the bill or receipt must be attached. The claim cannot be made without it.');
   const btn = $('exBtn');
   btn.innerHTML = '<div class="loader-ring"></div> Submitting…'; btn.disabled = true;
   try{
@@ -3854,7 +3862,7 @@ $('fbBtn').addEventListener('click', async () => {
   if($('fbType').value === 'SALARY'){
     const month = $('sgMonth').value || '', amt = ($('sgAmount').value||'').trim(),
           absC = ($('sgAbsentCount').value||'').trim(), absD = $('sgAbsentDays').value.trim(), note = $('sgNote').value.trim();
-    if(!month && !amt && !absC && !absD && !note) return notify('Kuch detail to bharein');
+    if(!month && !amt && !absC && !absD && !note) return notify('Please add some detail');
     const subject = 'Salary Grievance' + (month ? ' — ' + month : '');
     const details = [
       month ? 'Month: ' + month : '',
@@ -3958,9 +3966,9 @@ async function submitFuel(){
   const b = $('fuelBtn');
   const emp = ($('fuelEmp').value||'').trim().toUpperCase();
   const inV = Number($('fuelIn').value), outV = Number($('fuelOut').value), rate = Number($('fuelRate').value)||4;
-  if(!emp) return notify('Employee code daalo');
-  if(!inV || !outV) return notify('Meter IN aur OUT dono daalo');
-  if(outV < inV) return notify('OUT reading IN se kam nahi ho sakti');
+  if(!emp) return notify('Enter the employee code');
+  if(!inV || !outV) return notify('Enter both the IN and OUT meter readings');
+  if(outV < inV) return notify('The OUT reading cannot be lower than the IN reading');
   b.disabled = true;
   try{
     const { data, error } = await sb.rpc('ess_fuel_add', {
