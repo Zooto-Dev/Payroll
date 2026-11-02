@@ -1232,7 +1232,7 @@ async function loadTeamTree(){
       const hasSub = Number(r.sub_direct) > 0;
       const inT = r.in_time ? String(r.in_time).slice(0,5) : null;
       const st = !inT ? '<span class="chip chip-bad" style="font-size:9.5px">Absent</span>'
-        : (r.out_time ? '<span class="chip chip-gray" style="font-size:9.5px">Ja chuke</span>'
+        : (r.out_time ? '<span class="chip chip-gray" style="font-size:9.5px">Left for the day</span>'
                       : '<span class="chip chip-ok" style="font-size:9.5px">Andar hain</span>');
       const subChip = hasSub
         ? `<span class="chip chip-blue" style="font-size:9.5px">${r.sub_direct} under${Number(r.sub_total) > Number(r.sub_direct) ? ' \u00b7 ' + r.sub_total + ' total' : ''}</span>`
@@ -1281,13 +1281,13 @@ async function loadTeamToday(){
     TM.inCnt = inCnt; TM.absCnt = rows.length - inCnt;
     if(TM.team == null) TM.team = rows.length;
     tmPaint();
-    $('teamTodayCnt').innerText = inCnt + ' / ' + rows.length + ' aaye';
+    $('teamTodayCnt').innerText = inCnt + ' / ' + rows.length + ' present';
     // RPC pehle un logon ko bhejta hai jinka punch nahi hua — absent sabse upar rahe
     $('teamTodayBox').innerHTML = rows.length ? rows.map(r => {
       const inT  = r.in_time  ? String(r.in_time).substring(0,5)  : null;
       const outT = r.out_time ? String(r.out_time).substring(0,5) : null;
       const st = !inT ? '<span class="chip chip-bad">Absent</span>'
-        : outT ? '<span class="chip chip-gray">Ja chuke</span>'
+        : outT ? '<span class="chip chip-gray">Left for the day</span>'
         : '<span class="chip chip-ok">Andar hain</span>';
       const t = !inT ? '' : ('IN ' + inT + (outT ? '  \u00b7  OUT ' + outT : ''));
       return `<div class="tm-p${inT ? '' : ' tm-absent'}">
@@ -1610,7 +1610,7 @@ async function loanSignStep(id){
     if(error) throw error;
     if(data && data.error) return notify(data.error);
     const ov = document.getElementById('_agrOv'); if(ov) ov.remove();
-    notify('✓ Agreement signed! Ab Accounts se disbursement hoga.');
+    notify('✓ Agreement signed. Accounts will release the money next.');
     loadMoneyReqs();
   }catch(err){ notify('Sign failed: ' + (err.message||err)); btn.disabled = false; btn.innerText = '✍️ I AGREE & SIGN'; }
 }
@@ -1770,7 +1770,7 @@ async function supSubmit(imgData){
   if(!_supMark) return;
   const m = _supMark;
   if(!imgData){ notify('A photo is required. Attendance was not submitted.'); return; }
-  notify('Photo upload ho rahi hai…');
+  notify('Uploading photo…');
   try{
     let photoUrl = '';
     try{
@@ -1834,7 +1834,7 @@ async function wpEssLoad(){
             ${markBtn}
             ${pend ? '<span class="chip chip-blue" style="font-size:10px">⏳ HR approval pending</span>'
               : `<button class="btn btn-sm ${ready?'btn-primary':'btn-ghost'}" ${ready?'':'disabled'} onclick="wpEssConvert(${w.id}, '${esc(w.name)}')" style="${ready?'background:#059669;border-color:#059669':''}">${ready?'👔 Employee Banao':'Trial ' + Math.min(w.day_no,3) + '/3'}</button>
-                 <button class="btn btn-sm btn-ghost" onclick="wpEssReject(${w.id}, '${esc(w.name)}')" style="color:#b91c1c;border-color:#fca5a5" title="Trial reject / hataayein">✕ Reject</button>`}
+                 <button class="btn btn-sm btn-ghost" onclick="wpEssReject(${w.id}, '${esc(w.name)}')" style="color:#b91c1c;border-color:#fca5a5" title="Reject / remove trial">✕ Reject</button>`}
           </span>
         </div></div>`;
     }).join('');
@@ -1880,7 +1880,7 @@ async function loanDecision(id, accept){
     if(error) throw error;
     if(data && data.error) return notify(data.error);
     const _ov = document.getElementById('_agrOv'); if(_ov) _ov.remove();
-    notify(accept ? 'Agreement accepted ✓ — ab Accounts se disbursement hoga' : 'Agreement declined');
+    notify(accept ? 'Agreement accepted ✓ — Accounts will release the money next' : 'Agreement declined');
     loadMoneyReqs();
   }catch(err){ notify('Failed: ' + (err.message||err)); }
 }
@@ -2267,7 +2267,7 @@ async function kaizenSubmitClosing(id){
     const { data, error } = await sb.rpc('ess_kaizen_close', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE, p_id: id, p_closing: txt, p_file: filePath });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
-    notify('Closing bheji ✓ — CEO review karega');
+    notify('Closing sent ✓ — the CEO will review it');
     loadKaizenCongrats();
   }catch(err){ notify(err.message || 'Failed'); }
 }
@@ -2434,6 +2434,8 @@ let ATT_PAGE = 0;
    written in the markup / in a string, trimmed. Anything not listed here
    simply stays as-is, so a missing entry degrades to Hinglish, never to blank. */
 var NX_EN = {
+ "Who approves what": "Who approves what",
+ "Left for the day": "Left for the day",
  "Meri Aane Wali Shift": "My Upcoming Shifts",
  "Shift Roster — Meri Line": "Shift Roster — My Line",
  "Aage ke dinon ki shift yahan se set karo. Jo din khali hai us din wahi shift chalegi jo profile me lagi hai. Pichhli tareekh HR hi badal sakta hai.": "Set the coming days' shifts here. A day left blank keeps the shift set on the profile. Past dates can only be changed by HR.",
@@ -2476,8 +2478,8 @@ var NX_EN = {
  "Aur kuch kehna ho…": "Anything else to add…",
  "A photo of the bill or receipt must be attached. The claim cannot be made without it.": "A bill or receipt photo is mandatory — the claim will not go through without it",
  "The camera did not open. Attendance cannot be submitted without a photo. Allow camera access and try again.": "Camera did not open — attendance cannot be submitted without a photo. Allow camera access and try again.",
- "Claim delete ho gaya ✓": "Claim deleted ✓",
- "Closing bheji ✓ — CEO review karega": "Closing submitted ✓ — pending CEO review",
+ "Claim deleted ✓": "Claim deleted ✓",
+ "Closing sent ✓ — the CEO will review it": "Closing submitted ✓ — pending CEO review",
  "Write the closing report first": "Write the closing report first",
  "Contact Update Karo": "Update Contact",
  "Correction request bheji ✓ — manager approve karega": "Correction request sent ✓ — pending manager approval",
@@ -2527,7 +2529,7 @@ var NX_EN = {
  "Pehle aa chuke visitor — dobara bulao": "Previous visitors — invite again",
  "The photo was not captured. Please try again.": "Photo was not captured — please try again",
  "Photo upload failed. Check your internet and try again. Attendance was NOT submitted.": "Photo upload failed — check your connection and try again. Attendance was NOT submitted.",
- "Photo upload ho rahi hai…": "Uploading photo…",
+ "Uploading photo…": "Uploading photo…",
  "A photo is required. Attendance was not submitted.": "A photo is required — attendance was not submitted",
  "Poora naam": "Full name",
  "Present (late bhi)": "Present (incl. late)",
@@ -2540,7 +2542,7 @@ var NX_EN = {
  "A valid 10-digit mobile number is required. The pass cannot be created without it.": "A valid 10-digit mobile number is required — the pass cannot be created without it",
  "Sahi UPI ID daalein (jaise name@okhdfcbank)": "Enter a valid UPI ID (e.g. name@okhdfcbank)",
  "Salary Grievance — paise/attendance galat": "Salary Grievance — incorrect pay or attendance",
- "Salary grievance submit ho gayi — HR check karega": "Salary grievance submitted — HR will review it",
+ "Salary grievance submitted — HR will look into it": "Salary grievance submitted — HR will review it",
  "Seedhe aapko report karne wale log. Jiske neeche khud ki team hai, uspe dabao to uski list khul jayegi.": "People who report directly to you. Tap anyone who has a team of their own to expand their list.",
  "Short Leave (3 hrs late maaf)": "Short Leave (up to 3 hrs excused)",
  "Type your full name to sign": "Type your full name as your signature",
@@ -2570,12 +2572,14 @@ var NX_EN = {
  "— naya visitor —": "— new visitor —",
  "✉ Approval mail bhej di gayi": "✉ Approval email sent",
  "✓ Aaj poora": "✓ Done today",
- "✓ Agreement signed! Ab Accounts se disbursement hoga.": "✓ Agreement signed. Accounts will now process the disbursement.",
+ "✓ Agreement signed. Accounts will release the money next.": "✓ Agreement signed. Accounts will now process the disbursement.",
  "✓ Gate par entry ban gayi — guest seedha aa sakta hai": "✓ Entry created at the gate — your guest can come straight in",
  "📩 Visitor ko badge bhej diya": "📩 Badge sent to the visitor",
  "🔍 Dhoondo (leave, OT, expense…)": "🔍 Search (leave, OT, expense…)"
 };
 var NX_HI = {
+ "Who approves what": "कौन सी रिक्वेस्ट कौन मंजूर करेगा",
+ "Left for the day": "जा चुके",
  "Meri Aane Wali Shift": "मेरी आने वाली शिफ़्ट",
  "My Upcoming Shifts": "मेरी आने वाली शिफ़्ट",
  "Shift Roster — Meri Line": "शिफ़्ट रोस्टर — मेरी लाइन",
@@ -2650,10 +2654,10 @@ var NX_HI = {
  "Casual Leave": "कैजुअल लीव",
  "Category": "श्रेणी",
  "Change Password": "पासवर्ड बदलें",
- "Claim delete ho gaya ✓": "दावा हटा दिया ✓",
+ "Claim deleted ✓": "दावा हटा दिया ✓",
  "Clear": "हटाएँ",
  "Client visit taxi fare…": "क्लाइंट विज़िट का टैक्सी किराया…",
- "Closing bheji ✓ — CEO review karega": "क्लोज़िंग भेज दी ✓ — CEO समीक्षा करेगा",
+ "Closing sent ✓ — the CEO will review it": "क्लोज़िंग भेज दी ✓ — CEO समीक्षा करेगा",
  "Write the closing report first": "पहले क्लोज़िंग रिपोर्ट लिखें",
  "Company / Firm": "कंपनी / फ़र्म",
  "Confirm": "पुष्टि करें",
@@ -2805,7 +2809,7 @@ var NX_HI = {
  "Personal": "निजी",
  "The photo was not captured. Please try again.": "फ़ोटो नहीं खिंची — दोबारा कोशिश करें",
  "Photo upload failed. Check your internet and try again. Attendance was NOT submitted.": "फ़ोटो अपलोड नहीं हुई — इंटरनेट जाँच कर दोबारा कोशिश करें। हाज़िरी नहीं भेजी गई।",
- "Photo upload ho rahi hai…": "फ़ोटो अपलोड हो रही है…",
+ "Uploading photo…": "फ़ोटो अपलोड हो रही है…",
  "A photo is required. Attendance was not submitted.": "फ़ोटो ज़रूरी है — हाज़िरी नहीं भेजी गई",
  "Poora naam": "पूरा नाम",
  "Present": "हाज़िर",
@@ -2853,7 +2857,7 @@ var NX_HI = {
  "Sahi UPI ID daalein (jaise name@okhdfcbank)": "सही UPI ID डालें (जैसे name@okhdfcbank)",
  "Salary Advance": "वेतन एडवांस",
  "Salary Grievance — paise/attendance galat": "वेतन की शिकायत — पैसे या हाज़िरी ग़लत",
- "Salary grievance submit ho gayi — HR check karega": "वेतन की शिकायत भेज दी गई — HR जाँच करेगा",
+ "Salary grievance submitted — HR will look into it": "वेतन की शिकायत भेज दी गई — HR जाँच करेगा",
  "Save UPI ID": "UPI ID सेव करें",
  "Schedule Changes": "शेड्यूल में बदलाव",
  "Search workers…": "कर्मचारी खोजें…",
@@ -2937,7 +2941,7 @@ var NX_HI = {
  "— uses one from the quota above.": "— ऊपर दिए कोटे में से एक ख़र्च हो जाएगा।",
  "✉ Approval mail bhej di gayi": "✉ मंज़ूरी का ईमेल भेज दिया गया",
  "✓ Aaj poora": "✓ आज पूरा",
- "✓ Agreement signed! Ab Accounts se disbursement hoga.": "✓ एग्रीमेंट पर हस्ताक्षर हो गए। अब अकाउंट्स से भुगतान होगा।",
+ "✓ Agreement signed. Accounts will release the money next.": "✓ एग्रीमेंट पर हस्ताक्षर हो गए। अब अकाउंट्स से भुगतान होगा।",
  "✓ Gate par entry ban gayi — guest seedha aa sakta hai": "✓ गेट पर एंट्री बन गई — मेहमान सीधे आ सकते हैं",
  "📩 Visitor ko badge bhej diya": "📩 मुलाक़ाती को बैज भेज दिया",
  "📸 PHOTO & SUBMIT": "📸 फ़ोटो लें और भेजें",
@@ -3239,7 +3243,7 @@ async function loadLineToday(){
         const inT = w.in_time ? String(w.in_time).slice(0,5) : null;
         const outT = w.out_time ? String(w.out_time).slice(0,5) : null;
         const st = !inT ? '<span class="chip chip-bad">Absent</span>'
-          : outT ? '<span class="chip chip-gray">Ja chuke</span>'
+          : outT ? '<span class="chip chip-gray">Left for the day</span>'
           : '<span class="chip chip-ok">Andar hain</span>';
         return `<div class="tm-p${inT ? '' : ' tm-absent'}">
           <div class="tm-av">${esc(tmInitials(w.name))}</div>
@@ -3439,7 +3443,7 @@ async function renderReportingInfo(){
        ${teamHtml}
      </div>
      <div class="pf-sec">
-       <div class="pf-sec-t"><i class="fa-solid fa-circle-check"></i>Kaun si request kaun approve karega</div>`
+       <div class="pf-sec-t"><i class="fa-solid fa-circle-check"></i>Who approves what</div>`
     + approves.map(a => `<div class="pf-r"><span class="pf-r-k">${esc(a[0])}</span><span class="pf-r-v">${esc(a[1])}</span></div>`).join('')
     + '</div>';
 }
@@ -3553,7 +3557,7 @@ async function delExpense(id){
     if(data && data.error) return notify(data.error);
     D.expenses = (D.expenses||[]).filter(x => String(x.id) !== String(id));
     renderExpenses();
-    notify('Claim delete ho gaya ✓');
+    notify('Claim deleted ✓');
   }catch(err){ notify('Delete failed: ' + (err.message || err)); }
 }
 function renderExpenses(){
@@ -3879,7 +3883,7 @@ $('fbBtn').addEventListener('click', async () => {
         p_kz_benefits: null, p_kz_attachment: null, p_kz_remarks: null });
       if(error) throw error;
       if(data && data.error) return notify(data.error);
-      notify('Salary grievance submit ho gayi — HR check karega');
+      notify('Salary grievance submitted — HR will look into it');
       // Grievance -> reporting manager ko bhi notify
       essSendApprovalEmail('grievance', (data&&data.id)||'', 'Salary Grievance — ' + ((D.employee&&D.employee.Name)||CODE), [
         ['Employee', (D.employee&&D.employee.Name)||CODE], ['Type', 'Salary Grievance'], ['Details', details.replace(/\n/g,' | ')]
