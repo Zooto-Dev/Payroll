@@ -9653,7 +9653,7 @@ document.body.addEventListener('click', async e => {
   }
   if(act === 'cancel-leave'){
     if(!(await nxConfirm('Cancel this leave?', 'Cancel Leave'))) return;
-    await sb.from('leaves').update({ status: 'CANCELLED' }).eq('id', el.dataset.id);
+    await sb.from('leaves').update({ status: 'CANCELLED', ...nxDecidedNow() }).eq('id', el.dataset.id);
     loadLeaves();
   }
   // reject reason helper — employee ko ESS mein dikhega
@@ -9665,14 +9665,14 @@ document.body.addEventListener('click', async e => {
   if((act === 'ot-appr-grp' || act === 'ot-rej-grp') && !(canApprove('ot') && roleCEO())) return notify('Only the CEO can approve overtime', 'error');
   if((act === 'appr-exp' || act === 'rej-exp' || act === 'appr-ex' || act === 'rej-ex') && !(canApprove('expense') && roleAcctMgr())) return notify('Only the Accounts team can approve expenses', 'error');
   if(act === 'appr-leave'){
-    await sb.from('leaves').update({ status: 'APPROVED' }).eq('id', el.dataset.id);
+    await sb.from('leaves').update({ status: 'APPROVED', ...nxDecidedNow() }).eq('id', el.dataset.id);
     notify('Leave approved', 'success');
     if($('page-approvals').classList.contains('show')) loadApprovals(); else loadLeaves();
   }
   if(act === 'cancel-leave-x'){
     const reason = await _askRejectReason('leave');
     if(reason === null) return;
-    await sb.from('leaves').update({ status: 'REJECTED', admin_note: reason }).eq('id', el.dataset.id);
+    await sb.from('leaves').update({ status: 'REJECTED', admin_note: reason, ...nxDecidedNow() }).eq('id', el.dataset.id);
     notify('Leave rejected', 'success');
     loadApprovals();
   }
@@ -9745,7 +9745,7 @@ document.body.addEventListener('click', async e => {
       ? `Leave ke ${el.dataset.days} mein se ${el.dataset.hit} din punch hue hain.\nPoori leave CANCEL hogi (balance poora wapas) — bache hue asli chutti waale din chahiye to sahi dates ki nayi leave laga dena.\n\nCancel karein?`
       : 'Employee us din aa gaya tha — leave cancel karke balance wapas karein?';
     if(!(await nxConfirm(msg, 'Cancel Leave'))) return;
-    await sb.from('leaves').update({ status: 'CANCELLED' }).eq('id', el.dataset.id);
+    await sb.from('leaves').update({ status: 'CANCELLED', ...nxDecidedNow() }).eq('id', el.dataset.id);
     notify('Leave cancelled — balance restored', 'success');
     loadLeaves();
     return;
@@ -11187,7 +11187,7 @@ async function addDayOverride(){
       const single = (lv||[]).filter(L => L.from_date === L.to_date);
       const multi = (lv||[]).filter(L => L.from_date !== L.to_date);
       if(single.length){
-        await sb.from('leaves').update({ status: 'CANCELLED', admin_note: 'Auto-refunded — ' + dt + ' declared OFF' }).in('id', single.map(L=>L.id));
+        await sb.from('leaves').update({ status: 'CANCELLED', admin_note: 'Auto-refunded — ' + dt + ' declared OFF', ...nxDecidedNow() }).in('id', single.map(L=>L.id));
         notify(`✓ ${single.length} leave(s) refunded (us din OFF ho gaya) — balance wapas mil gaya`, 'success');
       }
       if(multi.length){
@@ -11796,6 +11796,10 @@ async function checkLeaveConflicts(){
       </div>`).join('');
   }catch(e){}
 }
+/* Leave par koi bhi faisla — approve, reject, cancel — ab kaun aur kab dono likhta hai.
+   Pehle sirf `status` badalta tha, isliye kisi bhi leave ka approver pata nahi chalta tha.
+   Wahi do column naam jo ess_att_requests me pehle se hain, taaki dono ek jaise padhe jaayein. */
+function nxDecidedNow(){ return { approved_by: ME_EMAIL, decided_at: new Date().toISOString() }; }
 async function loadLeaves(){
   checkLeaveConflicts();
   try{
@@ -11815,7 +11819,12 @@ async function loadLeaves(){
         <td>${fmtDate(L.from_date)}</td><td>${fmtDate(L.to_date)}</td>
         <td class="money">${L.days}</td>
         <td>${esc(L.reason || '—')}</td>
-        <td><span class="chip ${L.status === 'APPROVED' ? 'chip-ok' : (L.status === 'PENDING' ? 'chip-warn' : 'chip-gray')}">${esc(L.status)}</span></td>
+        <td><span class="chip ${L.status === 'APPROVED' ? 'chip-ok' : (L.status === 'PENDING' ? 'chip-warn' : 'chip-gray')}">${esc(L.status)}</span>${
+          L.approved_by
+            ? `<div class="text-[10px]" style="color:var(--muted)" title="${esc(L.decided_at || '')}">${esc(String(L.approved_by).split('@')[0])}${L.decided_at ? ' · ' + fmtDate(String(L.decided_at).slice(0,10)) : ''}</div>`
+            : (L.status === 'PENDING' ? ''
+               : `<div class="text-[10px]" style="color:var(--muted)" title="Is faisle ka record nahi hai — approver Nov 2026 se pehle darj hi nahi hota tha">—</div>`)
+        }</td>
         <td>${L.status === 'PENDING' ? `<button class="btn btn-ghost btn-sm" data-act="appr-leave" data-id="${L.id}"><i class="fa-solid fa-check"></i></button> <button class="btn btn-danger btn-sm" data-act="cancel-leave" data-id="${L.id}"><i class="fa-solid fa-xmark"></i></button>`
           : (ok ? `<button class="btn btn-danger btn-sm" data-act="cancel-leave" data-id="${L.id}"><i class="fa-solid fa-ban"></i></button>` : '')}</td>
       </tr>`;
@@ -11832,11 +11841,18 @@ async function showLeaveBalance(code, boxId, forMonth){
     .gte('from_date', ym + '-01').lte('from_date', _lastDay(ym));
   let taken = 0;
   (data || []).forEach(L => { if(PAID_LEAVES.includes(L.leave_type)) taken += Number(L.days) || 0; });
-  const paid = Math.min(taken, 1), unpaid = +(taken - paid).toFixed(1);
+  // Paid leave sirf STAFF ko milti hai \u2014 worker ki leave approved ho tab bhi unpaid hai.
+  // Wahi niyam jo payroll me MAX_PAID_LEAVE par lagta hai; dono ek jaise rehne chahiye.
+  const _isStaff = String((PROFILES[code] || {}).category || 'WORKER').toUpperCase() === 'STAFF';
+  const cap = _isStaff ? 1 : 0;
+  const paid = Math.min(taken, cap), unpaid = +(taken - paid).toFixed(1);
   const mName = fmtDate(ym + '-01').slice(3);
   $(BOX).innerHTML = `<b>${mName}:</b> ${taken} din leave li \u2014 <b style="color:var(--ok)">${paid} paid</b>`
     + (unpaid > 0 ? `, <b style="color:var(--bad)">${unpaid} unpaid (LOP)</b>` : '')
-    + `<div style="margin-top:4px;color:var(--muted)">Niyam: har mahine sirf <b>1 leave paid</b>. Usse zyada approved leave bhi unpaid hi rehti hai. Koi balance ya carry-forward nahi \u2014 bachi hui leave agle mahine nahi jaati.</div>`;
+    + `<div style="margin-top:4px;color:var(--muted)">Niyam: ` + (_isStaff
+        ? `staff ko har mahine <b>1 leave paid</b>. Usse zyada approved leave bhi unpaid hi rehti hai.`
+        : `<b>worker ki leave paid nahi hoti</b> \u2014 approved ho tab bhi unpaid (LOP).`)
+    + ` Koi balance ya carry-forward nahi \u2014 bachi hui leave agle mahine nahi jaati.</div>`;
   $(BOX).classList.remove('hidden');
 }
 $('lvEmp').addEventListener('change', () => showLeaveBalance($('lvEmp').value));
@@ -11851,7 +11867,10 @@ $('lvSaveBtn').addEventListener('click', async () => {
   try{
     const { error } = await sb.from('leaves').insert([{
       employee_code: code, leave_type: $('lvType').value,
-      from_date: from, to_date: half ? from : to, days, reason: $('lvReason').value, status: 'APPROVED'
+      from_date: from, to_date: half ? from : to, days, reason: $('lvReason').value, status: 'APPROVED',
+      // HR yahan se jo leave daalta hai wo seedhe APPROVED jaati hai — yaani ye bhi ek
+      // faisla hai, isliye iska bhi kaun/kab wahi tarah se darj hota hai.
+      ...nxDecidedNow()
     }]);
     if(error) throw error;
     notify(`Leave approved (${days} days)`, 'success');
@@ -11899,7 +11918,8 @@ $('ulSaveBtn').addEventListener('click', async () => {
     const { error } = await sb.from('leaves').insert([{
       employee_code: code, leave_type: $('ulType').value,
       from_date: day, to_date: day, days,
-      reason: 'URGENT' + (reason ? ' \u2014 ' + reason : ''), status: 'APPROVED'
+      reason: 'URGENT' + (reason ? ' \u2014 ' + reason : ''), status: 'APPROVED',
+      ...nxDecidedNow()
     }]);
     if(error) throw error;
     const nm = (EMP.find(e => e['Employee code'] === code) || {}).Name || code;
