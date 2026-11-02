@@ -139,6 +139,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 @keyframes rsIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .d-H{background:#bfdbfe;color:#1e40af}
 .d-LV{background:#e9d5ff;color:#6b21a8}
+/* IN hua par OUT nahi — payroll is din ko chhod deta hai, isliye grey (na hara, na laal) */
+.d-MO{background:#e2e8f0;color:#475569}
 .day{position:relative}
 .gflag{position:absolute;top:-3px;right:-3px;font-size:8px;font-weight:800;background:#7c3aed;color:#fff;border-radius:50%;width:12px;height:12px;line-height:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.25)}
 .d-none{color:#cbd5e1}
@@ -305,7 +307,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <div class="cal" id="calGrid"></div>
         <div class="legend">
           <span class="chip d-P">Present</span><span class="chip d-L">Late</span><span class="chip d-A">Absent</span>
-          <span class="chip d-WO">Week Off</span><span class="chip d-H">Holiday</span><span class="chip d-LV">Leave</span><span class="chip d-WFH">WFH</span>
+          <span class="chip d-WO">Week Off</span><span class="chip d-H">Holiday</span><span class="chip d-LV">Leave</span><span class="chip d-WFH">WFH</span><span class="chip d-MO">OUT missing</span>
         </div>
       </div>
       <div class="card">
@@ -3061,7 +3063,12 @@ function renderAttPage(){
     const late = essLate(a);
     return `<div class="row"><span class="k">${fmtDate(a.date)}</span>
       <span><span class="chip ${late ? 'chip-warn' : 'chip-ok'}">IN ${esc((a.in_time||'').substring(0,5))}</span>
-      ${a.out_time ? `<span class="chip chip-gray">OUT ${esc(a.out_time.substring(0,5))}</span>` : ''}
+      ${a.out_time
+        ? `<span class="chip chip-gray">OUT ${esc(a.out_time.substring(0,5))}</span>`
+        : `<span class="chip chip-gray" style="font-style:italic" title="${esc(L(
+            'No OUT punch was recorded. Payroll skips this day — it is not counted as short hours, half day or a late mark.',
+            'OUT punch darj nahi hua. Payroll is din ko chhod deta hai — na kam ghante gine jaate hain, na half day, na late.'
+          ))}">${L('OUT missing', 'OUT nahi hua')}</span>` }
       ${a.total_hours ? `<span class="chip chip-blue">${esc(a.total_hours.substring(0,5))} h</span>` : ''}</span></div>`;
   }).join('') : '<p class="m-0" style="color:var(--muted)">No attendance in the last 35 days.</p>';
   $('attPageInfo').innerText = (ATT_PAGE + 1) + '/' + pages;
@@ -3330,6 +3337,9 @@ function render(){
   loadFeedback();
   loadMyAssets();
   loadMyShifts();          // roster se aane wali shift — entry na ho to card chhupa rehta hai
+  loadMyNotices();         // Special Working/Off din + unauthorised absence. Pehle ye sirf
+                           // Work Pass banne ke baad chalta tha, isliye aam employee ko
+                           // "10 Nov OFF" jaisi soochna kabhi dikhti hi nahi thi.
   // calendar
   CAL_CACHE = {}; CAL_YM = new Date().toISOString().slice(0,7);
   renderCalendar();
@@ -3506,7 +3516,14 @@ async function renderCalendar(){
     const r = attMap[iso];
     let cls = 'd-none', tip = iso;
     const hasG = window._myGateSet && window._myGateSet.has(iso);
-    if(r){ let late = essLate(r); if(hasG) late = false; cls = late ? 'd-L' : 'd-P'; tip += ` | IN ${(r.in_time||'').substring(0,5)}${r.out_time ? ' OUT ' + r.out_time.substring(0,5) : ''}`; if(hasG) tip += ' | Gate Pass approved — late maaf'; }
+    if(r){ let late = essLate(r); if(hasG) late = false;
+      // OUT darj nahi hua aur din guzar chuka hai -> grey. Aaj ka din chhoda hai,
+      // kyunki abhi OUT karna baaki ho sakta hai.
+      const noOut = !r.out_time && iso < today;
+      cls = noOut ? 'd-MO' : (late ? 'd-L' : 'd-P');
+      tip += ` | IN ${(r.in_time||'').substring(0,5)}${r.out_time ? ' OUT ' + r.out_time.substring(0,5) : ''}`;
+      if(noOut) tip += ' | OUT missing — payroll is din ko chhod deta hai';
+      if(hasG) tip += ' | Gate Pass approved — late maaf'; }
     else if(window._myWfhSet && window._myWfhSet.has(iso)){ cls = 'd-WFH'; tip += ' | Work From Home (paid)'; }
     else if(lvSet.has(iso)) cls = 'd-LV';
     else if(ovOff.has(iso)){ cls = 'd-H'; tip += ' | Declared OFF day'; }
