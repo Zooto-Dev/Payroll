@@ -1516,7 +1516,10 @@ body.no-confidential .confidential-col{display:none!important}
       <div style="flex:1"></div>
       <button id="mpCsvBtn" class="btn btn-ghost btn-sm hidden"><i class="fa-solid fa-download"></i> Export CSV</button>
     </div>
-    <p class="text-[11px] mt-2 mb-0" style="color:var(--muted)">Miss Punch = jis row me IN ya OUT dono me se koi <b>ek</b> missing hai. Missing time yahin bhar sakte ho (Manual Attendance permission chahiye). Note: "Aaj" ke liye OUT abhi aana baaki ho sakta hai — isliye default <b>kal (back date)</b> ka dikhta hai.</p>
+    <p class="text-[11px] mt-2 mb-0" style="color:var(--muted)">Miss Punch = jis row me IN ya OUT dono me se koi <b>ek</b> missing hai. Note: "Aaj" ke liye OUT abhi aana baaki ho sakta hai — isliye default <b>kal (back date)</b> ka dikhta hai.</p>
+    <p class="text-[11px] mt-2 mb-0 p-2 rounded-lg" style="background:#fff7ed;border:1px solid #fed7aa;color:#9a3412">
+      <i class="fa-solid fa-lock"></i> Ye screen sirf <b>dekhne</b> ke liye hai — yahan se time bharna band kar diya gaya hai.
+      Correction ek hi jagah se hoti hai: <b>Payroll → Calculate Payroll → "Missing OUT punch"</b>, jahan row approval me jaati hai.</p>
   </div>
   <div class="card" id="mpWrap"><p class="m-0 text-sm" style="color:var(--muted)">Date chun kar Load dabao.</p></div>
   <div class="card">
@@ -2856,7 +2859,26 @@ function isHRAdmin(){ const d = adminRoleOf(ME_EMAIL).dept; return isSuper() || 
 // Absent Today ke actions permission-toggle se control hote hain (department se nahi):
 //  • Mark Present (attendance correction) -> "MANUAL ATTENDANCE" toggle
 //  • Exit -> "Exit & Full-Final" page ka access
-function canMarkAtt(){ const perm = (SETTINGS.adminPerms || {})[ME_EMAIL]; return isSuper() || !perm || myPerm().manualAtt !== false; }
+/* ===================== MANUAL ATTENDANCE BAND HAI =====================
+   Manual attendance ka SIRF EK raasta bacha hai:
+     Payroll → Calculate Payroll → "Missing OUT punch" card
+     (row ess_att_requests me jaati hai, Approvals se approve hone par lagti hai)
+   Employee khud bhi apne portal se "Attendance Fix" maang sakta hai — wahi
+   approval ka raasta hai, isliye wo khula hai.
+
+   Band kiye gaye raaste (6):
+     1. Attendance → "Manual Punch / Fix" modal          (seedha table me likhta tha)
+     2. Missing Punch screen ka inline IN/OUT fix        (seedha table me likhta tha)
+     3. Dashboard → Absent list → "Present laga do"      (nx_bulk_att)
+     4. Attendance → "Bulk Upload" (CSV se 300-300 rows) (nx_bulk_att)
+     5. nx_bulk_att                                      (server par band)
+     6. Supervisor ka attendance marking                 (server par band)
+   Server par bhi band hai — sirf UI chhupana kaafi nahi, kyunki app anon key
+   se seedha table me likh sakta hai.
+   ===================================================================== */
+const MANUAL_ATT_OFF = true;
+const MANUAL_ATT_MSG = 'Manual attendance band hai. Correction sirf Payroll → Calculate Payroll → "Missing OUT punch" se bhejein — approval ke baad hi lagegi.';
+function canMarkAtt(){ if(MANUAL_ATT_OFF) return false; const perm = (SETTINGS.adminPerms || {})[ME_EMAIL]; return isSuper() || !perm || myPerm().manualAtt !== false; }
 function canExitEmp(){ const perm = (SETTINGS.adminPerms || {})[ME_EMAIL]; return isSuper() || !perm || (myPerm().pages || []).includes('exits'); }
 // Only the CEO can approve salaries: designation "Chief Executive Officer" OR kartik@zootofashion.com
 function isCEO(){
@@ -2869,7 +2891,7 @@ function roleCEO(){ const r = myEmpRole().desig; return isSuper() || r.includes(
 // Accounts Manager only
 function roleAcctMgr(){ const r = myEmpRole(); return isSuper() || r.dept.includes('ACCOUNT') || canSeeConfidential(); }
 function canFinalize(){ return isSuper() || isAdminRole() || !((SETTINGS.adminPerms || {})[ME_EMAIL]); }
-function canManualAtt(){ return isSuper() || isAdminRole() || !((SETTINGS.adminPerms || {})[ME_EMAIL]); }
+function canManualAtt(){ if(MANUAL_ATT_OFF) return false; return isSuper() || isAdminRole() || !((SETTINGS.adminPerms || {})[ME_EMAIL]); }
 function applyPerms(){
   document.body.classList.toggle('not-super', !isSuper());   // export buttons are super-admin only
   const allowed = allowedPages();
@@ -2881,6 +2903,9 @@ function applyPerms(){
   // manual attendance correction: hide button if this admin isn't allowed
   const mb = document.getElementById('attFixBtn');
   if(mb) mb.classList.toggle('hidden', !canManualAtt());
+  // Manual attendance band hone par Bulk Upload ka button bhi gayab
+  const bb = document.getElementById('attBulkBtn');
+  if(bb) bb.classList.toggle('hidden', MANUAL_ATT_OFF);
   // Urgent Leave card sirf HR ko
   try{ ulApplyVisibility(); }catch(e){}
 }
@@ -3110,6 +3135,7 @@ async function exitFromAbsent(code, name){
   }catch(err){ notify('Failed: '+(err.message||err), 'error'); }
 }
 async function markPresentNow(code, name){
+  if(MANUAL_ATT_OFF) return notify(MANUAL_ATT_MSG, 'error');
   if(!canMarkAtt()) return notify('Attendance correction ke liye "Manual Attendance" permission chahiye', 'error');
   const t = (($('mkIn_'+code)||{}).value || '').trim();
   if(!t) return notify('Pehle IN time daalo', 'error');
@@ -4688,15 +4714,14 @@ $('aeSaveBtn').addEventListener('click', async () => {
     if(window._convertingWorkPass && window._convertingWorkPass.id){
       try{
         const wpc = window._convertingWorkPass;
-        const rows = (wpc.attRows||[]).filter(a => a.in_time).map(a => ({
-          employee_code: code, Name: name, date: a.date,
-          in_time: String(a.in_time).length === 5 ? a.in_time + ':00' : a.in_time,
-          out_time: a.out_time ? (String(a.out_time).length === 5 ? a.out_time + ':00' : a.out_time) : '',
-          is_late: String(a.in_time).slice(0,5) > '09:10'
-        }));
-        if(rows.length){ const { error: eb } = await sb.rpc('nx_bulk_att', { p_rows: rows }); if(eb) notify('Attendance sync issue: ' + eb.message, 'error'); }
+        // Trial ke din server khud work_pass_att se padhta hai — time client se
+        // nahi bhejte, isliye is raaste se manual time daalna mumkin nahi.
+        const { data: wsync, error: eb } = await sb.rpc('nx_wp_convert_att',
+          { p_pass_id: Number(wpc.id), p_code: code, p_name: name });
+        if(eb) notify('Attendance sync issue: ' + eb.message, 'error');
+        else if(wsync && wsync.error) notify('Attendance sync issue: ' + wsync.error, 'error');
         await sb.rpc('wp_decide', { p_id: Number(wpc.id), p_approve: true, p_emp_code: code });
-        notify(`✓ Work pass converted — ${rows.length} din ki trial attendance sync ho gayi`, 'success');
+        notify(`✓ Work pass converted — ${(wsync && wsync.inserted) || 0} din ki trial attendance sync ho gayi`, 'success');
       }catch(e){ notify('Work pass convert issue: ' + (e.message || e), 'error'); }
       window._convertingWorkPass = null;
       try{ loadTrialPage(); }catch(e){}
@@ -7216,6 +7241,7 @@ function mpLateCalc(code, t, dateStr){
   return t > cutoff;
 }
 async function mpFix(id, kind){
+  if(MANUAL_ATT_OFF) return notify(MANUAL_ATT_MSG, 'error');
   if(!canMarkAtt()) return notify('"Manual Attendance" permission chahiye', 'error');
   const t = (($(kind==='in'?('mpIn_'+id):('mpOut_'+id))||{}).value||'').trim();
   if(!t) return notify('Pehle time daalo', 'error');
@@ -7592,6 +7618,7 @@ $('faOrphanBtn').addEventListener('click', async () => {
 });
 
 $('attBulkBtn').addEventListener('click', () => {
+  if(MANUAL_ATT_OFF) return notify(MANUAL_ATT_MSG, 'error');
   const t = todayISO();
   if(!$('bulkTo').value) $('bulkTo').value = t;
   if(!$('bulkFrom').value){ const d = new Date(); d.setDate(d.getDate() - 9); $('bulkFrom').value = d.toISOString().slice(0,10); }
@@ -7648,6 +7675,7 @@ function parseCSV(text){
   return rows;
 }
 $('bulkUploadBtn').addEventListener('click', async () => {
+  if(MANUAL_ATT_OFF) return notify(MANUAL_ATT_MSG, 'error');
   const f = $('bulkFile').files && $('bulkFile').files[0];
   if(!f) return notify('Pehle filled CSV file chuno', 'error');
   const overwrite = $('bulkOverwrite').checked;
@@ -9867,18 +9895,15 @@ document.body.addEventListener('click', async e => {
       // 2) profile: WORKER + General shift
       const gen = (SHIFTS||[]).find(x => String(x.start_time).slice(0,5) === '09:00' && String(x.end_time).slice(0,5) === '17:30');
       await sb.from('hr_profiles').insert([{ employee_code: code, category: 'WORKER', shift_id: gen ? gen.id : null }]);
-      // 3) trial attendance -> payroll attendance (worker rule 09:10 se late)
-      const { data: att } = await sb.rpc('wp_att', { p_id: id });
-      const rows = (att||[]).filter(a => a.in_time).map(a => ({
-        employee_code: code, Name: String(el.dataset.name).toUpperCase(), date: a.date,
-        in_time: String(a.in_time).length === 5 ? a.in_time + ':00' : a.in_time,
-        out_time: a.out_time ? (String(a.out_time).length === 5 ? a.out_time + ':00' : a.out_time) : '',
-        is_late: String(a.in_time).slice(0,5) > '09:10'
-      }));
-      if(rows.length){ const { error: e3 } = await sb.rpc('nx_bulk_att', { p_rows: rows }); if(e3) notify('Attendance sync issue: ' + e3.message, 'error'); }
+      // 3) trial attendance -> payroll attendance. Server khud work_pass_att se
+      //    padhta hai (time client se nahi jaata), late rule bhi wahin lagta hai.
+      const { data: wsync, error: e3 } = await sb.rpc('nx_wp_convert_att',
+        { p_pass_id: Number(id), p_code: code, p_name: String(el.dataset.name).toUpperCase() });
+      if(e3) notify('Attendance sync issue: ' + e3.message, 'error');
+      else if(wsync && wsync.error) notify('Attendance sync issue: ' + wsync.error, 'error');
       // 4) pass CONVERTED
       await sb.rpc('wp_decide', { p_id: Number(id), p_approve: true, p_emp_code: code });
-      notify(`✓ ${el.dataset.name} ab Employee hai (${code}) — ${rows.length} din ki trial attendance sync ho gayi`, 'success');
+      notify(`✓ ${el.dataset.name} ab Employee hai (${code}) — ${(wsync && wsync.inserted) || 0} din ki trial attendance sync ho gayi`, 'success');
       await loadEmployees(); loadTrialPage();
     }catch(err){ notify('Failed: ' + (err.message||err), 'error'); }
     return;
@@ -12047,6 +12072,7 @@ $('fxFillRange').addEventListener('click', async () => {
 });
 
 $('fxSaveBtn').addEventListener('click', async () => {
+  if(MANUAL_ATT_OFF) return notify(MANUAL_ATT_MSG, 'error');
   const code = $('fxEmp').value;
   if(!code) return notify('Select an employee', 'error');
   const rows = Array.from(document.querySelectorAll('#fxRows [data-row]')).map(r => ({

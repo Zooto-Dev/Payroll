@@ -1716,11 +1716,9 @@ function renderTeamMonth(mon){
       else if(sun){ cell = '<span style="color:#cbd5e1">\u00b7</span>'; cls = 'tm-wk'; }
       else {
         nA++;
-        if(dt === today){
-          cell = `<span style="font-weight:700;color:#b91c1c">A</span> <button onclick="supMarkAsk('${esc(code)}','${esc(emp.name).replace(/'/g,"\\'")}','${dt}')" style="border:none;background:none;color:var(--brand);cursor:pointer;padding:0" title="Present mark karo (HR approval)">\u270f\ufe0f</button>`;
-        } else {
-          cell = '<span style="font-weight:700;color:#b91c1c">A</span>';
-        }
+        // Supervisor ka manual attendance marking band hai \u2014 attendance sirf
+        // gate ke punch se banti hai. Correction HR, payroll ke waqt karti hai.
+        cell = '<span style="font-weight:700;color:#b91c1c">A</span>';
         bg = '#fef2f2';
       }
       cells += `<td class="${cls}"${bg ? ` style="background:${bg}"` : ''}>${cell}</td>`;
@@ -1734,6 +1732,10 @@ function renderTeamMonth(mon){
   box.innerHTML = h;
 }
 function supMarkAsk(code, name, dt){
+  // Band hai — niche ka purana flow jaan-boojh kar chhoda hai taaki koi
+  // bacha hua button ya purana cached page bhi attendance na bana sake.
+  return notify('Supervisor manual attendance band hai. Attendance sirf gate ke punch se banti hai — correction ke liye HR se kahein.');
+  /* eslint-disable no-unreachable */
   const fmtD = (() => { try{ return new Date(dt+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'}); }catch(e){ return dt; } })();
   // simple confirm popup — YES/NO
   let ov = document.getElementById('supAskOv');
