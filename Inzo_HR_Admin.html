@@ -628,7 +628,8 @@ body.no-confidential .confidential-col{display:none!important}
     <div class="toolbar">
       <div class="fld" style="width:160px"><label class="lbl">Month</label><input type="month" id="attMonth" class="inp"></div>
       <button id="attLoadBtn" class="btn btn-primary"><i class="fa-solid fa-rotate"></i> Load Register</button>
-      <button id="attCsvBtn" class="btn btn-ghost"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+      <button id="attCsvBtn" class="btn btn-ghost"><i class="fa-solid fa-file-csv"></i> Export CSV <span class="text-[10px]" style="opacity:.7">(summary)</span></button>
+      <button id="attGridCsvBtn" class="btn btn-ghost" style="border-color:#bfdbfe;color:#1d4ed8"><i class="fa-solid fa-table-list"></i> Register CSV <span class="text-[10px]" style="opacity:.7">(din-wise P/A)</span></button>
       <button id="attFixBtn" class="btn btn-ghost"><i class="fa-solid fa-user-clock"></i> Manual Punch / Fix</button>
       <button id="attBulkBtn" class="btn btn-ghost" style="border-color:#bbf7d0;color:#16a34a"><i class="fa-solid fa-file-arrow-up"></i> Bulk Upload</button>
       <button id="faceAuditBtn" class="btn btn-ghost" style="border-color:#e6c4c0;color:var(--bad)"><i class="fa-solid fa-face-viewfinder"></i> Face Mismatch Audit</button>
@@ -7743,6 +7744,10 @@ $('bulkUploadBtn').addEventListener('click', async () => {
   finally{ btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Upload & Apply Attendance'; }
 });
 let REG_CSV = [];
+/* Din-wise register (muster roll) ka download. REG_CSV me sirf ginti jaati hai;
+   ye wahi P / L / A / WO / H / LV / WFH / SL / HD nishaan rakhta hai jo screen
+   par register me dikhte hain — dono ek hi hisaab se bante hain. */
+let REG_GRID = [], REG_DAYS = [];
 
 async function loadRegister(){
   const ym = $('attMonth').value; if(!ym) return notify('Please select a month', 'error');
@@ -7768,12 +7773,14 @@ async function loadRegister(){
     }catch(e){}
     const emps = activeEmps();
     REG_CSV = [];
+    REG_GRID = []; REG_DAYS = dayMeta;
     let head = '<tr><th class="name-cell">Employee</th>' + dayMeta.map(x => `<th>${x.d}</th>`).join('') + '<th>P</th><th>L</th><th>A</th></tr>';
     let body = emps.map(e => {
       const code = e['Employee code'];
       const sh = { name: nxShiftLabel(code, dayMeta.map(x => x.iso)) };
       const lvSet = lvMap[code] || new Set();
       let p = 0, l = 0, a = 0, lv = 0, wfh = 0;
+      const marks = [];
       const cells = dayMeta.map(x => {
         const r = (attMap[code] || {})[x.iso];
         const future = x.iso > todayISO();
@@ -7792,6 +7799,7 @@ async function loadRegister(){
         else if(x.isWO){ cls = 'c-WO'; txt = 'WO'; }
         else if(future){ txt = ''; }
         else { cls = 'c-A'; txt = 'A'; a++; }
+        marks.push(txt);
         return `<td class="${cls}" title="${x.iso}${r ? ' | IN ' + esc(r.in_time||'') + (r.out_time ? ' OUT ' + esc(r.out_time) : '') : ''}">${txt}</td>`;
       }).join('');
       // LOP payroll se (agar calculate hua ho), warna absent din
@@ -7800,6 +7808,9 @@ async function loadRegister(){
       const woEarned = _pr && _pr.earnedWO != null ? _pr.earnedWO : '';
       const hEarned  = _pr && _pr.earnedH  != null ? _pr.earnedH  : '';
       REG_CSV.push([e.Name, code, e.DEPARTMENT||'', (PROFILES[code]||{}).section||'', sh.name, p, l, wfh, lv, a, woEarned, hEarned, lopVal]);
+      REG_GRID.push({ name: e.Name, code, dept: e.DEPARTMENT || '',
+                      section: (PROFILES[code] || {}).section || '', shift: sh.name,
+                      marks, p, l, lv, a });
       return `<tr><td class="name-cell">${esc(e.Name)}<br><span class="text-[10px] font-normal" style="color:var(--muted)">${esc(code)} • ${esc(sh.name)}</span></td>${cells}
         <td class="c-P">${p}</td><td class="c-L">${l}</td><td class="c-A">${a}</td></tr>`;
     }).join('');
@@ -7815,6 +7826,39 @@ $('attCsvBtn').addEventListener('click', () => {
   const a = document.createElement('a');
   a.href = encodeURI(csv); a.download = `Attendance_Summary_${$('attMonth').value}.csv`;
   document.body.appendChild(a); a.click(); a.remove();
+});
+
+/* Din-wise register (muster roll) — bilkul wahi jo screen par dikhta hai:
+   har bande ki ek line, aur mahine ke har din ka nishaan.
+   P = present · L = late (present hi hai) · A = absent · WO = week off
+   H = holiday · LV = approved leave · WFH = work from home
+   SL = short leave (aadha din ka gate pass) · HD = half day gate pass
+   Khaali cell = aane wala din (abhi guzra nahi). */
+$('attGridCsvBtn').addEventListener('click', () => {
+  if(!REG_GRID.length) return notify('Pehle Load Register dabao', 'error');
+  const ym = $('attMonth').value;
+  const esc2 = v => { const str = String(v==null?'':v); return /[",\n]/.test(str) ? '"'+str.replace(/"/g,'""')+'"' : str; };
+  const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const lead = ['Name','Employee Code','Department','Section','Shift'];
+
+  const lines = [];
+  lines.push([`Attendance Register — ${ym}`].map(esc2).join(','));
+  lines.push(['P = Present, L = Late (present), A = Absent, WO = Week Off, H = Holiday, LV = Leave, WFH = Work From Home, SL = Short Leave, HD = Half Day. Khaali = din abhi aaya nahi.'].map(esc2).join(','));
+  lines.push('');
+  // do header lines: pehle din ka naam (Mon/Tue…), phir tareekh ka number
+  lines.push([...lead.map(() => ''), ...REG_DAYS.map(x => DOW[new Date(x.iso + 'T12:00:00').getDay()]), '', '', '', ''].map(esc2).join(','));
+  lines.push([...lead, ...REG_DAYS.map(x => x.d), 'Present', 'Late', 'Leave', 'Absent'].map(esc2).join(','));
+  REG_GRID.forEach(r => {
+    lines.push([r.name, r.code, r.dept, r.section, r.shift, ...r.marks, r.p, r.l, r.lv, r.a].map(esc2).join(','));
+  });
+
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `Attendance_Register_${ym}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  notify(`Register download ho gaya — ${REG_GRID.length} log × ${REG_DAYS.length} din`, 'success');
 });
 
 /* ---------------- Line deployment ---------------- */
