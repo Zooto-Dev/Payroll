@@ -305,6 +305,12 @@ body.no-confidential .confidential-col{display:none!important}
 .paper table.ann th,.paper table.ann td{border:1px solid #cbd5e1;padding:6px 10px;text-align:left}
 .paper table.ann th{background:#f0ede6;font-weight:600}
 .paper [contenteditable]:focus{outline:2px dashed var(--brand);outline-offset:2px}
+/* F&F statement me rows zyada hain (arrear, PF arrear, ESI… zarurat par aati hain),
+   isliye sirf is page ki table thodi kasi — baaki letters jaise the waise hi */
+.paper.fnf{line-height:1.45}
+.paper.fnf table.ann th,.paper.fnf table.ann td{padding:3px 9px;font-size:11px}
+.paper.fnf table.ann{margin:6px 0}
+.paper.fnf table{line-height:1.35}
 /* compact = jis letter me annexure table hai, wo ek hi A4 page me samaye */
 .paper.compact{font-size:11.5px;line-height:1.5;padding:14mm 15mm}
 .paper.compact p{margin:0 0 7px}
@@ -13215,6 +13221,15 @@ async function openFnF(id){
       <div><label class="lbl">Advance Recovery (₹) (open bal: ${fmtINR(advBal)})</label><input id="fnfAdv" type="number" class="inp fnf-in" value="${fnf.adv ?? advBal}"></div>
       <div><label class="lbl">Notice Shortfall Recovery Days</label><input id="fnfNotice" type="number" class="inp fnf-in" value="${fnf.notice ?? 0}"></div>
       <div><label class="lbl">Other Recovery (₹)</label><input id="fnfOther" type="number" class="inp fnf-in" value="${fnf.other ?? 0}"></div>
+      <div><label class="lbl">Salary / Increment Arrear (₹) <span class="text-[10px]" style="color:var(--muted)">(pichhle mahine ka bakaya — DENA hai)</span></label>
+        <input id="fnfArrear" type="number" class="inp fnf-in" value="${fnf.arrear ?? (Number((p.salary||{}).pendingArrear) || 0)}"></div>
+      <div><label class="lbl">PF Arrear — employee hissa (₹) <span class="text-[10px]" style="color:var(--muted)">(jo pichhle mahine KATA NAHI tha)</span></label>
+        <input id="fnfPfArr" type="number" class="inp fnf-in" value="${fnf.pfArr ?? 0}"></div>
+      <div class="lg:col-span-2 text-[10px] p-2 rounded" style="background:#fff7ed;border:1px solid #fed7aa;color:#9a3412">
+        <i class="fa-solid fa-circle-info"></i> <b>Arrear par PF:</b> salary arrear dete waqt uska PF bhi "PF Arrear" me daalein.
+        Apne aap nahi nikalta — kyunki arrear jis mahine ka hai, us waqt ka PF ceiling aaj se alag ho sakta hai
+        (17 Sep 2026 se ceiling ₹15,000 se ₹25,000 hui hai). Employer ka barabar hissa apne aap jud jayega.
+      </div>
     </div>
     <div class="flex items-center justify-between mt-4 p-3 rounded-xl" style="background:#faf8f4;border:1px solid var(--line)">
       <div><span class="font-semibold">Net Settlement <span class="text-[10px]" style="color:var(--muted)">(per-day = gross/30 = ${fmtINR(perDay)})</span></span>
@@ -13233,15 +13248,21 @@ async function openFnF(id){
 }
 function fnfVals(){
   return { days: Number($('fnfDays').value)||0, el: Number($('fnfEL').value)||0, bonus: Number($('fnfBonus').value)||0,
-    grat: Number($('fnfGrat').value)||0, adv: Number($('fnfAdv').value)||0, notice: Number($('fnfNotice').value)||0, other: Number($('fnfOther').value)||0 };
+    grat: Number($('fnfGrat').value)||0, adv: Number($('fnfAdv').value)||0, notice: Number($('fnfNotice').value)||0, other: Number($('fnfOther').value)||0,
+    arrear: Number(($('fnfArrear')||{}).value)||0, pfArr: Number(($('fnfPfArr')||{}).value)||0 };
 }
 // Settlement ka poora hisaab — statutory katauti samet
 function fnfCalc(perDay, code){
   const v = fnfVals();
   const salary = v.days * perDay;                  // sirf isi par PF/ESI/LWF lagta hai
   const st = fnfStatutory(code, salary);
-  const earn = salary + v.el * perDay + v.bonus + v.grat;
-  const ded  = v.adv + v.notice * perDay + v.other + st.pf + st.esi + st.lwf;
+  // PF arrear par employer ka barabar hissa bhi banta hai — wo challan me jaata
+  // hai, employee ke net se nahi katta (regular PF ki tarah).
+  st.pfArrEr = v.pfArr || 0;
+  st.eeTotal += (v.pfArr || 0);
+  st.erTotal += st.pfArrEr;
+  const earn = salary + v.el * perDay + v.bonus + v.grat + v.arrear;
+  const ded  = v.adv + v.notice * perDay + v.other + st.pf + st.esi + st.lwf + v.pfArr;
   return { v, salary, st, earn, ded, net: Math.round(earn - ded) };
 }
 function fnfNet(perDay, code){
@@ -13258,6 +13279,7 @@ function fnfRecalc(){
       + `<b>Employee (net se kata):</b> PF ${fmtINR(st.pf)}${st.pfOn ? '' : ' (off)'}`
       + ` · ESI ${fmtINR(st.esi)}${st.esiOn ? '' : ' (N/A)'} · LWF ${fmtINR(st.lwf)}`
       + ` = ${fmtINR(st.eeTotal)}<br>`
+      + (st.pfArrEr ? `<b>PF arrear:</b> employee ${fmtINR(c.v.pfArr)} + employer ${fmtINR(st.pfArrEr)}<br>` : '')
       + `<b>Employer (challan, net se nahi katta):</b> PF ${fmtINR(st.erPF)}`
       + ` · Admin+EDLI ${fmtINR(st.erAdmin)} · ESI ${fmtINR(st.erESI)} · LWF ${fmtINR(st.erLWF)}`
       + ` = ${fmtINR(st.erTotal)}<br>`
@@ -13276,6 +13298,7 @@ async function fnfPersist(settle){
     net: c.net, perDay,
     pf: c.st.pf, esi: c.st.esi, lwf: c.st.lwf,
     erPF: c.st.erPF, erAdmin: c.st.erAdmin, erESI: c.st.erESI, erLWF: c.st.erLWF,
+    pfArrEr: c.st.pfArrEr,
     companyCost: c.net + c.st.eeTotal + c.st.erTotal }) };
   if(settle) upd.status = 'SETTLED';
   const { error } = await sb.from('exits').update(upd).eq('id', x.id);
@@ -13321,16 +13344,18 @@ function fnfSheet(){
       <p style="margin:0;font-size:12px"><b>${esc(name)}</b><br><span style="font-size:10.5px;color:#64748b">Signature &amp; Date</span></p>
     </div>`;
 
+  // padding 6px se 4px — settlement me rows zyada ho sakti hain (gratuity, advance,
+  // notice, arrear, PF arrear…) aur statement ek hi page me rehna chahiye
   const row = (l, sub, amt, neg) => (Math.round(amt) !== 0)
-    ? `<tr><td style="padding:6px 10px;border:1px solid #cbd5e1">${l}${sub ? ` <span style="color:#94a3b8;font-size:10px">${sub}</span>` : ''}</td><td style="padding:6px 10px;border:1px solid #cbd5e1;text-align:right;${neg ? 'color:#b91c1c' : ''}">${neg ? '− ' : ''}${Math.round(amt).toLocaleString('en-IN')}</td></tr>`
+    ? `<tr><td style="padding:4px 10px;border:1px solid #cbd5e1">${l}${sub ? ` <span style="color:#94a3b8;font-size:10px">${sub}</span>` : ''}</td><td style="padding:4px 10px;border:1px solid #cbd5e1;text-align:right;${neg ? 'color:#b91c1c' : ''}">${neg ? '− ' : ''}${Math.round(amt).toLocaleString('en-IN')}</td></tr>`
     : '';
-  const grossEarn = Math.round(v.days*perDay + v.el*perDay + v.bonus + v.grat);
-  const totalRec  = Math.round(v.adv + v.notice*perDay + v.other + _st.pf + _st.esi + _st.lwf);
+  const grossEarn = Math.round(v.days*perDay + v.el*perDay + v.bonus + v.grat + v.arrear);
+  const totalRec  = Math.round(v.adv + v.notice*perDay + v.other + _st.pf + _st.esi + _st.lwf + v.pfArr);
   const anyEarn = (v.days*perDay + v.el*perDay + v.bonus + v.grat) > 0;
-  const anyRec  = (v.adv + v.notice*perDay + v.other + _st.pf + _st.esi + _st.lwf) > 0;
+  const anyRec  = (v.adv + v.notice*perDay + v.other + _st.pf + _st.esi + _st.lwf + v.pfArr) > 0;
 
   /* ============ PAGE 1 — F&F SETTLEMENT STATEMENT ============ */
-  const p1 = `<div class="paper">
+  const p1 = `<div class="paper fnf">
     ${head}
     <h2 style="font-size:15px;text-align:center;text-decoration:underline;margin:14px 0 6px">FULL &amp; FINAL SETTLEMENT STATEMENT</h2>
     ${refbar(ref)}
@@ -13344,6 +13369,7 @@ function fnfSheet(){
     <table class="ann" style="margin-top:14px"><thead><tr><th colspan="2" style="background:#e8f0ff">A. EARNINGS PAYABLE</th></tr></thead><tbody>
       ${row('Pending / Unpaid Salary', v.days + ' days × ₹' + Math.round(perDay), v.days*perDay)}
       ${row('Earned Leave Encashment', v.el + ' days × ₹' + Math.round(perDay), v.el*perDay)}
+      ${row('Salary / Increment Arrear', 'earlier period', v.arrear)}
       ${row('Bonus / Incentive', '', v.bonus)}
       ${row('Gratuity', years >= 5 ? '15/26 × Basic × yrs' : '', v.grat)}
       ${!anyEarn ? '<tr><td style="padding:6px 10px;border:1px solid #cbd5e1;color:#94a3b8" colspan="2">No earnings component</td></tr>' : ''}
@@ -13357,17 +13383,18 @@ function fnfSheet(){
       ${_st.pf  ? row('Provident Fund (employee)', '12% of ₹' + _st.pfBase.toLocaleString('en-IN') + ' EPF wages', _st.pf, true) : ''}
       ${_st.esi ? row('ESI (employee)', String(S.esiPct) + '% of pending salary', _st.esi, true) : ''}
       ${_st.lwf ? row('Labour Welfare Fund', '', _st.lwf, true) : ''}
+      ${row('Provident Fund arrear (employee)', 'not deducted in an earlier period', v.pfArr, true)}
       ${!anyRec ? '<tr><td style="padding:6px 10px;border:1px solid #cbd5e1;color:#94a3b8" colspan="2">No recoveries</td></tr>' : ''}
       <tr style="font-weight:700;background:#faf8f4"><td style="padding:6px 10px;border:1px solid #cbd5e1">Total Recoveries (B)</td><td style="padding:6px 10px;border:1px solid #cbd5e1;text-align:right;color:#b91c1c">− ₹ ${totalRec.toLocaleString('en-IN')}</td></tr>
     </tbody></table>
 
     ${(_st.erTotal) ? `<p style="margin:6px 0 0;font-size:9.5px;color:#475569;line-height:1.45">
       <b>Employer's statutory contribution</b> (borne by the Company, not deducted above):
-      EPF ₹${_st.erPF.toLocaleString('en-IN')}${_st.erAdmin ? ' + Admin/EDLI ₹' + _st.erAdmin.toLocaleString('en-IN') : ''}${_st.erESI ? ' + ESI ₹' + _st.erESI.toLocaleString('en-IN') : ''}${_st.erLWF ? ' + LWF ₹' + _st.erLWF.toLocaleString('en-IN') : ''}
+      EPF ₹${_st.erPF.toLocaleString('en-IN')}${_st.pfArrEr ? ' + EPF arrear ₹' + _st.pfArrEr.toLocaleString('en-IN') : ''}${_st.erAdmin ? ' + Admin/EDLI ₹' + _st.erAdmin.toLocaleString('en-IN') : ''}${_st.erESI ? ' + ESI ₹' + _st.erESI.toLocaleString('en-IN') : ''}${_st.erLWF ? ' + LWF ₹' + _st.erLWF.toLocaleString('en-IN') : ''}
       = <b>₹${_st.erTotal.toLocaleString('en-IN')}</b>. &nbsp;Total cost to Company:
       <b>₹${(net + _st.eeTotal + _st.erTotal).toLocaleString('en-IN')}</b>.</p>` : ''}
 
-    <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-radius:10px;background:#0f2f66;color:#fff">
+    <div style="margin-top:9px;display:flex;justify-content:space-between;align-items:center;padding:9px 16px;border-radius:10px;background:#0f2f66;color:#fff">
       <div><div style="font-size:11px;opacity:.85;letter-spacing:.05em">NET SETTLEMENT PAYABLE (A − B)</div><div style="font-size:10px;opacity:.8;margin-top:2px">Rupees ${esc(numToWords(net))} Only</div></div>
       <div style="font-size:24px;font-weight:800">₹ ${net.toLocaleString('en-IN')}</div>
     </div>
