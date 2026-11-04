@@ -13040,6 +13040,106 @@ $('xSaveBtn').addEventListener('click', async () => {
   loadExits();
 });
 
+/* ===================== F&F ka bakaya hisaab =====================
+   Do kami thi:
+   (1) "Pending Salary Days" ka default hamesha 0 tha — system kabhi attendance
+       se ginta hi nahi tha, HR ko haath se bharna padta tha. Aur F&F SETTLED
+       hote hi employee payroll se bahar ho jaata hai (runPayroll ka settledSet),
+       to jo mahina payroll me nahi chala, wo F&F me na aaya to kabhi nahi milega.
+   (2) Settlement par PF / ESI / LWF kuch nahi katta tha — paisa gross par ja
+       raha tha.
+
+   Ab bakaya din khud ginte hain: jis mahine ka payroll FINALIZED ho chuka hai
+   uske baad se LWD tak. Usi me present + paid leave (STAFF 1/mahina, WORKER 0)
+   + week-off + holiday jodte hain, aur poora breakdown dikhate hain taaki HR
+   dekh kar badal sake.
+   =============================================================== */
+async function fnfPendingDays(code, lwd){
+  const S = getSettings();
+  const p = PROFILES[code] || {};
+  const emp = EMP.find(e => e['Employee code'] === code) || {};
+  const isStaff = String(p.category || 'WORKER').toUpperCase() === 'STAFF';
+  const out = { from: null, to: lwd, present: 0, paidLeave: 0, wo: 0, h: 0, lop: 0, days: 0, note: '' };
+  if(!lwd) { out.note = 'LWD nahi hai'; return out; }
+
+  // Bakaya kahan se shuru hota hai: is employee ko AAKHRI kis mahine ka payslip
+  // mila, uske baad se. Pehle maine "aakhri FINALIZED payroll month" liya tha —
+  // wo galat tha: mahina finalize ho chuka ho par ye banda usme na aaya ho, to
+  // uska wo mahina bhi bakaya hai. (PARVEZ KHAN: Sept finalized tha par unka
+  // Sept payslip nahi bana; unka bakaya Sept+Oct dono tha.)
+  let from = emp.DOJ || null;
+  try{
+    const { data: slips } = await sb.from('payslips').select('month').ilike('employee_code', code);
+    const months = (slips || []).map(r => r.month).filter(Boolean).sort();
+    if(months.length){
+      const last = months[months.length - 1];                 // 'YYYY-MM'
+      const d = new Date(last + '-01T00:00:00');
+      d.setMonth(d.getMonth() + 1);                            // agle mahine ki 1 tareekh
+      const nextStart = d.toISOString().slice(0, 10);
+      if(!from || nextStart > from) from = nextStart;
+      out.note = 'Aakhri payslip ' + monthLabel(last) + ' ka — uske baad ka bakaya';
+    } else { out.note = 'Is employee ka koi payslip nahi bana — DOJ se gina hai'; }
+  }catch(e){ out.note = 'payslip record padha nahi ja saka — DOJ se gina hai'; }
+  if(!from) { out.note = 'DOJ nahi hai'; return out; }
+  if(from > lwd){ out.from = from; out.note += ' — is period me koi din nahi'; return out; }
+  out.from = from;
+
+  const [attRes, lvRes] = await Promise.all([
+    sb.from('attendance').select('date').ilike('employee_code', code).gte('date', from).lte('date', lwd),
+    sb.from('leaves').select('from_date, to_date, days, leave_type, status')
+      .ilike('employee_code', code).eq('status','APPROVED').lte('from_date', lwd)
+  ]);
+  const attSet = new Set((attRes.data || []).map(r => r.date));
+  const lvSet = new Set();
+  (lvRes.data || []).forEach(L => {
+    let d = new Date((L.from_date || '') + 'T00:00:00');
+    const end = new Date((L.to_date || L.from_date || '') + 'T00:00:00');
+    if(isNaN(d) || isNaN(end)) return;
+    while(d <= end){ const iso = d.toISOString().slice(0,10); if(iso >= from && iso <= lwd) lvSet.add(iso); d.setDate(d.getDate()+1); }
+  });
+
+  const holSet = new Set((HOLIDAYS || []).filter(h => h.date).map(h => h.date));
+  const ovr = {}; (window.DAY_OVERRIDES || []).forEach(o => { ovr[o.date] = o.otype; });
+  const lvByMonth = {};
+  for(let d = new Date(from + 'T00:00:00'); d.toISOString().slice(0,10) <= lwd; d.setDate(d.getDate()+1)){
+    const iso = d.toISOString().slice(0,10), ym = iso.slice(0,7);
+    const working = ovr[iso] === 'WORKING';
+    const isWO = (d.getDay() === Number(S.weekOff)) && !working;
+    const isH  = (holSet.has(iso) || ovr[iso] === 'OFF') && !working;
+    if(attSet.has(iso)){ if(!isWO && !isH) out.present++; else { if(isH) out.h++; else out.wo++; } continue; }
+    if(isH){ out.h++; continue; }
+    if(isWO){ out.wo++; continue; }
+    if(lvSet.has(iso)){
+      lvByMonth[ym] = (lvByMonth[ym] || 0) + 1;
+      if(isStaff && lvByMonth[ym] <= 1) out.paidLeave++; else out.lop++;
+      continue;
+    }
+    out.lop++;
+  }
+  out.days = out.present + out.paidLeave + out.wo + out.h;
+  return out;
+}
+
+/* Settlement par bhi PF / ESI / LWF katna chahiye — payroll jaise hi.
+   Sirf SALARY wale hisse par (din × per-day). Gratuity PF/ESI se bahar hai,
+   aur bonus ko bhi PF wages nahi maana. */
+function fnfStatutory(code, salaryAmt){
+  const S = getSettings(), p = PROFILES[code] || {};
+  const fullGross = grossOf(code) || 0;
+  const parts = empSalary(code) || {};
+  const basicShare = fullGross > 0 ? (Number(parts.basic) || 0) / fullGross : 0.5;
+  const earnedBasic = Math.round(salaryAmt * basicShare);
+  const pfOn  = p.pf_applicable  !== false;
+  const esiOn = p.esi_applicable !== false && fullGross > 0 && fullGross <= Number(S.esiLimit);
+  const lwfOn = p.lwf_applicable !== false;
+  const pfBase = Number(S.pfCap) > 0 ? Math.min(earnedBasic, Number(S.pfCap)) : earnedBasic;
+  return {
+    pf:  pfOn  && salaryAmt > 0 ? Math.round(pfBase * Number(S.pfPct) / 100) : 0,
+    esi: esiOn && salaryAmt > 0 ? Math.ceil(salaryAmt * Number(S.esiPct) / 100) : 0,
+    lwf: lwfOn && salaryAmt > 0 ? lwfEE(salaryAmt) : 0,
+    earnedBasic, pfBase, pfOn, esiOn, lwfOn
+  };
+}
 const CLEARANCES = ['Asset Clearance','Finance Clearance','IT Clearance','HR Clearance'];
 async function openFnF(id){
   const x = EXITS.find(e => String(e.id) === String(id)); if(!x) return;
@@ -13065,6 +13165,8 @@ async function openFnF(id){
   let years = 0;
   if(emp && emp.DOJ){ const doj = new Date(emp.DOJ); if(!isNaN(doj)) years = (new Date(x.lwd) - doj) / (365.25 * 86400000); }
   const perDay = gross / 30;
+  // bakaya din khud gino — pehle ye hamesha 0 rehta tha
+  const pend = await fnfPendingDays(x.employee_code, x.lwd);
   const fnfBasic = (empSalary(x.employee_code).basic) || Number(p.basic) || Math.round(gross * 0.5);
   const gratuity = years >= 5 ? Math.round((15/26) * fnfBasic * Math.round(years)) : 0;
 
@@ -13084,7 +13186,15 @@ async function openFnF(id){
     </div>
     <h4 class="display font-bold mb-2 mt-4">Full & Final Settlement</h4>
     <div class="grid grid-cols-2 gap-3 text-sm">
-      <div><label class="lbl">Pending Salary Days (last month)</label><input id="fnfDays" type="number" class="inp fnf-in" value="${fnf.days ?? 0}"></div>
+      <div><label class="lbl">Pending Salary Days <span class="text-[10px]" style="color:var(--muted)">(apne aap gina gaya — badal sakte ho)</span></label>
+        <input id="fnfDays" type="number" step="0.5" class="inp fnf-in" value="${fnf.days ?? pend.days}">
+        <div class="text-[10px] mt-1 p-2 rounded" style="background:#eff6ff;color:#1e3a5f;line-height:1.5">
+          ${pend.from ? `<b>${fmtDate(pend.from)}</b> se <b>${fmtDate(pend.to)}</b> tak ka bakaya` : 'Period nikal nahi paye'}
+          ${pend.note ? `<br><span style="color:var(--muted)">${esc(pend.note)}</span>` : ''}
+          <br>Present <b>${pend.present}</b> + Paid leave <b>${pend.paidLeave}</b>
+             + Week-off <b>${pend.wo}</b> + Holiday <b>${pend.h}</b> = <b>${pend.days} din</b>
+          ${pend.lop ? `<br><span style="color:var(--bad)">LOP ${pend.lop} din — isme nahi jode</span>` : ''}
+        </div></div>
       <div><label class="lbl">EL Encashment Days <span class="text-[10px]" style="color:var(--muted)">(policy: 0 \u2014 leave lapse hoti hai)</span></label><input id="fnfEL" type="number" class="inp fnf-in" value="${fnf.el ?? 0}"></div>
       <div><label class="lbl">Bonus / Incentive (₹)</label><input id="fnfBonus" type="number" class="inp fnf-in" value="${fnf.bonus ?? 0}"></div>
       <div><label class="lbl">Gratuity (₹) ${years >= 5 ? '(auto: 15/26 × basic × yrs)' : '(< 5 yrs — 0)'}</label><input id="fnfGrat" type="number" class="inp fnf-in" value="${fnf.grat ?? gratuity}"></div>
@@ -13093,7 +13203,8 @@ async function openFnF(id){
       <div><label class="lbl">Other Recovery (₹)</label><input id="fnfOther" type="number" class="inp fnf-in" value="${fnf.other ?? 0}"></div>
     </div>
     <div class="flex items-center justify-between mt-4 p-3 rounded-xl" style="background:#faf8f4;border:1px solid var(--line)">
-      <span class="font-semibold">Net Settlement <span class="text-[10px]" style="color:var(--muted)">(per-day = gross/30 = ${fmtINR(perDay)})</span></span>
+      <div><span class="font-semibold">Net Settlement <span class="text-[10px]" style="color:var(--muted)">(per-day = gross/30 = ${fmtINR(perDay)})</span></span>
+        <div class="text-[10px] mt-1" style="color:var(--muted)" id="fnfStatBox">—</div></div>
       <span class="money font-bold text-lg" id="fnfNet">₹0</span>
     </div>
     <div class="flex gap-2 mt-4">
@@ -13110,11 +13221,30 @@ function fnfVals(){
   return { days: Number($('fnfDays').value)||0, el: Number($('fnfEL').value)||0, bonus: Number($('fnfBonus').value)||0,
     grat: Number($('fnfGrat').value)||0, adv: Number($('fnfAdv').value)||0, notice: Number($('fnfNotice').value)||0, other: Number($('fnfOther').value)||0 };
 }
-function fnfNet(perDay){
+// Settlement ka poora hisaab — statutory katauti samet
+function fnfCalc(perDay, code){
   const v = fnfVals();
-  return Math.round(v.days*perDay + v.el*perDay + v.bonus + v.grat - v.adv - v.notice*perDay - v.other);
+  const salary = v.days * perDay;                  // sirf isi par PF/ESI/LWF lagta hai
+  const st = fnfStatutory(code, salary);
+  const earn = salary + v.el * perDay + v.bonus + v.grat;
+  const ded  = v.adv + v.notice * perDay + v.other + st.pf + st.esi + st.lwf;
+  return { v, salary, st, earn, ded, net: Math.round(earn - ded) };
 }
-function fnfRecalc(){ $('fnfNet').innerText = fmtINR(fnfNet(window._fnfCtx.perDay)); }
+function fnfNet(perDay, code){
+  return fnfCalc(perDay, code || (window._fnfCtx && window._fnfCtx.x.employee_code)).net;
+}
+function fnfRecalc(){
+  const { perDay, x } = window._fnfCtx;
+  const c = fnfCalc(perDay, x.employee_code);
+  $('fnfNet').innerText = fmtINR(c.net);
+  const box = $('fnfStatBox');
+  if(box) box.innerHTML = (c.st.pf || c.st.esi || c.st.lwf)
+    ? `Salary ${fmtINR(Math.round(c.salary))} par: `
+      + `PF ${fmtINR(c.st.pf)}${c.st.pfOn ? '' : ' (off)'} · `
+      + `ESI ${fmtINR(c.st.esi)}${c.st.esiOn ? '' : ' (N/A)'} · `
+      + `LWF ${fmtINR(c.st.lwf)} — kul katauti ${fmtINR(c.st.pf + c.st.esi + c.st.lwf)}`
+    : 'Is settlement par PF / ESI / LWF nahi banta';
+}
 function fnfChecklist(){
   const chk = {};
   document.querySelectorAll('.fnf-chk').forEach(c => { chk[c.dataset.k] = c.checked; });
@@ -13122,7 +13252,9 @@ function fnfChecklist(){
 }
 async function fnfPersist(settle){
   const { x, perDay } = window._fnfCtx;
-  const upd = { checklist: fnfChecklist(), fnf: Object.assign(fnfVals(), { net: fnfNet(perDay), perDay }) };
+  const c = fnfCalc(perDay, x.employee_code);
+  const upd = { checklist: fnfChecklist(), fnf: Object.assign(fnfVals(), {
+    net: c.net, perDay, pf: c.st.pf, esi: c.st.esi, lwf: c.st.lwf }) };
   if(settle) upd.status = 'SETTLED';
   const { error } = await sb.from('exits').update(upd).eq('id', x.id);
   if(error) return notify(error.message, 'error');
@@ -13132,7 +13264,8 @@ async function fnfPersist(settle){
 }
 function fnfSheet(){
   const { x, emp, perDay, assets } = window._fnfCtx;
-  const v = fnfVals(); const S = getSettings(); const net = fnfNet(perDay);
+  const v = fnfVals(); const S = getSettings();
+  const _c = fnfCalc(perDay, x.employee_code); const net = _c.net; const _st = _c.st;
   const chk = (typeof fnfChecklist === 'function') ? fnfChecklist() : {};
   const name = emp ? emp.Name : x.employee_code;
   const code = x.employee_code;
@@ -13170,9 +13303,9 @@ function fnfSheet(){
     ? `<tr><td style="padding:6px 10px;border:1px solid #cbd5e1">${l}${sub ? ` <span style="color:#94a3b8;font-size:10px">${sub}</span>` : ''}</td><td style="padding:6px 10px;border:1px solid #cbd5e1;text-align:right;${neg ? 'color:#b91c1c' : ''}">${neg ? '− ' : ''}${Math.round(amt).toLocaleString('en-IN')}</td></tr>`
     : '';
   const grossEarn = Math.round(v.days*perDay + v.el*perDay + v.bonus + v.grat);
-  const totalRec  = Math.round(v.adv + v.notice*perDay + v.other);
+  const totalRec  = Math.round(v.adv + v.notice*perDay + v.other + _st.pf + _st.esi + _st.lwf);
   const anyEarn = (v.days*perDay + v.el*perDay + v.bonus + v.grat) > 0;
-  const anyRec  = (v.adv + v.notice*perDay + v.other) > 0;
+  const anyRec  = (v.adv + v.notice*perDay + v.other + _st.pf + _st.esi + _st.lwf) > 0;
 
   /* ============ PAGE 1 — F&F SETTLEMENT STATEMENT ============ */
   const p1 = `<div class="paper">
@@ -13199,6 +13332,9 @@ function fnfSheet(){
       ${row('Advance / Loan Recovery', 'as per open balance', v.adv, true)}
       ${row('Notice Period Shortfall', v.notice + ' days × ₹' + Math.round(perDay), v.notice*perDay, true)}
       ${row('Other Recovery', '', v.other, true)}
+      ${_st.pf  ? row('Provident Fund (employee)', '12% of ₹' + _st.pfBase.toLocaleString('en-IN') + ' EPF wages', _st.pf, true) : ''}
+      ${_st.esi ? row('ESI (employee)', String(S.esiPct) + '% of pending salary', _st.esi, true) : ''}
+      ${_st.lwf ? row('Labour Welfare Fund', '', _st.lwf, true) : ''}
       ${!anyRec ? '<tr><td style="padding:6px 10px;border:1px solid #cbd5e1;color:#94a3b8" colspan="2">No recoveries</td></tr>' : ''}
       <tr style="font-weight:700;background:#faf8f4"><td style="padding:6px 10px;border:1px solid #cbd5e1">Total Recoveries (B)</td><td style="padding:6px 10px;border:1px solid #cbd5e1;text-align:right;color:#b91c1c">− ₹ ${totalRec.toLocaleString('en-IN')}</td></tr>
     </tbody></table>
