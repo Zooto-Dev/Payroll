@@ -973,12 +973,15 @@ body.no-confidential .confidential-col{display:none!important}
     <button class="ap-tab active" data-trtab="conv"><i class="fa-solid fa-user-check"></i> Convert Requests <span class="ap-cnt" id="trCntConv">0</span></button>
     <button class="ap-tab" data-trtab="active"><i class="fa-solid fa-id-card-clip"></i> Active Trial Workers <span class="ap-cnt" id="trCntActive">0</span></button>
     <button class="ap-tab" data-trtab="att"><i class="fa-solid fa-calendar-days"></i> Daily Attendance <span class="ap-cnt" id="trCntAtt">0</span></button>
+    <button class="ap-tab" data-trtab="past"><i class="fa-solid fa-box-archive"></i> Past Passes <span class="ap-cnt" id="trCntPast">0</span></button>
+    <input id="trPastSearch" class="inp m-0" placeholder="Naam ya pass no. se dhoondho…" style="max-width:220px;height:30px;font-size:12px">
     <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="loadTrialPage()"><i class="fa-solid fa-rotate"></i> Refresh</button>
   </div>
   <div class="card" style="padding:0;overflow:hidden">
     <div class="tr-panel" id="trPanel-conv"><div id="trConv" class="text-sm" style="padding:0"><p class="p-4 m-0 text-xs" style="color:var(--muted)">Loading…</p></div></div>
     <div class="tr-panel hidden" id="trPanel-active"><div id="trActive" class="text-sm" style="padding:0"></div></div>
     <div class="tr-panel hidden" id="trPanel-att"><div id="trAtt" class="text-sm" style="padding:0"></div></div>
+    <div class="tr-panel hidden" id="trPanel-past"><div id="trPast" class="text-sm" style="padding:0"></div></div>
   </div>
 </div>
 
@@ -14044,13 +14047,83 @@ async function loadSupAttApprovals(){
   }catch(e){ host.innerHTML = `<p class="p-4 m-0 text-xs" style="color:var(--bad)">Error: ${esc(e.message||e)} — V89 SQL chalaya?</p>`; }
 }
 // ===== Trial Workers page — 3 tabs: Convert Requests | Active Trial Workers | Daily Attendance =====
+/* Past Passes tab — purane trial pass khol kar dekhne ke liye */
+async function trPastRender(){
+  const host = $('trPast'); if(!host) return;
+  const past = window._wpPast || [], attMap = window._wpAttMap || {};
+  const q = String((($('trPastSearch')||{}).value) || '').trim().toLowerCase();
+  const rows = past.filter(w => !q || (String(w.name||'') + ' ' + String(w.pass_no||'')).toLowerCase().includes(q));
+  if(!rows.length){
+    host.innerHTML = '<p class="p-4 m-0 text-xs" style="color:var(--muted)">'
+      + (q ? 'Is naam se koi purana pass nahi mila.' : 'Koi purana pass nahi.') + '</p>';
+    return;
+  }
+  // kis din ki attendance asli attendance me pahunchi — ek hi query me pata karo
+  const want = [];
+  rows.forEach(w => (attMap[w.id]||[]).forEach(a => want.push({ code: w.converted_emp_code || '', date: a.date })));
+  let synced = new Set();
+  try{
+    const dates = Array.from(new Set(want.map(x => x.date))).filter(Boolean);
+    if(dates.length){
+      const { data: ex } = await sb.from('attendance').select('employee_code, date').in('date', dates);
+      (ex||[]).forEach(r => synced.add(String(r.employee_code).toUpperCase() + '|' + r.date));
+    }
+  }catch(e){}
+  const chip = st => st === 'CONVERTED' ? '<span class="chip chip-ok" style="font-size:9px">Converted</span>'
+    : st === 'REJECTED' ? '<span class="chip chip-bad" style="font-size:9px">Rejected</span>'
+    : `<span class="chip chip-gray" style="font-size:9px">${esc(st||'—')}</span>`;
+  host.innerHTML = rows.map(w => {
+    const att = attMap[w.id] || [];
+    const body = att.length ? att.map(a => {
+      const code = String(w.converted_emp_code || '').toUpperCase();
+      const inAtt = code && synced.has(code + '|' + a.date);
+      return `<tr>
+        <td class="text-xs">${esc(a.date)}</td>
+        <td class="font-mono text-xs">${esc(String(a.in_time||'').slice(0,8)||'—')}</td>
+        <td class="font-mono text-xs">${esc(String(a.out_time||'').slice(0,8)||'—')}</td>
+        <td>${a.in_photo_url
+              ? `<a href="${esc(a.in_photo_url)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="padding:1px 7px;font-size:11px">📷 Photo</a>`
+              : '<span class="text-xs" style="color:var(--muted)">photo nahi</span>'}</td>
+        <td class="text-xs">${code
+              ? (inAtt ? '<span style="color:var(--ok)">attendance me hai</span>'
+                       : '<span style="color:var(--bad);font-weight:600">attendance me NAHI</span>')
+              : (String(w.status) === 'REJECTED'
+                   ? '<span style="color:var(--bad);font-weight:600">pass REJECT hua \u2014 sync nahi hui</span>'
+                   : '<span style="color:var(--muted)">kisi employee se juda nahi</span>')}</td></tr>`;
+    }).join('') : '<tr><td colspan="5" class="text-xs" style="color:var(--muted)">koi punch nahi</td></tr>';
+    return `<div class="p-3" style="border-bottom:1px solid var(--line)">
+      <div class="flex items-center gap-2 flex-wrap mb-2">
+        <b>${esc(w.name||'—')}</b> ${chip(String(w.status||''))}
+        <span class="text-xs" style="color:var(--muted)">${esc(w.pass_no||'')}</span>
+        <span class="text-xs" style="color:var(--muted)">${fmtDate(w.valid_from)} \u2192 ${fmtDate(w.valid_to)}</span>
+        ${w.department ? `<span class="chip chip-gray" style="font-size:9px">${esc(w.department)}${w.line ? ' / ' + esc(w.line) : ''}</span>` : ''}
+        ${w.supervisor ? `<span class="text-xs" style="color:var(--muted)">Sup: ${esc(w.supervisor)}</span>` : ''}
+        ${w.converted_emp_code ? `<span class="chip chip-blue" style="font-size:9px">${esc(w.converted_emp_code)}</span>` : ''}
+      </div>
+      <div style="overflow-x:auto"><table class="tbl tbl-compact" style="font-size:12px">
+        <thead><tr><th>Date</th><th>IN</th><th>OUT</th><th>Photo</th><th>Asli attendance</th></tr></thead>
+        <tbody>${body}</tbody></table></div>
+    </div>`;
+  }).join('');
+}
+$('trPastSearch') && $('trPastSearch').addEventListener('input', () => { try{ trPastRender(); }catch(e){} });
+
 async function loadTrialPage(){
   const cHost = $('trConv'), aHost = $('trActive'), attHost = $('trAtt');
   if(!cHost) return;
   cHost.innerHTML = '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Loading…</p>';
   try{
     const { data } = await sb.rpc('wp_list');
-    const list = (data||[]).filter(w => ['ACTIVE','CONVERT_REQUESTED'].includes(String(w.status)));
+    const all = data || [];
+    const list = all.filter(w => ['ACTIVE','CONVERT_REQUESTED'].includes(String(w.status)));
+    // Purane pass (CONVERTED / REJECTED / jo expire ho gaye) ab bhi dekhe ja sakte hain.
+    // Pehle ye page sirf chalu trial dikhata tha, isliye convert ya reject ho chuke pass
+    // ki attendance aur uska photo kahin se dekhne ka raasta hi nahi tha — jabki
+    // REJECTED pass ki attendance asli attendance me sync bhi nahi hoti, to usi ko
+    // dekhna sabse zyada zaruri hota hai.
+    const past = all.filter(w => !['ACTIVE','CONVERT_REQUESTED'].includes(String(w.status))
+                               || (String(w.status) === 'ACTIVE' && w.expired));
+    window._wpPast = past;
     const conv = list.filter(w => String(w.status) === 'CONVERT_REQUESTED');
     // "Active" = sirf wo trial jinka 3-din wala window abhi chal raha hai. Jinka trial khatam ho
     // gaya (convert ho gaye / chale gaye) wo apne aap list se hat jaate hain — naam se guess nahi.
@@ -14059,7 +14132,8 @@ async function loadTrialPage(){
     window._wpPending = conv;   // convertWorkPass() isse details uthata hai
     // har worker ki daily attendance (parallel)
     const attMap = {};
-    await Promise.all(list.map(async w => { try{ const { data: att } = await sb.rpc('wp_att', { p_id: w.id }); attMap[w.id] = att||[]; }catch(e){ attMap[w.id] = []; } }));
+    await Promise.all(list.concat(past).map(async w => { try{ const { data: att } = await sb.rpc('wp_att', { p_id: w.id }); attMap[w.id] = att||[]; }catch(e){ attMap[w.id] = []; } }));
+    window._wpAttMap = attMap;
     const attTable = rows => `<table class="reg" style="font-size:11px;min-width:210px"><thead><tr><th>Date</th><th>IN</th><th>OUT</th></tr></thead><tbody>${(rows&&rows.length) ? rows.map(a => `<tr><td>${esc(a.date)}</td><td style="text-align:center">${esc(String(a.in_time||'').slice(0,5)||'—')}${a.in_photo_url?` <a href="${esc(a.in_photo_url)}" target="_blank" title="IN photo">📷</a>`:''}</td><td style="text-align:center">${esc(String(a.out_time||'').slice(0,5)||'—')}</td></tr>`).join('') : '<tr><td colspan="3" style="text-align:center;color:var(--muted)">koi punch nahi</td></tr>'}</tbody></table>`;
     const card = (w, isConv) => `<div class="p-4 border-b" style="border-color:var(--line)">
       <div class="flex justify-between items-start flex-wrap gap-2">
@@ -14094,6 +14168,12 @@ async function loadTrialPage(){
         <td>${esc(String(a.in_time||'').slice(0,5)||'—')}${a.in_photo_url?` <a href="${esc(a.in_photo_url)}" target="_blank" title="IN photo">📷</a>`:''}</td>
         <td>${esc(String(a.out_time||'').slice(0,5)||'—')}</td></tr>`).join('')}
       </tbody></table></div>` : '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Abhi tak koi trial attendance nahi.</p>';
+
+    // Tab 4 — Past Passes: convert/reject ho chuke pass, unki attendance aur photo ke saath.
+    // Saath hi batata hai ki us din ki attendance asli attendance me pahunchi ya nahi —
+    // REJECTED pass ki nahi pahunchti, aur wahi din chupchap LOP ban jaate hain.
+    trPastRender();
+    if($('trCntPast')) $('trCntPast').innerText = past.length;
 
     // counts
     if($('trCntConv')) $('trCntConv').innerText = conv.length;
