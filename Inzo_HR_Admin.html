@@ -900,7 +900,7 @@ body.no-confidential .confidential-col{display:none!important}
       <p class="text-[11px] mt-0 mb-3" style="color:var(--muted)">
         Niyam: <b>staff ko mahine me sirf 1 leave paid</b> milti hai — us se zyada approved leave bhi unpaid (LOP) ho jati hai.
         Yahan aap kisi staff ke <b>kisi bhi din</b> ko <b>Pura din</b> ya <b>½ din</b> paid kar sakte hain — us mahine ki paid-leave ki hadd utni hi badh jayegi.
-        Neeche sirf <b>us mahine ke asli absent din</b> hain. Present din, Sunday, chutti, WFH aur field duty nahi dikhte.
+        Neeche sirf wo din hain <b>jinka paisa kat raha hai</b>. Jo leave pehle se paid hai (mahine wali 1), wo nahi dikhti — uspar faisla karne ko kuch hai hi nahi. Present din, Sunday, chutti, WFH aur field duty bhi nahi dikhte.
         <b>Worker ismein nahi aate</b> — unki leave kabhi paid nahi hoti.
       </p>
       <div id="plgBox"><div class="text-center py-6 text-xs" style="color:var(--muted)">Loading…</div></div>
@@ -12306,8 +12306,26 @@ async function loadPaidLeaveGrants(){
       if(!days.length) return;
       const cap = 1 + grants;
       const paidNow = Math.min(rawPaid, cap);
-      PLG_ROWS.push({ code, name: e.Name, dept: e.DEPARTMENT || '', days, rawPaid, grants, cap, paidNow,
-                      unpaid: +(rawPaid - paidNow).toFixed(1) });
+
+      // ===== Kaun sa din pehle se PAID hai =====
+      // Payroll sirf GINTI karta hai, ye nahi batata ki kaun sa din paid hai. To yahan
+      // seedha niyam: pehle har grant apne hi din ko paid karta hai, phir mahine wali
+      // 1 paid leave sabse PEHLE wale bache hue din par lagti hai.
+      // Jo din is tarah pura paid ho gaya, uspar faisla karne ko kuch hai nahi — use
+      // list me dikhate hi nahi. Grant wala din hamesha dikhta hai taaki hataya ja sake.
+      let budget = 1;
+      days.forEach(d => { if(d.g) d.paidBy = 'grant'; });
+      days.forEach(d => {                       // days pehle se date-wise sorted hain
+        if(d.paidBy || !d.isPaidType) return;
+        const need = (Number(d.lv.days) === 0.5 ? 0.5 : 1);
+        if(budget >= need){ budget -= need; d.paidBy = 'rule'; }
+        else if(budget > 0){ budget = 0; d.paidBy = 'part'; }
+      });
+      const show = days.filter(d => d.g || d.paidBy !== 'rule');
+      if(!show.length) return;                  // sab kuch pehle se paid — kuch dikhane ko nahi
+
+      PLG_ROWS.push({ code, name: e.Name, dept: e.DEPARTMENT || '', days: show, allDays: days.length,
+                      rawPaid, grants, cap, paidNow, unpaid: +(rawPaid - paidNow).toFixed(1) });
     });
     PLG_ROWS.sort((a, b) => (b.grants - a.grants) || (b.unpaid - a.unpaid) || String(a.name).localeCompare(String(b.name)));
     plgRender();
@@ -12321,7 +12339,7 @@ function plgRender(){
   const list = q ? PLG_ROWS.filter(r => (r.name + ' ' + r.code + ' ' + r.dept).toLowerCase().includes(q)) : PLG_ROWS;
   if(!list.length){
     box.innerHTML = `<div class="text-center py-6 text-xs" style="color:var(--muted)">`
-      + (q ? 'Is naam se koi nahi mila.' : 'Is mahine kisi bhi staff ka koi absent din nahi hai — sab present. 🎉')
+      + (q ? 'Is naam se koi nahi mila.' : 'Koi aisa din nahi hai jispar faisla karna ho — jitni leave li gayi, sab pehle se paid hai. 🎉')
       + `</div>`;
     return;
   }
@@ -12347,7 +12365,7 @@ function plgRender(){
       <div style="display:flex;flex-wrap:wrap;gap:6px">
         ${r.days.map(d => {
           const t = d.lv ? d.lv.leave_type : null;
-          const lab = !t ? 'koi leave nahi' : (d.isPaidType ? t : t);
+          const lab = !t ? 'koi leave nahi' : (d.paidBy === 'part' ? t + ' · aadha paid' : t);
           const bg  = d.g ? '#dcfce7' : (d.isPaidType ? '#eef2ff' : '#f8fafc');
           const bd  = d.g ? '#86efac' : 'var(--line)';
           return `<div style="border:1px solid ${bd};background:${bg};border-radius:9px;padding:6px 8px;min-width:132px">
