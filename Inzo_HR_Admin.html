@@ -884,6 +884,27 @@ body.no-confidential .confidential-col{display:none!important}
       <button id="ulSaveBtn" class="btn btn-primary w-full justify-center" style="background:#dc2626;border-color:#dc2626"><i class="fa-solid fa-bolt"></i> Chhutti Lagao</button>
       <div id="ulBalance" class="mt-4 text-xs p-3 rounded-xl hidden" style="background:var(--brand-soft)"></div>
     </div>
+    <div class="card lg:col-span-3 hidden" id="plgCard" style="background:linear-gradient(135deg,#f0fdf4,#ffffff);border:1.5px solid #bbf7d0">
+      <div class="flex items-center justify-between flex-wrap gap-2 mb-1">
+        <h3 class="display font-bold mt-0 mb-0" style="font-size:14px">
+          <i class="fa-solid fa-hand-holding-dollar" style="color:#16a34a"></i>
+          Kisi din ki leave ko <u>Paid</u> karo
+          <span class="chip" style="background:#dcfce7;color:#166534">sirf Super Admin</span>
+        </h3>
+        <div class="flex items-center gap-2 flex-wrap">
+          <input type="month" id="plgMonth" class="inp" style="max-width:150px">
+          <input id="plgSearch" class="inp" style="max-width:200px" placeholder="Naam ya code dhundo\u2026">
+          <button id="plgReload" class="btn btn-ghost btn-sm" title="Dobara load karo"><i class="fa-solid fa-rotate"></i></button>
+        </div>
+      </div>
+      <p class="text-[11px] mt-0 mb-3" style="color:var(--muted)">
+        Niyam: <b>staff ko mahine me sirf 1 leave paid</b> milti hai \u2014 us se zyada approved leave bhi unpaid (LOP) ho jati hai.
+        Yahan aap kisi staff ke <b>kisi bhi din</b> par <b>Paid karo</b> daba kar us mahine ki paid-leave ki hadd 1 se badha sakte hain.
+        Neeche sirf <b>us mahine ke absent din</b> hain \u2014 jisme punch nahi hua. Present din, Sunday aur chutti nahi dikhte.
+        <b>Worker ismein nahi aate</b> \u2014 unki leave kabhi paid nahi hoti.
+      </p>
+      <div id="plgBox"><div class="text-center py-6 text-xs" style="color:var(--muted)">Loading\u2026</div></div>
+    </div>
     <div class="card lg:col-span-3" style="padding:0;overflow:hidden">
       <div class="p-4 border-b flex items-center justify-between" style="border-color:var(--line)">
         <h3 class="display font-bold m-0">Leave Records</h3>
@@ -8233,11 +8254,12 @@ async function runPayroll(){
     const hCount = dayMeta.filter(x => x.isH && !x.isWO).length;
 
     // is saal ki approved leaves (mahine-wise ginti ke liye) + is month ka approved OT
-    const [yearLvRes, otRes, wfhRes] = await Promise.all([
+    const [yearLvRes, otRes, wfhRes, plgRes] = await Promise.all([
       sb.from('leaves').select('employee_code, leave_type, from_date, to_date, days, status').eq('status','APPROVED').gte('from_date', ym.slice(0,4) + '-01-01').lte('from_date', _lastDay(ym)),
       // OT PAID sirf tab jab security ne ViziTrack se VERIFY kiya ho (ot_verified=true). Bina verify OT paid nahi.
       sb.from('ot_requests').select('employee_code, ot_date, hours').eq('status','APPROVED').eq('ot_verified', true).gte('ot_date', ym + '-01').lte('ot_date', _lastDay(ym)),
-      sb.from('ess_att_requests').select('employee_code, date, req_type, gp_purpose').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).gte('date', ym + '-01').lte('date', _lastDay(ym))
+      sb.from('ess_att_requests').select('employee_code, date, req_type, gp_purpose').eq('status','APPROVED').in('req_type',['WFH','GATE_SL','GATE_HD']).gte('date', ym + '-01').lte('date', _lastDay(ym)),
+      sb.from('paid_leave_grants').select('employee_code, date').gte('date', ym + '-01').lte('date', _lastDay(ym))
     ]);
     // approved WFH days: paid like present, but shown as WFH (no punch needed)
     const wfhMap = {};      // code -> Set of WFH dates
@@ -8258,6 +8280,15 @@ async function runPayroll(){
       (apprReqDays[w.employee_code] = apprReqDays[w.employee_code] || new Set()).add(w.date);
     });
     window._gatePersSLMap = gatePersSLMap; window._gatePersHDMap = gatePersHDMap;
+
+    // ===== EXTRA PAID LEAVE — super admin ki di hui =====
+    // Niyam nahi badla: staff ko mahine me 1 paid leave. Par jis din ko super admin ne
+    // Leaves page se "paid dikhao" kar diya, us mahine ki paid-leave ki hadd utni hi
+    // badh jaati hai. Ek grant = ek extra paid din. Worker par iska koi asar nahi.
+    const plGrantMap = {};   // code -> Set of granted dates
+    (plgRes.data || []).forEach(g => {
+      (plGrantMap[String(g.employee_code || '').toUpperCase()] = plGrantMap[String(g.employee_code || '').toUpperCase()] || new Set()).add(g.date);
+    });
     window._wfhMap = wfhMap;
     const yearLeaves = yearLvRes.data || [];
     // Kaizen rewards: SOURCE = feedback table (salary.pendingReward fragile hai — profile save par ud jaata hai).
@@ -8405,7 +8436,14 @@ async function runPayroll(){
       // wali 1 paid leave bachi ho to wahan lag jayegi, warna unpaid (LOP) ho jayenge.
       // Worker ke liye MAX_PAID_LEAVE 0 hai, to uske aise din seedhe LOP me jaate hain.
       leaveDaysRaw += shortDayLeave;
-      const MAX_PAID_LEAVE = String(p.category || 'WORKER').toUpperCase() === 'STAFF' ? 1 : 0;
+      // Super admin ki di hui extra paid leave sirf STAFF ke liye ginti hai, aur sirf un
+      // dinon ki jinme punch nahi hai — punch wala din to pura paid hi hai, wahan grant
+      // ka koi matlab nahi.
+      const _isStaffCat = String(p.category || 'WORKER').toUpperCase() === 'STAFF';
+      const extraPaidLeave = _isStaffCat
+        ? Array.from(plGrantMap[String(code).toUpperCase()] || []).filter(iso => !days[iso]).length
+        : 0;
+      const MAX_PAID_LEAVE = (_isStaffCat ? 1 : 0) + extraPaidLeave;
       const leaveDays = Math.min(leaveDaysRaw, MAX_PAID_LEAVE);
       const lopLeave  = +(leaveDaysRaw - leaveDays).toFixed(1);
       otHours = Math.round(otHours * 2) / 2; // nearest 0.5
@@ -8578,6 +8616,7 @@ async function runPayroll(){
         dim, present: +present.toFixed(1),   // half day par .5 me aata hai
         lates, lateLOP, baseLateLOP, lateFgEligible, lateDecision, usedSL, usedHD,
         shortDayLeave, shortDays, earlyOuts, earlyDays, hoursUnknown, unknownDays,
+        extraPaidLeave, maxPaidLeave: MAX_PAID_LEAVE,
         shiftMismatch, mismatchDays, halfDays, halfDayList,
         halfPctRule: _HALF_PCT,
         shortHrsRule: _SHORT_HRS, earlyMinRule: _EARLY_MIN, lateArrivalNoGrace: true,
@@ -12135,6 +12174,10 @@ $('rgTable') && $('rgTable').addEventListener('click', e => {
 /* ---------------- LEAVES ---------------- */
 $('lvMonth').value = todayISO().slice(0,7);
 $('lvMonth').addEventListener('change', loadLeaves);
+$('plgMonth').value = todayISO().slice(0,7);
+$('plgMonth').addEventListener('change', loadPaidLeaveGrants);
+$('plgReload').addEventListener('click', loadPaidLeaveGrants);
+$('plgSearch').addEventListener('input', plgRender);
 async function checkLeaveConflicts(){
   try{
     const ym = new Date().toISOString().slice(0,7);
@@ -12170,8 +12213,194 @@ async function checkLeaveConflicts(){
    Pehle sirf `status` badalta tha, isliye kisi bhi leave ka approver pata nahi chalta tha.
    Wahi do column naam jo ess_att_requests me pehle se hain, taaki dono ek jaise padhe jaayein. */
 function nxDecidedNow(){ return { approved_by: ME_EMAIL, decided_at: new Date().toISOString() }; }
+/* ===================== EXTRA PAID LEAVE — sirf Super Admin =====================
+   Niyam nahi badla: STAFF ko mahine me 1 leave paid, us se zyada unpaid (LOP).
+   Yahan super admin kisi staff ke kisi ek din ko "Paid" kar deta hai, to us mahine
+   uski paid-leave ki hadd 1 se badh jaati hai (paid_leave_grants table).
+
+   Ek zaroori baat: payroll me paid-leave ki ginti SIRF un dinon ki hoti hai jin par
+   paid-type leave (CL/SL/EL/ML/PL) lagi ho. Isliye "Paid karo" dabane par ye teen
+   me se jo zaroori ho wo khud ho jata hai:
+     • din par koi leave nahi   -> EL lag jaati hai + grant
+     • din par LWP lagi hai     -> LWP se EL ho jaati hai + grant
+     • din par paid leave hai   -> sirf grant
+   "Hatao" sirf grant hatata hai — leave waisi hi rehti hai, bas phir se unpaid gini jayegi. */
+let PLG_ROWS = [];
+
+async function loadPaidLeaveGrants(){
+  const card = $('plgCard'); if(!card) return;
+  if(!isSuper()){ card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  const box = $('plgBox');
+  if(!$('plgMonth').value) $('plgMonth').value = todayISO().slice(0, 7);
+  const ym = $('plgMonth').value;
+  box.innerHTML = '<div class="text-center py-6 text-xs" style="color:var(--muted)"><div class="loader-ring"></div> Loading…</div>';
+  try{
+    const S = getSettings(), last = _lastDay(ym), today = todayISO();
+    const [attRes, lvRes, grRes] = await Promise.all([
+      sb.from('attendance').select('employee_code, date').gte('date', ym + '-01').lte('date', last).limit(50000),
+      sb.from('leaves').select('id, employee_code, leave_type, from_date, to_date, days, reason').eq('status','APPROVED').lte('from_date', last).gte('to_date', ym + '-01'),
+      sb.from('paid_leave_grants').select('id, employee_code, date, granted_by, created_at').gte('date', ym + '-01').lte('date', last)
+    ]);
+    if(attRes.error) throw attRes.error;
+    if(lvRes.error)  throw lvRes.error;
+    if(grRes.error)  throw grRes.error;
+
+    const U = c => String(c || '').trim().toUpperCase();
+    const attSet = new Set((attRes.data || []).map(r => U(r.employee_code) + '|' + r.date));
+    const workedMonth = new Set((attRes.data || []).map(r => U(r.employee_code)));
+    // din -> leave row (us employee ka)
+    const lvByDay = {};
+    (lvRes.data || []).forEach(L => {
+      let d = new Date(L.from_date + 'T00:00:00');
+      const end = new Date((L.to_date || L.from_date) + 'T00:00:00');
+      while(d <= end){
+        const iso = d.toISOString().slice(0, 10);
+        if(iso.startsWith(ym)) lvByDay[U(L.employee_code) + '|' + iso] = L;
+        d.setDate(d.getDate() + 1);
+      }
+    });
+    const grByDay = {};
+    (grRes.data || []).forEach(g => { grByDay[U(g.employee_code) + '|' + g.date] = g; });
+
+    // mahine ke off-days (Sunday setting + chutti + day overrides) — payroll jaisa hi
+    const holSet = new Set((HOLIDAYS || []).filter(h => h.date).map(h => h.date));
+    const ovr = {}; (window.DAY_OVERRIDES || []).forEach(o => { ovr[o.date] = o.otype; });
+    const dim = daysInMonth(ym), [yy, mm] = ym.split('-').map(Number);
+    const workDays = [];
+    for(let i = 1; i <= dim; i++){
+      const iso = `${ym}-${String(i).padStart(2,'0')}`;
+      const working = ovr[iso] === 'WORKING';
+      const isWO = new Date(yy, mm - 1, i).getDay() === Number(S.weekOff) && !working;
+      const isH  = (holSet.has(iso) || ovr[iso] === 'OFF') && !working;
+      if(!isWO && !isH && iso <= today) workDays.push({ iso, dow: new Date(yy, mm - 1, i).toLocaleDateString('en-IN', { weekday:'short' }) });
+    }
+
+    PLG_ROWS = [];
+    EMP.forEach(e => {
+      const code = e['Employee code'], CU = U(code);
+      if(String((PROFILES[code] || {}).category || 'WORKER').toUpperCase() !== 'STAFF') return;
+      if(String(e.Status).toUpperCase() !== 'ACTIVE' && !workedMonth.has(CU)) return;
+      const doj = String(e.DOJ || '').slice(0, 10);
+      const days = [];
+      let rawPaid = 0, grants = 0;
+      workDays.forEach(w => {
+        if(doj && w.iso < doj) return;
+        if(attSet.has(CU + '|' + w.iso)) return;        // punch hai -> present, yahan nahi
+        const L = lvByDay[CU + '|' + w.iso] || null;
+        const g = grByDay[CU + '|' + w.iso] || null;
+        const isPaidType = !!L && PAID_LEAVES.includes(L.leave_type);
+        if(isPaidType) rawPaid += (Number(L.days) === 0.5 ? 0.5 : 1);
+        if(g) grants++;
+        days.push({ iso: w.iso, dow: w.dow, lv: L, g, isPaidType });
+      });
+      if(!days.length) return;
+      const cap = 1 + grants;
+      const paidNow = Math.min(rawPaid, cap);
+      PLG_ROWS.push({ code, name: e.Name, dept: e.DEPARTMENT || '', days, rawPaid, grants, cap, paidNow,
+                      unpaid: +(rawPaid - paidNow).toFixed(1) });
+    });
+    PLG_ROWS.sort((a, b) => (b.grants - a.grants) || (b.unpaid - a.unpaid) || String(a.name).localeCompare(String(b.name)));
+    plgRender();
+  }catch(err){
+    box.innerHTML = `<div class="text-xs" style="color:var(--bad)">Load nahi hua: ${esc(err.message || err)}</div>`;
+  }
+}
+
+function plgRender(){
+  const box = $('plgBox'), q = String(($('plgSearch') || {}).value || '').trim().toLowerCase();
+  const list = q ? PLG_ROWS.filter(r => (r.name + ' ' + r.code + ' ' + r.dept).toLowerCase().includes(q)) : PLG_ROWS;
+  if(!list.length){
+    box.innerHTML = `<div class="text-center py-6 text-xs" style="color:var(--muted)">`
+      + (q ? 'Is naam se koi nahi mila.' : 'Is mahine kisi bhi staff ka koi absent din nahi hai — sab present. 🎉')
+      + `</div>`;
+    return;
+  }
+  const totGr = PLG_ROWS.reduce((a, r) => a + r.grants, 0);
+  box.innerHTML = (totGr ? `<div class="text-xs mb-3 p-2 rounded-lg" style="background:#dcfce7;color:#166534">
+      <i class="fa-solid fa-circle-check"></i> Is mahine <b>${totGr}</b> extra paid leave di gayi hai.
+    </div>` : '')
+    + list.map(r => {
+    const chip = (txt, bg, fg) => `<span class="chip" style="background:${bg};color:${fg}">${txt}</span>`;
+    return `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:#fff">
+      <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+        <div>
+          <span class="font-semibold">${esc(r.name)}</span>
+          <span class="text-[10px]" style="color:var(--muted)"> ${esc(r.code)} · ${esc(r.dept)}</span>
+        </div>
+        <div class="flex items-center gap-1 flex-wrap text-[11px]">
+          ${chip(r.rawPaid + ' din leave', '#e0e7ff', '#3730a3')}
+          ${chip(r.paidNow + ' paid', '#dcfce7', '#166534')}
+          ${r.unpaid > 0 ? chip(r.unpaid + ' unpaid (LOP)', '#fee2e2', '#991b1b') : ''}
+          ${r.grants ? chip('+' + r.grants + ' extra paid aapne di', '#fef3c7', '#92400e') : ''}
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${r.days.map(d => {
+          const t = d.lv ? d.lv.leave_type : null;
+          const lab = !t ? 'koi leave nahi' : (d.isPaidType ? t : t);
+          const bg  = d.g ? '#dcfce7' : (d.isPaidType ? '#eef2ff' : '#f8fafc');
+          const bd  = d.g ? '#86efac' : 'var(--line)';
+          return `<div style="border:1px solid ${bd};background:${bg};border-radius:9px;padding:6px 8px;min-width:132px">
+            <div class="text-xs font-semibold">${fmtDate(d.iso).slice(0,6)} <span class="font-normal" style="color:var(--muted)">${esc(d.dow)}</span></div>
+            <div class="text-[10px] mb-1" style="color:var(--muted)">${esc(lab)}${d.g ? ' · <b style="color:#166534">PAID</b>' : ''}</div>
+            ${d.g
+              ? `<button class="btn btn-ghost btn-sm plg-off" data-code="${esc(r.code)}" data-iso="${d.iso}" style="padding:2px 8px;font-size:10px"><i class="fa-solid fa-xmark"></i> Hatao</button>`
+              : `<button class="btn btn-primary btn-sm plg-on" data-code="${esc(r.code)}" data-iso="${d.iso}" data-lv="${d.lv ? d.lv.id : ''}" data-lvt="${esc(t || '')}" style="padding:2px 8px;font-size:10px;background:#16a34a;border-color:#16a34a"><i class="fa-solid fa-check"></i> Paid karo</button>`}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+
+  box.querySelectorAll('.plg-on').forEach(b => b.addEventListener('click', () => plgGrant(b.dataset.code, b.dataset.iso, b.dataset.lv, b.dataset.lvt)));
+  box.querySelectorAll('.plg-off').forEach(b => b.addEventListener('click', () => plgRevoke(b.dataset.code, b.dataset.iso)));
+}
+
+async function plgGrant(code, iso, lvId, lvType){
+  const nm = (EMP.find(e => e['Employee code'] === code) || {}).Name || code;
+  let extra = '';
+  if(!lvType)                 extra = `\n\nIs din koi leave nahi lagi hai — Earned Leave (EL) khud lag jayegi.`;
+  else if(lvType === 'LWP')   extra = `\n\nIs din LWP (unpaid) lagi hai — wo badal kar EL (paid) ho jayegi.`;
+  if(!await nxConfirm(`${nm} — ${fmtDate(iso)}\n\nIs din ki leave PAID gini jayegi. Us mahine iski paid-leave ki hadd 1 se badh jayegi.${extra}`, 'Paid leave do')) return;
+  try{
+    if(!lvType){
+      const { error } = await sb.from('leaves').insert([{
+        employee_code: code, leave_type: 'EL', from_date: iso, to_date: iso, days: 1,
+        reason: 'Paid leave — super admin', status: 'APPROVED',
+        approved_by: ME_EMAIL, decided_at: new Date().toISOString(),
+        admin_note: 'Super admin ne Leaves page se paid leave di' }]);
+      if(error) throw error;
+    }else if(lvType === 'LWP'){
+      const { error } = await sb.from('leaves').update({
+        leave_type: 'EL',
+        admin_note: 'Super admin ne paid kiya — pehle LWP (unpaid) thi',
+        approved_by: ME_EMAIL, decided_at: new Date().toISOString() }).eq('id', Number(lvId));
+      if(error) throw error;
+    }
+    const { error: gErr } = await sb.from('paid_leave_grants').insert([{
+      employee_code: code, date: iso, granted_by: ME_EMAIL,
+      note: 'Leaves page se di gayi extra paid leave' }]);
+    if(gErr) throw gErr;
+    notify(`${nm} — ${fmtDate(iso)} ab PAID hai`, 'success');
+    await loadPaidLeaveGrants(); loadLeaves();
+  }catch(err){ notify('Nahi hua: ' + (err.message || err), 'error'); }
+}
+
+async function plgRevoke(code, iso){
+  const nm = (EMP.find(e => e['Employee code'] === code) || {}).Name || code;
+  if(!await nxConfirm(`${nm} — ${fmtDate(iso)}\n\nExtra paid leave hata di jayegi — ye din phir se unpaid (LOP) gina jayega. Leave ka record waisa hi rahega.`, 'Extra paid leave hatao')) return;
+  try{
+    const { error } = await sb.from('paid_leave_grants').delete().eq('employee_code', code).eq('date', iso);
+    if(error) throw error;
+    notify(`${nm} — ${fmtDate(iso)} ki extra paid leave hat gayi`, 'info');
+    await loadPaidLeaveGrants();
+  }catch(err){ notify('Nahi hua: ' + (err.message || err), 'error'); }
+}
+
 async function loadLeaves(){
   checkLeaveConflicts();
+  loadPaidLeaveGrants();
   try{
     const ym = $('lvMonth').value;
     const dim = daysInMonth(ym);
@@ -12214,10 +12443,20 @@ async function showLeaveBalance(code, boxId, forMonth){
   // Paid leave sirf STAFF ko milti hai \u2014 worker ki leave approved ho tab bhi unpaid hai.
   // Wahi niyam jo payroll me MAX_PAID_LEAVE par lagta hai; dono ek jaise rehne chahiye.
   const _isStaff = String((PROFILES[code] || {}).category || 'WORKER').toUpperCase() === 'STAFF';
-  const cap = _isStaff ? 1 : 0;
+  // Super admin ki di hui extra paid leave se us mahine ki hadd badh jati hai
+  let _extra = 0;
+  if(_isStaff){
+    try{
+      const { data: gr } = await sb.from('paid_leave_grants').select('date')
+        .eq('employee_code', code).gte('date', ym + '-01').lte('date', _lastDay(ym));
+      _extra = (gr || []).length;
+    }catch(e){ console.warn('paid_leave_grants read failed', e); }
+  }
+  const cap = (_isStaff ? 1 : 0) + _extra;
   const paid = Math.min(taken, cap), unpaid = +(taken - paid).toFixed(1);
   const mName = fmtDate(ym + '-01').slice(3);
-  $(BOX).innerHTML = `<b>${mName}:</b> ${taken} din leave li \u2014 <b style="color:var(--ok)">${paid} paid</b>`
+  const _extraTxt = _extra ? ` <span class="chip" style="background:#fef3c7;color:#92400e">+${_extra} extra paid (super admin)</span>` : '';
+  $(BOX).innerHTML = `<b>${mName}:</b> ${taken} din leave li \u2014 <b style="color:var(--ok)">${paid} paid</b>${_extraTxt}`
     + (unpaid > 0 ? `, <b style="color:var(--bad)">${unpaid} unpaid (LOP)</b>` : '')
     + `<div style="margin-top:4px;color:var(--muted)">Niyam: ` + (_isStaff
         ? `staff ko har mahine <b>1 leave paid</b>. Usse zyada approved leave bhi unpaid hi rehti hai.`
@@ -13113,6 +13352,13 @@ async function fnfPendingDays(code, lwd){
 
   const holSet = new Set((HOLIDAYS || []).filter(h => h.date).map(h => h.date));
   const ovr = {}; (window.DAY_OVERRIDES || []).forEach(o => { ovr[o.date] = o.otype; });
+  // Super admin ki di hui extra paid leave — mahine-wise ginti, payroll jaisa hi niyam
+  const grByMonth = {};
+  try{
+    const { data: gr } = await sb.from('paid_leave_grants').select('date')
+      .eq('employee_code', code).gte('date', from).lte('date', lwd);
+    (gr || []).forEach(g => { const k = String(g.date).slice(0,7); grByMonth[k] = (grByMonth[k] || 0) + 1; });
+  }catch(e){ console.warn('paid_leave_grants read failed', e); }
   const lvByMonth = {};
   for(let d = new Date(from + 'T00:00:00'); d.toISOString().slice(0,10) <= lwd; d.setDate(d.getDate()+1)){
     const iso = d.toISOString().slice(0,10), ym = iso.slice(0,7);
@@ -13124,7 +13370,7 @@ async function fnfPendingDays(code, lwd){
     if(isWO){ out.wo++; continue; }
     if(lvSet.has(iso)){
       lvByMonth[ym] = (lvByMonth[ym] || 0) + 1;
-      if(isStaff && lvByMonth[ym] <= 1) out.paidLeave++; else out.lop++;
+      if(isStaff && lvByMonth[ym] <= 1 + (grByMonth[ym] || 0)) out.paidLeave++; else out.lop++;
       continue;
     }
     out.lop++;
