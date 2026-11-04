@@ -552,9 +552,10 @@ body.no-confidential .confidential-col{display:none!important}
     </div>
     <div class="card">
       <div class="flex items-center justify-between mb-3"><h3 class="display font-bold m-0"><i class="fa-solid fa-bullhorn" style="color:var(--brand)"></i> Announcements</h3></div>
-      <div class="flex gap-2 mb-3">
-        <input id="annTitle" class="inp" placeholder="Announcement title…">
-        <button id="annAddBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i></button>
+      <div class="mb-3">
+        <input id="annTitle" class="inp mb-2" placeholder="Announcement title…">
+        <textarea id="annBody" class="inp mb-2" rows="4" placeholder="Poori baat yahan likhein (optional) — employee portal me title ke neeche khulegi…"></textarea>
+        <button id="annAddBtn" class="btn btn-primary btn-sm w-full justify-center"><i class="fa-solid fa-bullhorn"></i> Post karo</button>
       </div>
       <div id="annList" class="space-y-2 text-sm"></div>
     </div>
@@ -13111,15 +13112,26 @@ async function loadEngagement(){
   try{
     const { data } = await sb.from('announcements').select('*').order('created_at', { ascending:false }).limit(5);
     $('annList').innerHTML = (data && data.length) ? data.map(a =>
-      `<div class="p-2 rounded-lg flex items-center justify-between" style="background:var(--brand-soft)"><span><b>${esc(a.title)}</b> <span class="text-[10px]" style="color:var(--muted)">${fmtDate(a.created_at.slice(0,10))}</span></span>
-      <button class="btn btn-ghost btn-sm" data-act="del-ann" data-id="${a.id}"><i class="fa-solid fa-xmark"></i></button></div>`).join('') : '<p class="text-xs" style="color:var(--muted)">No announcements.</p>';
+      `<div class="p-2 rounded-lg" style="background:var(--brand-soft)">
+         <div class="flex items-start justify-between gap-2">
+           <span><b>${esc(a.title)}</b> <span class="text-[10px]" style="color:var(--muted)">${fmtDate(a.created_at.slice(0,10))}</span></span>
+           <button class="btn btn-ghost btn-sm" data-act="del-ann" data-id="${a.id}"><i class="fa-solid fa-xmark"></i></button>
+         </div>
+         ${a.body ? `<div class="text-xs mt-1" style="color:#334155;white-space:pre-wrap">${esc(a.body)}</div>` : ''}
+       </div>`).join('') : '<p class="text-xs" style="color:var(--muted)">No announcements.</p>';
   }catch(e){ /* V3 SQL pending */ }
 }
 $('annAddBtn').addEventListener('click', async () => {
-  if(!$('annTitle').value.trim()) return;
-  const { error } = await sb.from('announcements').insert([{ title: $('annTitle').value.trim() }]);
+  if(!$('annTitle').value.trim()) return notify('Title to likhna padega', 'error');
+  // body optional hai — jab likhi ho tab employee portal me title ke neeche dikhti hai
+  const { error } = await sb.from('announcements').insert([{
+    title: $('annTitle').value.trim(),
+    body: $('annBody').value.trim() || null
+  }]);
   if(error) return notify(error.message, 'error');
-  $('annTitle').value = ''; loadEngagement();
+  $('annTitle').value = ''; $('annBody').value = '';
+  notify('Announcement post ho gaya — sabke portal par dikhega', 'success');
+  loadEngagement();
 });
 
 /* ================= ID CARDS ================= */

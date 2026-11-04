@@ -3339,7 +3339,17 @@ function render(){
   const slips = D.payslips || [];
   $('stNet').innerText = slips.length ? fmtINR(slips[0].net_pay) : '—';
   const ann = D.announcements || [];
-  $('annBox').innerHTML = ann.length ? ann.map(a => `<div class="p-2 rounded-lg" style="background:#eff6ff"><b>${esc(a.title)}</b> <span class="text-[10px]" style="color:var(--muted)">${fmtDate(a.created_at.slice(0,10))}</span></div>`).join('') : '<p class="m-0" style="color:var(--muted)">No announcements.</p>';
+  // Title ke saath poori baat (body) bhi — lambi ho sakti hai, isliye tap karke khulti hai.
+  $('annBox').innerHTML = ann.length ? ann.map((a, i) => {
+    const hasBody = !!String(a.body || '').trim();
+    return `<div class="p-2 rounded-lg" style="background:#eff6ff">
+      <div${hasBody ? ` onclick="essAnnToggle(${i})" style="cursor:pointer"` : ''} class="flex items-start justify-between gap-2">
+        <span><b>${esc(a.title)}</b> <span class="text-[10px]" style="color:var(--muted)">${fmtDate(a.created_at.slice(0,10))}</span></span>
+        ${hasBody ? `<i class="fa-solid fa-chevron-down text-[10px]" id="annChev${i}" style="color:var(--muted);margin-top:4px"></i>` : ''}
+      </div>
+      ${hasBody ? `<div id="annBody${i}" class="hidden text-xs mt-2" style="color:#334155;white-space:pre-wrap;line-height:1.6;border-top:1px solid #dbeafe;padding-top:6px">${esc(a.body)}</div>` : ''}
+    </div>`;
+  }).join('') : '<p class="m-0" style="color:var(--muted)">No announcements.</p>';
   const hol = D.holidays || [];
   $('holBox').innerHTML = hol.length ? hol.map(h => `<div class="row"><span class="k">${fmtDate(h.date)}</span><span>${esc(h.name || '')}</span></div>`).join('') : '<p class="m-0" style="color:var(--muted)">No holidays listed.</p>';
   // attendance (paginated)
@@ -3501,6 +3511,14 @@ function essHalfDay(r){
   if(!(w > 0) || !pc || !r || !r.out_time) return false;
   if(w < sd) return false;                 // 4 ghante se kam -> leave, half day nahi
   return w < sh * pc;
+}
+// Announcement ki poori baat kholo / band karo
+function essAnnToggle(i){
+  const b = document.getElementById('annBody' + i);
+  const c = document.getElementById('annChev' + i);
+  if(!b) return;
+  const open = b.classList.toggle('hidden') === false;
+  if(c) c.style.transform = open ? 'rotate(180deg)' : '';
 }
 function essLate(r){
   if(!r) return false;
