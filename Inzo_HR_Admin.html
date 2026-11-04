@@ -9641,12 +9641,12 @@ async function loadMis(){
   const today = new Date().toISOString().slice(0,10);
 
   // month attendance + expenses (both months) parallel
-  const [attRes, exRes, exPrevRes] = await Promise.all([
-    sb.from('attendance').select('employee_code, date, is_late').gte('date', ym + '-01').lte('date', _lastDay(ym)).limit(50000),
+  const [attAll, exRes, exPrevRes] = await Promise.all([
+    sbFetchAllAtt('employee_code, date, is_late', ym + '-01', _lastDay(ym)),   // 1000-row limit se bachne ke liye paginated
     sb.from('expenses').select('*').gte('expense_date', ym + '-01').lte('expense_date', _lastDay(ym)).limit(5000),
     sb.from('expenses').select('amount, status').gte('expense_date', prevYm + '-01').lte('expense_date', _lastDay(prevYm)).limit(5000)
   ]);
-  const att = (attRes.data || []).filter(r => codeSet.has(r.employee_code));
+  const att = (attAll || []).filter(r => codeSet.has(r.employee_code));
   const ex = exRes.data || [];
   const exPrev = exPrevRes.data || [];
 
@@ -12183,11 +12183,11 @@ $('plgSearch').addEventListener('input', plgRender);
 async function checkLeaveConflicts(){
   try{
     const ym = new Date().toISOString().slice(0,7);
-    const [lvRes, attRes] = await Promise.all([
+    const [lvRes, attAll] = await Promise.all([
       sb.from('leaves').select('*').eq('status','APPROVED').lte('from_date', _lastDay(ym)).gte('to_date', ym + '-01'),
-      sb.from('attendance').select('employee_code, date').gte('date', ym + '-01').lte('date', _lastDay(ym)).limit(50000)
+      sbFetchAllAtt('employee_code, date', ym + '-01', _lastDay(ym))   // 1000-row limit se bachne ke liye paginated
     ]);
-    const attSet = new Set((attRes.data||[]).map(r => r.employee_code + '|' + r.date));
+    const attSet = new Set((attAll||[]).map(r => r.employee_code + '|' + r.date));
     const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
     const conflicts = [];
     (lvRes.data||[]).forEach(L => {
@@ -12239,20 +12239,21 @@ async function loadPaidLeaveGrants(){
   box.innerHTML = '<div class="text-center py-6 text-xs" style="color:var(--muted)"><div class="loader-ring"></div> Loading…</div>';
   try{
     const S = getSettings(), last = _lastDay(ym), today = todayISO();
-    const [attRes, lvRes, grRes, wfRes] = await Promise.all([
-      sb.from('attendance').select('employee_code, date').gte('date', ym + '-01').lte('date', last).limit(50000),
+    const [attAll, lvRes, grRes, wfRes] = await Promise.all([
+      // Supabase ek request me sirf 1000 row deta hai — mahine ki attendance 8000+ hoti hai,
+      // isliye paginated helper se SAARI laao, warna adhi attendance gayab aur har din "absent" dikhega
+      sbFetchAllAtt('employee_code, date', ym + '-01', last),
       sb.from('leaves').select('id, employee_code, leave_type, from_date, to_date, days, reason').eq('status','APPROVED').lte('from_date', last).gte('to_date', ym + '-01'),
       sb.from('paid_leave_grants').select('id, employee_code, date, days, granted_by, created_at').gte('date', ym + '-01').lte('date', last),
       sb.from('ess_att_requests').select('employee_code, date, req_type').eq('status','APPROVED').in('req_type',['WFH','FIELD']).gte('date', ym + '-01').lte('date', last)
     ]);
-    if(attRes.error) throw attRes.error;
     if(lvRes.error)  throw lvRes.error;
     if(grRes.error)  throw grRes.error;
     if(wfRes.error)  throw wfRes.error;
 
     const U = c => String(c || '').trim().toUpperCase();
-    const attSet = new Set((attRes.data || []).map(r => U(r.employee_code) + '|' + r.date));
-    const workedMonth = new Set((attRes.data || []).map(r => U(r.employee_code)));
+    const attSet = new Set((attAll || []).map(r => U(r.employee_code) + '|' + r.date));
+    const workedMonth = new Set((attAll || []).map(r => U(r.employee_code)));
     // din -> leave row (us employee ka)
     const lvByDay = {};
     (lvRes.data || []).forEach(L => {
