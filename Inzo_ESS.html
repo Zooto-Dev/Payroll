@@ -3789,7 +3789,10 @@ $('exBtn').addEventListener('click', async () => {
   {
     const _sel = $('exDate').value;
     if(!_sel) return notify('Expense ki date daalein');
-    const _today0 = new Date(new Date().toISOString().slice(0,10) + 'T00:00:00');
+    // toISOString() UTC deta hai — IST me aadhi raat se 5:30 subah tak wo KAL ki date
+    // hoti hai, jisse aaj ki expense "future" keh kar reject ho jati thi. Local date lo.
+    const _n0 = new Date();
+    const _today0 = new Date(`${_n0.getFullYear()}-${String(_n0.getMonth()+1).padStart(2,'0')}-${String(_n0.getDate()).padStart(2,'0')}T00:00:00`);
     const _lim0   = new Date(_today0.getTime() - 7*86400000);
     const _selD   = new Date(_sel + 'T00:00:00');
     if(_selD < _lim0) return notify('Expenses older than 7 days cannot be claimed. Only the last 7 days are allowed.');

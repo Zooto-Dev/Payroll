@@ -2507,6 +2507,15 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;
 const daysInMonth = ym => { const [y,m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate(); };
 const monthLabel = ym => { const [y,m] = ym.split('-').map(Number); return new Date(y, m-1, 1).toLocaleString('en-IN',{month:'long',year:'numeric'}); };
 const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+/* ===== Date ko din-ba-din aage badhane ka SAHI tarika =====
+   new Date('2026-10-03T00:00:00') LOCAL aadhi raat banata hai. IST (UTC+5:30) me
+   uska .toISOString() '2026-10-02' deta hai — poora din peeche. Isliye kisi bhi
+   local Date par toISOString() mat lagao; ye do helpers local parts se string
+   banate hain, aur agla din nikalte waqt dopahar 12 baje ka waqt lete hain
+   taaki DST ya timezone se farak na pade. */
+const isoOf   = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const isoNext = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + (n == null ? 1 : n)); return isoOf(d); };
+const isoDow  = iso => new Date(iso + 'T12:00:00').getDay();
 const fmtDate = iso => { if(!iso) return '—'; const d = new Date(iso + (iso.length === 10 ? 'T00:00:00' : '')); return isNaN(d) ? iso : d.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }); };
 
 /* Indian number to words */
@@ -12255,14 +12264,18 @@ async function loadPaidLeaveGrants(){
     const attSet = new Set((attAll || []).map(r => U(r.employee_code) + '|' + r.date));
     const workedMonth = new Set((attAll || []).map(r => U(r.employee_code)));
     // din -> leave row (us employee ka)
+    // DHYAN: yahan toISOString() kabhi mat lagana. new Date('2026-10-03T00:00:00')
+    // local midnight banata hai, aur IST (UTC+5:30) me uska toISOString() '2026-10-02'
+    // deta hai — har leave ek din peeche khisak jaati hai. Isliye date ko string me
+    // aage badhate hain, aur Date sirf agla din nikalne ke liye (dopahar 12 baje,
+    // taaki DST/timezone se farak na pade).
     const lvByDay = {};
     (lvRes.data || []).forEach(L => {
-      let d = new Date(L.from_date + 'T00:00:00');
-      const end = new Date((L.to_date || L.from_date) + 'T00:00:00');
-      while(d <= end){
-        const iso = d.toISOString().slice(0, 10);
+      const end = String(L.to_date || L.from_date).slice(0, 10);
+      let iso = String(L.from_date).slice(0, 10);
+      for(let g = 0; g < 400 && iso <= end; g++){
         if(iso.startsWith(ym)) lvByDay[U(L.employee_code) + '|' + iso] = L;
-        d.setDate(d.getDate() + 1);
+        iso = isoNext(iso);
       }
     });
     const grByDay = {};
@@ -12605,7 +12618,7 @@ $('fxAddRow').addEventListener('click', () => {
   // default the new row's date to the day after the last row
   const dates = Array.from(document.querySelectorAll('#fxRows .fx-date')).map(i=>i.value).filter(Boolean).sort();
   let next = todayISO();
-  if(dates.length){ const d = new Date(dates[dates.length-1]+'T00:00:00'); d.setDate(d.getDate()+1); next = d.toISOString().slice(0,10); }
+  if(dates.length){ next = isoNext(dates[dates.length-1]); }
   fxAddRow(next);
 });
 $('fxFillRange').addEventListener('click', async () => {
@@ -12615,13 +12628,10 @@ $('fxFillRange').addEventListener('click', async () => {
   if(!to) return;
   if(!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return notify('Use date format YYYY-MM-DD', 'error');
   if(to < from) return notify('End date is before start date', 'error');
-  let d = new Date(from+'T00:00:00'); const end = new Date(to+'T00:00:00');
   const existing = new Set(Array.from(document.querySelectorAll('#fxRows .fx-date')).map(i=>i.value));
   let added = 0;
-  while(d <= end){
-    const ds = d.toISOString().slice(0,10);
+  for(let ds = from, _g = 0; ds <= to && _g < 1000; ds = isoNext(ds), _g++){
     if(!existing.has(ds)){ fxAddRow(ds); added++; }
-    d.setDate(d.getDate()+1);
   }
   notify(`Added ${added} day rows — now set each day's In/Out time`, 'success');
 });
@@ -13357,9 +13367,10 @@ async function fnfPendingDays(code, lwd){
     const months = (slips || []).map(r => r.month).filter(Boolean).sort();
     if(months.length){
       const last = months[months.length - 1];                 // 'YYYY-MM'
-      const d = new Date(last + '-01T00:00:00');
-      d.setMonth(d.getMonth() + 1);                            // agle mahine ki 1 tareekh
-      const nextStart = d.toISOString().slice(0, 10);
+      // Agle mahine ki 1 tareekh — seedha string se, Date ke bina. (Date + toISOString
+      // IST me 30 Sep de deta tha, yani F&F ek din jaldi shuru ho jata tha.)
+      const _ly = Number(last.slice(0, 4)), _lm = Number(last.slice(5, 7));
+      const nextStart = (_lm === 12 ? (_ly + 1) + '-01' : _ly + '-' + String(_lm + 1).padStart(2, '0')) + '-01';
       if(!from || nextStart > from) from = nextStart;
       out.note = 'Aakhri payslip ' + monthLabel(last) + ' ka — uske baad ka bakaya';
     } else { out.note = 'Is employee ka koi payslip nahi bana — DOJ se gina hai'; }
@@ -13376,10 +13387,12 @@ async function fnfPendingDays(code, lwd){
   const attSet = new Set((attRes.data || []).map(r => r.date));
   const lvSet = new Set();
   (lvRes.data || []).forEach(L => {
-    let d = new Date((L.from_date || '') + 'T00:00:00');
-    const end = new Date((L.to_date || L.from_date || '') + 'T00:00:00');
-    if(isNaN(d) || isNaN(end)) return;
-    while(d <= end){ const iso = d.toISOString().slice(0,10); if(iso >= from && iso <= lwd) lvSet.add(iso); d.setDate(d.getDate()+1); }
+    const start = String(L.from_date || '').slice(0,10);
+    const end   = String(L.to_date || L.from_date || '').slice(0,10);
+    if(!start || !end) return;
+    for(let iso = start, g = 0; iso <= end && g < 1000; iso = isoNext(iso), g++){
+      if(iso >= from && iso <= lwd) lvSet.add(iso);
+    }
   });
 
   const holSet = new Set((HOLIDAYS || []).filter(h => h.date).map(h => h.date));
@@ -13392,10 +13405,10 @@ async function fnfPendingDays(code, lwd){
     (gr || []).forEach(g => { const k = String(g.date).slice(0,7); grByMonth[k] = (grByMonth[k] || 0) + (Number(g.days) || 1); });
   }catch(e){ console.warn('paid_leave_grants read failed', e); }
   const lvByMonth = {};
-  for(let d = new Date(from + 'T00:00:00'); d.toISOString().slice(0,10) <= lwd; d.setDate(d.getDate()+1)){
-    const iso = d.toISOString().slice(0,10), ym = iso.slice(0,7);
+  for(let iso = from, _g = 0; iso <= lwd && _g < 4000; iso = isoNext(iso), _g++){
+    const ym = iso.slice(0,7);
     const working = ovr[iso] === 'WORKING';
-    const isWO = (d.getDay() === Number(S.weekOff)) && !working;
+    const isWO = (isoDow(iso) === Number(S.weekOff)) && !working;
     const isH  = (holSet.has(iso) || ovr[iso] === 'OFF') && !working;
     if(attSet.has(iso)){ if(!isWO && !isH) out.present++; else { if(isH) out.h++; else out.wo++; } continue; }
     if(isH){ out.h++; continue; }
