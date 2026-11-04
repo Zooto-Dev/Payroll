@@ -5879,6 +5879,29 @@ $('epSaveBtn').addEventListener('click', async () => {
     }
     const { error } = await sb.from('hr_profiles').upsert(row, { onConflict: 'employee_code' });
     if(error) throw error;
+    /* ===== SALARY BADLI TO LOG YAHIN BANEGA =====
+       Pehle salary_revisions me entry sirf CEO ke approve karne par banti thi
+       (nxCommitApprovedCtc se). Jo raaste approval se nahi guzarte — bulk upsert,
+       employee import, ya seedha profile save jiska approval baad me kisi aur
+       tareeke se hua — unme na log banta tha aur na ctc_annual sync hoti thi.
+       Nateeja: ₹9,630 tak ke increment ka koi record hi nahi tha, aur CTC purani
+       padi rehti thi. Ab har structure badlav yahin, save ke waqt, log hota hai —
+       chahe approval kabhi aaye ya na aaye. */
+    if(_salaryChanged && !_isNewProfile){
+      try{
+        const _oldG = Object.values(_prevSal.earn || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+        const _newG = Object.values(earn || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+        if(_oldG !== _newG){
+          await sb.from('salary_revisions').insert({
+            employee_code: row.employee_code,
+            old_gross: _oldG, new_gross: _newG,
+            effective_date: new Date().toISOString().slice(0, 10),
+            note: 'Salary structure badli (profile save) by ' + (ME_EMAIL || '?')
+                + ' — gross ' + _oldG + ' → ' + _newG
+          });
+        }
+      }catch(e){ /* log fail ho to save nahi rokna — par console me dikhe */ console.warn('salary_revisions log failed', e); }
+    }
     // if an exit date is set, force status INACTIVE
     const newStatus = ($('epExitDate').value || $('epStatus').value === 'INACTIVE') ? 'INACTIVE' : 'ACTIVE';
     // employees master: department / designation / status
@@ -8060,6 +8083,19 @@ async function submitMissingOut(){
     if(!outV) return notify(who + ': OUT time bhi bharna padega', 'error');
     if(!/^[0-9]{2}:[0-9]{2}$/.test(inV) || !/^[0-9]{2}:[0-9]{2}$/.test(outV))
       return notify('Galat time: ' + who, 'error');
+    // 00:00 ko khali maano. <input type="time"> khali hone par kabhi "00:00" de
+    // deta hai, aur upar wala !inV check use sach maan leta tha — isi se 15 din
+    // ki attendance 00:00 par chali gayi thi (hours 0, din leave ban gaya).
+    // Aadhi raat ka punch yahan hota hi nahi, to ise galti maanna hi theek hai.
+    if(inV === '00:00')  return notify(who + ': IN 00:00 nahi ho sakta — asli time bharein', 'error');
+    if(outV === '00:00') return notify(who + ': OUT 00:00 nahi ho sakta — asli time bharein', 'error');
+    // OUT, IN se pehle ho to ya raat ki shift hai ya galti. Galti ki surat me
+    // hisaab 24 ghante jod kar lagbhag poora din bana deta hai, isliye poochho.
+    if(outV < inV && !(await nxConfirm(who + ':\nIN ' + inV + ' aur OUT ' + outV
+         + ' — OUT, IN se pehle hai.\n\nRaat ki shift ho to theek hai (agle din ka OUT maana jayega).\n'
+         + 'Warna ye din ' + Math.round((24 - (Number(inV.slice(0,2)) + Number(inV.slice(3))/60)
+            + (Number(outV.slice(0,2)) + Number(outV.slice(3))/60))) + ' ghante ka ban jayega.\n\nSahi hai?',
+         'OUT, IN se pehle'))) return;
     // fix_replace_in HAR row me jaata hai, chahe false ho. PostgREST batch ki saari
     // rows ka column set ek jaisa banata hai — kisi ek row me key chhoot jaaye to
     // baaki me NULL chala jata hai aur insert gir jata hai.
