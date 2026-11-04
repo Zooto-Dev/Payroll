@@ -12262,7 +12262,6 @@ async function loadPaidLeaveGrants(){
 
     const U = c => String(c || '').trim().toUpperCase();
     const attSet = new Set((attAll || []).map(r => U(r.employee_code) + '|' + r.date));
-    const workedMonth = new Set((attAll || []).map(r => U(r.employee_code)));
     // din -> leave row (us employee ka)
     // DHYAN: yahan toISOString() kabhi mat lagana. new Date('2026-10-03T00:00:00')
     // local midnight banata hai, aur IST (UTC+5:30) me uska toISOString() '2026-10-02'
@@ -12301,7 +12300,9 @@ async function loadPaidLeaveGrants(){
     EMP.forEach(e => {
       const code = e['Employee code'], CU = U(code);
       if(String((PROFILES[code] || {}).category || 'WORKER').toUpperCase() !== 'STAFF') return;
-      if(String(e.Status).toUpperCase() !== 'ACTIVE' && !workedMonth.has(CU)) return;
+      // Sirf ACTIVE. Jo chhod kar ja chuke hain unka yahan kaam nahi — unka hisaab
+      // F&F me hota hai, aur unhe ab paid leave dene ka sawaal hi nahi.
+      if(String(e.Status).toUpperCase() !== 'ACTIVE') return;
       const doj = String(e.DOJ || '').slice(0, 10);
       const days = [];
       let rawPaid = 0, grants = 0;
