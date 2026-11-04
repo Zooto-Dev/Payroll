@@ -13133,10 +13133,24 @@ function fnfStatutory(code, salaryAmt){
   const esiOn = p.esi_applicable !== false && fullGross > 0 && fullGross <= Number(S.esiLimit);
   const lwfOn = p.lwf_applicable !== false;
   const pfBase = Number(S.pfCap) > 0 ? Math.min(earnedBasic, Number(S.pfCap)) : earnedBasic;
+  const live = salaryAmt > 0;
+  // Employee ka hissa — ye settlement se KATTA hai
+  const eePF  = pfOn  && live ? Math.round(pfBase * Number(S.pfPct) / 100) : 0;
+  const eeESI = esiOn && live ? Math.ceil(salaryAmt * Number(S.esiPct) / 100) : 0;
+  const eeLWF = lwfOn && live ? lwfEE(salaryAmt) : 0;
+  // Employer ka hissa — ye employee ke net se NAHI katta. Company challan me
+  // jama karti hai (PF ka 12% barabar, admin+EDLI 1%, ESI 3.25%, LWF dugna).
+  // Isliye alag dikhate hain: net wahi rehta hai, par company ka kharcha poora
+  // dikh jata hai aur challan banane me kuch chhootta nahi.
+  const erPF    = eePF;
+  const erAdmin = pfOn  && live ? Math.round(pfBase * 1 / 100) : 0;
+  const erESI   = esiOn && live ? Math.ceil(salaryAmt * 3.25 / 100) : 0;
+  const erLWF   = lwfOn && live ? lwfER(salaryAmt) : 0;
   return {
-    pf:  pfOn  && salaryAmt > 0 ? Math.round(pfBase * Number(S.pfPct) / 100) : 0,
-    esi: esiOn && salaryAmt > 0 ? Math.ceil(salaryAmt * Number(S.esiPct) / 100) : 0,
-    lwf: lwfOn && salaryAmt > 0 ? lwfEE(salaryAmt) : 0,
+    pf: eePF, esi: eeESI, lwf: eeLWF,                       // employee (net se katta)
+    erPF, erAdmin, erESI, erLWF,                            // employer (challan)
+    eeTotal: eePF + eeESI + eeLWF,
+    erTotal: erPF + erAdmin + erESI + erLWF,
     earnedBasic, pfBase, pfOn, esiOn, lwfOn
   };
 }
@@ -13238,11 +13252,16 @@ function fnfRecalc(){
   const c = fnfCalc(perDay, x.employee_code);
   $('fnfNet').innerText = fmtINR(c.net);
   const box = $('fnfStatBox');
-  if(box) box.innerHTML = (c.st.pf || c.st.esi || c.st.lwf)
-    ? `Salary ${fmtINR(Math.round(c.salary))} par: `
-      + `PF ${fmtINR(c.st.pf)}${c.st.pfOn ? '' : ' (off)'} · `
-      + `ESI ${fmtINR(c.st.esi)}${c.st.esiOn ? '' : ' (N/A)'} · `
-      + `LWF ${fmtINR(c.st.lwf)} — kul katauti ${fmtINR(c.st.pf + c.st.esi + c.st.lwf)}`
+  const st = c.st;
+  if(box) box.innerHTML = (st.eeTotal || st.erTotal)
+    ? `Salary ${fmtINR(Math.round(c.salary))} par —<br>`
+      + `<b>Employee (net se kata):</b> PF ${fmtINR(st.pf)}${st.pfOn ? '' : ' (off)'}`
+      + ` · ESI ${fmtINR(st.esi)}${st.esiOn ? '' : ' (N/A)'} · LWF ${fmtINR(st.lwf)}`
+      + ` = ${fmtINR(st.eeTotal)}<br>`
+      + `<b>Employer (challan, net se nahi katta):</b> PF ${fmtINR(st.erPF)}`
+      + ` · Admin+EDLI ${fmtINR(st.erAdmin)} · ESI ${fmtINR(st.erESI)} · LWF ${fmtINR(st.erLWF)}`
+      + ` = ${fmtINR(st.erTotal)}<br>`
+      + `<b>Company ka kul kharcha:</b> ${fmtINR(c.net + st.eeTotal + st.erTotal)}`
     : 'Is settlement par PF / ESI / LWF nahi banta';
 }
 function fnfChecklist(){
@@ -13254,7 +13273,10 @@ async function fnfPersist(settle){
   const { x, perDay } = window._fnfCtx;
   const c = fnfCalc(perDay, x.employee_code);
   const upd = { checklist: fnfChecklist(), fnf: Object.assign(fnfVals(), {
-    net: c.net, perDay, pf: c.st.pf, esi: c.st.esi, lwf: c.st.lwf }) };
+    net: c.net, perDay,
+    pf: c.st.pf, esi: c.st.esi, lwf: c.st.lwf,
+    erPF: c.st.erPF, erAdmin: c.st.erAdmin, erESI: c.st.erESI, erLWF: c.st.erLWF,
+    companyCost: c.net + c.st.eeTotal + c.st.erTotal }) };
   if(settle) upd.status = 'SETTLED';
   const { error } = await sb.from('exits').update(upd).eq('id', x.id);
   if(error) return notify(error.message, 'error');
@@ -13338,6 +13360,17 @@ function fnfSheet(){
       ${!anyRec ? '<tr><td style="padding:6px 10px;border:1px solid #cbd5e1;color:#94a3b8" colspan="2">No recoveries</td></tr>' : ''}
       <tr style="font-weight:700;background:#faf8f4"><td style="padding:6px 10px;border:1px solid #cbd5e1">Total Recoveries (B)</td><td style="padding:6px 10px;border:1px solid #cbd5e1;text-align:right;color:#b91c1c">− ₹ ${totalRec.toLocaleString('en-IN')}</td></tr>
     </tbody></table>
+
+    ${(_st.erTotal) ? `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:10px">
+      <thead><tr><th colspan="2" style="padding:5px 10px;border:1px solid #cbd5e1;background:#f1f5f9;text-align:left">Employer's Statutory Contribution <span style="font-weight:400;color:#64748b">— borne by the Company, not deducted from the settlement above</span></th></tr></thead>
+      <tbody>
+        ${_st.erPF    ? row("Provident Fund (employer's share)", '12% of EPF wages', _st.erPF) : ''}
+        ${_st.erAdmin ? row('EPF Admin & EDLI charges', '1% of EPF wages', _st.erAdmin) : ''}
+        ${_st.erESI   ? row("ESI (employer's share)", '3.25% of pending salary', _st.erESI) : ''}
+        ${_st.erLWF   ? row('Labour Welfare Fund (employer)', '', _st.erLWF) : ''}
+        <tr style="font-weight:700;background:#faf8f4"><td style="padding:6px 10px;border:1px solid #cbd5e1">Total Employer Contribution</td><td style="padding:6px 10px;border:1px solid #cbd5e1;text-align:right">₹ ${_st.erTotal.toLocaleString('en-IN')}</td></tr>
+        <tr><td style="padding:6px 10px;border:1px solid #cbd5e1;color:#475569">Total cost to Company (settlement + both contributions)</td><td style="padding:6px 10px;border:1px solid #cbd5e1;text-align:right;font-weight:700">₹ ${(net + _st.eeTotal + _st.erTotal).toLocaleString('en-IN')}</td></tr>
+      </tbody></table>` : ''}
 
     <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-radius:10px;background:#0f2f66;color:#fff">
       <div><div style="font-size:11px;opacity:.85;letter-spacing:.05em">NET SETTLEMENT PAYABLE (A − B)</div><div style="font-size:10px;opacity:.8;margin-top:2px">Rupees ${esc(numToWords(net))} Only</div></div>
