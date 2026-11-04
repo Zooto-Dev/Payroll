@@ -1499,6 +1499,7 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">Effective From</label><input id="promoDate" type="date" class="inp"></div>
     </div>
     <div id="pfcFieldsWrap" class="hidden flex items-end gap-3 flex-wrap">
+      <div><label class="lbl">Old PF Ceiling (₹)</label><input id="pfcOldCap" type="number" class="inp" value="15000" style="width:130px" title="Letter me 'Existing' column isi par banta hai — Settings ka cap badal jaane par bhi ye 15000 hi rehna chahiye"></div>
       <div><label class="lbl">New PF Ceiling (₹)</label><input id="pfcCap" type="number" class="inp" value="25000" style="width:130px"></div>
       <div><label class="lbl">Effective From</label><input id="pfcDate" type="date" class="inp" value="2026-10-01"></div>
       <button id="pfcAllBtn" class="btn btn-ghost btn-sm" style="border-color:#bfdbfe;color:#1d4ed8"><i class="fa-solid fa-layer-group"></i> Sabke liye banao</button>
@@ -10343,15 +10344,20 @@ function pfcFlagsOf(code){
            lwf: p.lwf_applicable !== false,
            tds: false };
 }
-// Ek employee ka purana aur naya structure — dono ek saath
-function pfcCompute(code, newCap){
+// Ek employee ka purana aur naya structure — dono ek saath.
+// oldCap ZARURI hai aur explicit aata hai: Settings ka cap use karna khatarnaak
+// tha, kyunki cap 25,000 kar dene ke BAAD letter ke "Existing" column me bhi
+// naya base aa jaata — yaani letter jhooth bolta. Purana cap letter me likha
+// jaata hai, isliye wo kabhi Settings se nahi aayega.
+function pfcCompute(code, newCap, oldCap){
   const p = PROFILES[code] || {}, S = getSettings();
+  oldCap = Number(oldCap != null ? oldCap : 15000) || 0;
   const oldGross = grossOf(code);
   if(!oldGross) return null;
   const f = pfcFlagsOf(code);
   const parts = empSalary(code);
   const oldBasic = Number(parts.basic) || 0;
-  const oldPFBase = Number(S.pfCap) > 0 ? Math.min(oldBasic, Number(S.pfCap)) : oldBasic;
+  const oldPFBase = oldCap > 0 ? Math.min(oldBasic, oldCap) : oldBasic;
   const oldPF = f.pf ? Math.round(oldPFBase * Number(S.pfPct) / 100) : 0;
   const erLWF = f.lwf ? lwfER(oldGross) : 0;
   const oldESI = (f.esi) ? Math.ceil(oldGross * 3.25 / 100) : 0;
@@ -10359,8 +10365,21 @@ function pfcCompute(code, newCap){
   // naye cap par usi CTC se gross dobara solve karo
   const c = ctcPartsFromCTC(monthlyCTC, f, newCap);
   const newGross = c.gross;
-  const nb = Math.round(newGross * 0.5), nh = Math.round(newGross * 0.25),
-        nc = Math.round(newGross * 0.15), ns = newGross - nb - nh - nc;
+  // Naya gross usi anupaat me baantte hain jo is bande ke structure me PEHLE SE hai.
+  // 50/25/15/10 thonk dena galat hota: kai logon ka conveyance 0 hai, aur letter me
+  // wo 0 se badh kar dikhta — ek badlav jo kisi ne maanga hi nahi. Basic 50% par
+  // rehta hai (solver ne usi par CTC solve kiya hai), baaki gross purane
+  // HRA : Conveyance : Special ke anupaat se bantta hai.
+  const nb = Math.round(newGross * 0.5);
+  const oh = Number(parts.hra) || 0, oc = Number(parts.conveyance) || 0,
+        os = Number(parts.special_allowance) || 0;
+  const rest = newGross - nb, oRest = oh + oc + os;
+  let nh, nc, ns;
+  if(oRest > 0){
+    nh = Math.round(rest * oh / oRest);
+    nc = Math.round(rest * oc / oRest);
+    ns = rest - nh - nc;                      // aakhri component rounding sambhalta hai
+  } else { nh = Math.round(rest * 0.5); nc = Math.round(rest * 0.3); ns = rest - nh - nc; }
   const newPFBase = newCap > 0 ? Math.min(nb, newCap) : nb;
   const newPF = f.pf ? Math.round(newPFBase * Number(S.pfPct) / 100) : 0;
   const eeLWF = f.lwf ? Number(S.lwfE || 0) : 0;
@@ -10703,12 +10722,13 @@ $('letterGenBtn').addEventListener('click', async () => {
     }
     if(t === 'pfceiling'){
       const cap = Number($('pfcCap').value) || 25000;
+      const oldCap = Number($('pfcOldCap').value) || 15000;
       const eff = $('pfcDate').value;
       if(!eff) return notify('Effective date daalein', 'error');
-      const x = pfcCompute(code, cap);
+      const x = pfcCompute(code, cap, oldCap);
       if(!x) return notify('Is employee ka salary structure set nahi hai', 'error');
       if(x.neu.pf === x.old.pf)
-        return notify(`${x.name} par PF ceiling ka koi asar nahi (Basic ₹${Number(getSettings().pfCap).toLocaleString('en-IN')} se upar nahi hai) — letter ki zarurat nahi`, 'error');
+        return notify(`${x.name} par PF ceiling ka koi asar nahi (Basic ₹${oldCap.toLocaleString('en-IN')} se upar nahi hai) — letter ki zarurat nahi`, 'error');
       html = pfcLetterHTML(x, eff, cap);
       sb.from('salary_revisions').insert([{ employee_code: code, old_gross: x.old.gross, new_gross: x.neu.gross,
         effective_date: eff, note: 'PF ceiling ' + cap + ' — CTC unchanged, gross re-anchored' }]).then(() => {});
@@ -10746,6 +10766,7 @@ $('letterPrintBtn').addEventListener('click', () => printHTML($('letterPaper').i
    se upar). Har letter apne page par chhapta hai. */
 $('pfcAllBtn') && $('pfcAllBtn').addEventListener('click', async () => {
   const cap = Number($('pfcCap').value) || 25000;
+  const oldCap = Number($('pfcOldCap').value) || 15000;
   const eff = $('pfcDate').value;
   if(!eff) return notify('Effective date daalein', 'error');
   const btn = $('pfcAllBtn'), _h = btn.innerHTML;
@@ -10754,7 +10775,7 @@ $('pfcAllBtn') && $('pfcAllBtn').addEventListener('click', async () => {
     const out = [], skipped = [];
     activeEmps().forEach(e => {
       const code = e['Employee code'];
-      const x = pfcCompute(code, cap);
+      const x = pfcCompute(code, cap, oldCap);
       if(!x || x.neu.pf === x.old.pf){ if(x) skipped.push(code); return; }
       out.push(x);
     });
