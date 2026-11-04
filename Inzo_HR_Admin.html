@@ -8105,8 +8105,12 @@ async function submitMissingOut(){
     // fix_replace_in HAR row me jaata hai, chahe false ho. PostgREST batch ki saari
     // rows ka column set ek jaisa banata hai — kisi ek row me key chhoot jaaye to
     // baaki me NULL chala jata hai aur insert gir jata hai.
+    // fix_replace_out: Missing-OUT list me row tabhi aati hai jab OUT khali ho,
+    // isliye yahan se bheja OUT hamesha "pehli baar" hota hai. Phir bhi jhanda
+    // saaf-saaf true bhejte hain — kyunki row load hone ke BAAD kisi ne OUT punch
+    // kar diya ho (ya galat OUT pada ho) to HR ka bhara hua time hi lagna chahiye.
     const row = { employee_code: r.code, name: r.name, date: r.date, req_type: 'ATT_FIX',
-                  status: 'PENDING', fix_out: outV + ':00', fix_replace_in: false,
+                  status: 'PENDING', fix_out: outV + ':00', fix_replace_in: false, fix_replace_out: true,
                   reason: 'HR: OUT punch missing — payroll screen se bhara gaya' };
     if(inChanged){
       // IN tabhi badlega jab ye jhanda saath jaaye — ESS ki apni requests isse
