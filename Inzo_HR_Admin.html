@@ -1466,6 +1466,7 @@ body.no-confidential .confidential-col{display:none!important}
         <option value="warning">Warning Letter</option>
         <option value="promotion">Promotion Letter</option>
         <option value="revision">Salary Revision Letter</option>
+        <option value="pfceiling">PF Ceiling — Revised Structure Letter</option>
         <option value="experience">Experience Letter</option>
         <option value="relieving">Relieving Letter</option>
         <option value="eom">Employee of the Month Certificate</option>
@@ -1496,6 +1497,11 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">New Designation</label><input id="promoDesig" class="inp"></div>
       <div><label class="lbl">New Monthly Gross (₹)</label><input id="promoGross" type="number" class="inp"></div>
       <div><label class="lbl">Effective From</label><input id="promoDate" type="date" class="inp"></div>
+    </div>
+    <div id="pfcFieldsWrap" class="hidden flex items-end gap-3 flex-wrap">
+      <div><label class="lbl">New PF Ceiling (₹)</label><input id="pfcCap" type="number" class="inp" value="25000" style="width:130px"></div>
+      <div><label class="lbl">Effective From</label><input id="pfcDate" type="date" class="inp" value="2026-10-01"></div>
+      <button id="pfcAllBtn" class="btn btn-ghost btn-sm" style="border-color:#bfdbfe;color:#1d4ed8"><i class="fa-solid fa-layer-group"></i> Sabke liye banao</button>
     </div>
     <button id="letterGenBtn" class="btn btn-primary"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate</button>
     <button id="letterPrintBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-print"></i> Print / Save PDF</button>
@@ -4876,13 +4882,15 @@ function fillFromCTC(){
 }
 // ---- CTC math: SAME rules as the payroll engine (employerSides): PF 12% (cap), ESI 3.25% (limit), Employer LWF — sab settings se
 // CTC-anchored: monthly CTC do -> Basic = CTC*50%, employer PF (cap), gross = CTC - employer contributions
-function ctcPartsFromCTC(monthlyCTC, f){
+function ctcPartsFromCTC(monthlyCTC, f, capOverride){
   monthlyCTC = Number(monthlyCTC)||0;
   f = f || { pf: true, esi: true, lwf: true, tds: false };
   const S = getSettings();
   // Basic = GROSS ka 50% (payslip jaisa). gross khud CTC par depend karta hai (CTC - employer PF/LWF/ESI)
   // aur PF basic par -> iteration se solve karo taaki PF wahi aaye jo payslip me deta hai.
-  const pfCap = Number(S.pfCap)||0, pfPct = Number(S.pfPct)||0;
+  // capOverride: PF ceiling badalne wale letter me naye cap (25,000) par hisaab karna hota hai
+  // chahe Settings me purana cap (15,000) abhi laga ho. Na do to Settings wala hi lagta hai.
+  const pfCap = Number(capOverride != null ? capOverride : S.pfCap)||0, pfPct = Number(S.pfPct)||0;
   let gross = monthlyCTC;
   for(let i=0;i<12;i++){
     const b = Math.round(gross * 0.5);
@@ -10313,7 +10321,108 @@ $('letterType').addEventListener('change', () => {
   if(t === 'intern') $('letterEmpWrap').classList.add('hidden');
   $('promoFieldsWrap').classList.toggle('hidden', t !== 'promotion');
   $('promoFieldsWrap').classList.toggle('flex', t === 'promotion');
+  $('pfcFieldsWrap').classList.toggle('hidden', t !== 'pfceiling');
+  $('pfcFieldsWrap').classList.toggle('flex', t === 'pfceiling');
 });
+
+/* ===================== PF CEILING — REVISED STRUCTURE =====================
+   PF ki wage ceiling 15,000 se 25,000 hui (17 Sep 2026). Company ne CTC
+   fix rakhne ka faisla liya hai, yaani badha hua employer PF gross me se
+   nikalta hai — isliye employee ka gross kam hota hai. Gross kam karne ke
+   liye likhit soochna dena zaruri hai, aur yahi letter wo kaam karta hai.
+
+   Naya structure wahi tareeke se banta hai jo Nexus ka CTC calculator
+   use karta hai (ctcPartsFromCTC) — bas naye cap par. Isliye letter ka
+   number aur payroll ka number kabhi alag nahi honge.
+   ========================================================================= */
+function pfcFlagsOf(code){
+  const p = PROFILES[code] || {}, S = getSettings();
+  const g = grossOf(code);
+  return { pf: p.pf_applicable !== false,
+           esi: p.esi_applicable !== false && g > 0 && g <= Number(S.esiLimit),
+           lwf: p.lwf_applicable !== false,
+           tds: false };
+}
+// Ek employee ka purana aur naya structure — dono ek saath
+function pfcCompute(code, newCap){
+  const p = PROFILES[code] || {}, S = getSettings();
+  const oldGross = grossOf(code);
+  if(!oldGross) return null;
+  const f = pfcFlagsOf(code);
+  const parts = empSalary(code);
+  const oldBasic = Number(parts.basic) || 0;
+  const oldPFBase = Number(S.pfCap) > 0 ? Math.min(oldBasic, Number(S.pfCap)) : oldBasic;
+  const oldPF = f.pf ? Math.round(oldPFBase * Number(S.pfPct) / 100) : 0;
+  const erLWF = f.lwf ? lwfER(oldGross) : 0;
+  const oldESI = (f.esi) ? Math.ceil(oldGross * 3.25 / 100) : 0;
+  const monthlyCTC = oldGross + oldPF + oldESI + erLWF;     // CTC ko fix rakhna hai
+  // naye cap par usi CTC se gross dobara solve karo
+  const c = ctcPartsFromCTC(monthlyCTC, f, newCap);
+  const newGross = c.gross;
+  const nb = Math.round(newGross * 0.5), nh = Math.round(newGross * 0.25),
+        nc = Math.round(newGross * 0.15), ns = newGross - nb - nh - nc;
+  const newPFBase = newCap > 0 ? Math.min(nb, newCap) : nb;
+  const newPF = f.pf ? Math.round(newPFBase * Number(S.pfPct) / 100) : 0;
+  const eeLWF = f.lwf ? Number(S.lwfE || 0) : 0;
+  // Naye structure se CTC dobara jodo. Solver iterative hai, to kahin-kahin ₹1 ka
+  // rounding farak aa jaata hai — use chhupana nahi, table me asli number dikhana hai.
+  const newESI = f.esi ? Math.ceil(newGross * 3.25 / 100) : 0;
+  const newCTC = newGross + newPF + newESI + erLWF;
+  return {
+    newCTC,
+    code, name: (EMP.find(x => x['Employee code'] === code) || {}).Name || code,
+    desig: (EMP.find(x => x['Employee code'] === code) || {}).DESIGNATION || '',
+    monthlyCTC, erLWF, eeLWF, oldESI,
+    old: { gross: oldGross, basic: oldBasic, hra: Number(parts.hra)||0,
+           conv: Number(parts.conveyance)||0, spl: Number(parts.special_allowance)||0,
+           pfBase: oldPFBase, pf: oldPF, net: oldGross - oldPF - eeLWF - (f.esi ? Math.ceil(oldGross*Number(S.esiPct)/100) : 0) },
+    neu: { gross: newGross, basic: nb, hra: nh, conv: nc, spl: ns,
+           pfBase: newPFBase, pf: newPF, net: newGross - newPF - eeLWF - (f.esi ? Math.ceil(newGross*Number(S.esiPct)/100) : 0) }
+  };
+}
+// Purana vs naya — ek hi table me, taaki employee ko chhupa kuch na lage
+function pfcAnnexure(x){
+  const n = v => Number(v||0).toLocaleString('en-IN');
+  const d = (a, b) => { const k = b - a; return k === 0 ? '—'
+    : `<span style="color:${k > 0 ? '#166534' : '#b00020'}">${k > 0 ? '+' : '−'}${n(Math.abs(k))}</span>`; };
+  const row = (l, a, b, bold) => `<tr${bold ? ' style="background:#f8fafc;font-weight:700"' : ''}>
+    <td>${l}</td><td style="text-align:right">${n(a)}</td><td style="text-align:right">${n(b)}</td>
+    <td style="text-align:right">${d(a, b)}</td></tr>`;
+  return `<h3 style="font-size:13px;margin:18px 0 6px">Annexure A — Existing and Revised Structure (per month)</h3>
+  <table class="ann">
+    <thead><tr><th>Component</th><th style="text-align:right">Existing (₹)</th><th style="text-align:right">Revised (₹)</th><th style="text-align:right">Change</th></tr></thead>
+    <tbody>
+      ${row('Basic', x.old.basic, x.neu.basic)}
+      ${row('House Rent Allowance', x.old.hra, x.neu.hra)}
+      ${row('Conveyance Allowance', x.old.conv, x.neu.conv)}
+      ${row('Special Allowance', x.old.spl, x.neu.spl)}
+      ${row('Gross Salary', x.old.gross, x.neu.gross, true)}
+      <tr><td colspan="4" style="background:#fff;border:none;height:8px"></td></tr>
+      ${row('EPF wage base (statutory ceiling)', x.old.pfBase, x.neu.pfBase)}
+      ${row('Provident Fund — your contribution', x.old.pf, x.neu.pf)}
+      ${row('Provident Fund — Company contribution', x.old.pf, x.neu.pf)}
+      ${row('Total credited to your PF account', x.old.pf * 2, x.neu.pf * 2, true)}
+      <tr><td colspan="4" style="background:#fff;border:none;height:8px"></td></tr>
+      ${row('Net take-home (approx.)', x.old.net, x.neu.net, true)}
+      ${row('Cost to Company (CTC)', x.monthlyCTC, x.newCTC, true)}
+    </tbody>
+  </table>
+  <p style="font-size:11px;color:#475569;margin:6px 0 0">Annual Cost to Company: <b>₹${n(x.monthlyCTC * 12)}/-</b> before and <b>₹${n(x.newCTC * 12)}/-</b> after this revision. Net take-home is indicative and will vary with attendance, leave, income tax and any advance recovery in a given month.</p>`;
+}
+function pfcLetterHTML(x, eff, cap){
+  const S = getSettings(), yr = new Date().getFullYear();
+  const n = v => Number(v||0).toLocaleString('en-IN');
+  const pfUp = x.neu.pf - x.old.pf, netDown = x.old.net - x.neu.net;
+  return letterShell('REVISION OF SALARY STRUCTURE — STATUTORY PF CEILING',
+    `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/PFC/${yr}/${esc(x.code)}`,
+    `<p>Dear <b>${esc(x.name)}</b>,</p>
+     <p>The Government of India has raised the statutory wage ceiling for Provident Fund from <b>₹15,000</b> to <b>₹${n(cap)}</b> per month with effect from <b>17 September 2026</b> (Notification S.O. 5109(E)). The rate of contribution remains unchanged at ${esc(String(getSettings().pfPct))}%.</p>
+     <p>As your Basic salary is above the earlier ceiling, your Provident Fund contribution increases from <b>₹${n(x.old.pf)}</b> to <b>₹${n(x.neu.pf)}</b> per month. The Company contributes an equal amount, so the monthly credit into your PF account rises from <b>₹${n(x.old.pf * 2)}</b> to <b>₹${n(x.neu.pf * 2)}</b> — an increase of <b>₹${n(pfUp * 2)}</b> every month towards your own retirement savings.</p>
+     <p>Your Cost to Company is retained at <b>₹${n(x.monthlyCTC * 12)}/-</b> per annum. Accordingly, your salary structure stands revised with effect from <b>${fmtDate(eff)}</b>: your monthly gross is revised from <b>₹${n(x.old.gross)}/-</b> to <b>₹${n(x.neu.gross)}/- </b>(Rupees ${esc(numToWords(x.neu.gross))} Only), as detailed in Annexure A. Your net take-home therefore reduces by approximately <b>₹${n(netDown)}</b> per month, while the monthly credit into your Provident Fund account rises by <b>₹${n(pfUp * 2)}</b>.</p>
+     <p>No other term or condition of your employment is altered by this letter. Your designation${x.desig ? ' of <b>' + esc(x.desig) + '</b>' : ''}, place of posting, leave entitlement and all other benefits continue as before.</p>
+     <p>Should you wish to understand this working in more detail, the Human Resources department will be glad to walk you through it. Please sign and return the duplicate copy of this letter in acknowledgement.</p>
+     ${pfcAnnexure(x)}`);
+}
 
 function annexureCTC_HTML(g, f){
   f = f || { pf: true, esi: true, lwf: true };
@@ -10592,6 +10701,18 @@ $('letterGenBtn').addEventListener('click', async () => {
         ${annexureHTML(ng, null)}`);
       sb.from('salary_revisions').insert([{ employee_code: code, old_gross: gross, new_gross: ng, effective_date: eff, note: 'Salary revision' }]).then(() => {});
     }
+    if(t === 'pfceiling'){
+      const cap = Number($('pfcCap').value) || 25000;
+      const eff = $('pfcDate').value;
+      if(!eff) return notify('Effective date daalein', 'error');
+      const x = pfcCompute(code, cap);
+      if(!x) return notify('Is employee ka salary structure set nahi hai', 'error');
+      if(x.neu.pf === x.old.pf)
+        return notify(`${x.name} par PF ceiling ka koi asar nahi (Basic ₹${Number(getSettings().pfCap).toLocaleString('en-IN')} se upar nahi hai) — letter ki zarurat nahi`, 'error');
+      html = pfcLetterHTML(x, eff, cap);
+      sb.from('salary_revisions').insert([{ employee_code: code, old_gross: x.old.gross, new_gross: x.neu.gross,
+        effective_date: eff, note: 'PF ceiling ' + cap + ' — CTC unchanged, gross re-anchored' }]).then(() => {});
+    }
   }
   $('letterPaper').innerHTML = html;
   $('letterDesk').classList.remove('hidden');
@@ -10619,6 +10740,44 @@ $('letterDocBtn').addEventListener('click', async () => {
   finally{ btn.innerHTML = '<i class="fa-solid fa-folder-plus"></i> Save to Employee Docs'; btn.disabled = false; }
 });
 $('letterPrintBtn').addEventListener('click', () => printHTML($('letterPaper').innerHTML));
+
+/* Sabke liye ek saath — 22 logon ka letter ek-ek kar ke banana bekaar hai.
+   Sirf un logon ka banta hai jin par ceiling ka asar hai (Basic purane cap
+   se upar). Har letter apne page par chhapta hai. */
+$('pfcAllBtn') && $('pfcAllBtn').addEventListener('click', async () => {
+  const cap = Number($('pfcCap').value) || 25000;
+  const eff = $('pfcDate').value;
+  if(!eff) return notify('Effective date daalein', 'error');
+  const btn = $('pfcAllBtn'), _h = btn.innerHTML;
+  btn.innerHTML = '<div class="loader-ring"></div> Bana raha hun…'; btn.disabled = true;
+  try{
+    const out = [], skipped = [];
+    activeEmps().forEach(e => {
+      const code = e['Employee code'];
+      const x = pfcCompute(code, cap);
+      if(!x || x.neu.pf === x.old.pf){ if(x) skipped.push(code); return; }
+      out.push(x);
+    });
+    if(!out.length) return notify('Kisi par bhi PF ceiling ka asar nahi mila', 'error');
+    out.sort((a, b) => (b.neu.pf - b.old.pf) - (a.neu.pf - a.old.pf));
+    // ek hi print job, har letter naye page par
+    const all = out.map((x, i) =>
+      `<div${i ? ' style="page-break-before:always"' : ''}>${pfcLetterHTML(x, eff, cap)}</div>`).join('');
+    $('letterPaper').innerHTML = all;
+    $('letterDesk').classList.remove('hidden');
+    $('letterPrintBtn').classList.remove('hidden');
+    window._letterCtx = null;                 // bulk me ek employee ka doc save nahi hota
+    $('letterDocBtn').classList.add('hidden');
+    $('letterDesk').scrollIntoView({ behavior:'smooth' });
+    logRenderedDoc('pfceiling', 'PF Ceiling Letters (bulk ' + out.length + ')', '', '');
+    const rows = out.map(x => ({ employee_code: x.code, old_gross: x.old.gross, new_gross: x.neu.gross,
+      effective_date: eff, note: 'PF ceiling ' + cap + ' — CTC unchanged, gross re-anchored' }));
+    const { error } = await sb.from('salary_revisions').insert(rows);
+    if(error) notify('Letters ban gaye, par salary_revisions me log nahi hua: ' + error.message, 'error');
+    else notify(`${out.length} letter ban gaye — Print dabayein. ${skipped.length} logon par asar nahi tha, unka nahi bana.`, 'success');
+  }catch(err){ notify(err.message || 'Failed', 'error'); }
+  finally{ btn.innerHTML = _h; btn.disabled = false; }
+});
 
 /* ---------------- Settings & Holidays ---------------- */
 function fillSettingsForm(){
