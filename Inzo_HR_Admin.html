@@ -305,6 +305,13 @@ body.no-confidential .confidential-col{display:none!important}
 .paper table.ann th,.paper table.ann td{border:1px solid #cbd5e1;padding:6px 10px;text-align:left}
 .paper table.ann th{background:#f0ede6;font-weight:600}
 .paper [contenteditable]:focus{outline:2px dashed var(--brand);outline-offset:2px}
+/* compact = jis letter me annexure table hai, wo ek hi A4 page me samaye */
+.paper.compact{font-size:11.5px;line-height:1.5;padding:14mm 15mm}
+.paper.compact p{margin:0 0 7px}
+.paper.compact table.ann{font-size:10.5px;margin:4px 0}
+.paper.compact table.ann th,.paper.compact table.ann td{padding:3px 8px}
+.paper.compact h1{font-size:19px}
+.paper.compact h3{margin:10px 0 3px}
 @media print{
   html,body{ margin:0 !important; padding:0 !important; background:#fff !important; }
   body > *:not(#printArea){ display:none !important; }   /* hide the whole app -> no blank pages */
@@ -10407,7 +10414,7 @@ function pfcAnnexure(x){
   const row = (l, a, b, bold) => `<tr${bold ? ' style="background:#f8fafc;font-weight:700"' : ''}>
     <td>${l}</td><td style="text-align:right">${n(a)}</td><td style="text-align:right">${n(b)}</td>
     <td style="text-align:right">${d(a, b)}</td></tr>`;
-  return `<h3 style="font-size:13px;margin:18px 0 6px">Annexure A — Existing and Revised Structure (per month)</h3>
+  return `<h3 style="font-size:12px;margin:10px 0 3px">Annexure A — Existing and Revised Structure (per month)</h3>
   <table class="ann">
     <thead><tr><th>Component</th><th style="text-align:right">Existing (₹)</th><th style="text-align:right">Revised (₹)</th><th style="text-align:right">Change</th></tr></thead>
     <tbody>
@@ -10416,17 +10423,15 @@ function pfcAnnexure(x){
       ${row('Conveyance Allowance', x.old.conv, x.neu.conv)}
       ${row('Special Allowance', x.old.spl, x.neu.spl)}
       ${row('Gross Salary', x.old.gross, x.neu.gross, true)}
-      <tr><td colspan="4" style="background:#fff;border:none;height:8px"></td></tr>
       ${row('EPF wage base (statutory ceiling)', x.old.pfBase, x.neu.pfBase)}
       ${row('Provident Fund — your contribution', x.old.pf, x.neu.pf)}
       ${row('Provident Fund — Company contribution', x.old.pf, x.neu.pf)}
       ${row('Total credited to your PF account', x.old.pf * 2, x.neu.pf * 2, true)}
-      <tr><td colspan="4" style="background:#fff;border:none;height:8px"></td></tr>
       ${row('Net take-home (approx.)', x.old.net, x.neu.net, true)}
       ${row('Cost to Company (CTC)', x.monthlyCTC, x.newCTC, true)}
     </tbody>
   </table>
-  <p style="font-size:11px;color:#475569;margin:6px 0 0">Annual Cost to Company: <b>₹${n(x.monthlyCTC * 12)}/-</b> before and <b>₹${n(x.newCTC * 12)}/-</b> after this revision. Net take-home is indicative and will vary with attendance, leave, income tax and any advance recovery in a given month.</p>`;
+  <p style="font-size:10px;color:#475569;margin:3px 0 0">Annual Cost to Company: <b>₹${n(x.monthlyCTC * 12)}/-</b> before, <b>₹${n(x.newCTC * 12)}/-</b> after. Net take-home is indicative and varies with attendance, leave, income tax and advance recovery.</p>`;
 }
 function pfcLetterHTML(x, eff, cap){
   const S = getSettings(), yr = new Date().getFullYear();
@@ -10435,12 +10440,10 @@ function pfcLetterHTML(x, eff, cap){
   return letterShell('REVISION OF SALARY STRUCTURE — STATUTORY PF CEILING',
     `${(S.name||'CO').split(' ')[0].toUpperCase()}/HR/PFC/${yr}/${esc(x.code)}`,
     `<p>Dear <b>${esc(x.name)}</b>,</p>
-     <p>The Government of India has raised the statutory wage ceiling for Provident Fund from <b>₹15,000</b> to <b>₹${n(cap)}</b> per month with effect from <b>17 September 2026</b> (Notification S.O. 5109(E)). The rate of contribution remains unchanged at ${esc(String(getSettings().pfPct))}%.</p>
-     <p>As your Basic salary is above the earlier ceiling, your Provident Fund contribution increases from <b>₹${n(x.old.pf)}</b> to <b>₹${n(x.neu.pf)}</b> per month. The Company contributes an equal amount, so the monthly credit into your PF account rises from <b>₹${n(x.old.pf * 2)}</b> to <b>₹${n(x.neu.pf * 2)}</b> — an increase of <b>₹${n(pfUp * 2)}</b> every month towards your own retirement savings.</p>
-     <p>Your Cost to Company is retained at <b>₹${n(x.monthlyCTC * 12)}/-</b> per annum. Accordingly, your salary structure stands revised with effect from <b>${fmtDate(eff)}</b>: your monthly gross is revised from <b>₹${n(x.old.gross)}/-</b> to <b>₹${n(x.neu.gross)}/- </b>(Rupees ${esc(numToWords(x.neu.gross))} Only), as detailed in Annexure A. Your net take-home therefore reduces by approximately <b>₹${n(netDown)}</b> per month, while the monthly credit into your Provident Fund account rises by <b>₹${n(pfUp * 2)}</b>.</p>
-     <p>No other term or condition of your employment is altered by this letter. Your designation${x.desig ? ' of <b>' + esc(x.desig) + '</b>' : ''}, place of posting, leave entitlement and all other benefits continue as before.</p>
-     <p>Should you wish to understand this working in more detail, the Human Resources department will be glad to walk you through it. Please sign and return the duplicate copy of this letter in acknowledgement.</p>
-     ${pfcAnnexure(x)}`);
+     <p>The Government has raised the statutory Provident Fund wage ceiling from <b>₹15,000</b> to <b>₹${n(cap)}</b> per month with effect from <b>17 September 2026</b> (Notification S.O. 5109(E)); the rate of contribution remains unchanged at ${esc(String(getSettings().pfPct))}%. As your Basic salary is above the earlier ceiling, your Provident Fund contribution increases from <b>₹${n(x.old.pf)}</b> to <b>₹${n(x.neu.pf)}</b> per month, and the Company contributes an equal amount — so the monthly credit into your PF account rises from <b>₹${n(x.old.pf * 2)}</b> to <b>₹${n(x.neu.pf * 2)}</b>, an increase of <b>₹${n(pfUp * 2)}</b> every month towards your own retirement savings.</p>
+     <p>Your Cost to Company is retained at <b>₹${n(x.monthlyCTC * 12)}/-</b> per annum. Accordingly, with effect from <b>${fmtDate(eff)}</b>, your monthly gross stands revised from <b>₹${n(x.old.gross)}/-</b> to <b>₹${n(x.neu.gross)}/-</b> (Rupees ${esc(numToWords(x.neu.gross))} Only), as detailed in Annexure A. Your net take-home therefore reduces by approximately <b>₹${n(netDown)}</b> per month, while the credit into your Provident Fund rises by <b>₹${n(pfUp * 2)}</b>.</p>
+     <p>No other term or condition of your employment is altered${x.desig ? ' — your designation of <b>' + esc(x.desig) + '</b>' : ' — your designation'}, place of posting, leave entitlement and all other benefits continue as before. Human Resources will gladly walk you through this working; kindly sign and return the duplicate copy in acknowledgement.</p>
+     ${pfcAnnexure(x)}`, { compact: true });
 }
 
 function annexureCTC_HTML(g, f){
@@ -10537,10 +10540,17 @@ async function nextDocNo(kind, code, name, title){
   }catch(e){}
   return doc_no;
 }
-function letterShell(title, refNo, body){
+function letterShell(title, refNo, body, opts){
   const S = getSettings();
   const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' });
-  return `<div class="paper" contenteditable="true" spellcheck="false">
+  // compact: annexure wale letter ko ek hi A4 page me laane ke liye saare bade
+  // gaps chhote ho jaate hain. Jo letter ye flag nahi bhejta, uspe koi asar nahi.
+  const C = !!(opts && opts.compact);
+  const gTitle = C ? '16px 0 14px' : '34px 0 44px';
+  const gSign  = C ? '20px' : '44px';
+  const gFor   = C ? '0 0 16px' : '0 0 34px';
+  const hGap   = C ? '18px' : '44px';
+  return `<div class="paper${C ? ' compact' : ''}" contenteditable="true" spellcheck="false">
     <div style="text-align:center;border-bottom:2.5px solid var(--ink);padding-bottom:10px">
       <h1 style="margin:0;font-size:22px;letter-spacing:.02em">${esc(S.name)}</h1>
       <p style="margin:3px 0 0;font-size:11.5px;color:#475569">${esc(S.addr)}</p>
@@ -10551,15 +10561,15 @@ function letterShell(title, refNo, body){
       <p style="margin:0"><b>Ref:</b> ${esc(refNo)}</p>
       <p style="margin:0"><b>Date:</b> ${today}</p>
     </div>
-    <h2 style="font-size:15px;text-align:center;text-decoration:underline;margin:34px 0 44px">${esc(title)}</h2>
+    <h2 style="font-size:${C ? '13.5px' : '15px'};text-align:center;text-decoration:underline;margin:${gTitle}">${esc(title)}</h2>
     ${body}
-    <div style="margin-top:44px;display:flex;justify-content:space-between;align-items:flex-end">
+    <div style="margin-top:${gSign};display:flex;justify-content:space-between;align-items:flex-end">
       <div>
-        <p style="margin:0 0 34px">For <b>${esc(S.name)}</b></p>
-        <div style="height:44px"></div><p style="margin:0;border-top:1px solid #94a3b8;padding-top:5px;display:inline-block"><b>${esc(S.hr || 'Authorised Signatory')}</b><br><span style="font-size:11px;color:#64748b">${esc(S.hrDesig || '')}</span></p>
+        <p style="margin:${gFor}">For <b>${esc(S.name)}</b></p>
+        <div style="height:${hGap}"></div><p style="margin:0;border-top:1px solid #94a3b8;padding-top:5px;display:inline-block"><b>${esc(S.hr || 'Authorised Signatory')}</b><br><span style="font-size:11px;color:#64748b">${esc(S.hrDesig || '')}</span></p>
       </div>
       <div style="text-align:right">
-        <p style="margin:0 0 34px">Accepted &amp; Agreed</p>
+        <p style="margin:${gFor}">Accepted &amp; Agreed</p>
         <p style="margin:0;border-top:1px solid #94a3b8;padding-top:5px;display:inline-block;font-size:11px;color:#64748b">Signature of Candidate / Employee</p>
       </div>
     </div>
