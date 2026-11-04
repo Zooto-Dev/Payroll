@@ -893,17 +893,17 @@ body.no-confidential .confidential-col{display:none!important}
         </h3>
         <div class="flex items-center gap-2 flex-wrap">
           <input type="month" id="plgMonth" class="inp" style="max-width:150px">
-          <input id="plgSearch" class="inp" style="max-width:200px" placeholder="Naam ya code dhundo\u2026">
+          <input id="plgSearch" class="inp" style="max-width:200px" placeholder="Naam ya code dhundo…">
           <button id="plgReload" class="btn btn-ghost btn-sm" title="Dobara load karo"><i class="fa-solid fa-rotate"></i></button>
         </div>
       </div>
       <p class="text-[11px] mt-0 mb-3" style="color:var(--muted)">
-        Niyam: <b>staff ko mahine me sirf 1 leave paid</b> milti hai \u2014 us se zyada approved leave bhi unpaid (LOP) ho jati hai.
-        Yahan aap kisi staff ke <b>kisi bhi din</b> par <b>Paid karo</b> daba kar us mahine ki paid-leave ki hadd 1 se badha sakte hain.
-        Neeche sirf <b>us mahine ke absent din</b> hain \u2014 jisme punch nahi hua. Present din, Sunday aur chutti nahi dikhte.
-        <b>Worker ismein nahi aate</b> \u2014 unki leave kabhi paid nahi hoti.
+        Niyam: <b>staff ko mahine me sirf 1 leave paid</b> milti hai — us se zyada approved leave bhi unpaid (LOP) ho jati hai.
+        Yahan aap kisi staff ke <b>kisi bhi din</b> ko <b>Pura din</b> ya <b>½ din</b> paid kar sakte hain — us mahine ki paid-leave ki hadd utni hi badh jayegi.
+        Neeche sirf <b>us mahine ke asli absent din</b> hain. Present din, Sunday, chutti, WFH aur field duty nahi dikhte.
+        <b>Worker ismein nahi aate</b> — unki leave kabhi paid nahi hoti.
       </p>
-      <div id="plgBox"><div class="text-center py-6 text-xs" style="color:var(--muted)">Loading\u2026</div></div>
+      <div id="plgBox"><div class="text-center py-6 text-xs" style="color:var(--muted)">Loading…</div></div>
     </div>
     <div class="card lg:col-span-3" style="padding:0;overflow:hidden">
       <div class="p-4 border-b flex items-center justify-between" style="border-color:var(--line)">
@@ -12326,7 +12326,7 @@ function plgRender(){
   }
   const totGr = PLG_ROWS.reduce((a, r) => a + r.grants, 0);
   box.innerHTML = (totGr ? `<div class="text-xs mb-3 p-2 rounded-lg" style="background:#dcfce7;color:#166534">
-      <i class="fa-solid fa-circle-check"></i> Is mahine <b>${totGr}</b> extra paid leave di gayi hai.
+      <i class="fa-solid fa-circle-check"></i> Is mahine <b>${totGr}</b> din ki extra paid leave di gayi hai.
     </div>` : '')
     + list.map(r => {
     const chip = (txt, bg, fg) => `<span class="chip" style="background:${bg};color:${fg}">${txt}</span>`;
