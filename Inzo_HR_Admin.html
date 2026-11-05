@@ -9137,6 +9137,11 @@ function slipHTML(r){
   } else {
     dedRows.push(['No deductions — paid through contractor', '']);
   }
+  // Employer side — ye employee ki salary se NAHI kata, company apni jeb se deti hai.
+  const _erTot  = isC ? 0 : ((r.erPF||0) + (r.erESI||0) + (r.erLWF||0));
+  const _grossA = Math.round((r.earnedGross||0) + (r.bonus||0) + (r.arrears||0) + (r.reward||0) + (r.encash||0));
+  const _ctcMon = _grossA + _erTot;
+  const _pfTot  = (r.pf||0) + (r.erPF||0);
   const nRows = Math.max(earnRows.length, dedRows.length);
   let bodyRows = '';
   for(let i = 0; i < nRows; i++){
@@ -9171,9 +9176,17 @@ function slipHTML(r){
       <tr><th>Department</th><td>${esc(r.dept || '—')}</td><th>Designation</th><td>${esc(r.desig || '—')}</td></tr>
       <tr><th>Bank</th><td>${esc(p.bank_name || '—')}</td><th>Account No</th><td>${esc(p.account_no || '—')}</td></tr>
       <tr><th>PAN</th><td>${esc(p.pan || '—')}</td><th>UAN</th><td>${esc(p.uan || '—')}</td></tr>
-      <tr><th>Days in Month</th><td>${r.dim}</td><th>Paid Days</th><td><b>${r.paidDays}</b></td></tr>
-      <tr><th>Leave</th><td>${r.leaveDays||0}</td><th>LOP</th><td>${r.lop}${r.lateLOP ? ' (incl. ' + r.lateLOP + ' late-cut)' : ''}</td></tr>
+      <tr><th>Shift</th><td>${esc(r.shiftName || '—')}</td><th>Pay Mode</th><td>${isC ? 'Through contractor' : 'Bank Transfer'}</td></tr>
     </tbody></table>
+    <table class="ann" style="margin-bottom:8px">
+      <thead><tr><th colspan="6" style="text-align:left;background:#eef2f7;font-size:11px">Attendance &amp; Days — aapke paid days kaise bane / how your paid days were arrived at</th></tr></thead>
+      <tbody>
+      <tr><th style="width:18%">Days in Month</th><td style="width:15%">${r.dim}</td><th style="width:19%">Present (worked)</th><td style="width:15%">${r.present||0}</td><th style="width:18%">Paid Leave</th><td>${r.leaveDays||0}</td></tr>
+      <tr><th>Week-offs paid</th><td>${r.earnedWO||0}</td><th>Holidays paid</th><td>${r.earnedH||0}</td><th>Half Days</th><td>${r.halfDays||0}</td></tr>
+      <tr><th>Late arrivals</th><td>${r.lates||0}</td><th>Late day-cut</th><td>${r.lateLOP||0}</td><th>Unpaid leave (LWP)</th><td>${r.lwpDays||0}</td></tr>
+      <tr><th style="background:#e8f1ff">Paid Days</th><td style="background:#e8f1ff"><b>${r.paidDays}</b> / ${r.dim}</td><th style="background:#fdeeee">LOP (unpaid)</th><td style="background:#fdeeee"><b>${r.lop}</b></td><th>Absent without leave</th><td>${r.unauthAbs||0}</td></tr>
+      </tbody>
+    </table>
     <table class="ann">
       <thead><tr><th style="width:26%">Earnings</th><th style="width:13%;text-align:right">Full Salary (₹)</th><th style="width:13%;text-align:right">Earned (₹)</th><th style="width:33%">Deductions</th><th style="width:15%;text-align:right">Amount (₹)</th></tr></thead>
       <tbody>
@@ -9185,6 +9198,24 @@ function slipHTML(r){
       <div><b style="letter-spacing:.05em">${isC ? 'PAYABLE TO CONTRACTOR' : 'NET PAY'}</b><br><span style="font-size:10.5px;color:#94a3b8">Rupees ${esc(numToWords(net))} Only • ${isC ? esc(r.contractor || 'Contractor') : 'Bank Transfer'}</span>${dedShort ? `<br><span style="font-size:10.5px;color:#fca5a5">Deductions exceeded earnings by ₹${dedShort.toLocaleString('en-IN')} — net held at zero</span>` : ''}</div>
       <div class="money" style="font-size:24px;font-weight:700">₹ ${net.toLocaleString('en-IN')}</div>
     </div>
+    ${isC ? '' : `<table class="ann" style="margin-top:10px">
+      <thead><tr><th colspan="2" style="text-align:left;background:#eef2f7;font-size:11px">Company apni taraf se jama karti hai — ye aapki salary se NAHI kata / Employer contribution — NOT deducted from your pay</th></tr></thead>
+      <tbody>
+        <tr><th style="width:72%;font-weight:400">Employer Provident Fund (12% of PF wages)</th><td style="text-align:right">${(r.erPF||0).toLocaleString('en-IN')}</td></tr>
+        <tr><th style="font-weight:400">Employer ESI (3.25% of gross)</th><td style="text-align:right">${(r.erESI||0).toLocaleString('en-IN')}</td></tr>
+        <tr><th style="font-weight:400">Employer Labour Welfare Fund</th><td style="text-align:right">${(r.erLWF||0).toLocaleString('en-IN')}</td></tr>
+        <tr><th style="background:#f6f8fb">Total employer contribution (B)</th><th style="text-align:right;background:#f6f8fb">${_erTot.toLocaleString('en-IN')}</th></tr>
+        <tr><th style="background:#e8f1ff">Total Cost to Company this month = Gross Earned (A ₹${_grossA.toLocaleString('en-IN')}) + B</th><th style="text-align:right;background:#e8f1ff">${_ctcMon.toLocaleString('en-IN')}</th></tr>
+        ${(r.erPF||0) || (r.pf||0) ? `<tr><th style="font-weight:400;background:#f0fdf4">Aapke PF account me is mahine jama / Credited to your PF account — your ₹${(r.pf||0).toLocaleString('en-IN')} + company ₹${(r.erPF||0).toLocaleString('en-IN')}</th><th style="text-align:right;background:#f0fdf4">${_pfTot.toLocaleString('en-IN')}</th></tr>` : ''}
+      </tbody>
+    </table>
+    <p style="font-size:9px;color:#64748b;margin:6px 0 0;line-height:1.55">
+      <b style="color:#2a2824">Samajhne ke liye — do tarah ke hisse hote hain.</b>
+      Upar <b>Deductions</b> wale column me jo hai wo <b>aapki salary se kata</b> hai, isliye Net Pay utna kam hua.
+      Neeche <b>Employer contribution</b> wala hissa <b>company apni jeb se</b> deti hai — aapki salary se nahi kata, lekin aapke PF / ESI khate me jama hota hai.
+      Isi liye company ka kul kharcha ₹${_ctcMon.toLocaleString('en-IN')} hai, aur aapke haath me ₹${net.toLocaleString('en-IN')} aaye.
+      <br><span style="color:#94a3b8">The Deductions column is withheld from your pay. The Employer contribution block is paid by the company over and above your gross — it is credited to your PF / ESI account and is never recovered from you.</span>
+    </p>`}
     <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e8f0;margin-top:16px;padding-top:10px">
       <div style="font-size:9.5px;color:#64748b">
         <b style="color:#2a2824">Verification Code: ${vc}</b><br>
