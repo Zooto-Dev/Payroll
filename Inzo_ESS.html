@@ -4337,39 +4337,83 @@ function printSlip(s){
   // Contract employee ka poora amount contractor ko jaata hai — koi katauti nahi hoti.
   // Isliye uski slip par PF/ESI/LWF dikhana galat hai: jo kata hi nahi, wo deduction nahi.
   const isC = !!r.isContract;
+  const _n   = v => Math.round(Number(v) || 0);
+  const _inr = v => _n(v).toLocaleString('en-IN');
+  const _d   = v => { const n = Math.round((Number(v)||0) * 2) / 2; return n % 1 ? n.toFixed(1) : String(n); };
   const totalDed = isC ? 0
     : ((r.pf||0) + (r.esi||0) + (r.pt||0) + (r.lwf||0) + (r.customDed||0) + (r.tds||0) + (r.advDed||0) + (r.otherDed||0));
+  const dedShort = isC ? 0 : Math.max(0, Math.round(totalDed
+    - ((r.earnedGross||0) + (r.bonus||0) + (r.arrears||0) + (r.reward||0) + (r.encash||0))));
+  // CTC employer ke contribution ko apne andar rakhta hai: gross = CTC - employer hissa.
+  // Employer PF/ESI/LWF "upar se extra" nahi hai — wo employee ke CTC me se hi jaata hai,
+  // bas bank me nahi aata, uske PF/ESI khate me jaata hai.
+  const _erTot  = isC ? 0 : (_n(r.erPF) + _n(r.erESI) + _n(r.erLWF));
+  const _grossA = _n(r.earnedGross) + _n(r.bonus) + _n(r.arrears) + _n(r.reward) + _n(r.encash);
+  const _ctcMon = _grossA + _erTot;
+  const _fullCTC = _n(r.fullCTC) || (_n(r.fullGross) + _n(r.fullErPF) + _n(r.fullErESI) + _n(r.fullErLWF));
+  const _pfTot  = _n(r.pf) + _n(r.erPF);
+  const _fullG  = _n(r.fullGross) || (r.comps ? r.comps.reduce((a,x) => a + _n(x.full), 0) : 0);
+  // Kate dinon ka hisaab jo khud jud jaye — late day-cut dono taraf, ulte chinh ke saath
+  const _unpdLv  = (Number(r.lwpDays)||0) + (Number(r.lopLeave)||0);
+  const _halfCut = 0.5 * (Number(r.halfDays)||0);
+  const _offNE   = Array.isArray(r.offNotEarned) ? r.offNotEarned.length : (Number(r.offNotEarned)||0);
+  const _llop    = Number(r.lateLOP)||0;
+  const _absW    = Number(r.absentWorking)||0;
+  const _lopAll  = Number(r.lop)||0;
+  const _otherCut = Math.max(0, Math.round((_lopAll - _llop - _unpdLv - _absW - _halfCut - _offNE) * 2) / 2);
+  const CN = { basic:'मूल वेतन', hra:'मकान भत्ता (HRA)', conveyance:'यात्रा भत्ता', special_allowance:'विशेष भत्ता' };
+  const _staff = essLang() === 'en';
   const earnRows = [];   // [name, fullMonthly, earnedThisMonth]
-  if(r.comps && r.comps.length){ r.comps.forEach(x => { if(x.amt > 0 || x.full > 0) earnRows.push([x.name, x.full||0, x.amt||0]); }); }
-  else { earnRows.push(['Basic', r.basic||0, r.basic||0], ['HRA', r.hra||0, r.hra||0], ['Conveyance', r.conv||0, r.conv||0], ['Special Allowance', r.spl||0, r.spl||0]); }
-  if(r.arrears) earnRows.push(['Arrears', '', r.arrears]);
-  if(r.reward) earnRows.push(['Kaizen Reward', '', r.reward]);
-  if(r.encash) earnRows.push(['Leave Encashment (' + (r.encashDays||1) + ' day' + ((r.encashDays||1) > 1 ? 's' : '') + ')', '', r.encash]);
-  earnRows.push(['Bonus / Incentive', '', r.bonus||0]);
+  if(r.comps && r.comps.length){
+    r.comps.forEach(x => { if(x.amt > 0 || x.full > 0) earnRows.push([_staff ? x.name : (CN[x.k] || x.name), x.full||0, x.amt||0]); });
+  } else {
+    earnRows.push([L('Basic', CN.basic), r.basic||0, r.basic||0], [L('HRA', CN.hra), r.hra||0, r.hra||0],
+                  [L('Conveyance', CN.conveyance), r.conv||0, r.conv||0], [L('Special Allowance', CN.special_allowance), r.spl||0, r.spl||0]);
+  }
+  if(r.arrears) earnRows.push([L('Arrears', 'बकाया (एरियर)'), '', r.arrears]);
+  if(r.reward)  earnRows.push([L('Kaizen Reward', 'काइज़न इनाम'), '', r.reward]);
+  if(r.encash)  earnRows.push([L('Leave Encashment (' + (r.encashDays||1) + ' day' + ((r.encashDays||1) > 1 ? 's' : '') + ')',
+                                 'छुट्टी का पैसा (' + (r.encashDays||1) + ' दिन)'), '', r.encash]);
+  earnRows.push([L('Bonus / Incentive', 'बोनस / इंसेंटिव'), '', r.bonus||0]);
   const dedRows = [];
   if(!isC){
-    dedRows.push(['Provident Fund', r.pf||0], ['ESI', r.esi||0], ['Professional Tax', r.pt||0], ['LWF', r.lwf||0]);
-    if(r.tds) dedRows.push(['TDS (Income Tax)', r.tds]);
+    dedRows.push([L('Provident Fund', 'भविष्य निधि (PF)'), r.pf||0], [L('ESI', 'ई.एस.आई.'), r.esi||0],
+                 [L('Professional Tax', 'प्रोफेशनल टैक्स'), r.pt||0], [L('LWF', 'श्रमिक कल्याण कोष'), r.lwf||0]);
+    if(r.tds) dedRows.push([L('TDS (Income Tax)', 'टी.डी.एस. (आयकर)'), r.tds]);
     (r.dedBreak||[]).forEach(d => dedRows.push([d.name, d.amt]));
-    dedRows.push(['Advance Recovery', r.advDed||0], ['Other Deduction', r.otherDed||0]);
+    dedRows.push([L('Advance Recovery', 'एडवांस की वसूली'), r.advDed||0], [L('Other Deduction', 'अन्य कटौती'), r.otherDed||0]);
   } else {
-    dedRows.push(['Koi katauti nahi — bhugtan contractor ke zariye', '']);
+    dedRows.push([L('No deductions — paid through contractor', 'कोई कटौती नहीं — भुगतान ठेकेदार के ज़रिये'), '']);
   }
   const cell = 'border:1px solid #e2e8f0;padding:6px 9px;font-size:11px';
-  // Employer side — ye employee ki salary se NAHI kata, company apni jeb se deti hai.
-  const _erTot  = isC ? 0 : ((r.erPF||0) + (r.erESI||0) + (r.erLWF||0));
-  const _grossA = Math.round((r.earnedGross||0) + (r.bonus||0) + (r.arrears||0) + (r.reward||0) + (r.encash||0));
-  const _ctcMon = _grossA + _erTot;
-  const _pfTot  = (r.pf||0) + (r.erPF||0);
+  const hCell = cell + ';background:#f8fafc;text-align:left';
   let bodyRows = '';
   for(let i = 0; i < Math.max(earnRows.length, dedRows.length); i++){
     const eR = earnRows[i], dR = dedRows[i];
     bodyRows += `<tr><td style="${cell}">${eR ? esc(eR[0]) : ''}</td>
-      <td style="${cell};text-align:right;color:#64748b">${eR && eR[1] !== '' ? Math.round(eR[1]).toLocaleString('en-IN') : ''}</td>
-      <td style="${cell};text-align:right">${eR ? Math.round(eR[2]).toLocaleString('en-IN') : ''}</td>
+      <td style="${cell};text-align:right;color:#64748b">${eR && eR[1] !== '' ? _inr(eR[1]) : ''}</td>
+      <td style="${cell};text-align:right">${eR ? _inr(eR[2]) : ''}</td>
       <td style="${cell}">${dR ? esc(dR[0]) : ''}</td>
-      <td style="${cell};text-align:right">${dR && dR[1] !== '' ? Math.round(dR[1]).toLocaleString('en-IN') : ''}</td></tr>`;
+      <td style="${cell};text-align:right">${dR && dR[1] !== '' ? _inr(dR[1]) : ''}</td></tr>`;
   }
+  const _step = (label, amt, sign) => `<tr><td style="${cell};padding-left:20px">${label}</td><td style="${cell};text-align:right">${_n(amt) ? sign : ''}${_inr(amt)}</td></tr>`;
+  const ladder = isC ? '' : `<table style="width:100%;border-collapse:collapse;margin-top:10px">
+      <tr><th colspan="2" style="${cell};background:#eef2f7;text-align:left">${L(
+        'From CTC to net pay — where every rupee went',
+        'सी.टी.सी. से हाथ में आने तक — हर रुपये का हिसाब')}</th></tr>
+      ${_fullCTC ? `<tr><td style="${cell};width:74%;color:#64748b">${L('Your monthly CTC (for a full month)','आपका महीने का सी.टी.सी. (पूरे महीने का)')}</td><td style="${cell};text-align:right;color:#64748b">${_inr(_fullCTC)}</td></tr>` : ''}
+      <tr><th style="${hCell}">${L('CTC for this month','इस महीने का सी.टी.सी.')} &mdash; ${_d(r.paidDays)}/${r.dim||0} ${L('days','दिन')}</th><th style="${cell};text-align:right">${_inr(_ctcMon)}</th></tr>
+      ${_step(L('less&nbsp; Employer PF 12% &mdash; credited to your PF account','घटाया&nbsp; कंपनी का पी.एफ. 12% &mdash; आपके पी.एफ. खाते में जमा'), r.erPF, '−')}
+      ${_step(L('less&nbsp; Employer ESI 3.25% &mdash; your ESI cover','घटाया&nbsp; कंपनी का ई.एस.आई. 3.25% &mdash; आपका ई.एस.आई. इलाज कवर'), r.erESI, '−')}
+      ${_step(L('less&nbsp; Employer Labour Welfare Fund','घटाया&nbsp; कंपनी का श्रमिक कल्याण कोष'), r.erLWF, '−')}
+      <tr><th style="${hCell};background:#f6f8fb">${L('Gross earnings (A)','कुल कमाई (A)')}</th><th style="${cell};text-align:right;background:#f6f8fb">${_inr(_grossA)}</th></tr>
+      ${_step(L('less&nbsp; Deducted from your salary (PF, ESI, LWF, tax, advance)','घटाया&nbsp; आपकी सैलरी से कटौती (पी.एफ., ई.एस.आई., श्रमिक कल्याण, टैक्स, एडवांस)'), totalDed, '−')}
+      <tr><th style="${hCell};background:#e8f1ff">${L('Net pay &mdash; what reaches your bank','हाथ में मिली रकम &mdash; जो बैंक में आई')}</th><th style="${cell};text-align:right;background:#e8f1ff">${_inr(net)}</th></tr>
+      ${_pfTot ? `<tr><td style="${cell};background:#f0fdf4">${L('Credited to your PF account this month','इस महीने आपके पी.एफ. खाते में जमा')} &mdash; ${L('yours','आपका')} ₹${_inr(r.pf)} + ${L('company','कंपनी का')} ₹${_inr(r.erPF)}</td><th style="${cell};background:#f0fdf4;text-align:right">${_inr(_pfTot)}</th></tr>` : ''}
+    </table>
+    <p style="font-size:9.5px;color:#64748b;margin:6px 0 0;line-height:1.6">${L(
+      '<b style="color:#0f172a">How to read this.</b> Your CTC is the company’s total cost for you, and the employer’s PF, ESI and LWF come <b>out of that CTC</b> — that money is credited to your PF / ESI account, so it stays yours, but it never reaches your bank. What is left is your gross earnings; your own PF, LWF, tax and any advance are then deducted from it, and the balance is your net pay.',
+      '<b style="color:#0f172a">इसे कैसे पढ़ें।</b> सी.टी.सी. वह पूरी रकम है जो कंपनी आप पर खर्च करती है। कंपनी का पी.एफ., ई.एस.आई. और श्रमिक कल्याण कोष <b>उसी सी.टी.सी. में से</b> कटकर आपके पी.एफ. / ई.एस.आई. खाते में जमा होता है — वह पैसा आपका ही रहता है, पर बैंक में नहीं आता। जो बचता है वह आपकी कुल कमाई है; उसमें से आपका पी.एफ., श्रमिक कल्याण कोष, टैक्स और एडवांस कटता है, और जो बचा वही आपके हाथ में आता है।')}</p>`;
   const slipId = 'PS/' + s.month.replace('-','') + '/' + code;
   const qrData = encodeURIComponent(`${c.name||''}|PAYSLIP|${code}|${s.month}|NET:${net}|VC:${vc}`);
   $('slipPrint').innerHTML = `<div style="font-family:Inter,Arial,sans-serif;max-width:760px;margin:auto;background:#fff;position:relative;overflow:hidden">
@@ -4381,60 +4425,55 @@ function printSlip(s){
       <div><h1 style="margin:0;font-size:18px">${esc(c.name || '')}</h1>
         <p style="margin:3px 0 0;font-size:10px;color:#94a3b8">${esc(c.addr || '')}</p></div>
       <div style="text-align:right">
-        <div style="font-size:12px;font-weight:700;letter-spacing:.14em;border:1px solid #475569;border-radius:6px;padding:4px 12px">PAYSLIP</div>
+        <div style="font-size:12px;font-weight:700;letter-spacing:.14em;border:1px solid #475569;border-radius:6px;padding:4px 12px">${L('PAYSLIP','वेतन पर्ची')}</div>
         <p style="margin:4px 0 0;font-size:10px;color:#94a3b8">${esc(monthLabelESS(s.month))} • ${esc(slipId)}</p>
       </div>
     </div>
     <div style="height:3px;background:#2563eb;margin-bottom:14px"></div>
     <div style="padding:0 4px">
     <table style="width:100%;border-collapse:collapse;margin-bottom:8px">
-      <tr><th style="${cell};background:#f8fafc;text-align:left;width:22%">Employee</th><td style="${cell};width:28%">${esc(e.Name || '')}</td><th style="${cell};background:#f8fafc;text-align:left;width:22%">Employee Code</th><td style="${cell}">${esc(code)}</td></tr>
-      <tr><th style="${cell};background:#f8fafc;text-align:left">Department</th><td style="${cell}">${esc(e.DEPARTMENT || '—')}</td><th style="${cell};background:#f8fafc;text-align:left">Designation</th><td style="${cell}">${esc(e.DESIGNATION || '—')}</td></tr>
-      <tr><th style="${cell};background:#f8fafc;text-align:left">Bank</th><td style="${cell}">${esc(p.bank_name || '—')}</td><th style="${cell};background:#f8fafc;text-align:left">Account No</th><td style="${cell}">${esc(p.account_no || '—')}</td></tr>
-      <tr><th style="${cell};background:#f8fafc;text-align:left">PAN</th><td style="${cell}">${esc(p.pan || '—')}</td><th style="${cell};background:#f8fafc;text-align:left">UAN</th><td style="${cell}">${esc(p.uan || '—')}</td></tr>
-      <tr><th style="${cell};background:#f8fafc;text-align:left">Shift</th><td style="${cell}">${esc(r.shiftName || '—')}</td><th style="${cell};background:#f8fafc;text-align:left">Pay Mode</th><td style="${cell}">${isC ? 'Through contractor' : 'Bank Transfer'}</td></tr>
+      <tr><th style="${hCell};width:22%">${L('Employee','कर्मचारी')}</th><td style="${cell};width:28%">${esc(e.Name || '')}</td><th style="${hCell};width:22%">${L('Employee Code','कर्मचारी कोड')}</th><td style="${cell}">${esc(code)}</td></tr>
+      <tr><th style="${hCell}">${L('Department','विभाग')}</th><td style="${cell}">${esc(e.DEPARTMENT || '—')}</td><th style="${hCell}">${L('Designation','पद')}</th><td style="${cell}">${esc(e.DESIGNATION || '—')}</td></tr>
+      <tr><th style="${hCell}">${L('Bank','बैंक')}</th><td style="${cell}">${esc(p.bank_name || '—')}</td><th style="${hCell}">${L('Account No','खाता संख्या')}</th><td style="${cell}">${esc(p.account_no || '—')}</td></tr>
+      <tr><th style="${hCell}">PAN</th><td style="${cell}">${esc(p.pan || '—')}</td><th style="${hCell}">UAN</th><td style="${cell}">${esc(p.uan || '—')}</td></tr>
+      <tr><th style="${hCell}">${L('Shift','शिफ्ट')}</th><td style="${cell}">${esc(r.shiftName || '—')}</td><th style="${hCell}">${L('Pay Mode','भुगतान का तरीका')}</th><td style="${cell}">${isC ? L('Through contractor','ठेकेदार के ज़रिये') : L('Bank Transfer','बैंक ट्रांसफर')}</td></tr>
     </table>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:8px">
-      <tr><th colspan="6" style="${cell};background:#eef2f7;text-align:left">Attendance &amp; Days — aapke paid days kaise bane</th></tr>
-      <tr><th style="${cell};background:#f8fafc;text-align:left;width:18%">Days in Month</th><td style="${cell};width:15%">${r.dim||0}</td><th style="${cell};background:#f8fafc;text-align:left;width:19%">Present (worked)</th><td style="${cell};width:15%">${r.present||0}</td><th style="${cell};background:#f8fafc;text-align:left;width:18%">Paid Leave</th><td style="${cell}">${r.leaveDays||0}</td></tr>
-      <tr><th style="${cell};background:#f8fafc;text-align:left">Week-offs paid</th><td style="${cell}">${r.earnedWO||0}</td><th style="${cell};background:#f8fafc;text-align:left">Holidays paid</th><td style="${cell}">${r.earnedH||0}</td><th style="${cell};background:#f8fafc;text-align:left">Half Days</th><td style="${cell}">${r.halfDays||0}</td></tr>
-      <tr><th style="${cell};background:#f8fafc;text-align:left">Late arrivals</th><td style="${cell}">${r.lates||0}</td><th style="${cell};background:#f8fafc;text-align:left">Late day-cut</th><td style="${cell}">${r.lateLOP||0}</td><th style="${cell};background:#f8fafc;text-align:left">Unpaid leave (LWP)</th><td style="${cell}">${r.lwpDays||0}</td></tr>
-      <tr><th style="${cell};background:#e8f1ff;text-align:left">Paid Days</th><td style="${cell};background:#e8f1ff"><b>${r.paidDays||0}</b> / ${r.dim||0}</td><th style="${cell};background:#fdeeee;text-align:left">LOP (unpaid)</th><td style="${cell};background:#fdeeee"><b>${r.lop||0}</b></td><th style="${cell};background:#f8fafc;text-align:left">Absent without leave</th><td style="${cell}">${r.unauthAbs||0}</td></tr>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:4px">
+      <tr><th colspan="4" style="${cell};background:#eef2f7;text-align:left">${L(
+        'Attendance &amp; days — how your paid days were arrived at',
+        'हाज़िरी और दिन — आपके वेतन वाले दिन कैसे बने')}</th></tr>
+      <tr><th style="${hCell};width:30%;font-weight:400">${L('Present (worked)','उपस्थित (काम किया)')}</th><td style="${cell};width:10%;text-align:right">${_d(r.present)}</td><th style="${hCell};width:40%;font-weight:400">${L('Leave without pay','बिना वेतन छुट्टी')}</th><td style="${cell};width:10%;text-align:right">${_d(_unpdLv)}</td></tr>
+      <tr><th style="${hCell};font-weight:400">${L('Paid leave','वेतन सहित छुट्टी')}</th><td style="${cell};text-align:right">${_d(r.leaveDays)}</td><th style="${hCell};font-weight:400">${L('Absent without leave','बिना छुट्टी गैरहाज़िर')}</th><td style="${cell};text-align:right">${_d(_absW)}</td></tr>
+      <tr><th style="${hCell};font-weight:400">${L('Week-offs paid','साप्ताहिक अवकाश (वेतन सहित)')}</th><td style="${cell};text-align:right">${_d(r.earnedWO)}</td><th style="${hCell};font-weight:400">${L('Half days (½ each)','आधे दिन (हर एक ½)')}</th><td style="${cell};text-align:right">${_d(_halfCut)}</td></tr>
+      <tr><th style="${hCell};font-weight:400">${L('Holidays paid','त्योहार की छुट्टी (वेतन सहित)')}</th><td style="${cell};text-align:right">${_d(r.earnedH)}</td><th style="${hCell};font-weight:400">${L('Week-offs / holidays not earned','न मिले साप्ताहिक अवकाश / छुट्टी')}</th><td style="${cell};text-align:right">${_d(_offNE)}</td></tr>
+      <tr><th style="${hCell};font-weight:400">${L('less&nbsp; late day-cut','घटाया&nbsp; देरी से कटे दिन')}</th><td style="${cell};text-align:right">${_llop ? '−' : ''}${_d(_llop)}</td><th style="${hCell};font-weight:400">${L('Other days not payable','बाकी बिना वेतन दिन')}</th><td style="${cell};text-align:right">${_d(_otherCut)}</td></tr>
+      <tr><th style="${hCell};background:#e8f1ff">${L('Paid days','वेतन वाले दिन')}</th><th style="${cell};background:#e8f1ff;text-align:right">${_d(r.paidDays)}</th><th style="${hCell};font-weight:400">${L('plus&nbsp; late day-cut','जोड़ा&nbsp; देरी से कटे दिन')}</th><td style="${cell};text-align:right">${_llop ? '+' : ''}${_d(_llop)}</td></tr>
+      <tr><td style="border:none"></td><td style="border:none"></td><th style="${hCell};background:#fdeeee">${L('Days cut','कटे दिन')}</th><th style="${cell};background:#fdeeee;text-align:right">${_d(_lopAll)}</th></tr>
     </table>
+    <p style="font-size:9.5px;color:#64748b;margin:0 0 10px;line-height:1.55">
+      ${L('Paid days','वेतन वाले दिन')} ${_d(r.paidDays)} + ${L('days cut','कटे दिन')} ${_d(_lopAll)} = ${L('days in month','महीने के दिन')} ${r.dim||0}.
+      &nbsp;•&nbsp; ${L('Late arrivals','देर से आना')}: ${r.lates||0} ${L('time(s) — these are arrivals, not days','बार — यह दिन नहीं, आने की गिनती है')}.
+      ${_otherCut ? '&nbsp;•&nbsp; ' + L('“Other days not payable” includes days before joining or after leaving.','“बाकी बिना वेतन दिन” में नौकरी शुरू होने से पहले या छोड़ने के बाद के दिन भी शामिल हैं।') : ''}
+    </p>
     <table style="width:100%;border-collapse:collapse">
-      <thead><tr><th style="${cell};background:#f8fafc;text-align:left;width:26%">Earnings</th><th style="${cell};background:#f8fafc;text-align:right;width:14%">Full Salary (₹)</th><th style="${cell};background:#f8fafc;text-align:right;width:14%">Earned (₹)</th><th style="${cell};background:#f8fafc;text-align:left;width:32%">Deductions (aapki salary se kati)</th><th style="${cell};background:#f8fafc;text-align:right;width:14%">Amount (₹)</th></tr></thead>
+      <thead><tr><th style="${hCell};width:26%">${L('Earnings','कमाई')}</th><th style="${cell};background:#f8fafc;text-align:right;width:14%">${L('Full salary (₹)','पूरी सैलरी (₹)')}</th><th style="${cell};background:#f8fafc;text-align:right;width:14%">${L('Earned (₹)','इस महीने मिली (₹)')}</th><th style="${hCell};width:32%">${L('Deducted from your salary','आपकी सैलरी से कटौती')}</th><th style="${cell};background:#f8fafc;text-align:right;width:14%">${L('Amount (₹)','रकम (₹)')}</th></tr></thead>
       <tbody style="font-size:11px">${bodyRows}
-      <tr><th style="${cell};text-align:left">Gross (A)</th><th style="${cell};text-align:right;color:#64748b">${(r.fullGross || (r.comps ? r.comps.reduce((a,x)=>a+(x.full||0),0) : 0)).toLocaleString('en-IN')}</th><th style="${cell};text-align:right">${_grossA.toLocaleString('en-IN')}</th><th style="${cell};text-align:left">Total Deductions</th><th style="${cell};text-align:right">${Math.round(totalDed).toLocaleString('en-IN')}</th></tr></tbody>
+      <tr><th style="${cell};text-align:left">${L('Gross','कुल')}</th><th style="${cell};text-align:right;color:#64748b">${_inr(_fullG)}</th><th style="${cell};text-align:right">${_inr(_grossA)}</th><th style="${cell};text-align:left">${L('Total deductions','कुल कटौती')}</th><th style="${cell};text-align:right">${_inr(totalDed)}</th></tr></tbody>
     </table>
     <div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;color:#fff;border-radius:10px;padding:12px 16px;margin-top:10px">
-      <div><b style="letter-spacing:.05em;font-size:12px">NET PAY</b><br><span style="font-size:10px;color:#94a3b8">Rupees ${esc(numToWords(net))} Only • ${isC ? esc(r.contractor || 'Contractor ke zariye') : 'Bank Transfer'}</span></div>
-      <div style="font-size:22px;font-weight:700">₹ ${net.toLocaleString('en-IN')}</div>
+      <div><b style="letter-spacing:.05em;font-size:12px">${isC ? L('PAYABLE TO CONTRACTOR','ठेकेदार को देय') : L('NET PAY','हाथ में मिली रकम')}</b><br><span style="font-size:10px;color:#94a3b8">${L('Rupees ' + esc(numToWords(net)) + ' Only', 'रुपये ' + esc(numToWords(net)) + ' मात्र')} • ${isC ? esc(r.contractor || L('Contractor','ठेकेदार')) : L('Bank Transfer','बैंक ट्रांसफर')}</span>${dedShort ? `<br><span style="font-size:10px;color:#fca5a5">${L('Deductions exceeded earnings by ₹' + _inr(dedShort) + ' — net held at zero', 'कटौती कमाई से ₹' + _inr(dedShort) + ' ज़्यादा थी — इसलिए रकम शून्य पर रोकी गई')}</span>` : ''}</div>
+      <div style="font-size:22px;font-weight:700">₹ ${_inr(net)}</div>
     </div>
-    ${isC ? '' : `<table style="width:100%;border-collapse:collapse;margin-top:10px">
-      <tr><th colspan="2" style="${cell};background:#eef2f7;text-align:left">Company apni taraf se jama karti hai — ye aapki salary se NAHI kata</th></tr>
-      <tr><td style="${cell};width:72%">Employer Provident Fund (12% of PF wages)</td><td style="${cell};text-align:right">${(r.erPF||0).toLocaleString('en-IN')}</td></tr>
-      <tr><td style="${cell}">Employer ESI (3.25% of gross)</td><td style="${cell};text-align:right">${(r.erESI||0).toLocaleString('en-IN')}</td></tr>
-      <tr><td style="${cell}">Employer Labour Welfare Fund</td><td style="${cell};text-align:right">${(r.erLWF||0).toLocaleString('en-IN')}</td></tr>
-      <tr><th style="${cell};background:#f6f8fb;text-align:left">Total employer contribution (B)</th><th style="${cell};background:#f6f8fb;text-align:right">${_erTot.toLocaleString('en-IN')}</th></tr>
-      <tr><th style="${cell};background:#e8f1ff;text-align:left">Company ka kul kharcha is mahine = A (₹${_grossA.toLocaleString('en-IN')}) + B</th><th style="${cell};background:#e8f1ff;text-align:right">${_ctcMon.toLocaleString('en-IN')}</th></tr>
-      ${(r.erPF||0) || (r.pf||0) ? `<tr><td style="${cell};background:#f0fdf4">Aapke PF account me is mahine jama — aapka ₹${(r.pf||0).toLocaleString('en-IN')} + company ka ₹${(r.erPF||0).toLocaleString('en-IN')}</td><th style="${cell};background:#f0fdf4;text-align:right">${_pfTot.toLocaleString('en-IN')}</th></tr>` : ''}
-    </table>
-    <p style="font-size:9.5px;color:#64748b;margin:6px 0 0;line-height:1.6">
-      <b style="color:#0f172a">Samajhne ke liye — do tarah ke hisse hote hain.</b>
-      Upar <b>Deductions</b> wale column me jo hai wo <b>aapki salary se kata</b> hai, isliye Net Pay utna kam hua.
-      Neeche wala hissa <b>company apni jeb se</b> deti hai — aapki salary se nahi kata, lekin aapke PF / ESI khate me jama hota hai.
-      Isi liye company ka kharcha ₹${_ctcMon.toLocaleString('en-IN')} hai aur aapke haath me ₹${net.toLocaleString('en-IN')} aaye.
-      <br><span style="color:#94a3b8">The Deductions column is withheld from your pay. The employer contribution is paid by the company over and above your gross — it is credited to your PF / ESI account and is never recovered from you.</span>
-    </p>`}
+    ${ladder}
     <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e8f0;margin-top:14px;padding-top:10px">
       <div style="font-size:9.5px;color:#64748b">
-        <b style="color:#0f172a">Verification Code: ${vc}</b><br>
-        Scan the QR or match this code with HR records to verify authenticity.<br>
-        Any alteration to the figures invalidates this code.
+        <b style="color:#0f172a">${L('Verification Code','जाँच कोड')}: ${vc}</b><br>
+        ${L('Scan the QR or match this code with HR records to verify authenticity.','असली होने की जाँच के लिए QR स्कैन करें या यह कोड HR के रिकॉर्ड से मिलाएँ।')}<br>
+        ${L('Any alteration to the figures invalidates this code.','आँकड़ों में कोई भी बदलाव इस कोड को रद्द कर देता है।')}
       </div>
       <img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=${qrData}" style="width:70px;height:70px" alt="Verify">
     </div>
-    <p style="font-size:9.5px;color:#94a3b8;margin-top:8px;text-align:center">System generated payslip — no signature required • ${esc(c.name || '')}</p>
+    <p style="font-size:9.5px;color:#94a3b8;margin-top:8px;text-align:center">${L('System generated payslip — no signature required','सिस्टम से बनी वेतन पर्ची — हस्ताक्षर की ज़रूरत नहीं')} • ${esc(c.name || '')}</p>
     </div></div>
   </div>`;
   setTimeout(() => { window.print(); $('slipPrint').innerHTML = ''; }, 200);
