@@ -923,7 +923,8 @@ body.no-confidential .confidential-col{display:none!important}
 <!-- ================= APPROVALS ================= -->
 <div class="page" id="page-approvals">
   <div class="ap-tabs">
-    <button class="ap-tab active" data-aptab="leaves"><i class="fa-solid fa-umbrella-beach"></i> Leaves <span class="ap-cnt" id="apCntLv">0</span></button>
+    <button class="ap-tab active" data-aptab="inbox"><i class="fa-solid fa-inbox"></i> Sab Kuch <span class="ap-cnt" id="apCntAll">0</span></button>
+    <button class="ap-tab" data-aptab="leaves"><i class="fa-solid fa-umbrella-beach"></i> Leaves <span class="ap-cnt" id="apCntLv">0</span></button>
     <button class="ap-tab" data-aptab="ot"><i class="fa-solid fa-clock"></i> Overtime <span class="ap-cnt" id="apCntOt">0</span></button>
     <button class="ap-tab" data-aptab="exp"><i class="fa-solid fa-receipt"></i> Expenses <span class="ap-cnt" id="apCntEx">0</span></button>
     <button class="ap-tab" data-aptab="field"><i class="fa-solid fa-location-dot"></i> Field <span class="ap-cnt" id="apCntField">0</span></button>
@@ -933,9 +934,30 @@ body.no-confidential .confidential-col{display:none!important}
     <button class="ap-tab" data-aptab="mloan"><i class="fa-solid fa-sack-dollar"></i> Advance / Loan <span class="ap-cnt" id="apCntMl">0</span></button>
     <button class="ap-tab" data-aptab="supatt"><i class="fa-solid fa-user-clock"></i> Supervisor Attendance <span class="ap-cnt" id="apCntSup">0</span></button>
     <button class="ap-tab" data-aptab="fuel"><i class="fa-solid fa-gas-pump"></i> Fuel / Meter <span class="ap-cnt" id="apCntFuel">0</span></button>
+    <button class="ap-tab" data-aptab="sal"><i class="fa-solid fa-indian-rupee-sign"></i> Salary / CTC <span class="ap-cnt" id="apCntSal">0</span></button>
+    <button class="ap-tab" data-aptab="late"><i class="fa-solid fa-user-clock"></i> Late-LOP <span class="ap-cnt" id="apCntLate">0</span></button>
+    <button class="ap-tab" data-aptab="wp"><i class="fa-solid fa-id-card-clip"></i> Work Pass <span class="ap-cnt" id="apCntWp">0</span></button>
+    <button class="btn btn-ghost btn-sm" style="margin-left:auto;align-self:center" onclick="loadApprovals()"><i class="fa-solid fa-rotate"></i> Refresh</button>
   </div>
-  <div class="card" style="padding:0;overflow:hidden">
-    <div class="ap-panel" id="apPanel-leaves">
+  <div class="ap-panel" id="apPanel-inbox">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="p-3 border-b" style="border-color:var(--line)">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 class="display font-bold m-0 text-sm"><i class="fa-solid fa-inbox" style="color:var(--brand)"></i> Jo bhi aapke approval ka intezaar kar raha hai</h3>
+            <p class="text-[11px] mt-1 mb-0" style="color:var(--muted)">Sab ek hi list me — purana sabse upar. Yahin se Approve / Reject kar sakte hain, kahin jana nahi padega.</p>
+          </div>
+          <label class="flex items-center gap-2 text-xs" style="color:var(--muted);cursor:pointer">
+            <input type="checkbox" id="apInboxMine" checked> Sirf wo dikhao jo <b>mai</b> approve kar sakta hoon
+          </label>
+        </div>
+        <div id="apInboxChips" class="flex gap-2 flex-wrap mt-3"></div>
+      </div>
+      <div id="apInbox" class="text-sm" style="padding:0"><p class="p-4 m-0 text-xs" style="color:var(--muted)">Loading…</p></div>
+    </div>
+  </div>
+  <div class="card ap-panel-wrap" style="padding:0;overflow:hidden">
+    <div class="ap-panel hidden" id="apPanel-leaves">
       <div class="p-3 border-b flex gap-2" style="border-color:var(--line)">
         <button class="btn btn-primary btn-sm" id="apLvPend" onclick="apLvMode('PENDING')">Pending</button>
         <button class="btn btn-ghost btn-sm" id="apLvAppr" onclick="apLvMode('APPROVED')">Approved</button>
@@ -984,6 +1006,27 @@ body.no-confidential .confidential-col{display:none!important}
         <span class="text-xs ml-auto" style="color:var(--muted)">Total pending: <b id="apFuelTotal">₹0</b></span>
       </div>
       <div id="apFuel" class="text-sm" style="padding:0"></div>
+    </div>
+    <div class="ap-panel hidden" id="apPanel-sal">
+      <div class="p-3 border-b" style="border-color:var(--line)">
+        <b class="text-sm">Salary structure aur CTC — CEO approval</b>
+        <p class="text-[11px] mt-1 mb-0" style="color:var(--muted)">Pehle ye sirf Employees / Employee&nbsp;CTC page par dikhta tha. Approve hone tak ye salary payroll me nahi jaati.</p>
+      </div>
+      <div id="apSal" class="text-sm" style="padding:0"></div>
+    </div>
+    <div class="ap-panel hidden" id="apPanel-late">
+      <div class="p-3 border-b" style="border-color:var(--line)">
+        <b class="text-sm">Late-LOP — CEO approval</b>
+        <p class="text-[11px] mt-1 mb-0" style="color:var(--muted)"><b>Maaf karo</b> = late ki LOP hat jayegi. <b>Kaato</b> = LOP lagegi. Pehle iske liye Payroll page par ja kar payroll chalana padta tha; ab seedha yahan se ho jayega aur payroll apne aap uthayega.</p>
+      </div>
+      <div id="apLate" class="text-sm" style="padding:0"></div>
+    </div>
+    <div class="ap-panel hidden" id="apPanel-wp">
+      <div class="p-3 border-b" style="border-color:var(--line)">
+        <b class="text-sm">Work Pass — trial se employee banane ki request</b>
+        <p class="text-[11px] mt-1 mb-0" style="color:var(--muted)">Approve karte hi Add&nbsp;Employee form khul jayega aur trial ki attendance apne aap sync ho jayegi.</p>
+      </div>
+      <div id="apWp" class="text-sm" style="padding:0"></div>
     </div>
   </div>
 </div>
@@ -10320,6 +10363,33 @@ document.body.addEventListener('click', async e => {
     if($('page-approvals').classList.contains('show')) loadApprovals(); else loadExpenses();
   }
   if(act === 'ex-paid'){ await sb.from('expenses').update({ status:'PAID' }).eq('id', el.dataset.id); notify('Reimbursement marked paid', 'success'); loadExpenses(); }
+  if(act === 'ap-kind'){ AP_INBOX_KIND = el.dataset.kind || ''; apRenderInbox(); return; }
+  if(act === 'late-appr' || act === 'late-rej'){
+    if(!roleCEO()) return notify('Late-LOP ka faisla sirf CEO le sakta hai', 'error');
+    const d = act === 'late-appr' ? 'APPROVED' : 'REJECTED';
+    const nm = apNameOf(el.dataset.code);
+    if(!(await nxConfirm(nm + ' ka ' + monthLabel(el.dataset.month) + ' ka late'
+        + (d === 'APPROVED' ? ' MAAF karein? LOP 0 ho jayegi.' : ' KAATEIN? LOP lagegi.'),
+        d === 'APPROVED' ? 'Late Maaf' : 'LOP Kaato'))) return;
+    if(!(await apSetLateDecision(el.dataset.code, el.dataset.month, d))) return;
+    notify(nm + ' — ' + (d === 'APPROVED' ? 'maaf kar diya' : 'LOP kaat di'), 'success');
+    if(el.dataset.month === PAY_MONTH && PAY_ROWS.length){ try{ renderLateApprovalPanel(); }catch(e){} }
+    loadApprovals();
+    return;
+  }
+  if(act === 'late-all'){
+    if(!roleCEO()) return notify('Late-LOP ka faisla sirf CEO le sakta hai', 'error');
+    const d = el.dataset.d;
+    const rows = AP_INBOX.filter(i => i.kind === 'late' && i.can);
+    if(!rows.length) return;
+    if(!(await nxConfirm(rows.length + ' employee ka late '
+        + (d === 'APPROVED' ? 'MAAF karein?' : 'KAATEIN?'), 'Sabka ek saath'))) return;
+    let done = 0;
+    for(const i of rows){ if(await apSetLateDecision(i.code, i.month, d)) done++; }
+    notify(done + ' par faisla save ho gaya', 'success');
+    loadApprovals();
+    return;
+  }
   if(act === 'sal-approve'){ await approveSalary(el.dataset.code); return; }
   if(act === 'sal-reject'){ await rejectSalary(el.dataset.code); return; }
   if(act === 'sal-view'){ openEmpModal(el.dataset.code); return; }
@@ -14552,6 +14622,9 @@ async function loadTrialPage(){
 
     // Tab 1 — Convert Requests
     cHost.innerHTML = conv.length ? conv.map(w => card(w, true)).join('') : '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi convert request pending nahi.</p>';
+    // Wahi cards Approvals page ke "Work Pass" tab me bhi — CEO ko Trial page par jana na pade
+    if($('apWp')) $('apWp').innerHTML = cHost.innerHTML;
+    if($('apCntWp')) $('apCntWp').innerText = conv.length;
     // Tab 2 — Active Trial Workers
     if(aHost) aHost.innerHTML = active.length ? active.map(w => card(w, false)).join('') : '<p class="p-4 m-0 text-xs" style="color:var(--muted)">Koi active trial worker nahi.</p>';
     // Tab 3 — Daily Attendance (sirf current trials + convert requests ki, date-wise)
@@ -14636,6 +14709,257 @@ function renderFaq(){
 }
 document.addEventListener('input', e => { if(e.target && e.target.id === 'faqSearch') renderFaq(); });
 document.addEventListener('toggle', e => { const d = e.target; if(d && d.classList && d.classList.contains('faq-item')){ const ic = d.querySelector('summary i'); if(ic) ic.style.transform = d.open ? 'rotate(90deg)' : 'none'; } }, true);
+
+/* ================= CEO INBOX — sab approvals ek jagah =================
+   CEO ko pehle 4 jagah jana padta tha: Approvals page ke 10 tab, Payroll page
+   (late-LOP, jo payroll chalane ke baad hi dikhta tha), Employee CTC page
+   (salary/CTC) aur Trial page (work pass). Ab sab kuch isi page par hai, aur
+   "Sab Kuch" tab me ek hi list me — purana sabse upar.
+   Har row wahi data-act use karti hai jo apne tab me use hota hai, isliye
+   Approve/Reject ka behaviour bilkul same rehta hai. */
+let AP_INBOX = [];
+let AP_INBOX_KIND = '';            // '' = sab
+
+const AP_KINDS = {
+  leave:  { label: 'Leave',        icon: 'fa-umbrella-beach',      tab: 'leaves' },
+  ot:     { label: 'Overtime',     icon: 'fa-clock',               tab: 'ot'     },
+  exp:    { label: 'Expense',      icon: 'fa-receipt',             tab: 'exp'    },
+  field:  { label: 'Field Duty',   icon: 'fa-location-dot',        tab: 'field'  },
+  wfh:    { label: 'WFH',          icon: 'fa-house-laptop',        tab: 'wfh'    },
+  gate:   { label: 'Gate Pass',    icon: 'fa-door-open',           tab: 'gate'   },
+  attfix: { label: 'Att. Fix',     icon: 'fa-clock-rotate-left',   tab: 'attfix' },
+  mloan:  { label: 'Advance/Loan', icon: 'fa-sack-dollar',         tab: 'mloan'  },
+  supatt: { label: 'Sup. Att.',    icon: 'fa-user-clock',          tab: 'supatt' },
+  fuel:   { label: 'Fuel',         icon: 'fa-gas-pump',            tab: 'fuel'   },
+  sal:    { label: 'Salary/CTC',   icon: 'fa-indian-rupee-sign',   tab: 'sal'    },
+  late:   { label: 'Late-LOP',     icon: 'fa-user-clock',          tab: 'late'   },
+  wp:     { label: 'Work Pass',    icon: 'fa-id-card-clip',        tab: 'wp'     }
+};
+
+function apNameOf(code){ const e = EMP.find(x => x['Employee code'] === code); return e ? e.Name : (code || '—'); }
+// kitne din se atka hai
+function apWaitDays(iso){
+  if(!iso) return null;
+  const d = new Date(String(iso).length === 10 ? iso + 'T12:00:00' : iso);
+  if(isNaN(d)) return null;
+  return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
+}
+function apCanEssAtt(r){
+  if(typeof window._canDecideEssAtt === 'function') return window._canDecideEssAtt(r);
+  return isSuper();
+}
+const _apOkBtn = (act, extra) => `<button class="btn btn-ghost btn-sm" data-act="${act}" ${extra||''} title="Approve"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>`;
+const _apNoBtn = (act, extra) => `<button class="btn btn-danger btn-sm" data-act="${act}" ${extra||''} title="Reject"><i class="fa-solid fa-xmark"></i></button>`;
+
+async function loadApInbox(){
+  const host = $('apInbox'); if(!host) return;
+  const items = [];
+  const push = o => items.push(o);
+  // sabhi source ek saath — ek bhi fail ho to baaki phir bhi dikhen
+  const safe = p => p.then(r => r, () => ({ data: [] }));
+  const [lv, ot, ex, ea, ml, fuel, sup, lateR, wp] = await Promise.all([
+    safe(sb.from('leaves').select('*').eq('status','PENDING').order('created_at')),
+    safe(sb.from('ot_requests').select('*').eq('status','PENDING').order('ot_date')),
+    safe(sb.from('expenses').select('*').eq('status','PENDING').order('created_at')),
+    safe(sb.from('ess_att_requests').select('*').eq('status','PENDING').order('created_at')),
+    safe(sb.from('money_requests').select('*').eq('status','PENDING').order('created_at')),
+    safe(sb.from('fuel_logs').select('*').eq('status','PENDING').order('log_date')),
+    safe(sb.rpc('sup_att_pending')),
+    safe(sb.from('payroll_late_reviews').select('*').eq('status','PENDING').order('month')),
+    safe(sb.rpc('wp_list'))
+  ]);
+
+  const canLeave = canApprove('leave') && (roleCEO() || isAdminRole());
+  (lv.data||[]).forEach(L => push({ kind:'leave', who: apNameOf(L.employee_code), code: L.employee_code,
+    detail: L.leave_type + ' · ' + L.days + ' din · ' + fmtDate(L.from_date) + ' → ' + fmtDate(L.to_date),
+    why: L.reason, at: L.created_at, can: canLeave,
+    act: _apOkBtn('appr-leave','data-id="'+L.id+'"') + _apNoBtn('cancel-leave-x','data-id="'+L.id+'"'),
+    wait: 'Manager/CEO approve karega' }));
+
+  const canOt = canApprove('ot') && roleCEO();
+  const otG = {};
+  (ot.data||[]).forEach(o => { const g = o.group_id || 'single-'+o.id; (otG[g] = otG[g] || []).push(o); });
+  Object.entries(otG).forEach(([gid, rows]) => { const f = rows[0];
+    push({ kind:'ot', who: rows.length > 1 ? rows.length + ' employees' : apNameOf(f.employee_code), code: rows.length > 1 ? '' : f.employee_code,
+      detail: f.hours + ' ghante · ' + fmtDate(f.ot_date) + (gid.startsWith('single-') ? '' : ' · ' + gid),
+      why: 'Maanga: ' + apNameOf(f.requested_by || f.employee_code), at: f.created_at || f.ot_date, can: canOt,
+      act: _apOkBtn('ot-appr-grp','data-ids="'+rows.map(r=>r.id).join(',')+'"') + _apNoBtn('ot-rej-grp','data-ids="'+rows.map(r=>r.id).join(',')+'"'),
+      wait: 'Sirf CEO approve karega' }); });
+
+  const canEx = canApprove('expense') && roleAcctMgr();
+  (ex.data||[]).forEach(x => push({ kind:'exp', who: apNameOf(x.employee_code), code: x.employee_code,
+    detail: x.category + ' · ' + fmtDate(x.expense_date), amount: x.amount, why: x.note, at: x.created_at, can: canEx,
+    act: _apOkBtn('ex-appr','data-id="'+x.id+'"') + _apNoBtn('ex-rej','data-id="'+x.id+'"'),
+    wait: 'Accounts approve karega' }));
+
+  (ea.data||[]).forEach(r => {
+    const t = String(r.req_type||'FIELD');
+    const kind = t === 'WFH' ? 'wfh' : (t === 'GATE_SL' || t === 'GATE_HD') ? 'gate' : t === 'ATT_FIX' ? 'attfix' : 'field';
+    const det = t === 'ATT_FIX' ? ('In ' + (r.fix_in ? String(r.fix_in).slice(0,5) : '—') + (r.fix_out ? ' · Out ' + String(r.fix_out).slice(0,5) : ''))
+      : t === 'GATE_HD' ? 'Half Day' : t === 'GATE_SL' ? ('Short Leave' + (r.gp_slot === 'MORNING' ? ' · Subah' : r.gp_slot === 'EVENING' ? ' · Shaam' : '')) : '';
+    push({ kind, who: r.name || apNameOf(r.employee_code), code: r.employee_code,
+      detail: (det ? det + ' · ' : '') + fmtDate(r.date), why: r.reason, at: r.created_at, can: apCanEssAtt(r),
+      act: _apOkBtn('ea-appr','data-id="'+r.id+'"') + _apNoBtn('ea-rej','data-id="'+r.id+'"'),
+      proof: r.proof_path, wait: 'Reporting manager approve karega' });
+  });
+
+  const canMl = canApprove('advance');
+  (ml.data||[]).forEach(r => push({ kind:'mloan', who: r.name || apNameOf(r.employee_code), code: r.employee_code,
+    detail: (r.req_type === 'LOAN' ? 'LOAN' : 'ADVANCE') + ' · ' + (r.months ? r.months + ' mahine' : 'agli salary se'),
+    amount: r.amount, why: r.reason, at: r.created_at, can: canMl,
+    act: _apOkBtn('ml-appr','data-id="'+r.id+'" data-code="'+esc(r.employee_code)+'" data-type="'+esc(r.req_type)+'" data-amount="'+r.amount+'" data-months="'+(r.months||'')+'" data-reason="'+esc(r.reason||'')+'"')
+       + _apNoBtn('ml-rej','data-id="'+r.id+'"'),
+    wait: 'Accounts/CEO approve karega' }));
+
+  (sup.data||[]).forEach(r => push({ kind:'supatt', who: apNameOf(r.emp_code || r.employee_code), code: r.emp_code || r.employee_code,
+    detail: fmtDate(r.date) + ' · IN ' + (r.in_time || '—'), why: 'Supervisor: ' + (r.sup_name || r.sup_code || '—'),
+    at: r.created_at || r.date, can: isSuper() || roleCEO(),
+    act: _apOkBtn('supatt-appr','data-id="'+r.id+'"') + _apNoBtn('supatt-rej','data-id="'+r.id+'"'),
+    wait: 'HR/CEO approve karega' }));
+
+  (fuel.data||[]).forEach(f => push({ kind:'fuel', who: f.employee_name || apNameOf(f.employee_code), code: f.employee_code,
+    detail: f.distance + ' km · ' + fmtDate(f.log_date), amount: f.amount, why: f.note, at: f.created_at || f.log_date,
+    can: canApprove('expense') || isSuper(),
+    act: `<button class="btn btn-ghost btn-sm" onclick="fuelDecide(${f.id},true)" title="Approve"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
+          <button class="btn btn-danger btn-sm" onclick="fuelDecide(${f.id},false)" title="Reject"><i class="fa-solid fa-xmark"></i></button>`,
+    wait: 'Accounts approve karega' }));
+
+  // Salary structure + CTC — pehle sirf Employees / Employee CTC page par
+  const ceoSal = isCEO();
+  activeEmps().forEach(e => {
+    const code = e['Employee code'], pr = PROFILES[code] || {};
+    const sst = String(pr.salary_status || '').toUpperCase();
+    const cst = String(pr.ctc_status || '').toUpperCase();
+    if(sst !== 'PENDING' && cst !== 'PENDING_CEO') return;
+    const g = Object.values((pr.salary || {}).earn || {}).reduce((a,b) => a + (Number(b)||0), 0);
+    push({ kind:'sal', who: e.Name, code,
+      detail: (sst === 'PENDING' ? 'Salary structure' : 'Annual CTC') + ' · ' + (e.DEPARTMENT || '—'),
+      amount: sst === 'PENDING' ? g : (Number(pr.ctc_annual)||0),
+      amountNote: sst === 'PENDING' ? 'gross/mahina' : 'saal ka CTC',
+      why: 'Approve hone tak ye payroll me nahi jaati', at: pr.salary_submitted_at || pr.updated_at,
+      can: ceoSal && !isMyOwnProfile(code),
+      act: _apOkBtn('sal-approve','data-code="'+esc(code)+'"') + _apNoBtn('sal-reject','data-code="'+esc(code)+'"')
+         + ` <button class="btn btn-ghost btn-sm" data-act="sal-view" data-code="${esc(code)}" title="Profile kholo"><i class="fa-solid fa-eye"></i></button>`,
+      wait: isMyOwnProfile(code) ? 'Apni salary aap approve nahi kar sakte' : 'Sirf CEO approve karega' });
+  });
+
+  // Late-LOP — pehle Payroll page par, aur wo bhi payroll chalane ke baad
+  const ceoLate = roleCEO();
+  (lateR.data||[]).forEach(r => push({ kind:'late', who: apNameOf(r.employee_code), code: r.employee_code,
+    month: r.month, lates: r.lates||0, lopDays: r.base_late_lop||0,
+    detail: monthLabel(r.month) + ' · ' + (r.lates||0) + ' baar late',
+    why: (r.base_late_lop||0) + ' din ki LOP lag rahi hai', at: r.created_at || (r.month + '-01'), can: ceoLate,
+    act: `<button class="btn btn-ghost btn-sm" data-act="late-appr" data-code="${esc(r.employee_code)}" data-month="${esc(r.month)}" title="Maaf karo — LOP 0"><i class="fa-solid fa-check" style="color:var(--ok)"></i> Maaf</button>
+          <button class="btn btn-danger btn-sm" data-act="late-rej" data-code="${esc(r.employee_code)}" data-month="${esc(r.month)}" title="LOP kaato"><i class="fa-solid fa-xmark"></i> Kaato</button>`,
+    wait: 'Sirf CEO approve karega' }));
+
+  (wp.data||[]).filter(w => String(w.status) === 'CONVERT_REQUESTED').forEach(w => push({
+    kind:'wp', who: w.name, code: w.pass_no || '',
+    detail: (w.department || '—') + (w.line ? ' · ' + w.line : '') + ' · Day ' + Math.min(w.day_no||1,3) + '/3',
+    why: 'Supervisor: ' + (w.supervisor || '—'), at: w.valid_from, can: isSuper() || roleCEO() || isAdminRole(),
+    act: `<button class="btn btn-primary btn-sm" onclick="convertWorkPass('${w.id}')"><i class="fa-solid fa-user-check"></i> Employee banao</button>
+          ${_apNoBtn('wp-rej','data-id="'+w.id+'"')}`,
+    wait: 'HR/CEO approve karega' }));
+
+  // purana sabse upar — jo sabse der se atka hai usi par pehle nazar jaye
+  items.sort((a,b) => String(a.at||'').localeCompare(String(b.at||'')));
+  AP_INBOX = items;
+  apRenderInbox();
+  // tab counts
+  const by = k => items.filter(i => i.kind === k).length;
+  const setN = (id, n) => { const el = $(id); if(el) el.innerText = n; };
+  setN('apCntSal', by('sal')); setN('apCntLate', by('late')); setN('apCntWp', by('wp'));
+  setN('apCntFuel', by('fuel')); setN('apCntSup', by('supatt'));
+  setN('apCntAll', items.length);
+  const mine = items.filter(i => i.can).length;
+  ['apprBadge','apprBadge2'].forEach(id => { const el = $(id); if(el){ el.innerText = mine; el.classList.toggle('hidden', mine === 0); } });
+}
+
+function apRenderInbox(){
+  const host = $('apInbox'); if(!host) return;
+  const onlyMine = !$('apInboxMine') || $('apInboxMine').checked;
+  const pool = AP_INBOX.filter(i => !onlyMine || i.can);
+  // filter chips
+  const chipHost = $('apInboxChips');
+  if(chipHost){
+    const counts = {};
+    pool.forEach(i => counts[i.kind] = (counts[i.kind]||0) + 1);
+    const chip = (k, n, label, icon) => `<button class="btn btn-sm ${AP_INBOX_KIND === k ? 'btn-primary' : 'btn-ghost'}" data-act="ap-kind" data-kind="${esc(k)}">
+      ${icon ? '<i class="fa-solid ' + icon + '"></i> ' : ''}${esc(label)} <b>${n}</b></button>`;
+    chipHost.innerHTML = chip('', pool.length, 'Sab', 'fa-layer-group')
+      + Object.keys(AP_KINDS).filter(k => counts[k]).map(k => chip(k, counts[k], AP_KINDS[k].label, AP_KINDS[k].icon)).join('');
+  }
+  const list = AP_INBOX_KIND ? pool.filter(i => i.kind === AP_INBOX_KIND) : pool;
+  if(!list.length){
+    host.innerHTML = `<div class="p-5 text-center"><div style="font-size:30px">✅</div>
+      <p class="m-0 mt-2 text-sm font-semibold">Kuch bhi pending nahi</p>
+      <p class="m-0 text-xs" style="color:var(--muted)">${onlyMine ? 'Aapke approval ka koi kaam baaki nahi. Doosron ke paas atke items dekhne ke liye upar ka tick hata dein.' : 'Poore system me koi approval pending nahi hai.'}</p></div>`;
+    return;
+  }
+  host.innerHTML = `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Kya</th><th>Kiska</th><th>Detail</th><th>Rakam</th><th>Kab se</th><th style="text-align:right">Faisla</th></tr></thead>
+    <tbody>${list.map(i => {
+      const K = AP_KINDS[i.kind] || { label: i.kind, icon: 'fa-circle-question' };
+      const w = apWaitDays(i.at);
+      const wTxt = w === null ? '—' : w === 0 ? 'aaj' : w === 1 ? '1 din' : w + ' din';
+      const hot = w !== null && w >= 7;
+      const proof = i.proof ? ` <button class="btn btn-ghost btn-sm" data-act="ex-proof" data-path="${esc(i.proof)}" title="Proof dekho"><i class="fa-solid fa-paperclip"></i></button>` : '';
+      return `<tr>
+        <td style="white-space:nowrap"><span class="chip chip-blue" style="font-size:10px"><i class="fa-solid ${K.icon}"></i> ${esc(K.label)}</span></td>
+        <td class="font-semibold text-xs">${esc(i.who)}${i.code ? `<div class="text-[10px]" style="color:var(--muted)">${esc(i.code)}</div>` : ''}</td>
+        <td class="text-xs" style="max-width:260px">${esc(i.detail || '—')}${proof}${i.why ? `<div class="text-[10px]" style="color:var(--muted)">${esc(i.why)}</div>` : ''}</td>
+        <td class="text-xs" style="white-space:nowrap">${i.amount ? `<b>${fmtINR(i.amount)}</b>${i.amountNote ? `<div class="text-[10px]" style="color:var(--muted)">${esc(i.amountNote)}</div>` : ''}` : '—'}</td>
+        <td class="text-xs" style="white-space:nowrap;${hot ? 'color:var(--bad);font-weight:600' : 'color:var(--muted)'}">${wTxt}${hot ? ' ⏳' : ''}</td>
+        <td style="text-align:right;white-space:nowrap">${i.can ? i.act : `<span class="text-[10px]" style="color:var(--muted)">${esc(i.wait || 'Aapke paas permission nahi')}</span>`}</td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+
+/* ---------- Salary / CTC tab ---------- */
+function loadApSalaryTab(){
+  const host = $('apSal'); if(!host) return;
+  const rows = AP_INBOX.filter(i => i.kind === 'sal');
+  host.innerHTML = rows.length ? `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Employee</th><th>Kya pending</th><th>Rakam</th><th>Kab se</th><th style="text-align:right"></th></tr></thead>
+    <tbody>${rows.map(i => `<tr><td class="font-semibold text-xs">${esc(i.who)}<div class="text-[10px]" style="color:var(--muted)">${esc(i.code)}</div></td>
+      <td class="text-xs">${esc(i.detail)}</td>
+      <td>${i.amount ? '<b>' + fmtINR(i.amount) + '</b> <span class="text-[10px]" style="color:var(--muted)">' + esc(i.amountNote||'') + '</span>' : '—'}</td>
+      <td class="text-xs" style="color:var(--muted)">${(() => { const w = apWaitDays(i.at); return w === null ? '—' : w + ' din'; })()}</td>
+      <td style="text-align:right;white-space:nowrap">${i.can ? i.act : '<span class="text-[10px]" style="color:var(--muted)">' + esc(i.wait) + '</span>'}</td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="m-0 text-xs p-4" style="color:var(--muted)">Koi salary ya CTC approval pending nahi.</p>';
+}
+
+/* ---------- Late-LOP tab ---------- */
+function loadApLateTab(){
+  const host = $('apLate'); if(!host) return;
+  const rows = AP_INBOX.filter(i => i.kind === 'late');
+  const ceo = roleCEO();
+  host.innerHTML = rows.length ? `${ceo ? `<div class="p-3 border-b flex gap-2" style="border-color:var(--line)">
+      <button class="btn btn-ghost btn-sm" data-act="late-all" data-d="APPROVED"><i class="fa-solid fa-check-double"></i> Sabko maaf karo</button>
+      <button class="btn btn-ghost btn-sm" data-act="late-all" data-d="REJECTED"><i class="fa-solid fa-ban"></i> Sabki LOP kaato</button>
+    </div>` : ''}
+    <div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Employee</th><th>Mahina</th><th>Late</th><th>LOP (din)</th><th style="text-align:right"></th></tr></thead>
+    <tbody>${rows.map(i => `<tr><td class="font-semibold text-xs">${esc(i.who)}<div class="text-[10px]" style="color:var(--muted)">${esc(i.code)}</div></td>
+      <td class="text-xs">${esc(monthLabel(i.month))}</td>
+      <td class="text-xs">${i.lates} baar</td>
+      <td class="money" style="color:var(--bad)">${i.lopDays}</td>
+      <td style="text-align:right;white-space:nowrap">${i.can ? i.act : '<span class="text-[10px]" style="color:var(--muted)">Sirf CEO</span>'}</td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="m-0 text-xs p-4" style="color:var(--muted)">Koi late-LOP approval pending nahi.</p>';
+}
+
+/* Late decision jo payroll chalaye bina bhi kaam kare.
+   Payroll ka apna setLateDecision() PAY_ROWS par nirbhar hai — wo page khula ho
+   to usko bhi refresh kar dete hain, warna sirf DB me likh dena hi kaafi hai:
+   payroll agli baar chalega to ye faisla khud utha lega. */
+async function apSetLateDecision(code, month, decision){
+  const { error } = await sb.from('payroll_late_reviews')
+    .update({ status: decision, decided_by: ME_EMAIL || '', decided_at: new Date().toISOString() })
+    .eq('month', month).eq('employee_code', code);
+  if(error){ notify('Save nahi hua: ' + error.message, 'error'); return false; }
+  if(month === PAY_MONTH) LATE_REVIEWS[code] = decision;
+  return true;
+}
 
 async function loadApprovals(){
   loadSupAttApprovals();
@@ -14784,8 +15108,12 @@ async function loadApprovals(){
   if($('apCntOt')) $('apCntOt').innerText = otGroupCount;
   if($('apCntEx')) $('apCntEx').innerText = (ex.data||[]).length;
   
-  const n = (lv.data||[]).length + (ot.data||[]).length + (ex.data||[]).length;
-  ['apprBadge','apprBadge2'].forEach(id=>{ const el=$(id); if(el){ el.innerText=n; el.classList.toggle('hidden', n===0); } });
+  // "Sab Kuch" inbox + Salary/CTC + Late-LOP: inhe yahin bhar dete hain taaki CEO ko
+  // kisi doosre page par jana hi na pade. Badge ab wahi ginta hai jo MAI approve kar sakta hoon.
+  try{ await loadApInbox(); loadApSalaryTab(); loadApLateTab(); }catch(e){
+    const h = $('apInbox'); if(h) h.innerHTML = '<p class="p-4 m-0 text-xs" style="color:var(--bad)">Inbox load nahi hua: ' + esc(e.message||e) + '</p>';
+  }
+  try{ if(typeof loadTrialPage === 'function') loadTrialPage(); }catch(e){}
 }
 function _apToggleBtns(pendBtn, apprBtn, mode){
   $(pendBtn).className = 'btn btn-sm ' + (mode === 'PENDING' ? 'btn-primary' : 'btn-ghost');
@@ -14882,9 +15210,18 @@ async function apExMode(mode){
 }
 document.querySelectorAll('.ap-tab').forEach(t => t.addEventListener('click', () => {
   if(!t.dataset.aptab) return;   // trial-page tabs (data-trtab) ka apna handler hai
+  const which = t.dataset.aptab;
   document.querySelectorAll('.ap-tab[data-aptab]').forEach(x => x.classList.toggle('active', x === t));
-  document.querySelectorAll('.ap-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'apPanel-' + t.dataset.aptab));
+  document.querySelectorAll('.ap-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'apPanel-' + which));
+  // Inbox ka apna card hai; baaki sab panels ek sanjhe card ke andar hain —
+  // us card ko chhupa dete hain warna inbox ke neeche ek khaali card dikhta hai.
+  const wrap = document.querySelector('.ap-panel-wrap');
+  if(wrap) wrap.classList.toggle('hidden', which === 'inbox');
 }));
+// inbox ka "sirf mere kaam" tick
+document.addEventListener('change', e => {
+  if(e.target && e.target.id === 'apInboxMine'){ AP_INBOX_KIND = ''; apRenderInbox(); }
+});
 
 /* ---------------- Bulk OT (admin, directly approved) ---------------- */
 function renderBotList(q){
