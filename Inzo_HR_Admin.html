@@ -5515,7 +5515,24 @@ async function ctcCeoDecide(code, approve){
       const basic=Math.round(c.gross*0.5), hra=Math.round(c.gross*0.25), conv=Math.round(c.gross*0.15), spl=c.gross-basic-hra-conv;
       const earn = { basic, hra, conveyance: conv, special_allowance: spl };
       const p = PROFILES[code] || { employee_code: code };
-      const salary = Object.assign({}, p.salary||{}, { earn, flags: f });
+      // ===== CTC approve karna poori salary dobara likh deta hai =====
+      // Yahan structure CTC se naya banta hai (50/25/15/10) aur purana split
+      // mit jaata hai. Gross badal raha ho to wajah leni zaroori hai — wahi
+      // wajah DB trigger salary_revisions me darj karta hai.
+      const _og0 = Object.values((p.salary||{}).earn || {}).reduce((x, y) => x + (Number(y) || 0), 0);
+      let _why0 = '';
+      if(_og0 && _og0 !== c.gross){
+        const _r = await nxPrompt(
+          'CTC approve karne par gross ₹' + _og0.toLocaleString('en-IN')
+          + ' se ₹' + c.gross.toLocaleString('en-IN') + ' ho jayega.'
+          + '\n\nWajah likhein (zaroori hai — record me rahegi)',
+          'Salary badalne ki wajah');
+        if(_r === null) return notify('Approve roka gaya — wajah ke bina salary nahi badlegi', 'info');
+        if(!String(_r).trim()) return notify('Wajah likhna zaroori hai', 'error');
+        _why0 = String(_r).trim().slice(0, 500);
+      }
+      const salary = Object.assign({}, p.salary||{}, { earn, flags: f,
+        changed_by: ME_EMAIL || '', change_reason: _why0 || 'CTC approve — salary CTC se set ki gayi' });
       await sb.from('hr_profiles').upsert({ employee_code: code, salary, salary_status: 'APPROVED', ctc_status: 'APPROVED', ctc_annual: ctcA, pf_applicable: f.pf, esi_applicable: f.esi, lwf_applicable: f.lwf }, { onConflict: 'employee_code' });
       delete _ctcFlagDraft[code];
       PROFILES[code] = Object.assign(p, { salary, salary_status:'APPROVED', ctc_status:'APPROVED', ctc_annual: ctcA });
@@ -5906,6 +5923,24 @@ $('epSaveBtn').addEventListener('click', async () => {
       row.basic = Number(earn.basic)||0; row.hra = Number(earn.hra)||0;
       row.conveyance = Number(earn.conveyance)||0; row.special_allowance = Number(earn.special_allowance)||0;
       _salaryChanged = nxCanonSal(row.salary) !== nxCanonSal(_prevSal);
+      // ===== SALARY BINA WAJAH NAHI BADLEGI =====
+      // Gross badal raha hai to reason lena zaroori hai. Reason aur naam dono
+      // salary JSON me jaate hain, jahan se DB trigger unhe salary_revisions me
+      // utha leta hai — chahe badlav kisi bhi raaste se ho.
+      if(_salaryChanged && !_isNewProfile){
+        const _og = Object.values(_prevSal.earn || {}).reduce((x, y) => x + (Number(y) || 0), 0);
+        const _ng = Object.values(earn || {}).reduce((x, y) => x + (Number(y) || 0), 0);
+        if(_og !== _ng){
+          const _why = await nxPrompt(
+            'Gross ₹' + _og.toLocaleString('en-IN') + ' → ₹' + _ng.toLocaleString('en-IN')
+            + '\n\nSalary kyun badal rahe hain? (zaroori hai — record me rahega)',
+            'Salary badalne ki wajah');
+          if(_why === null) return notify('Save roka gaya — wajah ke bina salary nahi badal sakti', 'info');
+          if(!String(_why).trim()) return notify('Wajah likhna zaroori hai', 'error');
+          row.salary.change_reason = String(_why).trim().slice(0, 500);
+        }
+      }
+      row.salary.changed_by = ME_EMAIL || '';
       if(_salaryChanged || _isNewProfile){
         // Salary KABHI save ke saath approve nahi hoti — chahe CEO ho, super admin ho, ya
         // apna hi record ho. Approval alag se Approvals card se deni hoti hai.
@@ -5918,29 +5953,14 @@ $('epSaveBtn').addEventListener('click', async () => {
     }
     const { error } = await sb.from('hr_profiles').upsert(row, { onConflict: 'employee_code' });
     if(error) throw error;
-    /* ===== SALARY BADLI TO LOG YAHIN BANEGA =====
-       Pehle salary_revisions me entry sirf CEO ke approve karne par banti thi
-       (nxCommitApprovedCtc se). Jo raaste approval se nahi guzarte — bulk upsert,
-       employee import, ya seedha profile save jiska approval baad me kisi aur
-       tareeke se hua — unme na log banta tha aur na ctc_annual sync hoti thi.
-       Nateeja: ₹9,630 tak ke increment ka koi record hi nahi tha, aur CTC purani
-       padi rehti thi. Ab har structure badlav yahin, save ke waqt, log hota hai —
-       chahe approval kabhi aaye ya na aaye. */
-    if(_salaryChanged && !_isNewProfile){
-      try{
-        const _oldG = Object.values(_prevSal.earn || {}).reduce((a, b) => a + (Number(b) || 0), 0);
-        const _newG = Object.values(earn || {}).reduce((a, b) => a + (Number(b) || 0), 0);
-        if(_oldG !== _newG){
-          await sb.from('salary_revisions').insert({
-            employee_code: row.employee_code,
-            old_gross: _oldG, new_gross: _newG,
-            effective_date: new Date().toISOString().slice(0, 10),
-            note: 'Salary structure badli (profile save) by ' + (ME_EMAIL || '?')
-                + ' — gross ' + _oldG + ' → ' + _newG
-          });
-        }
-      }catch(e){ /* log fail ho to save nahi rokna — par console me dikhe */ console.warn('salary_revisions log failed', e); }
-    }
+    /* ===== SALARY BADLAV KA LOG =====
+       Pehle ye kaam yahin, app ke is ek raaste me hota tha. Par CTC approve,
+       bulk upload, employee import, ya seedha database se badalne par kuch
+       darj hi nahi hota tha. Ab hr_profiles par trg_log_salary_change trigger
+       lagta hai, jo har badlav salary_revisions me likhta hai — purana aur
+       naya structure, gross, CTC, kisne kiya, aur wajah. Trigger table par hai
+       isliye koi bhi raasta use bypass nahi kar sakta. Yahan dobara likhne se
+       ek hi badlav ki do entry ban jaati, isliye yahan ab kuch nahi hota. */
     // if an exit date is set, force status INACTIVE
     const newStatus = ($('epExitDate').value || $('epStatus').value === 'INACTIVE') ? 'INACTIVE' : 'ACTIVE';
     // employees master: department / designation / status
