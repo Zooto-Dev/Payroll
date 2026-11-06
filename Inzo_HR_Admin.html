@@ -1558,8 +1558,18 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">Candidate Name</label><input id="offName" class="inp" placeholder="Full name"></div>
       <div><label class="lbl">Designation</label><input id="offDesig" class="inp" placeholder="Machine Operator"></div>
       <div><label class="lbl">Department</label><input id="offDept" class="inp" placeholder="Production"></div>
-      <div><label class="lbl">Monthly Gross (₹)</label><input id="offGross" type="number" class="inp" placeholder="18000"></div>
+      <div><label class="lbl">Monthly Gross (₹)</label><input id="offGross" type="number" class="inp" placeholder="18000" oninput="offerGrossChanged()"></div>
       <div><label class="lbl">Joining Date</label><input id="offDOJ" type="date" class="inp"></div>
+      <div style="flex-basis:100%;height:0"></div>
+      <div class="flex gap-4 items-center text-xs" style="color:var(--muted)">
+        <span style="font-weight:600;color:var(--ink)">Statutory applicable:</span>
+        <label class="flex items-center gap-1" style="cursor:pointer"><input type="checkbox" id="offPF" checked onchange="offerFlagsChanged()"> PF</label>
+        <label class="flex items-center gap-1" style="cursor:pointer"><input type="checkbox" id="offESI" onchange="offerFlagsChanged('esi')"> ESI</label>
+        <label class="flex items-center gap-1" style="cursor:pointer"><input type="checkbox" id="offLWF" checked onchange="offerFlagsChanged()"> LWF</label>
+        <label class="flex items-center gap-1" style="cursor:pointer"><input type="checkbox" id="offTDS" onchange="offerFlagsChanged()"> TDS</label>
+        <button class="btn btn-ghost btn-sm" onclick="offerFlagsReset()" title="PF aur LWF on, ESI gross ke hisaab se">Default</button>
+      </div>
+      <div id="offBreak" class="text-[11px] p-2 rounded" style="flex-basis:100%;background:var(--brand-soft)">Gross daalein, CTC ka hisaab yahan dikh jayega.</div>
     </div>
     <div id="relieveFieldsWrap" class="hidden"><label class="lbl">Last Working Day</label><input id="relLWD" type="date" class="inp"></div>
     <div id="warnFieldsWrap" class="hidden"><label class="lbl">Warning Reason</label><input id="warnReason" class="inp" style="min-width:260px" placeholder="Repeated late coming / misconduct…"></div>
@@ -6613,7 +6623,7 @@ function _origBreakup(g){
   const alloc = splitGross(g);
   const basic = alloc.basic||0, hra = alloc.hra||0, rest = g - basic - hra;
   return `<b>Monthly:</b> Basic ${fmtINR(basic)} (50%) · HRA ${fmtINR(hra)} · Other Allowances ${fmtINR(rest)} · <b>Gross ${fmtINR(g)}</b><br>
-  <span style="color:var(--muted)">Deductions as applicable: PF 12% of basic (cap ₹15,000 wage) · ESI 0.75% (if gross ≤ ₹21,000) · LWF as per Haryana rules. Final CTC includes employer PF/ESI/LWF.</span>`;
+  <span style="color:var(--muted)">Deductions as applicable: PF ${getSettings().pfPct}% of basic (wage cap ₹${Number(getSettings().pfCap||0).toLocaleString('en-IN')}) · ESI ${getSettings().esiPct}% (if gross ≤ ₹${Number(getSettings().esiLimit||0).toLocaleString('en-IN')}) · LWF as per Haryana rules. Final CTC includes employer PF/ESI/LWF.</span>`;
 }
 function candOfferPreview(){
   const g = Number($('candAgreed').value)||0;
@@ -10595,6 +10605,7 @@ $('docVerifyBtn').addEventListener('click', async () => {
 });
 $('letterType').addEventListener('change', () => {
   const t = $('letterType').value;
+  if(t === 'offer') { offerEsiAuto(); offerPreview(); }
   $('offerFieldsWrap').classList.toggle('hidden', t !== 'offer');
   $('letterEmpWrap').classList.toggle('hidden', t === 'offer');
   $('relieveFieldsWrap').classList.toggle('hidden', t !== 'relieving' && t !== 'experience');
@@ -10723,6 +10734,55 @@ function pfcLetterHTML(x, eff, cap){
      ${pfcAnnexure(x)}`, { compact: true });
 }
 
+/* Letters page ke offer letter ke statutory flags.
+   Pehle yahan pf/lwf hardcode TRUE the aur ESI sirf gross<=21000 par — screen par
+   unhe badalne ka koi raasta hi nahi tha, jabki Hiring wale offer me chaar tick
+   maujood hain. Ab yahan bhi wahi chaar tick hain. */
+function offerStatFlags(){
+  const pf = $('offPF'), esi = $('offESI'), lwf = $('offLWF'), tds = $('offTDS');
+  if(!pf) return { pf:true, esi:false, lwf:true, tds:false };
+  return { pf: pf.checked, esi: esi.checked, lwf: lwf.checked, tds: tds ? tds.checked : false };
+}
+// ESI apne aap gross ke hisaab se tick hoti hai — jab tak user khud use chhoo na le
+let _offEsiTouched = false;
+function offerEsiAuto(){
+  const esi = $('offESI'); if(!esi || _offEsiTouched) return;
+  const g = Number(($('offGross')||{}).value) || 0;
+  const lim = Number(getSettings().esiLimit) || 21000;
+  esi.checked = g > 0 && g <= lim;
+}
+function offerPreview(){
+  const box = $('offBreak'); if(!box) return;
+  const g = Number(($('offGross')||{}).value) || 0;
+  if(!g){ box.innerHTML = 'Gross daalein, CTC ka hisaab yahan dikh jayega.'; return; }
+  const f = offerStatFlags();
+  const S = getSettings();
+  const c = ctcParts(g, f);
+  const lim = Number(S.esiLimit) || 21000;
+  const on = [f.pf ? 'PF' : null, f.esi ? 'ESI' : null, f.lwf ? 'LWF' : null, f.tds ? 'TDS' : null].filter(Boolean);
+  const warn = (f.esi && g > lim)
+    ? `<br><span style="color:var(--bad)"><i class="fa-solid fa-triangle-exclamation"></i> ESI tick hai par gross ₹${lim.toLocaleString('en-IN')} se zyada hai — kanoon ke hisaab se ESI nahi lagti, letter me bhi nahi aayegi.</span>`
+    : (!f.esi && g > 0 && g <= lim)
+    ? `<br><span style="color:var(--warn)">Dhyan dein: gross ₹${lim.toLocaleString('en-IN')} se kam hai, to ESI lagti hai — tick hata hua hai.</span>` : '';
+  box.innerHTML = `<b>Monthly CTC ₹${c.monthlyCTC.toLocaleString('en-IN')}</b> &nbsp;|&nbsp; <b>Annual CTC ₹${c.annualCTC.toLocaleString('en-IN')}</b>
+    <br>Gross ₹${g.toLocaleString('en-IN')}
+    ${f.pf ? ' + Employer PF ₹' + c.empPF.toLocaleString('en-IN') : ''}
+    ${c.empESI ? ' + Employer ESI ₹' + c.empESI.toLocaleString('en-IN') : ''}
+    ${(f.lwf && c.empLWF) ? ' + Employer LWF ₹' + c.empLWF.toLocaleString('en-IN') : ''}
+    <br><span style="color:var(--muted)">Lagu: ${on.length ? on.join(' · ') : 'kuch nahi'} &nbsp;·&nbsp; employee ki katauti ₹${c.eeTotal.toLocaleString('en-IN')}/mahina</span>${warn}`;
+}
+function offerFlagsChanged(which){
+  if(which === 'esi') _offEsiTouched = true;
+  offerPreview();
+}
+function offerGrossChanged(){ offerEsiAuto(); offerPreview(); }
+function offerFlagsReset(){
+  _offEsiTouched = false;
+  if($('offPF'))  $('offPF').checked  = true;
+  if($('offLWF')) $('offLWF').checked = true;
+  if($('offTDS')) $('offTDS').checked = false;
+  offerEsiAuto(); offerPreview();
+}
 function annexureCTC_HTML(g, f){
   f = f || { pf: true, esi: true, lwf: true };
   // g = MONTHLY GROSS aata hai; usse monthly CTC nikaal ke CTC-anchored structure banao (Basic = CTC*50%)
@@ -10910,7 +10970,7 @@ $('letterGenBtn').addEventListener('click', async () => {
         <li>This offer is contingent upon satisfactory verification of your documents and background.</li>
       </ol>
       <p>Please sign and return a copy of this letter as a token of your acceptance. We look forward to welcoming you to the team.</p>
-      ${annexureCTC_HTML(gross, { pf:true, esi: gross <= 21000, lwf:true, tds:false })}`);
+      ${annexureCTC_HTML(gross, offerStatFlags())}`);
   } else {
     const code = $('letterEmp').value;
     const e = EMP.find(x => x['Employee code'] === code);
