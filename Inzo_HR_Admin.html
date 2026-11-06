@@ -9458,9 +9458,16 @@ function nxBankAdviceXml(rows, narration, payDate){
     `<Column ss:Index="${i+1}" ss:AutoFitWidth="0" ss:Width="${_bankColPt(ch)}"/>`).join('');
   const cellAt = (idx, val, type) => val === '' || val == null ? ''
     : `<Cell ss:Index="${idx}"${type === 'Number' ? '' : ' ss:StyleID="sTxt"'}><Data ss:Type="${type}">${_xmlEsc(val)}</Data></Cell>`;
+  // Account ke aage apostrophe — user ne saaf kaha. Excel me text ka nishan hai,
+  // aur cell bhi text format me hai, to leading zero dono tarah se bacha rehta hai.
+  const _a = v => "'" + v;
   const body = rows.map(r => '<Row>'
       + cellAt(1,  r.typ, 'String')
-      + cellAt(3,  r.acct, 'String')        // TEXT — leading zero safe
+      // Internal (I) transfer par bank ki file me account DONO column me hota hai —
+      // B aur C. Jahan B bhara tha wahan wo hamesha C ke barabar tha, aur B sirf
+      // HDFC/I rows par hi dikha. Isliye I par B = C bhar dete hain, N par khali.
+      + (r.typ === 'I' ? cellAt(2, _a(r.acct), 'String') : '')
+      + cellAt(3,  _a(r.acct), 'String')    // TEXT + apostrophe
       + cellAt(4,  Math.round(Number(r.amt)||0), 'Number')
       + cellAt(5,  r.name, 'String')
       + cellAt(14, narration, 'String')
@@ -9493,9 +9500,11 @@ function _bankPayDate(ym){
   return '07/' + String(nm).padStart(2,'0') + '/' + ny;
 }
 function nxBankAdviceRows(){
-  const out = [], noAcct = [], unver = [];
+  const out = [], noAcct = [], unver = [], notOnr = [];
   PAY_ROWS.filter(r => r.hasSalary).forEach(r => {
     const p = PROFILES[r.code] || {};
+    // Bank Advice sirf ONR ki — baaki kisi ki nahi
+    if(String(p.roll_type || '').trim().toUpperCase() !== 'ONR'){ notOnr.push(r); return; }
     const raw = String(p.account_no || '').trim();
     const acct = raw.replace(/\s+/g,'');
     const net = netOf(r);
@@ -9508,25 +9517,27 @@ function nxBankAdviceRows(){
        || String(p.bank_verify_acct||'') !== acct.replace(/\D/g,'')) unver.push(r);
     out.push({ typ, acct, amt: net, name: r.name, ifsc });
   });
-  return { rows: out, noAcct, unver };
+  return { rows: out, noAcct, unver, notOnr };
 }
 $('payBankBtn').addEventListener('click', () => {
   if(!PAY_ROWS.length) return notify('Run payroll first', 'error');
-  const { rows, noAcct, unver } = nxBankAdviceRows();
-  if(!rows.length) return notify('Kisi ka bhi bank account file me nahi hai — Bank Advice khali rahegi', 'error');
-  dlText('Bank_Advice_' + PAY_MONTH + '.xls',
+  const { rows, noAcct, unver, notOnr } = nxBankAdviceRows();
+  if(!rows.length) return notify('Koi ONR employee bank transfer ke liye nahi mila — Bank Advice khali rahegi', 'error');
+  dlText('Bank_Advice_ONR_' + PAY_MONTH + '.xls',
          nxBankAdviceXml(rows, _bankNarration(PAY_MONTH), _bankPayDate(PAY_MONTH)),
          'application/vnd.ms-excel');
-  const bits = [rows.length + ' rows'];
-  if(noAcct.length) bits.push(noAcct.length + ' chhoote (account nahi): ' + noAcct.slice(0,4).map(r => r.name).join(', ') + (noAcct.length > 4 ? ' +' + (noAcct.length-4) : ''));
+  const bits = [rows.length + ' ONR rows'];
+  if(notOnr.length) bits.push(notOnr.length + ' non-ONR chhode');
+  if(noAcct.length) bits.push(noAcct.length + ' ONR ke account nahi: ' + noAcct.slice(0,4).map(r => r.name).join(', ') + (noAcct.length > 4 ? ' +' + (noAcct.length-4) : ''));
   if(unver.length)  bits.push(unver.length + ' ke bank details employee ne verify nahi kiye');
   notify('Bank Advice: ' + bits.join(' · '), (noAcct.length || unver.length) ? 'info' : 'success');
 });
 // purani detail wali CSV (code/dept/bank/verification ke saath) — hisaab milane ke liye
 $('payBankCsvBtn').addEventListener('click', () => {
-  const rows = PAY_ROWS.filter(r => r.hasSalary);
-  if(!rows.length) return notify('Run payroll first', 'error');
-  dlText('Bank_Advice_Detail_' + PAY_MONTH + '.csv',
+  const rows = PAY_ROWS.filter(r => r.hasSalary
+    && String((PROFILES[r.code]||{}).roll_type || '').trim().toUpperCase() === 'ONR');
+  if(!rows.length) return notify('Koi ONR employee nahi mila', 'error');
+  dlText('Bank_Advice_ONR_Detail_' + PAY_MONTH + '.csv',
     ['Employee Code,Name,Department,Section,Bank,Account No,IFSC,Verified,Amount (Net Pay)',
      ...rows.map(r => { const p = PROFILES[r.code]||{};
        const e = EMP.find(x => x['Employee code'] === r.code);

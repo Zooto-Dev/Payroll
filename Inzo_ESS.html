@@ -1569,6 +1569,16 @@ async function loadBankDetails(){
     }
     BANKV = data;
     const st = data.status;
+    // ONR ke alawa kisi ko bank verification ka card dikhta hi nahi.
+    // Roll type confidential hai — employee ko wajah batana zaroori nahi.
+    if(st === 'HIDDEN'){
+      const bc = $('bankCard'); if(bc) bc.classList.add('hidden');
+      if(chip) chip.innerHTML = '';
+      if(card) card.classList.add('hidden');
+      box.innerHTML = '';
+      return;
+    }
+    const bc0 = $('bankCard'); if(bc0) bc0.classList.remove('hidden');
     const show = v => v ? esc(v) : '<span style="color:var(--muted)">' + L('not filled','नहीं भरा') + '</span>';
     const stChip = st === 'VERIFIED' ? '<span class="chip chip-ok" style="font-size:10px">✓ ' + L('Verified','जाँचा हुआ') + '</span>'
       : st === 'DISPUTED' ? '<span class="chip" style="background:#fee2e2;color:#b91c1c;font-size:10px">' + L('Reported wrong','गलत बताया') + '</span>'
