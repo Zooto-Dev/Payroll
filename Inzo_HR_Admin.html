@@ -1116,7 +1116,8 @@ body.no-confidential .confidential-col{display:none!important}
     <button id="payDetailOnrBtn" class="btn btn-ghost hidden" title="Sirf ONR (On-Roll) list"><i class="fa-solid fa-file-excel"></i> Report — ONR</button>
     <button id="payDetailOfrBtn" class="btn btn-ghost hidden" title="Sirf OFR (Off-Roll) list"><i class="fa-solid fa-file-excel"></i> Report — OFR</button>
     <button id="payPrintAllBtn" class="btn btn-ghost hidden"><i class="fa-solid fa-print"></i> Print All Payslips</button>
-    <button id="payBankBtn" class="btn btn-ghost hidden super-only"><i class="fa-solid fa-building-columns"></i> Bank Advice</button>
+    <button id="payBankBtn" class="btn btn-ghost hidden super-only" title="Bank ke upload format me (.xls) — account TEXT cell, column widths bank ki file jaisi"><i class="fa-solid fa-building-columns"></i> Bank Advice</button>
+    <button id="payBankCsvBtn" class="btn btn-ghost hidden super-only" title="Detail CSV — code, department, bank aur verification ke saath"><i class="fa-solid fa-file-csv"></i> Bank Advice (detail)</button>
     <div class="ml-auto text-right">
       <p class="lbl m-0">Total Net Payable</p>
       <div class="stat-num money" style="color:var(--brand)" id="payTotal">₹0</div>
@@ -8372,6 +8373,7 @@ async function runPayroll(){
         renderPayLockUI();
         $('payPrintAllBtn').classList.remove('hidden');
         $('payBankBtn').classList.remove('hidden');
+        $('payBankCsvBtn').classList.remove('hidden');
         $('payLopBtn').classList.remove('hidden');
     $('payDetailBtn').classList.remove('hidden');
     $('payDetailOnrBtn').classList.remove('hidden'); $('payDetailOfrBtn').classList.remove('hidden');
@@ -8802,6 +8804,7 @@ async function runPayroll(){
     try{ loadMissingOut(); }catch(e){}   // jin dino OUT nahi hai — HR wahin bhar sake
     $('payPrintAllBtn').classList.remove('hidden');
     $('payBankBtn').classList.remove('hidden');
+    $('payBankCsvBtn').classList.remove('hidden');
     $('payLopBtn').classList.remove('hidden');
     $('payDetailBtn').classList.remove('hidden');
     $('payDetailOnrBtn').classList.remove('hidden'); $('payDetailOfrBtn').classList.remove('hidden');
@@ -9427,16 +9430,112 @@ function printHTML(html){
   setTimeout(fire, 8000); // failsafe: print even if a QR is slow/blocked
 }
 $('slipPrintBtn').addEventListener('click', () => printHTML($('slipPaper').innerHTML));
+/* ================= BANK ADVICE — bank ke asli upload format me =================
+   Bank ki file me koi header nahi hota, 28 column hote hain aur sirf 8 bharte hain:
+     A  = N (NEFT) ya I (apne hi bank ke andar)   B = (khali)
+     C  = beneficiary account  (TEXT cell — leading zero bachane ke liye)
+     D  = amount (number)                          E = naam jaisa bank ke khate me hai
+     N  = narration            W  = payment date    Y = IFSC
+   Account ko TEXT cell banana zaroori hai: warna Excel 0316… ka pehla 0 kha jata hai
+   aur 15-ankon wale number ko 9.22E+14 bana deta hai. Excel me "'" lagane ka wahi asar
+   hota hai jo text cell ka hai.
+   Column ki chaudai bank ki asli file se li gayi hai (characters me). */
+const NX_BANK_COL_CHARS = [1.8, 12.3, 16.2, 7.0, 14.5,
+  1.2, 1.2, 1.2, 1.2, 1.2, 1.2, 1.2, 1.2,     // F..M
+  10.5,                                        // N narration
+  1.2, 1.2, 1.2, 1.2, 1.2, 1.2, 1.2, 1.2,     // O..V
+  8.2,                                         // W date
+  1.2,                                         // X
+  14.7, 16.5, 12.7, 18.7];                     // Y ifsc, Z, AA, AB
+// Excel: px = chars*7 + 5, aur SpreadsheetML chaudai points me leta hai
+const _bankColPt = ch => Math.round((Math.round(ch * 7) + 5) * 0.75 * 100) / 100;
+const _xmlEsc = s => String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+/* rows = [{ typ, acct, amt, name, ifsc }] ; narration aur date sab rows par ek hi */
+function nxBankAdviceXml(rows, narration, payDate){
+  const cols = NX_BANK_COL_CHARS.map((ch,i) =>
+    `<Column ss:Index="${i+1}" ss:AutoFitWidth="0" ss:Width="${_bankColPt(ch)}"/>`).join('');
+  const cellAt = (idx, val, type) => val === '' || val == null ? ''
+    : `<Cell ss:Index="${idx}"${type === 'Number' ? '' : ' ss:StyleID="sTxt"'}><Data ss:Type="${type}">${_xmlEsc(val)}</Data></Cell>`;
+  const body = rows.map(r => '<Row>'
+      + cellAt(1,  r.typ, 'String')
+      + cellAt(3,  r.acct, 'String')        // TEXT — leading zero safe
+      + cellAt(4,  Math.round(Number(r.amt)||0), 'Number')
+      + cellAt(5,  r.name, 'String')
+      + cellAt(14, narration, 'String')
+      + cellAt(23, payDate, 'String')
+      + cellAt(25, r.ifsc, 'String')
+    + '</Row>').join('');
+  return `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Styles>
+ <Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Bottom"/>
+  <Font ss:FontName="Calibri" ss:Size="11"/></Style>
+ <Style ss:ID="sTxt"><NumberFormat ss:Format="@"/></Style>
+</Styles>
+<Worksheet ss:Name="Sheet1"><Table>${cols}${body}</Table>
+<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><Selected/></WorksheetOptions>
+</Worksheet></Workbook>`;
+}
+// payroll month ke hisaab se narration aur payment date
+function _bankNarration(ym){
+  const M = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const m = Number(String(ym||'').slice(5,7));
+  return 'SALARY' + (M[m-1] || '');
+}
+function _bankPayDate(ym){
+  // salary agle mahine ki 7 tareekh ko jaati hai
+  const y = Number(String(ym||'').slice(0,4)), m = Number(String(ym||'').slice(5,7));
+  const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
+  return '07/' + String(nm).padStart(2,'0') + '/' + ny;
+}
+function nxBankAdviceRows(){
+  const out = [], noAcct = [], unver = [];
+  PAY_ROWS.filter(r => r.hasSalary).forEach(r => {
+    const p = PROFILES[r.code] || {};
+    const raw = String(p.account_no || '').trim();
+    const acct = raw.replace(/\s+/g,'');
+    const net = netOf(r);
+    if(!acct || /^(NA|N\/A|-)$/i.test(acct) || !/^\d{9,18}$/.test(acct)){ noAcct.push(r); return; }
+    if(net <= 0) return;
+    const ifsc = String(p.ifsc || '').trim().toUpperCase();
+    // Apne hi bank (HDFC) ke andar bhejna internal transfer hai -> I, baaki NEFT -> N
+    const typ = /^HDFC/.test(ifsc) ? 'I' : 'N';
+    if(String(p.bank_verify_status||'').toUpperCase() !== 'VERIFIED'
+       || String(p.bank_verify_acct||'') !== acct.replace(/\D/g,'')) unver.push(r);
+    out.push({ typ, acct, amt: net, name: r.name, ifsc });
+  });
+  return { rows: out, noAcct, unver };
+}
 $('payBankBtn').addEventListener('click', () => {
+  if(!PAY_ROWS.length) return notify('Run payroll first', 'error');
+  const { rows, noAcct, unver } = nxBankAdviceRows();
+  if(!rows.length) return notify('Kisi ka bhi bank account file me nahi hai — Bank Advice khali rahegi', 'error');
+  dlText('Bank_Advice_' + PAY_MONTH + '.xls',
+         nxBankAdviceXml(rows, _bankNarration(PAY_MONTH), _bankPayDate(PAY_MONTH)),
+         'application/vnd.ms-excel');
+  const bits = [rows.length + ' rows'];
+  if(noAcct.length) bits.push(noAcct.length + ' chhoote (account nahi): ' + noAcct.slice(0,4).map(r => r.name).join(', ') + (noAcct.length > 4 ? ' +' + (noAcct.length-4) : ''));
+  if(unver.length)  bits.push(unver.length + ' ke bank details employee ne verify nahi kiye');
+  notify('Bank Advice: ' + bits.join(' · '), (noAcct.length || unver.length) ? 'info' : 'success');
+});
+// purani detail wali CSV (code/dept/bank/verification ke saath) — hisaab milane ke liye
+$('payBankCsvBtn').addEventListener('click', () => {
   const rows = PAY_ROWS.filter(r => r.hasSalary);
   if(!rows.length) return notify('Run payroll first', 'error');
-  const missing = rows.filter(r => !(PROFILES[r.code]||{}).account_no);
-  dlText('Bank_Advice_' + PAY_MONTH + '.csv',
-    ['Employee Code,Name,Department,Section,Bank,Account No,IFSC,Amount (Net Pay)',
+  dlText('Bank_Advice_Detail_' + PAY_MONTH + '.csv',
+    ['Employee Code,Name,Department,Section,Bank,Account No,IFSC,Verified,Amount (Net Pay)',
      ...rows.map(r => { const p = PROFILES[r.code]||{};
        const e = EMP.find(x => x['Employee code'] === r.code);
-       return [r.code, '"' + r.name + '"', '"' + ((e && e.DEPARTMENT) || '') + '"', '"' + (p.section||'') + '"', '"' + (p.bank_name||'') + '"', p.account_no||'', p.ifsc||'', netOf(r)].join(','); })].join('\n'), 'text/csv');
-  notify('Bank advice exported' + (missing.length ? ' — ' + missing.length + ' employee(s) have no account number on file' : ''), missing.length ? 'error' : 'success');
+       const ver = (String(p.bank_verify_status||'').toUpperCase() === 'VERIFIED'
+                 && String(p.bank_verify_acct||'') === String(p.account_no||'').replace(/\D/g,'')) ? 'YES' : 'NO';
+       return [r.code, '"' + r.name + '"', '"' + ((e && e.DEPARTMENT) || '') + '"', '"' + (p.section||'') + '"',
+               '"' + (p.bank_name||'') + '"', '="' + (p.account_no||'') + '"', p.ifsc||'', ver, netOf(r)].join(','); })].join('\n'),
+    'text/csv');
+  notify('Detail CSV export ho gayi', 'success');
 });
 /* LOP ka Hindi reason — components: bina-chhutti absent + late + bina-soochna gairhaazri + chhutti balance se zyada + non-employed din */
 function lopReasonHindi(r){
