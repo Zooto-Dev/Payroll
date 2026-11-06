@@ -1559,7 +1559,14 @@ async function loadBankDetails(){
   try{
     const { data, error } = await sb.rpc('ess_bank_details', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE });
     if(error) throw error;
-    if(!data || data.error){ box.innerHTML = '<p class="tm-empty">' + esc((data&&data.error) || 'Load nahi hua') + '</p>'; return; }
+    if(!data || data.error){
+      box.innerHTML = `<p class="tm-empty">${esc((data&&data.error) || 'Load nahi hua')}</p>
+        <p class="tm-note">${L('Please log out and log in again. If it still fails, contact HR.',
+                               'एक बार लॉग आउट करके दोबारा लॉग इन करें। फिर भी न चले तो HR से कहें।')}</p>`;
+      if(chip) chip.innerHTML = '';
+      if(card) card.classList.add('hidden');
+      return;
+    }
     BANKV = data;
     const st = data.status;
     const show = v => v ? esc(v) : '<span style="color:var(--muted)">' + L('not filled','नहीं भरा') + '</span>';
@@ -1643,8 +1650,11 @@ function openBankVerify(){
       </div>
       <div id="_bvSignBox" class="hidden" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px 13px;margin-bottom:12px">
         <div style="font-weight:700;font-size:12px;margin-bottom:8px;color:#075985">${L('IDENTITY VERIFICATION &amp; SIGNATURE','पहचान और हस्ताक्षर')}</div>
-        <label style="font-size:11px;color:#64748b">${L('Enter your registered mobile number again','अपना रजिस्टर्ड मोबाइल नंबर दोबारा डालें')}:</label>
-        <input id="_bvPhone" type="tel" maxlength="10" placeholder="10-digit mobile" style="width:100%;padding:10px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;margin:4px 0 10px">
+        ${d.has_phone ? `<label style="font-size:11px;color:#64748b">${L('Enter your registered mobile number again','अपना रजिस्टर्ड मोबाइल नंबर दोबारा डालें')}${d.phone_last4 ? ' (••••••' + esc(d.phone_last4) + ')' : ''}:</label>
+        <input id="_bvPhone" type="tel" maxlength="10" placeholder="10-digit mobile" style="width:100%;padding:10px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;margin:4px 0 10px">`
+        : `<p style="font-size:11px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;margin:0 0 10px">${L(
+            'Your mobile number is not on your HR profile, so only your name signature is taken. Please ask HR to add your number.',
+            'आपका मोबाइल नंबर HR प्रोफ़ाइल में नहीं है, इसलिए सिर्फ़ नाम का हस्ताक्षर लिया जाएगा। HR से नंबर जुड़वा लें।')}</p>`}
         <label style="font-size:11px;color:#64748b">${L('Type your full name — this is your digital signature','अपना पूरा नाम लिखें — यही आपका डिजिटल हस्ताक्षर है')}:</label>
         <input id="_bvName" type="text" placeholder="${esc(nm)}" style="width:100%;padding:10px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;font-style:italic;margin:4px 0">
       </div>
@@ -1666,7 +1676,8 @@ async function bankVerifySign(){
   const d = BANKV; if(!d) return;
   const phone = String((document.getElementById('_bvPhone')||{}).value || '').replace(/\D/g,'');
   const nameSig = String((document.getElementById('_bvName')||{}).value || '').trim();
-  if(phone.length !== 10) return notify(L('Enter a 10-digit mobile number','10 अंकों का मोबाइल नंबर डालें'));
+  // Mobile ka doosra factor tabhi jab HR profile me number register ho
+  if(d.has_phone && phone.length !== 10) return notify(L('Enter a 10-digit mobile number','10 अंकों का मोबाइल नंबर डालें'));
   if(nameSig.length < 3) return notify(L('Type your full name to sign','हस्ताक्षर के लिए पूरा नाम लिखें'));
   const btn = document.getElementById('_bvSignBtn'); btn.disabled = true; btn.innerText = 'Signing…';
   try{
@@ -1690,8 +1701,9 @@ async function bankVerifySign(){
   }catch(err){ notify('Verify failed: ' + (err.message||err)); btn.disabled = false; btn.innerText = '✓ ' + L('YES, THIS IS MINE','हाँ, यह मेरा है'); }
 }
 async function bankDisputeStep(){
+  const d = BANKV || {};
   const phone = String((document.getElementById('_bvPhone')||{}).value || '').replace(/\D/g,'');
-  if(phone.length !== 10){
+  if(d.has_phone && phone.length !== 10){
     const box = document.getElementById('_bvSignBox'), rd = document.getElementById('_bvRead');
     if(box) box.classList.remove('hidden');
     if(rd) rd.checked = false;
