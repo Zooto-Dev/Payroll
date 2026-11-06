@@ -453,6 +453,7 @@ body.no-confidential .confidential-col{display:none!important}
     </div></div>
   <div class="nxg"><button><i class="fa-solid fa-boxes-stacked li"></i> Operations <i class="fa-solid fa-chevron-down ca"></i></button>
     <div class="nxdd">
+      <button class="nav-item nxdi hidden" id="navCeo" data-page="ceo"><span class="di"><i class="fa-solid fa-user-tie"></i></span><span style="flex:1"><span class="dt">CEO Approvals</span><span class="ds">Decisions only you can make</span></span><span id="ceoBadge" class="dbg hidden">0</span></button>
       <button class="nav-item nxdi" data-page="assets"><span class="di"><i class="fa-solid fa-laptop"></i></span><span style="flex:1"><span class="dt">Assets</span><span class="ds">Asset assignment</span></span></button>
       <button class="nav-item nxdi" data-page="letters"><span class="di"><i class="fa-solid fa-file-signature"></i></span><span style="flex:1"><span class="dt">Letters</span><span class="ds">Offer & experience letters</span></span></button>
       <button class="nav-item nxdi" data-page="idcards"><span class="di"><i class="fa-solid fa-id-card"></i></span><span style="flex:1"><span class="dt">ID Cards</span><span class="ds">Generate ID cards</span></span></button>
@@ -921,6 +922,26 @@ body.no-confidential .confidential-col{display:none!important}
 </div>
 
 <!-- ================= APPROVALS ================= -->
+<!-- ================= CEO APPROVALS ================= -->
+<div class="page" id="page-ceo">
+  <div class="card mb-4" style="background:linear-gradient(135deg,#1f3864,#2c4f8f);color:#fff;border:none">
+    <div class="flex items-center justify-between flex-wrap gap-3">
+      <div>
+        <h2 class="display font-bold m-0" style="font-size:19px"><i class="fa-solid fa-user-tie"></i> CEO Approvals</h2>
+        <p class="m-0 mt-1" style="font-size:12.5px;opacity:.85">Everything that needs your decision, in one place. Nothing here takes effect until you approve it.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <div style="text-align:right">
+          <div class="display font-bold" style="font-size:30px;line-height:1" id="ceoTotal">—</div>
+          <div style="font-size:11px;opacity:.85">waiting for you</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="loadCeoApprovals()" style="background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3);color:#fff"><i class="fa-solid fa-rotate"></i> Refresh</button>
+      </div>
+    </div>
+  </div>
+  <div id="ceoBox"><p class="p-4 m-0 text-sm" style="color:var(--muted)">Loading…</p></div>
+</div>
+
 <div class="page" id="page-approvals">
   <div class="ap-tabs">
     <button class="ap-tab active" data-aptab="inbox"><i class="fa-solid fa-inbox"></i> Sab Kuch <span class="ap-cnt" id="apCntAll">0</span></button>
@@ -2896,7 +2917,7 @@ $('loginBtn').addEventListener('click', async () => {
 $('loginPass').addEventListener('keydown', e => { if(e.key === 'Enter') $('loginBtn').click(); });
 $('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
 
-const ALL_PAGES = ['dashboard','mis','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','misspunch','visitors','letters','ctcreport','ctccalc','idcards','approvals','trial','voice','settings','faq'];
+const ALL_PAGES = ['dashboard','ceo','mis','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','misspunch','visitors','letters','ctcreport','ctccalc','idcards','approvals','trial','voice','settings','faq'];
 let ME_EMAIL = '';
 let FACE_CODES = new Set();
 function isSuper(){
@@ -3006,6 +3027,9 @@ function applyPerms(){
   document.querySelectorAll('.nav-item[data-page]').forEach(b => {
     const pg = b.dataset.page;
     if(pg === 'adminctl'){ b.classList.toggle('hidden', !isSuper()); return; }
+    // CEO Approvals saved page-list par nirbhar nahi hai: jo approve kar sakta hai
+    // usi ko dikhta hai. Warna CEO ki list purani ho to unka apna page chhup jaata.
+    if(pg === 'ceo'){ b.classList.toggle('hidden', !loanCanCEO()); return; }
     b.classList.toggle('hidden', !!(allowed && !allowed.includes(pg)));
   });
   // manual attendance correction: hide button if this admin isn't allowed
@@ -3843,6 +3867,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if(page === 'advances') loadAdvances();
     if(page === 'leaves') loadLeaves();
     if(page === 'approvals') loadApprovals();
+    if(page === 'ceo') loadCeoApprovals();
     if(page === 'trial') loadTrialPage();
     if(page === 'faq') renderFaq();
     if(page === 'voice') loadVoice();
@@ -6958,7 +6983,8 @@ async function offerCeoDecide(id, approve){
     Object.assign(c, { offer_approval: 'REJECTED', offer_note: note });
     notify('Offer rejected — HR ko dikh jayega', 'success');
   }
-  $('candStageBox').innerHTML = candStageActions(c);
+  const _box = $('candStageBox'); if(_box) _box.innerHTML = candStageActions(c);
+  if($('ceoBox') && $('page-ceo') && $('page-ceo').classList.contains('show')) loadCeoApprovals();
 }
 async function sendOfferEmail(id){
   const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
@@ -14826,6 +14852,213 @@ document.addEventListener('toggle', e => { const d = e.target; if(d && d.classLi
    "Sab Kuch" tab me ek hi list me — purana sabse upar.
    Har row wahi data-act use karti hai jo apne tab me use hota hai, isliye
    Approve/Reject ka behaviour bilkul same rehta hai. */
+/* ================= CEO APPROVALS — one page, English only =================
+   Ye page SIRF wo cheezen dikhata hai jinka faisla CEO hi le sakta hai:
+   job offer, salary structure, annual CTC, overtime, loan aur late deduction.
+   Leave/expense/gate-pass jaisi cheezen HR bhi kar sakta hai — wo Approvals
+   page par hain, yahan nahi, warna CEO ko apna kaam hi dhoondhna padta.
+   Text jaan-boojh kar poora English me hai (user ki maang). */
+function ceoDays(ts){
+  if(!ts) return null;
+  const d = new Date(String(ts).length === 10 ? ts + 'T12:00:00' : ts);
+  if(isNaN(d)) return null;
+  return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
+}
+function ceoWaited(ts){
+  const n = ceoDays(ts);
+  if(n === null) return '';
+  const txt = n === 0 ? 'today' : n === 1 ? '1 day' : n + ' days';
+  const hot = n >= 7;
+  return `<span style="font-size:11px;${hot ? 'color:var(--bad);font-weight:700' : 'color:var(--muted)'}">
+    <i class="fa-regular fa-clock"></i> waiting ${txt}${hot ? ' — overdue' : ''}</span>`;
+}
+const _ceoINR = n => '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
+
+function ceoCard(o){
+  return `<div class="card mb-3" style="padding:0;overflow:hidden">
+    <div class="p-3" style="border-left:4px solid ${o.accent || 'var(--brand)'}">
+      <div class="flex items-start justify-between flex-wrap gap-3">
+        <div style="flex:1;min-width:220px">
+          <div class="font-bold" style="font-size:14.5px">${o.title}</div>
+          ${o.sub ? `<div class="text-xs mt-1" style="color:var(--muted)">${o.sub}</div>` : ''}
+          ${o.facts && o.facts.length ? `<div class="flex flex-wrap gap-x-5 gap-y-1 mt-2">${o.facts.map(f =>
+            `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">${f[0]}</div>
+             <div style="font-size:13px;font-weight:600">${f[1]}</div></div>`).join('')}</div>` : ''}
+          ${o.note ? `<div class="mt-2 p-2 rounded text-xs" style="background:var(--brand-soft)">${o.note}</div>` : ''}
+          <div class="mt-2">${ceoWaited(o.at)}</div>
+        </div>
+        <div style="white-space:nowrap">${o.actions}</div>
+      </div>
+    </div>
+  </div>`;
+}
+function ceoSection(title, icon, hint, cards){
+  if(!cards.length) return '';
+  return `<div class="mb-5">
+    <div class="flex items-center gap-2 mb-2">
+      <h3 class="display font-bold m-0" style="font-size:15px"><i class="fa-solid ${icon}" style="color:var(--brand)"></i> ${title}</h3>
+      <span class="chip chip-blue" style="font-size:11px">${cards.length}</span>
+    </div>
+    ${hint ? `<p class="text-xs mt-0 mb-2" style="color:var(--muted)">${hint}</p>` : ''}
+    ${cards.join('')}
+  </div>`;
+}
+
+async function loadCeoApprovals(){
+  const host = $('ceoBox'); if(!host) return;
+  if(!loanCanCEO()){
+    host.innerHTML = '<div class="card"><p class="m-0 text-sm">This page is for the CEO. You do not have approval rights here.</p></div>';
+    return;
+  }
+  host.innerHTML = '<p class="p-4 m-0 text-sm" style="color:var(--muted)">Loading…</p>';
+  const safe = p => p.then(r => r, () => ({ data: [] }));
+  const [cand, ot, ml, lateR] = await Promise.all([
+    safe(sb.from('candidates').select('*').eq('offer_approval','PENDING_CEO').order('updated_at')),
+    safe(sb.from('ot_requests').select('*').eq('status','PENDING').order('ot_date')),
+    safe(sb.from('money_requests').select('*').eq('status','PENDING').order('created_at')),
+    safe(sb.from('payroll_late_reviews').select('*').eq('status','PENDING').order('month'))
+  ]);
+  // offerCeoDecide CANDIDATES se record uthata hai — isliye yahan bhar dete hain
+  (cand.data || []).forEach(c => {
+    const i = CANDIDATES.findIndex(x => String(x.id) === String(c.id));
+    if(i >= 0) CANDIDATES[i] = c; else CANDIDATES.push(c);
+  });
+
+  // ---------- 1. Job offers ----------
+  const offers = (cand.data || []).map(c => {
+    let f = { pf:true, esi:false, lwf:true, tds:false };
+    try{ if(c.offer_flags) f = Object.assign({}, f, JSON.parse(c.offer_flags)); }catch(e){}
+    const g = Number(c.agreed_salary) || 0;
+    const p = ctcParts(g, f);
+    const on = [f.pf ? 'PF' : null, f.esi ? 'ESI' : null, f.lwf ? 'LWF' : null, f.tds ? 'TDS' : null].filter(Boolean);
+    return ceoCard({
+      accent:'#1f3864',
+      title: esc(c.name || '(no name)'),
+      sub: [c.position, c.department].filter(Boolean).map(esc).join(' · ') || 'Position not set',
+      facts: [
+        ['Monthly CTC', '<b>' + _ceoINR(p.monthlyCTC) + '</b>'],
+        ['Annual CTC', _ceoINR(p.annualCTC)],
+        ['Monthly gross', _ceoINR(g)],
+        ['Statutory', on.length ? on.join(', ') : 'none'],
+        ['Joining date', c.join_date ? esc(fmtDate(c.join_date)) : 'not set']
+      ],
+      note: c.email
+        ? 'On approval the signed offer letter is emailed to <b>' + esc(c.email) + '</b> straight away.'
+        : '<b style="color:var(--bad)">No email address saved</b> — the approval will be recorded and the letter will carry your signature, but nothing can be sent until an email is added.',
+      at: c.updated_at || c.offer_date || c.created_at,
+      actions: `<button class="btn btn-primary btn-sm" onclick="offerCeoDecide('${c.id}', true)"><i class="fa-solid fa-check"></i> Approve &amp; send offer</button>
+                <button class="btn btn-danger btn-sm" onclick="offerCeoDecide('${c.id}', false)"><i class="fa-solid fa-xmark"></i> Reject</button>`
+    });
+  });
+
+  // ---------- 2. Salary structures + 3. Annual CTC ----------
+  const salCards = [], ctcCards = [];
+  activeEmps().forEach(e => {
+    const code = e['Employee code'], pr = PROFILES[code] || {};
+    const mine = isMyOwnProfile(code);
+    const facts = (extra) => [['Department', esc(e.DEPARTMENT || '—')], ['Designation', esc(e.DESIGNATION || '—')]].concat(extra);
+    if(String(pr.salary_status || '').toUpperCase() === 'PENDING'){
+      const gross = Object.values((pr.salary || {}).earn || {}).reduce((a,b) => a + (Number(b)||0), 0);
+      salCards.push(ceoCard({
+        accent:'#2f7d54',
+        title: esc(e.Name) + ' <span style="font-weight:400;color:var(--muted);font-size:12px">' + esc(code) + '</span>',
+        sub:'New or revised salary structure submitted by HR',
+        facts: facts([['Monthly gross', '<b>' + _ceoINR(gross) + '</b>']]),
+        note: mine ? '<b style="color:var(--bad)">This is your own profile</b> — someone else has to approve it.'
+                   : 'This salary does not enter payroll until you approve it.',
+        at: pr.salary_submitted_at,
+        actions: mine ? '<span class="text-xs" style="color:var(--muted)">Not yours to approve</span>'
+          : `<button class="btn btn-primary btn-sm" data-act="sal-approve" data-code="${esc(code)}"><i class="fa-solid fa-check"></i> Approve</button>
+             <button class="btn btn-danger btn-sm" data-act="sal-reject" data-code="${esc(code)}"><i class="fa-solid fa-xmark"></i> Reject</button>
+             <button class="btn btn-ghost btn-sm" data-act="sal-view" data-code="${esc(code)}" title="Open profile"><i class="fa-solid fa-eye"></i></button>`
+      }));
+    }
+    if(String(pr.ctc_status || '').toUpperCase() === 'PENDING_CEO'){
+      const annual = Number(pr.ctc_annual) || 0;
+      ctcCards.push(ceoCard({
+        accent:'#a9701e',
+        title: esc(e.Name) + ' <span style="font-weight:400;color:var(--muted);font-size:12px">' + esc(code) + '</span>',
+        sub:'Annual CTC locked by HR, waiting for you',
+        facts: facts([['Annual CTC', '<b>' + _ceoINR(annual) + '</b>'], ['Monthly CTC', _ceoINR(Math.round(annual/12))]]),
+        note:'Approving rewrites the salary structure from this CTC (Basic 50%, HRA 25%, Conveyance 15%, Special 10%).',
+        at: null,
+        actions: `<button class="btn btn-primary btn-sm" onclick="ctcCeoDecide('${esc(code)}', true)"><i class="fa-solid fa-check"></i> Approve</button>
+                  <button class="btn btn-danger btn-sm" onclick="ctcCeoDecide('${esc(code)}', false)"><i class="fa-solid fa-xmark"></i> Reject</button>`
+      }));
+    }
+  });
+
+  // ---------- 4. Overtime ----------
+  const otG = {};
+  (ot.data || []).forEach(o => { const k = o.group_id || 'single-' + o.id; (otG[k] = otG[k] || []).push(o); });
+  const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
+  const otCards = Object.entries(otG).map(([gid, rows]) => {
+    const f = rows[0];
+    const hrs = rows.reduce((a,r) => a + (Number(r.hours)||0), 0);
+    return ceoCard({
+      accent:'#1d4ed8',
+      title: rows.length > 1 ? rows.length + ' employees' : esc(nameOf(f.employee_code)),
+      sub: 'Overtime on ' + esc(fmtDate(f.ot_date)) + (gid.startsWith('single-') ? '' : ' · request ' + esc(gid)),
+      facts: [['Hours each', (Number(f.hours)||0) + ' hrs'], ['Total hours', hrs + ' hrs'],
+              ['Requested by', esc(nameOf(f.requested_by || f.employee_code))]],
+      note: rows.length > 1 ? 'Names: ' + rows.slice(0,8).map(r => esc(nameOf(r.employee_code))).join(', ') + (rows.length > 8 ? ' +' + (rows.length-8) + ' more' : '') : '',
+      at: f.created_at || f.ot_date,
+      actions: `<button class="btn btn-primary btn-sm" data-act="ot-appr-grp" data-ids="${rows.map(r=>r.id).join(',')}"><i class="fa-solid fa-check"></i> Approve all</button>
+                <button class="btn btn-danger btn-sm" data-act="ot-rej-grp" data-ids="${rows.map(r=>r.id).join(',')}"><i class="fa-solid fa-xmark"></i> Reject</button>`
+    });
+  });
+
+  // ---------- 5. Loans & advances ----------
+  const mlCards = (ml.data || []).map(r => ceoCard({
+    accent:'#854d0e',
+    title: esc(r.name || nameOf(r.employee_code)) + ' <span style="font-weight:400;color:var(--muted);font-size:12px">' + esc(r.employee_code) + '</span>',
+    sub: (r.req_type === 'LOAN' ? 'Loan request' : 'Salary advance request'),
+    facts: [['Amount', '<b>' + _ceoINR(r.amount) + '</b>'],
+            ['Recovery', r.months ? r.months + ' monthly instalments' : 'from next salary'],
+            ['Reason', esc(r.reason || '—')]],
+    note: r.req_type === 'LOAN' ? 'On approval the employee must accept a loan agreement in the app before Accounts can disburse.' : '',
+    at: r.created_at,
+    actions: `<button class="btn btn-primary btn-sm" data-act="ml-appr" data-id="${r.id}" data-code="${esc(r.employee_code)}" data-type="${esc(r.req_type)}" data-amount="${r.amount}" data-months="${r.months||''}" data-reason="${esc(r.reason||'')}"><i class="fa-solid fa-check"></i> Approve</button>
+              <button class="btn btn-danger btn-sm" data-act="ml-rej" data-id="${r.id}"><i class="fa-solid fa-xmark"></i> Reject</button>`
+  }));
+
+  // ---------- 6. Late deductions ----------
+  const lateCards = (lateR.data || []).map(r => ceoCard({
+    accent:'#b3443c',
+    title: esc(nameOf(r.employee_code)) + ' <span style="font-weight:400;color:var(--muted);font-size:12px">' + esc(r.employee_code) + '</span>',
+    sub: 'Late arrivals in ' + esc(monthLabel(r.month)),
+    facts: [['Late arrivals', (r.lates || 0) + ' times'], ['Days to be cut', '<b style="color:var(--bad)">' + (r.base_late_lop || 0) + '</b>']],
+    note: 'Waive = the late deduction is dropped and the employee is paid in full. Charge = the days are cut from this month’s pay.',
+    at: r.created_at || (r.month + '-01'),
+    actions: `<button class="btn btn-primary btn-sm" data-act="late-appr" data-code="${esc(r.employee_code)}" data-month="${esc(r.month)}"><i class="fa-solid fa-check"></i> Waive</button>
+              <button class="btn btn-danger btn-sm" data-act="late-rej" data-code="${esc(r.employee_code)}" data-month="${esc(r.month)}"><i class="fa-solid fa-xmark"></i> Charge</button>`
+  }));
+
+  const total = offers.length + salCards.length + ctcCards.length + otCards.length + mlCards.length + lateCards.length;
+  if($('ceoTotal')) $('ceoTotal').innerText = total;
+  const bdg = $('ceoBadge');
+  if(bdg){ bdg.innerText = total; bdg.classList.toggle('hidden', total === 0); }
+
+  if(!total){
+    host.innerHTML = `<div class="card" style="text-align:center;padding:40px 20px">
+      <div style="font-size:42px">✅</div>
+      <p class="display font-bold m-0 mt-2" style="font-size:17px">Nothing is waiting for you</p>
+      <p class="m-0 mt-1 text-sm" style="color:var(--muted)">Every offer, salary, CTC, overtime, loan and late deduction has been decided.</p>
+    </div>`;
+    return;
+  }
+  host.innerHTML =
+    ceoSection('Job offers', 'fa-file-signature', 'Approving emails the candidate a signed offer letter.', offers) +
+    ceoSection('Salary structures', 'fa-indian-rupee-sign', 'A new or revised salary cannot enter payroll until you approve it.', salCards) +
+    ceoSection('Annual CTC', 'fa-sack-dollar', 'HR has locked these figures and is waiting for your sign-off.', ctcCards) +
+    ceoSection('Overtime', 'fa-clock', 'Only you can approve overtime. Approved hours are recorded against the month.', otCards) +
+    ceoSection('Loans &amp; advances', 'fa-hand-holding-dollar', 'Money paid out before it is earned, recovered from salary later.', mlCards) +
+    ceoSection('Late deductions', 'fa-user-clock', 'Staff who lost pay for late arrivals and have appealed.', lateCards) +
+    `<p class="text-xs mt-1" style="color:var(--muted)"><i class="fa-solid fa-circle-info"></i>
+      Leave, expenses, gate passes, field duty, attendance corrections and work passes are not shown here —
+      HR and reporting managers handle those on the <b>Approvals</b> page.</p>`;
+}
+
 let AP_INBOX = [];
 let AP_INBOX_KIND = '';            // '' = sab
 
