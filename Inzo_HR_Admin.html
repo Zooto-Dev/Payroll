@@ -6870,11 +6870,14 @@ async function letterHTMLtoPdfBase64(html){
   while(remaining > 0){ pos -= ph; pdf.addPage(); pdf.addImage(imgData, 'JPEG', 0, pos, pw, imgH); remaining -= ph; }
   return pdf.output('datauristring').split(',')[1];
 }
+/* Lautata hai: true = email chala gaya, warna false.
+   Pehle ye chupchap return kar jaata tha aur bulane wala "bhej diya" bol deta tha —
+   bina email wale candidate par screen jhooth bolti thi. */
 async function sendOfferPdfEmail(id){
-  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
-  if(!c.email) return notify('Candidate ka email saved nahi hai', 'error');
+  const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return false;
+  if(!c.email){ notify('Candidate ka email saved nahi hai — pehle email bharo, phir Resend dabao', 'error'); return false; }
   let html = buildOfferLetterHTML(id);
-  if(!html) return;
+  if(!html) return false;
   const S = getSettings();
   try{
     notify('Offer letter PDF ban raha hai (bilkul jaisa dikhta hai)…', 'info');
@@ -6888,9 +6891,10 @@ async function sendOfferPdfEmail(id){
         joinDate: c.join_date || '', pdf_base64: pdfB64 })
     });
     const r = await res.json();
-    if(r && r.ok) notify('✓ Offer email + PDF letter bheja gaya: ' + c.email, 'success');
-    else notify('Email failed: ' + ((r && r.error) || 'GAS deploy check karo'), 'error');
-  }catch(e){ notify('Email failed: ' + (e.message||e), 'error'); }
+    if(r && r.ok){ notify('✓ Offer email + PDF letter bheja gaya: ' + c.email, 'success'); return true; }
+    notify('Email failed: ' + ((r && r.error) || 'GAS deploy check karo'), 'error');
+    return false;
+  }catch(e){ notify('Email failed: ' + (e.message||e), 'error'); return false; }
 }
 async function sendOfferForApproval(id){
   const c = CANDIDATES.find(x => String(x.id) === String(id)); if(!c) return;
@@ -6926,9 +6930,14 @@ async function offerCeoDecide(id, approve){
     if(!(await nxConfirm(`${c.name} ka offer APPROVE karein?\nGross: ₹${Number(c.agreed_salary||0).toLocaleString('en-IN')} · Joining: ${c.join_date||'-'}\n\nApprove karte hi offer email candidate ko chala jayega.`, 'CEO Approve'))) return;
     await sb.from('candidates').update({ offer_approval: 'APPROVED', offer_date: todayISO(), updated_at: new Date().toISOString() }).eq('id', id);
     Object.assign(c, { offer_approval: 'APPROVED' });
-    // AUTO-SEND: offer email + OFFER LETTER PDF attached
-    await sendOfferPdfEmail(id);
-    notify('✓ CEO approved — offer email + PDF letter candidate ko bhej diya gaya', 'success');
+    // AUTO-SEND: offer email + OFFER LETTER PDF attached.
+    // Approval ho gaya hai chahe email jaye ya na jaye — dono ki khabar alag deni hai,
+    // warna bina email wale candidate par "bhej diya" ka jhootha message aata tha.
+    const _sent = await sendOfferPdfEmail(id);
+    notify(_sent
+      ? '✓ CEO approved — offer email + PDF letter candidate ko bhej diya gaya'
+      : '✓ CEO approved (PDF par sign aa gaya) — lekin email NAHI gaya. Email bhar ke "Resend Offer Email + PDF" dabayein.',
+      _sent ? 'success' : 'error');
   } else {
     const note = (await nxPrompt('Reject ka reason (HR ko dikhega):', 'Reject Offer')) || '';
     await sb.from('candidates').update({ offer_approval: 'REJECTED', offer_note: note, updated_at: new Date().toISOString() }).eq('id', id);
