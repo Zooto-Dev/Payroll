@@ -6518,6 +6518,19 @@ function candStageActions(c){
   }
 
   if(c.stage === 'OFFERED'){
+    /* Tick pehle hardcode 'checked' the — jo bhi PF/ESI/LWF/TDS save kiya hota wo
+       panel khulte hi default par wapas aa jaata, aur agli baar "Send for CEO
+       Approval" dabate hi DB me bhi default likh jaata. Ab save kiye hue flags
+       se hi tick bante hain; kuch save nahi hai to hi default lagta hai. */
+    let _sfSaved = false, _sf = { pf:true, esi:false, lwf:true, tds:false };
+    try{
+      if(c.offer_flags){ _sf = Object.assign({}, _sf, JSON.parse(c.offer_flags)); _sfSaved = true; }
+    }catch(e){}
+    if(!_sfSaved){
+      const _lim = Number(getSettings().esiLimit) || 21000;
+      const _g0 = Number(c.agreed_salary) || 0;
+      _sf.esi = _g0 > 0 && _g0 <= _lim;
+    }
     const g = Number(c.agreed_salary)||0;
     const alloc = g ? splitGross(g) : null;
     html += `<div class="grid grid-cols-3 gap-3 mb-2">
@@ -6535,10 +6548,11 @@ function candStageActions(c){
     </div>
     <div class="flex gap-4 items-center mb-2 text-xs" style="color:var(--muted)">
       <span style="font-weight:600">Statutory applicable:</span>
-      <label class="flex items-center gap-1"><input type="checkbox" id="candPF" checked onchange="candGrossChanged()"> PF</label>
-      <label class="flex items-center gap-1"><input type="checkbox" id="candESI" onchange="candGrossChanged()"> ESI</label>
-      <label class="flex items-center gap-1"><input type="checkbox" id="candLWF" checked onchange="candGrossChanged()"> LWF</label>
-      <label class="flex items-center gap-1"><input type="checkbox" id="candTDS" onchange="candOfferPreview()"> TDS</label>
+      <label class="flex items-center gap-1"><input type="checkbox" id="candPF" ${_sf.pf?'checked':''} onchange="candGrossChanged()"> PF</label>
+      <label class="flex items-center gap-1"><input type="checkbox" id="candESI" ${_sf.esi?'checked':''} onchange="candGrossChanged()"> ESI</label>
+      <label class="flex items-center gap-1"><input type="checkbox" id="candLWF" ${_sf.lwf?'checked':''} onchange="candGrossChanged()"> LWF</label>
+      <label class="flex items-center gap-1"><input type="checkbox" id="candTDS" ${_sf.tds?'checked':''} onchange="candOfferPreview()"> TDS</label>
+      ${_sfSaved ? '' : '<span style="color:var(--faint)">(default — abhi tak save nahi hue)</span>'}
     </div>
     <div id="candOfferBreak" class="text-[11px] mb-2 p-2 rounded" style="background:var(--brand-soft)">${alloc ? candBreakupText(g) : 'Enter the agreed salary to see the breakup.'}</div>
     ${c.offer_approval === 'CEO_APPROVED'
