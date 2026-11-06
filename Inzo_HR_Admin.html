@@ -6816,8 +6816,23 @@ function buildOfferLetterHTML(id){
      ${SEC(8, 'Confidentiality', `During and after your employment, you shall maintain strict confidentiality of all business, technical and commercial information of the company and use it solely for the discharge of your duties.`)}
      ${SEC(9, 'Acceptance', `Please confirm your acceptance by signing and returning a copy of this letter (or by replying to the offer email) within <b>7 days</b> of receipt, failing which this offer may be treated as lapsed.`)}
      <p style="margin:9px 0 0;text-align:justify">A detailed appointment letter will be issued at the time of joining. We look forward to welcoming you to the ${esc(S.name)} family.</p>
-     ${annexureCTC_HTML(g, flags)}`);
+     ${annexureCTC_HTML(g, flags)}`,
+    /* Sign tabhi lagta hai jab CEO ne approve kiya ho. Approval se pehle nikaala
+       gaya PDF bina sign aata hai — warna approval ka matlab hi khatam ho jaata. */
+    { signed: _offerApproved(c), approvedBy: S.hr || '', approvedOn: _offerApprovedOn(c) });
   return html;
+}
+// CEO ne approve kiya? (email se APPROVE kiya to CEO_APPROVED aata hai)
+function _offerApproved(c){
+  return ['APPROVED','CEO_APPROVED'].includes(String((c && c.offer_approval) || '').toUpperCase());
+}
+function _offerApprovedOn(c){
+  if(!_offerApproved(c)) return '';
+  const d = (c && (c.offer_date || c.updated_at)) || '';
+  if(!d) return '';
+  try{ return new Date(String(d).length === 10 ? d + 'T12:00:00' : d)
+        .toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }); }
+  catch(e){ return ''; }
 }
 async function loadPdfLibs(){
   if(!window.html2canvas){
@@ -10877,6 +10892,8 @@ async function nextDocNo(kind, code, name, title){
   }catch(e){}
   return doc_no;
 }
+// Authorised signatory ke sign ki image. Yahi file ID card par bhi lagti hai.
+const NX_SIGN_URL = 'https://zooto-dev.github.io/Payroll/signature.png';
 function letterShell(title, refNo, body, opts){
   const S = getSettings();
   const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' });
@@ -10887,6 +10904,15 @@ function letterShell(title, refNo, body, opts){
   const gSign  = C ? '20px' : '44px';
   const gFor   = C ? '0 0 16px' : '0 0 34px';
   const hGap   = C ? '18px' : '44px';
+  /* Sign sirf tab chhapta hai jab bhejne wala saaf-saaf kehta hai (opts.signed).
+     Warna khali jagah rehti hai, haath se sign karne ke liye. Default band hai
+     taaki koi approval se pehle CEO ke sign wala letter na nikaal le. */
+  const _signed = !!(opts && opts.signed);
+  const _apprBy = (opts && opts.approvedBy) || '';
+  const _apprOn = (opts && opts.approvedOn) || '';
+  const _signBlock = _signed
+    ? `<img src="${NX_SIGN_URL}" alt="" style="display:block;height:${C ? '34px' : '46px'};margin:${C ? '2px' : '4px'} 0 -2px">`
+    : `<div style="height:${hGap}"></div>`;
   return `<div class="paper${C ? ' compact' : ''}" contenteditable="true" spellcheck="false">
     <div style="text-align:center;border-bottom:2.5px solid var(--ink);padding-bottom:10px">
       <h1 style="margin:0;font-size:22px;letter-spacing:.02em">${esc(S.name)}</h1>
@@ -10903,7 +10929,7 @@ function letterShell(title, refNo, body, opts){
     <div style="margin-top:${gSign};display:flex;justify-content:space-between;align-items:flex-end">
       <div>
         <p style="margin:${gFor}">For <b>${esc(S.name)}</b></p>
-        <div style="height:${hGap}"></div><p style="margin:0;border-top:1px solid #94a3b8;padding-top:5px;display:inline-block"><b>${esc(S.hr || 'Authorised Signatory')}</b><br><span style="font-size:11px;color:#64748b">${esc(S.hrDesig || '')}</span></p>
+        ${_signBlock}<p style="margin:0;border-top:1px solid #94a3b8;padding-top:5px;display:inline-block"><b>${esc(S.hr || 'Authorised Signatory')}</b><br><span style="font-size:11px;color:#64748b">${esc(S.hrDesig || '')}</span>${_signed ? `<br><span style="font-size:9.5px;color:#94a3b8">Digitally approved${_apprBy ? ' by ' + esc(_apprBy) : ''}${_apprOn ? ' on ' + esc(_apprOn) : ''}</span>` : ''}</p>
       </div>
       <div style="text-align:right">
         <p style="margin:${gFor}">Accepted &amp; Agreed</p>
