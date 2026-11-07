@@ -284,7 +284,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
           <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B69</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B70</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -4704,9 +4704,50 @@ function printSlip(s){
 function nxPrintSlip(){
   const host = $('slipPrint');
   if(!host) return;
-  const imgs = Array.from(host.querySelectorAll('img'));
-  const pending = imgs.filter(im => !im.complete);
-  // sab taiyaar -> usi click ke andar print karo (iOS gesture bana rehta hai)
+  const body = host.innerHTML;
+
+  // ===== iPhone/Safari ke liye: slip ko ALAG page me kholo =====
+  // @media print ke sahare chhapna iPhone par bharosemand nahi hai — kabhi khali
+  // page aata hai. Alag page me poora document HI slip hota hai, koi chhupane-
+  // dikhane ka khel nahi, isliye har browser me theek chhapta hai. Aur agar print
+  // na bhi chale to employee ko slip saamne dikhti hai — khali screen nahi.
+  let w = null;
+  try{ w = window.open('', '_blank'); }catch(e){ w = null; }
+  if(w && w.document){
+    const doc = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+      + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+      + '<title>' + (L('Payslip','वेतन पर्ची')) + '</title><style>'
+      + 'html,body{margin:0;padding:0;background:#eef2f7;'
+      +   "font-family:Inter,-apple-system,'Segoe UI',Arial,sans-serif}"
+      + '#nxSlipWrap{background:#fff;margin:0 auto;max-width:800px}'
+      + '#nxBar{position:sticky;top:0;z-index:9;display:flex;gap:8px;justify-content:center;'
+      +   'padding:10px;background:#0f172a}'
+      + '#nxBar button{flex:0 0 auto;background:#2563eb;color:#fff;border:none;border-radius:9px;'
+      +   'padding:11px 20px;font-size:14px;font-weight:700}'
+      + '#nxBar .g{background:#334155}'
+      + '@media print{#nxBar{display:none !important}'
+      +   'html,body{background:#fff}#nxSlipWrap{max-width:none}'
+      +   '*{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}'
+      +   '@page{margin:8mm}}'
+      + '</style></head><body>'
+      + '<div id="nxBar"><button onclick="window.print()">'
+      +   L('Print / Save PDF','प्रिंट / PDF सेव करें') + '</button>'
+      + '<button class="g" onclick="window.close()">' + L('Close','बंद करें') + '</button></div>'
+      + '<div id="nxSlipWrap">' + body + '</div></body></html>';
+    try{
+      w.document.open(); w.document.write(doc); w.document.close();
+      // tasveeren (QR/logo) aa jaane ke baad hi print — warna aadhi chhapti hai
+      const fire = () => { try{ w.focus(); w.print(); }catch(e){} };
+      let done = false;
+      const once = () => { if(done) return; done = true; setTimeout(fire, 350); };
+      w.addEventListener('load', once);
+      setTimeout(once, 2500);
+      return;
+    }catch(e){ try{ w.close(); }catch(e2){} }
+  }
+
+  // ===== Popup ruk gaya -> usi page par chhapo (purana tarika) =====
+  const pending = Array.from(host.querySelectorAll('img')).filter(im => !im.complete);
   if(!pending.length){ try{ window.print(); }catch(e){} return; }
   let fired = false;
   const go = () => { if(fired) return; fired = true; try{ window.print(); }catch(e){} };
@@ -4716,7 +4757,7 @@ function nxPrintSlip(){
     im.addEventListener('load', one, { once:true });
     im.addEventListener('error', one, { once:true });
   });
-  setTimeout(go, 1500);   // net slow ho ya QR na aaye to bhi ruko mat
+  setTimeout(go, 1500);
 }
 
 // change password
