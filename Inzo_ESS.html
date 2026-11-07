@@ -121,9 +121,12 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .toast{background:var(--ink);color:#fff;padding:11px 16px;border-radius:12px;font-size:13px;margin-bottom:8px;box-shadow:0 10px 25px rgba(0,0,0,.25)}
 .loader-ring{width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
 @keyframes spin{to{transform:rotate(360deg)}}
-.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;text-align:center}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;text-align:center}
+/* minmax(0,1fr) ke bina 1fr column 38px se chhota nahi hota, isliye 360px wale
+   Android par Saturday ka column card ke bahar nikal jaata tha. */
 .cal .dow{font-size:10px;font-weight:600;color:var(--muted);padding:2px 0}
-.cal .day{width:38px;height:38px;max-width:100%;margin:auto;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+.cal .day{width:100%;max-width:38px;aspect-ratio:1/1;height:auto;margin:auto;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+@supports not (aspect-ratio:1/1){ .cal .day{height:34px} }
 .d-P{background:#bbf7d0;color:#166534}
 .d-L{background:#fdba74;color:#7c2d12}
 .d-A{background:#fbcfe8;color:#9d174d}
@@ -230,7 +233,19 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .pf-r-k{color:var(--muted);flex:none}
 .pf-r-v{text-align:right;font-weight:600;color:var(--ink);word-break:break-word}
 .legend .chip{font-size:10px}
-@media print{ body *{visibility:hidden} #slipPrint,#slipPrint *{visibility:visible} #slipPrint{position:absolute;top:0;left:0;width:100%} }
+/* Payslip print. Screen par slipPrint chhupa rehta hai, isliye content mitane ki
+   zaroorat nahi — aur yahi bug tha: iPhone/Safari me window.print() rokta nahi,
+   turant lautta hai, to content mitne ke baad print hota tha = khali PDF. */
+#slipPrint{display:none}
+@media print{
+  body > *{display:none !important}
+  #slipPrint{display:block !important;position:static;width:100%}
+  /* overflow:hidden Safari me lambi slip ko ek page par kaat deta hai */
+  #slipPrint, #slipPrint *{overflow:visible !important}
+  html,body{background:#fff !important;margin:0;padding:0}
+  /* rang wali pattiyan (NET PAY) warna safed chhapti hain */
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
+}
 </style>
 </head>
 <body><div id="nxSplash"><div class="nx-glow"></div><img src="nexus-logo.png" alt="Nexus" class="nx-logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="nx-word" style="display:none"><span class="nx-l">N</span><span class="nx-l nx-c">E</span><span class="nx-l">X</span><span class="nx-l nx-c">U</span><span class="nx-l">S</span></div><div class="nx-sub">MY &nbsp;HR</div><div class="nx-bar"><i></i></div></div>
@@ -4679,7 +4694,29 @@ function printSlip(s){
     <p style="font-size:9.5px;color:#94a3b8;margin-top:8px;text-align:center">${L('System generated payslip — no signature required','सिस्टम से बनी वेतन पर्ची — हस्ताक्षर की ज़रूरत नहीं')} • ${esc(c.name || '')}</p>
     </div></div>
   </div>`;
-  setTimeout(() => { window.print(); $('slipPrint').innerHTML = ''; }, 200);
+  nxPrintSlip();
+}
+
+// Print karne se pehle slip ki tasveeren (QR, logo) load hone do, warna adhuri chhapti hai.
+// Content JAAN-BUJH kar nahi mitaya jaata: iPhone/Safari par window.print() turant laut
+// aata hai aur print baad me hota hai — mita diya to khali page chhapta tha.
+// Screen par kuch dikhta nahi, kyunki #slipPrint khud display:none hai.
+function nxPrintSlip(){
+  const host = $('slipPrint');
+  if(!host) return;
+  const imgs = Array.from(host.querySelectorAll('img'));
+  const pending = imgs.filter(im => !im.complete);
+  // sab taiyaar -> usi click ke andar print karo (iOS gesture bana rehta hai)
+  if(!pending.length){ try{ window.print(); }catch(e){} return; }
+  let fired = false;
+  const go = () => { if(fired) return; fired = true; try{ window.print(); }catch(e){} };
+  let left = pending.length;
+  const one = () => { if(--left <= 0) go(); };
+  pending.forEach(im => {
+    im.addEventListener('load', one, { once:true });
+    im.addEventListener('error', one, { once:true });
+  });
+  setTimeout(go, 1500);   // net slow ho ya QR na aaye to bhi ruko mat
 }
 
 // change password

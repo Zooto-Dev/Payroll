@@ -318,10 +318,13 @@ body.no-confidential .confidential-col{display:none!important}
 .paper.compact table.ann th,.paper.compact table.ann td{padding:3px 8px}
 .paper.compact h1{font-size:19px}
 .paper.compact h3{margin:10px 0 3px}
+/* printArea screen par chhupa rehta hai. Pehle chhapne ke turant baad content mita
+   diya jaata tha — Safari/iPhone me window.print() rokta nahi, isliye khali chhapta tha. */
+#printArea{display:none}
 @media print{
   html,body{ margin:0 !important; padding:0 !important; background:#fff !important; }
   body > *:not(#printArea){ display:none !important; }   /* hide the whole app -> no blank pages */
-  #printArea{ position:static; width:auto; }
+  #printArea{ position:static; width:auto; display:block !important; }
   .paper{ box-shadow:none !important; margin:0 auto !important; }   /* keep full A4 size (no shrink) */
   .no-print{display:none !important}
   @page{ margin:0; }   /* removes the browser date/URL/page-number header & footer */
@@ -1201,7 +1204,7 @@ body.no-confidential .confidential-col{display:none!important}
       <input type="month" id="misMonth" class="inp" style="width:170px">
       <button id="misGo" class="btn btn-primary btn-sm"><i class="fa-solid fa-rotate"></i> Refresh</button>
     </div>
-    <button onclick="window.print()" class="btn btn-ghost btn-sm"><i class="fa-solid fa-print"></i> Print / PDF</button>
+    <button onclick="$('printArea').innerHTML='';window.print()" class="btn btn-ghost btn-sm"><i class="fa-solid fa-print"></i> Print / PDF</button>
   </div>
   <div class="grid grid-cols-2 lg:grid-cols-6 gap-3" id="misKpis"></div>
 
@@ -4004,7 +4007,7 @@ $('otrCsvBtn').addEventListener('click', () => {
       </div>`;
       const img = $('printArea').querySelector('img');
       let printed = false;
-      const go = () => { if(printed) return; printed = true; window.print(); setTimeout(() => { $('printArea').innerHTML = ''; }, 300); };
+      const go = () => { if(printed) return; printed = true; window.print(); };
       img.onload = go;            // QR downloaded -> print
       setTimeout(go, 3500);       // failsafe if the QR service is slow
     });
@@ -9419,7 +9422,7 @@ function printHTML(html){
   $('printArea').innerHTML = html;
   const imgs = Array.from($('printArea').querySelectorAll('img'));
   let done = false;
-  const fire = () => { if(done) return; done = true; window.print(); setTimeout(() => { $('printArea').innerHTML = ''; }, 400); };
+  const fire = () => { if(done) return; done = true; window.print(); };
   if(!imgs.length){ setTimeout(fire, 120); return; }
   let left = imgs.length;
   const tick = () => { if(--left <= 0) fire(); };
@@ -9741,7 +9744,7 @@ $('advAgrBtn').addEventListener('click', () => {
     </div>
   </div>`;
   AGR_PRINTED = true;
-  setTimeout(() => { window.print(); $('printArea').innerHTML = ''; }, 150);
+  setTimeout(() => window.print(), 150);
 });
 $('advSaveBtn').addEventListener('click', async () => {
   if(!canApprove('advance')) return notify('You are not allowed to add advances', 'error');
@@ -11507,7 +11510,7 @@ $('empFormBtn').addEventListener('click', () => {
       </tr></table>
     </div>
   </div>`;
-  setTimeout(() => { window.print(); $('printArea').innerHTML = ''; }, 150);
+  setTimeout(() => window.print(), 150);
 });
 
 /* ---------------- Employee bulk import ---------------- */
