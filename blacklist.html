@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nexus — Blacklist / Security</title>
+<link rel="icon" href="nexus-icon-180.png">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{ --bg:#0b1220; --card:#16202f; --line:#243043; --muted:#94a3b8; --red:#ef4444; }
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:#fff;min-height:100vh}
+  header{background:#7f1d1d;padding:14px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:10}
+  header .ic{font-size:34px;line-height:1}
+  header h1{font-size:clamp(18px,3.2vw,26px);letter-spacing:.04em;font-weight:900}
+  header p{font-size:clamp(11px,1.6vw,14px);opacity:.9;margin-top:2px}
+  header .right{margin-left:auto;text-align:right;font-size:12px;opacity:.9}
+  header .right b{font-size:clamp(16px,2.4vw,22px);display:block;letter-spacing:.04em}
+  .bar{padding:12px 18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+  #q{flex:1;min-width:220px;background:#0e1730;color:#fff;border:1.5px solid var(--line);border-radius:12px;
+     padding:13px 15px;font-size:17px}
+  #q::placeholder{color:#64748b}
+  .count{font-size:13px;color:var(--muted);white-space:nowrap}
+  .btn{background:#1e293b;color:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 16px;font-size:14px;cursor:pointer}
+  .btn:active{background:#0f172a}
+  .wrap{padding:16px 18px 40px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+  .c{background:var(--card);border:2px solid #7f1d1d;border-radius:16px;padding:14px;display:flex;gap:14px;align-items:flex-start}
+  .c img,.c .np{width:112px;height:112px;flex:none;border-radius:12px;object-fit:cover;border:2px solid var(--red);background:#0e1730}
+  .c .np{display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;font-weight:700;color:#fca5a5}
+  .c .n{font-size:21px;font-weight:800;line-height:1.2}
+  .c .m{font-size:12px;color:var(--muted);margin:3px 0 8px}
+  .c .r{font-size:15px;font-weight:600;background:#450a0a;border:1px solid #7f1d1d;border-radius:9px;padding:7px 10px}
+  .c .d{font-size:11px;color:#64748b;margin-top:7px}
+  .big img{width:220px;height:220px}
+  .big .n{font-size:30px}
+  .msg{padding:40px 18px;text-align:center;color:var(--muted);font-size:16px}
+  footer{padding:14px 18px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);text-align:center}
+  @media print{
+    body{background:#fff;color:#000}
+    header{background:#7f1d1d;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .bar,footer,.btn{display:none}
+    .c{border-color:#7f1d1d;background:#fff;color:#000;break-inside:avoid}
+    .c .n{color:#7f1d1d}.c .r{background:#fee2e2;color:#7f1d1d}
+  }
+</style>
+</head>
+<body>
+<header>
+  <span class="ic">&#9940;</span>
+  <div>
+    <h1>BLACKLIST &mdash; ENTRY NOT ALLOWED</h1>
+    <p>Ye log andar nahi aa sakte. Dikhein to turant sampark karein.</p>
+  </div>
+  <div class="right">Contact<b id="phone">8938953093</b></div>
+</header>
+
+<div class="bar">
+  <input id="q" type="text" placeholder="Naam ya code se dhoondhein&hellip;" autocomplete="off">
+  <span class="count" id="count">&hellip;</span>
+  <button class="btn" id="bigBtn">Badi photo</button>
+  <button class="btn" id="refBtn">Refresh</button>
+  <button class="btn" onclick="window.print()">Print</button>
+</div>
+
+<div class="wrap"><div class="grid" id="grid"></div><div class="msg" id="msg">Loading&hellip;</div></div>
+<footer id="foot"></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const NX_CONFIG_URL = 'https://script.google.com/macros/s/AKfycbyLyxuzYzGZ1odibF_-ORvn314hFY_zKg4595HpDZrhMObhqbcAh_LIw60sTc4b_dPI/exec';
+const PHONE = '8938953093';
+const $ = id => document.getElementById(id);
+let sb = null, LIST = [], BIG = false;
+
+// Key kabhi page me nahi likhi jaati — GAS se aati hai (JSONP)
+function loadConfig(){
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const cb = 'nxCfg' + Math.floor(Math.random()*1e6);
+    const t = setTimeout(() => { if(done) return; done = true; delete window[cb]; reject(new Error('Config timeout — internet dekhein')); }, 12000);
+    window[cb] = d => { if(done) return; done = true; clearTimeout(t); delete window[cb];
+      (d && d.url && d.key) ? resolve(d) : reject(new Error((d && d.error) || 'Config error')); };
+    const s = document.createElement('script');
+    s.src = NX_CONFIG_URL + '?callback=' + cb + '&t=' + Date.now();
+    s.onerror = () => { if(done) return; done = true; clearTimeout(t); delete window[cb]; reject(new Error('Config load fail')); };
+    document.head.appendChild(s);
+  });
+}
+
+const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function render(){
+  const q = $('q').value.trim().toLowerCase();
+  const rows = !q ? LIST : LIST.filter(r =>
+    String(r.name||'').toLowerCase().includes(q) || String(r.code||'').toLowerCase().includes(q));
+  $('count').textContent = q ? (rows.length + ' / ' + LIST.length) : (LIST.length + ' log');
+  $('grid').className = 'grid' + (BIG ? ' big' : '');
+  if(!LIST.length){ $('grid').innerHTML = ''; $('msg').textContent = 'Koi blacklist me nahi hai.'; return; }
+  if(!rows.length){ $('grid').innerHTML = ''; $('msg').textContent = 'Is naam/code ka koi blacklist me nahi hai.'; return; }
+  $('msg').textContent = '';
+  $('grid').innerHTML = rows.map(r => `
+    <div class="c">
+      ${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">`
+                : '<div class="np">PHOTO<br>NAHI</div>'}
+      <div style="flex:1;min-width:0">
+        <div class="n">${esc(r.name || r.code)}</div>
+        <div class="m">${esc(r.code)}${r.dept ? ' &middot; ' + esc(r.dept) : ''}</div>
+        <div class="r">${esc(r.reason || 'Blacklisted')}</div>
+        <div class="d">Blacklist: ${esc(r.since || '')}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function load(){
+  try{
+    const { data, error } = await sb.rpc('nx_blacklist_public');
+    if(error) throw error;
+    LIST = Array.isArray(data) ? data : [];
+    try{ localStorage.setItem('nx_bl_cache', JSON.stringify(LIST)); }catch(e){}
+    $('foot').textContent = 'Aakhri baar taaza: ' + new Date().toLocaleString('en-IN') + ' — har 2 minute me apne aap refresh hota hai';
+  }catch(e){
+    // net gaya to purani list dikhate raho, khali screen se behtar hai
+    try{ const c = localStorage.getItem('nx_bl_cache'); if(c) LIST = JSON.parse(c); }catch(e2){}
+    $('foot').textContent = 'Internet nahi mila — purani list dikh rahi hai. (' + (e.message || e) + ')';
+  }
+  render();
+}
+
+$('q').addEventListener('input', render);
+$('refBtn').addEventListener('click', load);
+$('bigBtn').addEventListener('click', () => {
+  BIG = !BIG;
+  $('bigBtn').textContent = BIG ? 'Chhoti photo' : 'Badi photo';
+  render();
+});
+$('phone').textContent = PHONE;
+
+(async function init(){
+  try{
+    const cfg = await loadConfig();
+    sb = window.supabase.createClient(cfg.url, cfg.key);
+    await load();
+    setInterval(load, 120000);
+  }catch(e){
+    try{ const c = localStorage.getItem('nx_bl_cache'); if(c){ LIST = JSON.parse(c); render(); } }catch(e2){}
+    $('msg').textContent = 'Error: ' + (e.message || e);
+  }
+})();
+</script>
+</body>
+</html>
