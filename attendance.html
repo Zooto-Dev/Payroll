@@ -839,6 +839,44 @@ function nxConfirm(msg, title){
             setTimeout(() => notif.classList.remove('show'), 3000);
         }
 
+        // ===================== BLOCK SCREEN =====================
+        // F&F ho chuke ya blacklist kiye gaye vyakti ka punch bilkul nahi hoga.
+        // Gate par khade guard ko door se dikh jaye, isliye poori screen laal.
+        const NX_BLOCK_PHONE = '8938953093';
+        function nxBlockInfo(code){
+            const m = window.NX_BLOCKED || {};
+            return m[String(code || '').trim().toUpperCase()] || null;
+        }
+        function hideBlockScreen(){
+            const el = document.getElementById('nxBlockScreen');
+            if(el) el.remove();
+        }
+        function showBlockScreen(code, info, name){
+            hideBlockScreen();
+            const kind = String((info && info.kind) || '').toUpperCase();
+            const who  = (name && name !== 'Employee') ? name : ((info && info.name) || '');
+            const why  = kind === 'BLACKLIST' ? 'BLACKLISTED' : 'F&amp;F ho chuka hai';
+            const el = document.createElement('div');
+            el.id = 'nxBlockScreen';
+            el.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#7f1d1d;color:#fff;'
+                + 'display:flex;flex-direction:column;align-items:center;justify-content:center;'
+                + 'text-align:center;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif';
+            el.innerHTML =
+                '<div style="font-size:clamp(64px,18vw,150px);line-height:1">\u26D4</div>'
+              + '<div style="font-size:clamp(44px,13vw,110px);font-weight:900;letter-spacing:.06em;margin:6px 0 2px">BLOCK</div>'
+              + '<div style="font-size:clamp(18px,5vw,30px);font-weight:700;margin-bottom:4px">' + (who ? String(who) : '') + '</div>'
+              + '<div style="font-size:clamp(13px,3.6vw,20px);opacity:.85;margin-bottom:14px">' + String(code || '') + ' \u00B7 ' + why + '</div>'
+              + '<div style="background:#fff;color:#7f1d1d;border-radius:16px;padding:16px 22px;max-width:560px">'
+              +   '<div style="font-size:clamp(15px,4vw,21px);font-weight:700;margin-bottom:6px">\u0906\u092A\u0915\u0940 \u0939\u093E\u091C\u093C\u093F\u0930\u0940 \u0928\u0939\u0940\u0902 \u0932\u0917 \u0938\u0915\u0924\u0940</div>'
+              +   '<div style="font-size:clamp(13px,3.4vw,17px);margin-bottom:10px">\u0915\u0943\u092A\u092F\u093E \u0907\u0938 \u0928\u0902\u092C\u0930 \u092A\u0930 \u0938\u0902\u092A\u0930\u094D\u0915 \u0915\u0930\u0947\u0902 \u2014 Please contact</div>'
+              +   '<a href="tel:' + NX_BLOCK_PHONE + '" style="display:block;font-size:clamp(28px,8vw,52px);font-weight:900;letter-spacing:.04em;color:#7f1d1d;text-decoration:none">' + NX_BLOCK_PHONE + '</a>'
+              + '</div>'
+              + '<div style="margin-top:18px;font-size:12px;opacity:.7">\u0938\u094D\u0915\u094D\u0930\u0940\u0928 \u0915\u094B \u091B\u0942\u090F\u0902 \u2014 tap to close</div>';
+            el.addEventListener('click', hideBlockScreen);
+            document.body.appendChild(el);
+            setTimeout(hideBlockScreen, 12000);
+        }
+
         function setSystemStatus(status) {
             if (status === 'loading') {
                 statusText.innerText = "STANDBY";
@@ -974,6 +1012,21 @@ function nxConfirm(msg, title){
                         localStorage.setItem('cfg_ts', String(Date.now()));
                     }catch(e){ console.warn('cfg fetch warn', e); }
                 }
+                // ---- BLOCK LIST ---- jinki F&F ho chuki hai ya jo blacklist hain.
+                // TTL nahi lagaya: list chhoti hai aur ye surakshā ka maamla hai, der nahi honi chahiye.
+                if (navigator.onLine) {
+                    try{
+                        const _bl = await supabaseClient.rpc('nx_blocked_list');
+                        if(!_bl.error && Array.isArray(_bl.data)){
+                            const _m = {};
+                            _bl.data.forEach(b => { if(b && b.code) _m[String(b.code).trim().toUpperCase()] = b; });
+                            window.NX_BLOCKED = _m;
+                            localStorage.setItem('cached_blocked', JSON.stringify(_m));
+                        }
+                    }catch(e){ console.warn('block list warn', e); }
+                }
+                if(!window.NX_BLOCKED){ const _cb = localStorage.getItem('cached_blocked'); if(_cb){ try{ window.NX_BLOCKED = JSON.parse(_cb); }catch(e){} } }
+                window.NX_BLOCKED = window.NX_BLOCKED || {};
                 if(!window.NX_SETTINGS){ const cs = localStorage.getItem('cached_settings'); if(cs){ try{ window.NX_SETTINGS = JSON.parse(cs); }catch(e){} } }
                 window.NX_SETTINGS = window.NX_SETTINGS || {};
                 if(!window.productionLines || !window.productionLines.length){ const cl = localStorage.getItem('cached_lines'); if(cl){ try{ window.productionLines = JSON.parse(cl); }catch(e){} } }
@@ -1874,6 +1927,18 @@ function nxConfirm(msg, title){
 
             const empData = employeeDataMap.get(empCode) || { Name: "Employee", 'Employee code': empCode };
             const empName = empData['Name'] || empData['name'] || empData['employee_name'] || empData['Employee Name'] || 'Employee';
+
+            // ===== ROK: F&F ho chuka ya blacklist =====
+            // Sabse pehle, kisi bhi hisaab-kitaab se pehle. Na photo, na row, kuch nahi.
+            const _blk = nxBlockInfo(empCode);
+            if (_blk) {
+                if (!offlineProcessData) {
+                    showBlockScreen(empCode, _blk, empName);
+                    speakText('\u0906\u092A\u0915\u0940 \u0939\u093E\u091C\u093C\u093F\u0930\u0940 \u0928\u0939\u0940\u0902 \u0932\u0917 \u0938\u0915\u0924\u0940\u0964 \u0915\u0943\u092A\u092F\u093E \u090F\u091A \u0906\u0930 \u0938\u0947 \u0938\u0902\u092A\u0930\u094D\u0915 \u0915\u0930\u0947\u0902\u0964');
+                    resumeScanning();
+                }
+                return;
+            }
 
             const now = Date.now();
             if (!offlineProcessData && lastPunchTime.has(empCode) && (now - lastPunchTime.get(empCode)) < 60000 && (now - lastPunchTime.get(empCode)) > 1500) {
@@ -3125,6 +3190,18 @@ function nxConfirm(msg, title){
             const btn = document.getElementById('saveEmpBtn');
 
             if(!empName || !empCode){ notify('Name and code are required', 'error'); return; }
+            // Blacklist wale ka chehra dobara kabhi register nahi hoga
+            if (nxBlockInfo(empCode) && String(nxBlockInfo(empCode).kind).toUpperCase() === 'BLACKLIST') {
+                notify(empCode + ' BLACKLIST me hai \u2014 iska face register nahi ho sakta. ' + NX_BLOCK_PHONE + ' par sampark karein.', 'error');
+                return;
+            }
+            try{
+                const _chk = await supabaseClient.rpc('nx_is_blocked', { p_code: empCode });
+                if(!_chk.error && _chk.data && _chk.data.blocked){
+                    notify(empCode + ' blocked hai (' + _chk.data.kind + ') \u2014 register nahi kar sakte. ' + NX_BLOCK_PHONE + ' par sampark karein.', 'error');
+                    return;
+                }
+            }catch(e){ /* offline: upar wali local jaanch hi kaafi hai */ }
             if(!window._regExistingCode && (window.NX_ALL_CODES || []).map(c => String(c).toUpperCase()).includes(empCode)){
                 notify('This employee code already exists — use the SEARCH box on top to register their face', 'error'); return;
             }

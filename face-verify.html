@@ -304,9 +304,26 @@ function samplesConsistent(list){
   if(maxD > MAX_SPREAD) return { ok:false, msg:'Photos consistent nahi (dhundhli/alag lag rahi) — saaf roshni me dobara try karein' };
   return { ok:true };
 }
+const NX_BLOCK_PHONE = '8938953093';
+// Blacklist / F&F wale ka chehra register hi nahi hona chahiye.
+// Jaanch server par hoti hai, isliye page ka code badal kar bhi bypass nahi hota.
+async function nxBlockedCheck(code){
+  try{
+    const { data, error } = await sb.rpc('nx_is_blocked', { p_code: code });
+    if(error) return null;
+    return (data && data.blocked) ? data : null;
+  }catch(e){ return null; }
+}
+
 async function saveFace(){
   if(!selected) return toast('Pehle employee choose karein', 'bad');
   if(samples.length < NEED_SAMPLES) return toast(NEED_SAMPLES + ' clear samples zaroori hain (' + samples.length + '/' + NEED_SAMPLES + ')', 'bad');
+  const blk = await nxBlockedCheck(selected.code);
+  if(blk){
+    resetSamples();
+    return toast((blk.kind === 'BLACKLIST' ? 'BLACKLISTED' : 'F&F ho chuka hai') + ' \u2014 ' + selected.code
+      + ' ka face register nahi ho sakta. ' + NX_BLOCK_PHONE + ' par sampark karein.', 'bad');
+  }
   // HIGH-CONFIDENCE gate: dhundhli/inconsistent photo par register bilkul na ho
   const cons = samplesConsistent(samples);
   if(!cons.ok){ resetSamples(); return toast(cons.msg, 'bad'); }

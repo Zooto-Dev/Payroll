@@ -461,6 +461,7 @@ body.no-confidential .confidential-col{display:none!important}
       <button class="nav-item nxdi" data-page="letters"><span class="di"><i class="fa-solid fa-file-signature"></i></span><span style="flex:1"><span class="dt">Letters</span><span class="ds">Offer & experience letters</span></span></button>
       <button class="nav-item nxdi" data-page="idcards"><span class="di"><i class="fa-solid fa-id-card"></i></span><span style="flex:1"><span class="dt">ID Cards</span><span class="ds">Generate ID cards</span></span></button>
       <button class="nav-item nxdi" data-page="exits"><span class="di"><i class="fa-solid fa-person-walking-arrow-right"></i></span><span style="flex:1"><span class="dt">Exit / FnF</span><span class="ds">Resignations & F&F</span></span></button>
+      <button class="nav-item nxdi" data-page="blacklist"><span class="di"><i class="fa-solid fa-ban"></i></span><span style="flex:1"><span class="dt">Blacklist</span><span class="ds">Gate par rok \u2014 punch & face</span></span><span id="blkBadge" class="dbg hidden">0</span></button>
     </div></div>
   <div class="nxg"><button><i class="fa-solid fa-gear li"></i> System <i class="fa-solid fa-chevron-down ca"></i></button>
     <div class="nxdd">
@@ -1508,6 +1509,53 @@ body.no-confidential .confidential-col{display:none!important}
 </div>
 
 <!-- ================= EXITS ================= -->
+<div class="page" id="page-blacklist">
+  <div class="grid lg:grid-cols-3 gap-4">
+    <div class="card">
+      <h3 class="display font-bold mt-0 mb-1">Blacklist me daalein</h3>
+      <p class="text-xs mb-3" style="color:var(--muted)">Blacklist karte hi: gate par punch band, face Nexus se hat jayega, aur dobara kabhi register nahi hoga.</p>
+      <label class="lbl">Employee</label><select id="blEmp" class="inp mb-3"></select>
+      <label class="lbl">Wajah (zaroori)</label>
+      <input id="blReason" class="inp mb-3" placeholder="Chori / Ladai / Bina bataye gayab\u2026">
+      <button id="blAddBtn" class="btn w-full justify-center" style="background:#b91c1c;color:#fff;border:none">
+        <i class="fa-solid fa-ban"></i> Blacklist karein
+      </button>
+      <div class="p-2 rounded-lg mt-3 text-xs" style="background:#fef3c7;border:1px solid #fde68a;color:#92400e">
+        <b>Dhyan dein:</b> face Nexus se hamesha ke liye hat jayega. Blacklist hatane par bhi
+        face dobara register karna padega.
+      </div>
+      <hr style="margin:14px 0;border:none;border-top:1px solid var(--line)">
+      <h3 class="display font-bold mt-0 mb-1 text-sm">Security / VMS ke liye</h3>
+      <p class="text-xs mb-2" style="color:var(--muted)">Guard room me kholne ya VMS me daalne ke liye.</p>
+      <button id="blPosterBtn" class="btn btn-ghost w-full justify-center mb-2"><i class="fa-solid fa-id-badge"></i> Photo wali list kholein / print</button>
+      <button id="blCsvBtn" class="btn btn-ghost w-full justify-center"><i class="fa-solid fa-file-csv"></i> CSV download (VMS import)</button>
+    </div>
+    <div class="card lg:col-span-2" style="padding:0;overflow:hidden">
+      <div class="p-4 border-b flex items-center justify-between" style="border-color:var(--line)">
+        <h3 class="display font-bold m-0">Blacklisted</h3>
+        <span id="blCount" class="chip">0</span>
+      </div>
+      <div style="overflow:auto;max-height:52vh">
+        <table class="tbl" id="blTable">
+          <thead><tr><th>Photo</th><th>Employee</th><th>Wajah</th><th>Kab se</th><th>Kisne</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="card mt-4" style="padding:0;overflow:hidden">
+    <div class="p-4 border-b flex items-center justify-between" style="border-color:var(--line)">
+      <h3 class="display font-bold m-0">Roke gaye punch \u2014 kisne koshish ki</h3>
+      <span class="text-xs" style="color:var(--muted)">Pichhle 60 din</span>
+    </div>
+    <div style="overflow:auto;max-height:40vh">
+      <table class="tbl" id="blAttTable">
+        <thead><tr><th>Kab</th><th>Employee</th><th>Kism</th><th>Wajah</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
 <div class="page" id="page-exits">
   <div class="grid lg:grid-cols-3 gap-4">
     <div class="card">
@@ -2921,7 +2969,7 @@ $('loginBtn').addEventListener('click', async () => {
 $('loginPass').addEventListener('keydown', e => { if(e.key === 'Enter') $('loginBtn').click(); });
 $('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
 
-const ALL_PAGES = ['dashboard','ceo','mis','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','reports','misspunch','visitors','letters','ctcreport','ctccalc','idcards','approvals','trial','voice','settings','faq'];
+const ALL_PAGES = ['dashboard','ceo','mis','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','blacklist','reports','misspunch','visitors','letters','ctcreport','ctccalc','idcards','approvals','trial','voice','settings','faq'];
 let ME_EMAIL = '';
 let FACE_CODES = new Set();
 function isSuper(){
@@ -3791,6 +3839,12 @@ function fillEmpSelects(){
     }
   }
   $('xEmp').innerHTML = opts;
+  // Blacklist me ACTIVE ke alawa wo bhi chahiye jo ja chuke hain
+  if($('blEmp')){
+    $('blEmp').innerHTML = '<option value="">\u2014 employee chuno \u2014</option>' +
+      EMP.slice().sort((a,b) => String(a.Name||'').localeCompare(String(b.Name||'')))
+         .map(e => `<option value="${esc(e['Employee code'])}">${esc(e.Name)} (${esc(e['Employee code'])})${String(e.Status).toUpperCase()==='ACTIVE'?'':' \u2014 ja chuke'}</option>`).join('');
+  }
   $('asFilter').innerHTML = '<option value="">All employees</option>' + opts;
   $('idEmp').innerHTML = '<option value="ALL">— All Active Employees —</option>' + opts;
   if($('idiEmp')) $('idiEmp').innerHTML = '<option value="">— Select employee —</option>' + opts;
@@ -3835,7 +3889,7 @@ $('rmbApplyBtn') && $('rmbApplyBtn').addEventListener('click', async () => {
 });
 
 /* ---------------- Router ---------------- */
-const TITLES = { mis:'MIS Report', dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', trial:'Trial Workers (Work Pass)', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', ctccalc:'CTC Calculator', ctcreport:'Employee CTC \u2014 Sabhi Employees', faq:'FAQ / SOP — Har Feature ka Guide', adminctl:'Admin Control Panel', misspunch:'Miss Punch — Missing IN / OUT', visitors:'Visitor Requests — Employee Portal' };
+const TITLES = { mis:'MIS Report', dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', blacklist:'Blacklist \u2014 Gate par rok', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', trial:'Trial Workers (Work Pass)', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', ctccalc:'CTC Calculator', ctcreport:'Employee CTC \u2014 Sabhi Employees', faq:'FAQ / SOP — Har Feature ka Guide', adminctl:'Admin Control Panel', misspunch:'Miss Punch — Missing IN / OUT', visitors:'Visitor Requests — Employee Portal' };
 /* ---- Topbar dropdown open/close ---- */
 function nxCloseDD(){ document.querySelectorAll('.nxg').forEach(g=>g.classList.remove('open')); }
 const _nxNav = document.querySelector('.nxnav');
@@ -3882,6 +3936,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if(page === 'expenses') loadExpenses();
     if(page === 'assets') loadAssets();
     if(page === 'exits') loadExits();
+    if(page === 'blacklist') loadBlacklist();
     if(page === 'reports') loadReports();
     if(page === 'adminctl'){ NX_AUTH_USERS = null; renderAdminCtl(); }
     if(page === 'ctccalc'){ renderCtcMaster(); }
@@ -13753,6 +13808,163 @@ async function loadExits(){
     </tr>`;
   }).join('') : '<tr><td colspan="6" class="text-center py-8" style="color:var(--muted)">No exit records.</td></tr>';
 }
+/* ===================== BLACKLIST =====================
+   Blacklist karte hi teen cheezen hoti hain:
+     1. gate par punch banta hi nahi (rok database me hai, kiosk me nahi)
+     2. Nexus se uska face hat jaata hai
+     3. dobara face register karne ki koshish bhi database rok deta hai
+   Isliye app ka code badal kar bhi koi ise bypass nahi kar sakta.              */
+let BLACKLIST = [];
+const NX_BLOCK_PHONE = '8938953093';
+
+async function loadBlacklist(){
+  const tb  = $('blTable').querySelector('tbody');
+  const tb2 = $('blAttTable').querySelector('tbody');
+  tb.innerHTML = '<tr><td colspan="6" class="text-center py-6" style="color:var(--muted)">Loading…</td></tr>';
+  const since = new Date(Date.now() - 60*86400000).toISOString().slice(0,10);
+  const [blRes, atRes] = await Promise.all([
+    sb.from('blacklist').select('*').eq('active', true).order('added_at', { ascending:false }),
+    sb.from('blocked_attempts').select('*').gte('created_at', since).order('created_at', { ascending:false }).limit(200)
+  ]);
+  if(blRes.error) return notify(blRes.error.message, 'error');
+  BLACKLIST = blRes.data || [];
+  $('blCount').textContent = BLACKLIST.length;
+  const badge = $('blBadge');
+  if(badge){ badge.textContent = BLACKLIST.length; badge.classList.toggle('hidden', !BLACKLIST.length); }
+
+  tb.innerHTML = BLACKLIST.length ? BLACKLIST.map(b => {
+    const emp = EMP.find(e => String(e['Employee code']).toUpperCase() === String(b.employee_code).toUpperCase());
+    const nm  = b.name || (emp ? emp.Name : b.employee_code);
+    return `<tr>
+      <td>${b.photo_url
+        ? `<img src="${esc(b.photo_url)}" style="width:42px;height:42px;border-radius:8px;object-fit:cover;border:1.5px solid #fca5a5">`
+        : '<span class="chip" style="font-size:10px">photo nahi</span>'}</td>
+      <td><div class="font-semibold">${esc(nm)}</div><div class="text-[10px]" style="color:var(--muted)">${esc(b.employee_code)}${emp && emp.DEPARTMENT ? ' · ' + esc(emp.DEPARTMENT) : ''}</div></td>
+      <td>${esc(b.reason || '—')}</td>
+      <td>${fmtDate(String(b.added_at||'').slice(0,10))}</td>
+      <td class="text-xs" style="color:var(--muted)">${esc(b.added_by || '—')}</td>
+      <td><button class="btn btn-ghost btn-sm" data-blrm="${b.id}"><i class="fa-solid fa-rotate-left"></i> Hatayein</button></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="6" class="text-center py-8" style="color:var(--muted)">Koi blacklist me nahi hai.</td></tr>';
+
+  tb.querySelectorAll('[data-blrm]').forEach(btn => {
+    btn.addEventListener('click', () => blRemove(Number(btn.dataset.blrm)));
+  });
+
+  const at = atRes.data || [];
+  tb2.innerHTML = at.length ? at.map(a => {
+    const emp = EMP.find(e => String(e['Employee code']).toUpperCase() === String(a.employee_code||'').toUpperCase());
+    const when = new Date(a.created_at).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+    return `<tr>
+      <td class="text-xs">${esc(when)}</td>
+      <td><div class="font-semibold">${esc(a.name || (emp ? emp.Name : a.employee_code))}</div><div class="text-[10px]" style="color:var(--muted)">${esc(a.employee_code||'')}</div></td>
+      <td><span class="chip" style="background:#fee2e2;color:#b91c1c;font-size:10px">${esc(a.kind || '')}</span></td>
+      <td class="text-xs">${esc(a.note || '')}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="4" class="text-center py-6" style="color:var(--muted)">Abhi tak kisi ne koshish nahi ki.</td></tr>';
+}
+
+async function blRemove(id){
+  const row = BLACKLIST.find(b => b.id === id); if(!row) return;
+  const why = await nxPrompt('Blacklist se kyon hata rahe hain? (record me rahega)', 'Blacklist hatayein');
+  if(why === null) return;
+  const { error } = await sb.from('blacklist').update({
+    active: false, removed_by: (S.hr || 'HR'), removed_at: new Date().toISOString(), remove_reason: why || ''
+  }).eq('id', id);
+  if(error) return notify(error.message, 'error');
+  notify(row.employee_code + ' blacklist se hat gaya. Face dobara register karna padega.', 'success');
+  loadBlacklist();
+}
+
+$('blAddBtn') && $('blAddBtn').addEventListener('click', async () => {
+  const code = $('blEmp').value, why = $('blReason').value.trim();
+  if(!code) return notify('Pehle employee chuno', 'error');
+  if(!why)  return notify('Wajah likhna zaroori hai', 'error');
+  const emp = EMP.find(e => String(e['Employee code']).toUpperCase() === String(code).toUpperCase());
+  const nm = emp ? emp.Name : code;
+  if(!await nxConfirm(nm + ' (' + code + ') ko blacklist karein?\n\n• gate par punch band ho jayega\n• Nexus se face hat jayega\n• dobara register nahi hoga', 'Blacklist'))
+    return;
+  const { error } = await sb.from('blacklist').insert([{
+    employee_code: code, name: nm, reason: why, added_by: (S.hr || 'HR')
+  }]);
+  if(error) return notify(error.message, 'error');
+  $('blReason').value = ''; $('blEmp').value = '';
+  notify(nm + ' blacklist ho gaya — face hata diya gaya', 'success');
+  loadBlacklist();
+});
+
+/* ---- Security / VMS ke liye ---- */
+function blRows(){
+  return BLACKLIST.map(b => {
+    const emp = EMP.find(e => String(e['Employee code']).toUpperCase() === String(b.employee_code).toUpperCase());
+    return {
+      code: b.employee_code,
+      name: b.name || (emp ? emp.Name : b.employee_code),
+      dept: emp ? (emp.DEPARTMENT || '') : '',
+      reason: b.reason || '',
+      since: fmtDate(String(b.added_at||'').slice(0,10)),
+      photo: b.photo_url || ''
+    };
+  });
+}
+
+$('blCsvBtn') && $('blCsvBtn').addEventListener('click', () => {
+  const rows = blRows();
+  if(!rows.length) return notify('List khali hai', 'error');
+  const esc2 = v => '"' + String(v == null ? '' : v).replace(/"/g,'""') + '"';
+  const csv = ['Employee Code,Name,Department,Reason,Blacklisted On,Photo URL']
+    .concat(rows.map(r => [r.code, r.name, r.dept, r.reason, r.since, r.photo].map(esc2).join(',')))
+    .join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type:'text/csv;charset=utf-8' }));
+  a.download = 'Blacklist_VMS_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  notify(rows.length + ' log CSV me \u2014 VMS me import kar sakte hain', 'success');
+});
+
+$('blPosterBtn') && $('blPosterBtn').addEventListener('click', () => {
+  const rows = blRows();
+  if(!rows.length) return notify('List khali hai', 'error');
+  const w = window.open('', '_blank');
+  if(!w) return notify('Popup block ho gaya \u2014 browser me popup allow karein', 'error');
+  const cards = rows.map(r => `
+    <div class="c">
+      ${r.photo ? `<img src="${esc(r.photo)}" alt="">` : '<div class="np">PHOTO<br>NAHI</div>'}
+      <div class="i">
+        <div class="n">${esc(r.name)}</div>
+        <div class="m">${esc(r.code)}${r.dept ? ' &middot; ' + esc(r.dept) : ''}</div>
+        <div class="r">${esc(r.reason)}</div>
+        <div class="d">Blacklist: ${esc(r.since)}</div>
+      </div>
+    </div>`).join('');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Blacklist \u2014 Security</title><style>
+    *{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,Arial,sans-serif}
+    body{background:#f1f5f9;padding:18px}
+    .h{background:#7f1d1d;color:#fff;padding:16px 20px;border-radius:12px;margin-bottom:14px}
+    .h h1{font-size:24px;letter-spacing:.05em}
+    .h p{font-size:13px;opacity:.9;margin-top:4px}
+    .g{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px}
+    .c{background:#fff;border:2px solid #fca5a5;border-radius:12px;padding:12px;display:flex;gap:12px}
+    .c img,.c .np{width:92px;height:92px;flex:none;border-radius:10px;object-fit:cover;border:2px solid #fca5a5}
+    .c .np{background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;text-align:center}
+    .n{font-size:17px;font-weight:800;color:#7f1d1d}
+    .m{font-size:12px;color:#64748b;margin:2px 0 6px}
+    .r{font-size:13px;color:#0f172a;font-weight:600}
+    .d{font-size:11px;color:#94a3b8;margin-top:5px}
+    .f{margin-top:16px;font-size:12px;color:#475569;text-align:center}
+    .pb{position:fixed;top:14px;right:18px;background:#0f172a;color:#fff;border:none;border-radius:9px;padding:10px 18px;font-weight:700;cursor:pointer}
+    @media print{.pb{display:none}body{background:#fff;padding:0}}
+    </style></head><body>
+    <button class="pb" onclick="window.print()">Print</button>
+    <div class="h"><h1>&#9940; BLACKLIST \u2014 ENTRY NOT ALLOWED</h1>
+      <p>Ye log andar nahi aa sakte. Dikhein to turant ${NX_BLOCK_PHONE} par sampark karein.</p></div>
+    <div class="g">${cards}</div>
+    <div class="f">${rows.length} vyakti &middot; ${new Date().toLocaleString('en-IN')} &middot; Zooto Fashion Pvt Ltd</div>
+    </body></html>`);
+  w.document.close();
+});
+
 $('xSaveBtn').addEventListener('click', async () => {
   if(!$('xEmp').value || !$('xResign').value || !$('xLWD').value) return notify('Employee, resignation date and LWD are required', 'error');
   const { error } = await sb.from('exits').insert([{ employee_code: $('xEmp').value, resign_date: $('xResign').value, notice_days: Number($('xNotice').value)||30, lwd: $('xLWD').value, reason: $('xReason').value }]);
