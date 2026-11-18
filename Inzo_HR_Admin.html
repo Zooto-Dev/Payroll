@@ -10344,6 +10344,13 @@ document.body.addEventListener('click', async e => {
   if((act === 'appr-leave' || act === 'rej-leave') && !(canApprove('leave') && (roleCEO() || isAdminRole()))) return notify('You are not allowed to approve leaves', 'error');
   if((act === 'ot-appr-grp' || act === 'ot-rej-grp') && !(canApprove('ot') && roleCEO())) return notify('Only the CEO can approve overtime', 'error');
   if((act === 'appr-exp' || act === 'rej-exp' || act === 'appr-ex' || act === 'rej-ex') && !(canApprove('expense') && roleAcctMgr())) return notify('Only the Accounts team can approve expenses', 'error');
+  // Emergency leave ke do-step approval. Wahi hak jo aam leave par lagta hai.
+  if(act === 'emg-ok' || act === 'emg-no' || act === 'emg-ask'){
+    if(!(canApprove('leave') && (roleCEO() || isAdminRole())))
+      return notify('You are not allowed to approve leaves', 'error');
+    return emgDecide(el.dataset.id, el.dataset.side,
+      act === 'emg-ok' ? 'APPROVED' : (act === 'emg-no' ? 'REJECTED' : 'NEEDS_INFO'));
+  }
   if(act === 'appr-leave'){
     await sb.from('leaves').update({ status: 'APPROVED', ...nxDecidedNow() }).eq('id', el.dataset.id);
     notify('Leave approved', 'success');
@@ -12963,6 +12970,68 @@ async function plgRevoke(code, iso){
   }catch(err){ notify('Nahi hua: ' + (err.message || err), 'error'); }
 }
 
+/* ===== EMERGENCY LEAVE — do approval =====
+   Pehla approval reporting manager ka, doosra HOD/HR ka. Dono hone par hi leave
+   asli me APPROVED hoti hai; tab tak wo "provisional" rehti hai taaki employee ko
+   us din gair-haazir na gina jaye. Baar-baar emergency lene par row highlight hoti
+   hai — niyam database me ek hi jagah likha hai (nx_emergency_flag). */
+function emgBadge(L){
+  if(!L.is_emergency) return '';
+  const n = Number(L.emg_count) || 1;
+  const flag = String(L.emg_flag || 'NORMAL').toUpperCase();
+  const hard = flag === 'HR_HOD_REVIEW';
+  const warn = flag === 'HR_REVIEW';
+  const col = hard ? '#991b1b' : (warn ? '#92400e' : '#9a3412');
+  const bg  = hard ? '#fee2e2' : (warn ? '#fef3c7' : '#ffedd5');
+  const txt = hard ? 'HR + HOD review' : (warn ? 'HR review' : 'Emergency');
+  return `<div style="margin-top:3px">
+    <span class="chip" style="background:${bg};color:${col};font-size:9px;font-weight:700">
+      <i class="fa-solid fa-triangle-exclamation"></i> ${esc(txt)} · ${n}${n === 1 ? 'st' : (n === 2 ? 'nd' : (n === 3 ? 'rd' : 'th'))} in 12 months
+    </span></div>`;
+}
+function emgStep(label, st, by, note){
+  const S = String(st || 'PENDING').toUpperCase();
+  const ic = S === 'APPROVED' ? '✓' : (S === 'REJECTED' ? '✗' : (S === 'NEEDS_INFO' ? '?' : '⏳'));
+  const c  = S === 'APPROVED' ? '#15803d' : (S === 'REJECTED' ? '#b91c1c' : '#92400e');
+  return `<div class="text-[10px]" style="color:${c}">${ic} ${esc(label)}${by ? ' · ' + esc(String(by).split('@')[0]) : ''}${note ? ' — ' + esc(note) : ''}</div>`;
+}
+function emgActions(L){
+  const l1 = String(L.l1_status || 'PENDING').toUpperCase();
+  const l2 = String(L.l2_status || 'PENDING').toUpperCase();
+  let btns = '';
+  if(l1 === 'PENDING' || l1 === 'NEEDS_INFO'){
+    btns = `<div class="text-[10px] font-semibold" style="color:var(--muted)">Step 1 — Manager</div>
+      <button class="btn btn-ghost btn-sm" data-act="emg-ok"  data-id="${L.id}" data-side="L1"><i class="fa-solid fa-check"></i></button>
+      <button class="btn btn-ghost btn-sm" data-act="emg-ask" data-id="${L.id}" data-side="L1" title="Clarification maangein"><i class="fa-solid fa-circle-question"></i></button>
+      <button class="btn btn-danger btn-sm" data-act="emg-no" data-id="${L.id}" data-side="L1"><i class="fa-solid fa-xmark"></i></button>`;
+  } else if(l1 === 'APPROVED' && (l2 === 'PENDING' || l2 === 'NEEDS_INFO')){
+    btns = `<div class="text-[10px] font-semibold" style="color:var(--muted)">Step 2 — HOD / HR</div>
+      <button class="btn btn-ghost btn-sm" data-act="emg-ok"  data-id="${L.id}" data-side="L2"><i class="fa-solid fa-check"></i></button>
+      <button class="btn btn-ghost btn-sm" data-act="emg-ask" data-id="${L.id}" data-side="L2" title="Clarification maangein"><i class="fa-solid fa-circle-question"></i></button>
+      <button class="btn btn-danger btn-sm" data-act="emg-no" data-id="${L.id}" data-side="L2"><i class="fa-solid fa-xmark"></i></button>`;
+  }
+  return emgStep('Manager', L.l1_status, L.l1_by, L.l1_note)
+       + emgStep('HOD/HR',  L.l2_status, L.l2_by, L.l2_note)
+       + (L.provisional ? '<div class="text-[10px]" style="color:#92400e">Provisional — abhi chal rahi hai</div>' : '')
+       + btns;
+}
+async function emgDecide(id, side, decision){
+  let note = null;
+  if(decision !== 'APPROVED'){
+    note = await nxPrompt(decision === 'REJECTED' ? 'Kyon reject kar rahe hain?' : 'Kya poochhna hai?',
+                          decision === 'REJECTED' ? 'Emergency leave reject' : 'Clarification');
+    if(note === null) return;
+  }
+  const { data, error } = await sb.rpc('nx_emergency_decide', {
+    p_id: Number(id), p_side: side, p_decision: decision,
+    p_by: ((getSettings()||{}).hr || 'HR'), p_note: note
+  });
+  if(error) return notify(error.message, 'error');
+  if(data && data.error) return notify(data.error, 'error');
+  notify('Emergency leave — ' + side + ' ' + decision.toLowerCase() + (data.status === 'APPROVED' ? ' · ab poori tarah APPROVED' : ''), 'success');
+  loadLeaves();
+}
+
 async function loadLeaves(){
   checkLeaveConflicts();
   loadPaidLeaveGrants();
@@ -12978,7 +13047,7 @@ async function loadLeaves(){
       const emp = EMP.find(e => e['Employee code'] === L.employee_code);
       const ok = L.status === 'APPROVED';
       return `<tr>
-        <td><div class="font-semibold">${esc(emp ? emp.Name : L.employee_code)}</div><div class="text-[10px]" style="color:var(--muted)">${esc(L.employee_code)}</div></td>
+        <td><div class="font-semibold">${esc(emp ? emp.Name : L.employee_code)}</div><div class="text-[10px]" style="color:var(--muted)">${esc(L.employee_code)}</div>${emgBadge(L)}</td>
         <td><span class="chip ${L.leave_type === 'LWP' ? 'chip-bad' : 'chip-blue'}">${esc(L.leave_type)}</span></td>
         <td>${fmtDate(L.from_date)}</td><td>${fmtDate(L.to_date)}</td>
         <td class="money">${L.days}</td>
@@ -12989,8 +13058,10 @@ async function loadLeaves(){
             : (L.status === 'PENDING' ? ''
                : `<div class="text-[10px]" style="color:var(--muted)" title="Is faisle ka record nahi hai — approver Nov 2026 se pehle darj hi nahi hota tha">—</div>`)
         }</td>
-        <td>${L.status === 'PENDING' ? `<button class="btn btn-ghost btn-sm" data-act="appr-leave" data-id="${L.id}"><i class="fa-solid fa-check"></i></button> <button class="btn btn-danger btn-sm" data-act="cancel-leave" data-id="${L.id}"><i class="fa-solid fa-xmark"></i></button>`
-          : (ok ? `<button class="btn btn-danger btn-sm" data-act="cancel-leave" data-id="${L.id}"><i class="fa-solid fa-ban"></i></button>` : '')}</td>
+        <td>${L.is_emergency
+          ? emgActions(L)
+          : (L.status === 'PENDING' ? `<button class="btn btn-ghost btn-sm" data-act="appr-leave" data-id="${L.id}"><i class="fa-solid fa-check"></i></button> <button class="btn btn-danger btn-sm" data-act="cancel-leave" data-id="${L.id}"><i class="fa-solid fa-xmark"></i></button>`
+          : (ok ? `<button class="btn btn-danger btn-sm" data-act="cancel-leave" data-id="${L.id}"><i class="fa-solid fa-ban"></i></button>` : ''))}</td>
       </tr>`;
     }).join('') : '<tr><td colspan="8" class="text-center py-8" style="color:var(--muted)">No leave records for this month.</td></tr>';
   }catch(err){ notify(err.message, 'error'); }

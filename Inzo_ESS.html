@@ -257,7 +257,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <img src="nexus-logo.png" alt="Nexus" style="height:44px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
       <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Portal</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B72</b> — 18 Nov</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B73</b> — 18 Nov</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -284,7 +284,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
           <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B72</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B73</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -499,7 +499,17 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <div><label class="lbl">From</label><input id="lvFrom" type="date" class="inp"></div>
           <div><label class="lbl">To</label><input id="lvTo" type="date" class="inp"></div>
         </div>
-        <label class="lbl">Reason</label>
+        <div class="p-2 rounded-lg mb-3" style="background:#fff7ed;border:1.5px solid #fed7aa">
+          <label style="display:flex;gap:9px;align-items:flex-start;font-size:12.5px;cursor:pointer">
+            <input type="checkbox" id="lvEmg" style="margin-top:3px;transform:scale(1.25)">
+            <span><b style="color:#9a3412"><span data-en="Emergency Leave" data-hi="आपातकालीन छुट्टी">Emergency Leave</span></b>
+            <span style="display:block;color:#9a3412;font-size:11.5px;margin-top:2px"
+              data-en="For a real emergency only — you do not have to wait for permission first. Reason is compulsory, and it needs two approvals: your manager, then HOD."
+              data-hi="सिर्फ़ सच्ची आपात स्थिति के लिए — पहले अनुमति का इंतज़ार नहीं करना पड़ेगा। कारण लिखना ज़रूरी है, और दो मंज़ूरी लगेंगी: पहले आपके मैनेजर की, फिर HOD की।">For a real emergency only — you do not have to wait for permission first. Reason is compulsory, and it needs two approvals: your manager, then HOD.</span></span>
+          </label>
+          <div id="lvEmgWarn" class="hidden" style="margin-top:8px;font-size:11.5px;padding:7px 9px;border-radius:8px"></div>
+        </div>
+        <label class="lbl">Reason <span id="lvReasonReq" class="hidden" style="color:#b91c1c">*</span></label>
         <input id="lvReason" class="inp mb-4" placeholder="Optional">
         <button id="lvBtn" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Submit for Approval</button>
       </div>
@@ -4468,13 +4478,59 @@ function renderLeaveBalance(){
     + `<span class="chip chip-gray" style="margin-left:6px">`
       + L('No balance or carry-forward', 'कोई बैलेंस या कैरी-फ़ॉरवर्ड नहीं') + `</span>`;
 }
+async function lvSubmitEmergency(){
+  const why = $('lvReason').value.trim();
+  if(why.length < 10)
+    return notify(L('Please write what the emergency is (at least 10 characters)',
+                    'क्या आपात स्थिति है, थोड़ा विस्तार से लिखें (कम से कम 10 अक्षर)'));
+  const btn = $('lvBtn');
+  const old = btn.innerHTML;
+  btn.innerHTML = '<div class="loader-ring"></div> ' + L('Submitting…','भेज रहे हैं…'); btn.disabled = true;
+  try{
+    const { data, error } = await sb.rpc('ess_apply_emergency_leave', {
+      p_code: CODE, p_phone: PHONE, p_type: $('lvType').value,
+      p_from: $('lvFrom').value, p_to: $('lvTo').value, p_reason: why
+    });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    notify(L('Emergency leave registered. You are covered for now — your manager and HOD will approve it.',
+             'आपातकालीन छुट्टी दर्ज हो गई। फ़िलहाल आप सुरक्षित हैं — मंज़ूरी आपके मैनेजर और HOD देंगे।'), 'success');
+    const _f = $('lvFrom').value, _t = $('lvTo').value, _ty = $('lvType').value;
+    $('lvFrom').value = ''; $('lvTo').value = ''; $('lvReason').value = '';
+    $('lvEmg').checked = false; lvEmgToggle();
+    const { data: fresh } = await sb.rpc('ess_get_data', { p_code: CODE, p_phone: PHONE });
+    if(fresh && !fresh.error){ D = fresh; renderLeaves(); }
+    essSendApprovalEmail('leaves', data.id || '', 'EMERGENCY Leave — ' + ((D.employee&&D.employee.Name)||CODE), [
+      ['Employee', (D.employee&&D.employee.Name)||CODE], ['Type', _ty],
+      ['From', _f], ['To', _t], ['Days', String(data.days||'')],
+      ['Emergency #', String(data.count||'')], ['Review', String(data.flag||'')], ['Reason', why]
+    ]);
+  }catch(err){ notify(err.message); }
+  finally{ btn.innerHTML = old; btn.disabled = false; }
+}
+
 function renderLeaves(){
   const lv = D.leaves || [];
+  const _EMG_LBL  = L('EMERGENCY','आपातकालीन');
+  const _MGR_LBL  = L('Manager','मैनेजर');
+  const _PROV_LBL = L('Provisionally allowed — both approvals still pending',
+                      'फ़िलहाल मान ली गई है — दोनों मंज़ूरी अभी बाकी हैं');
   $('lvBox').innerHTML = lv.length ? lv.map(L => {
     const chip = L.status === 'APPROVED' ? 'chip-ok' : (L.status === 'PENDING' ? 'chip-warn' : 'chip-bad');
     const showReason = (L.status === 'REJECTED' || L.status === 'CANCELLED') && L.admin_note;
+    // Emergency leave: do approval chalti hain, dono ka haal alag dikhao
+    const _st = x => x === 'APPROVED' ? '✓' : (x === 'REJECTED' ? '✗' : (x === 'NEEDS_INFO' ? '?' : '⏳'));
+    const _emgLine = L.is_emergency ? `<div style="width:100%;margin-top:4px;font-size:11px">
+        <span class="chip" style="background:#ffedd5;color:#9a3412;font-size:9.5px">${esc(_EMG_LBL)}</span>
+        <span style="color:var(--muted);margin-left:6px">${esc(_MGR_LBL)}: ${_st(String(L.l1_status||'PENDING').toUpperCase())}
+          &nbsp;·&nbsp; HOD: ${_st(String(L.l2_status||'PENDING').toUpperCase())}</span>
+        ${L.provisional ? `<div style="color:#92400e;margin-top:2px">${esc(_PROV_LBL)}</div>` : ''}
+        ${L.l1_note ? `<div style="color:var(--muted);margin-top:2px">${esc(_MGR_LBL)}: ${esc(L.l1_note)}</div>` : ''}
+        ${L.l2_note ? `<div style="color:var(--muted);margin-top:2px">HOD: ${esc(L.l2_note)}</div>` : ''}
+      </div>` : '';
     return `<div class="row" style="flex-wrap:wrap"><span><b>${esc(L.leave_type)}</b> ${fmtDate(L.from_date)} → ${fmtDate(L.to_date)} (${L.days}d)</span>
       <span class="chip ${chip}">${esc(L.status)}</span>
+      ${_emgLine}
       ${showReason ? `<div style="width:100%;font-size:11px;color:var(--bad);margin-top:3px"><i class="fa-solid fa-circle-info" style="opacity:.6"></i> ${esc(L.admin_note)}</div>` : ''}</div>`;
   }).join('') : '<p class="m-0" style="color:var(--muted)">No leaves this year.</p>';
 }
@@ -4485,9 +4541,51 @@ function minLeaveDate(){
   return d.toISOString().slice(0, 10);
 }
 try { $('lvFrom').min = minLeaveDate(); $('lvTo').min = minLeaveDate(); } catch(e){}
+
+// Emergency ka toggle: tareekh ki pabandi hat jaati hai, wajah zaroori ho jaati hai,
+// aur agar pehle bhi emergency li hui hai to abhi hi bata dete hain ki jaanch hogi.
+async function lvEmgToggle(){
+  const on = !!($('lvEmg') || {}).checked;
+  const today = new Date().toISOString().slice(0,10);
+  try{
+    $('lvFrom').min = on ? '' : minLeaveDate();
+    $('lvTo').min   = on ? '' : minLeaveDate();
+    if(on && !$('lvFrom').value){ $('lvFrom').value = today; $('lvTo').value = today; }
+  }catch(e){}
+  $('lvReasonReq').classList.toggle('hidden', !on);
+  $('lvReason').placeholder = on
+    ? L('What is the emergency? (compulsory)','क्या आपात स्थिति है? (ज़रूरी)')
+    : 'Optional';
+  $('lvBtn').innerHTML = on
+    ? '<i class="fa-solid fa-triangle-exclamation"></i> ' + L('Apply Emergency Leave','आपातकालीन छुट्टी लगाएँ')
+    : '<i class="fa-solid fa-paper-plane"></i> Submit for Approval';
+  const warn = $('lvEmgWarn');
+  warn.classList.add('hidden');
+  if(!on) return;
+  try{
+    const { data } = await sb.rpc('nx_emergency_count', { p_code: String(CODE||'').trim().toUpperCase() });
+    const n = Number(data) || 0;
+    if(n >= 1){
+      const next = n + 1;
+      const hard = next >= 3;
+      warn.className = '';
+      warn.style.background = hard ? '#fee2e2' : '#fef3c7';
+      warn.style.border = '1px solid ' + (hard ? '#fca5a5' : '#fde68a');
+      warn.style.color = hard ? '#991b1b' : '#92400e';
+      warn.innerHTML = '<b>' + L('Note','ध्यान दें') + ':</b> ' + L(
+        'This is emergency leave number ' + next + ' in the last 12 months. ' +
+          (hard ? 'HR and your HOD will both review it.' : 'HR will review it.'),
+        'पिछले 12 महीनों में यह आपकी ' + next + 'वीं आपातकालीन छुट्टी है। ' +
+          (hard ? 'इसकी जाँच HR और आपके HOD दोनों करेंगे।' : 'इसकी जाँच HR करेगा।'));
+    }
+  }catch(e){}
+}
+try{ $('lvEmg').addEventListener('change', lvEmgToggle); }catch(e){}
 $('lvBtn').addEventListener('click', async () => {
   if(!$('lvFrom').value || !$('lvTo').value) return notify('Select From and To dates');
-  if($('lvFrom').value < minLeaveDate()) return notify('Leave must be applied at least 2 days in advance. For emergencies, contact HR directly.');
+  const _emg = !!($('lvEmg') || {}).checked;
+  if(_emg) return lvSubmitEmergency();
+  if($('lvFrom').value < minLeaveDate()) return notify('Leave must be applied at least 2 days in advance. For emergencies, tick Emergency Leave above.');
   const btn = $('lvBtn');
   btn.innerHTML = '<div class="loader-ring"></div> Submitting…'; btn.disabled = true;
   try{
