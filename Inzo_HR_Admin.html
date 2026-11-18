@@ -13907,7 +13907,7 @@ async function blRemove(id){
   const why = await nxPrompt('Blacklist se kyon hata rahe hain? (record me rahega)', 'Blacklist hatayein');
   if(why === null) return;
   const { error } = await sb.from('blacklist').update({
-    active: false, removed_by: (S.hr || 'HR'), removed_at: new Date().toISOString(), remove_reason: why || ''
+    active: false, removed_by: ((getSettings()||{}).hr || 'HR'), removed_at: new Date().toISOString(), remove_reason: why || ''
   }).eq('id', id);
   if(error) return notify(error.message, 'error');
   notify(row.employee_code + ' blacklist se hat gaya. Face dobara register karna padega.', 'success');
@@ -13923,7 +13923,7 @@ $('blAddBtn') && $('blAddBtn').addEventListener('click', async () => {
   if(!await nxConfirm(nm + ' (' + code + ') ko blacklist karein?\n\n• gate par punch band ho jayega\n• Nexus se face hat jayega\n• dobara register nahi hoga', 'Blacklist'))
     return;
   const { error } = await sb.from('blacklist').insert([{
-    employee_code: code, name: nm, reason: why, added_by: (S.hr || 'HR')
+    employee_code: code, name: nm, reason: why, added_by: ((getSettings()||{}).hr || 'HR')
   }]);
   if(error) return notify(error.message, 'error');
   $('blReason').value = ''; $('blEmp').value = '';
