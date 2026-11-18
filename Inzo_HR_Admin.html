@@ -2854,6 +2854,12 @@ function nxHalfDayPct(){
   if(raw === 0 || raw === '0') return 0;                 // niyam band
   const v = Number(raw); return (isFinite(v) && v > 0 && v < 1) ? v : 0.75;
 }
+// Jin dinon par company ne khud jaldi chhutti kar di thi, un dinon AADHA DIN ka
+// niyam nahi lagta — galti employee ki nahi thi. Dates Settings me rakhi jaati hain.
+function nxHalfWaiveSet(){
+  const a = (getSettings()||{}).halfDayWaiveDates;
+  return new Set(Array.isArray(a) ? a.map(x => String(x).slice(0,10)) : []);
+}
 // shift khatam hone ka waqt, minute me (00:00 se)
 function nxShiftEndMins(code, iso){
   try{
@@ -8561,6 +8567,7 @@ async function runPayroll(){
       const _SHORT_HRS = nxShortDayHrs();        // 4 ghante -> leave
       const _EARLY_MIN = nxEarlyLeaveMins();     // 20 minute -> late
       const _HALF_PCT  = nxHalfDayPct();         // 0.75 -> half day
+      const _HALF_WAIVE = nxHalfWaiveSet();      // in dinon half day maaf
       // _HALF_LINE aur _earlyCap har din ki shift par depend karte hain (roster se shift badal sakti hai),
       // isliye ye day-loop ke andar nikalte hain — yahan sirf default rakha hai.
       // Agar kami shift ke aadhe se bhi zyada nikle to ye jaldi jaana nahi,
@@ -8591,7 +8598,7 @@ async function runPayroll(){
           if(!_hrsKnown){ hoursUnknown++; unknownDays.push(x.iso); }
           // NIYAM 2: shift ke 75% se kam kaam -> AADHA DIN. Leave se neeche aur
           // late se upar — ek din ek hi seedhi par aata hai, dono saza nahi.
-          if(_HALF_LINE > 0 && _hrsKnown && _wh > 0 && _wh < _HALF_LINE && !_gp){
+          if(_HALF_LINE > 0 && _hrsKnown && _wh > 0 && _wh < _HALF_LINE && !_gp && !_HALF_WAIVE.has(x.iso)){
             present += 0.5; halfDays++; halfDayList.push(x.iso); return;
           }
           present++;

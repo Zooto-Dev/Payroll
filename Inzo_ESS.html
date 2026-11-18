@@ -3722,6 +3722,9 @@ function essWorkedHrs(r){
    aur payroll kabhi alag na bolein. Gate pass wale din par ye niyam lagta hi nahi. */
 function essHalfDay(r){
   const S  = (D && D.company) || {};
+  // Jis din company ne khud jaldi chhutti ki thi, us din aadha din nahi lagta
+  const _wv = Array.isArray(S.halfDayWaiveDates) ? S.halfDayWaiveDates.map(x => String(x).slice(0,10)) : [];
+  if(r && r.date && _wv.indexOf(String(r.date).slice(0,10)) > -1) return false;
   const pc = (Number(S.halfDayPct) > 0 && Number(S.halfDayPct) < 1) ? Number(S.halfDayPct) : 0.75;
   const sd = Number(S.shortDayHrs) > 0 ? Number(S.shortDayHrs) : 4;
   const sh = Number(r && r.shift_hrs) > 0 ? Number(r.shift_hrs) : 8.5;
