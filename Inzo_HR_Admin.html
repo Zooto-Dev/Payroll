@@ -2860,6 +2860,12 @@ function nxHalfWaiveSet(){
   const a = (getSettings()||{}).halfDayWaiveDates;
   return new Set(Array.isArray(a) ? a.map(x => String(x).slice(0,10)) : []);
 }
+// Isi tarah: jin dinon late/jaldi-jaana nahi ginna. Company ne jaldi chhutti ki ho
+// ya shift badli ho to employee ki galti nahi — us din poora present.
+function nxLateWaiveSet(){
+  const a = (getSettings()||{}).lateWaiveDates;
+  return new Set(Array.isArray(a) ? a.map(x => String(x).slice(0,10)) : []);
+}
 // shift khatam hone ka waqt, minute me (00:00 se)
 function nxShiftEndMins(code, iso){
   try{
@@ -8568,6 +8574,7 @@ async function runPayroll(){
       const _EARLY_MIN = nxEarlyLeaveMins();     // 20 minute -> late
       const _HALF_PCT  = nxHalfDayPct();         // 0.75 -> half day
       const _HALF_WAIVE = nxHalfWaiveSet();      // in dinon half day maaf
+      const _LATE_WAIVE = nxLateWaiveSet();      // in dinon late/early maaf
       // _HALF_LINE aur _earlyCap har din ki shift par depend karte hain (roster se shift badal sakti hai),
       // isliye ye day-loop ke andar nikalte hain — yahan sirf default rakha hai.
       // Agar kami shift ke aadhe se bhi zyada nikle to ye jaldi jaana nahi,
@@ -8602,6 +8609,8 @@ async function runPayroll(){
             present += 0.5; halfDays++; halfDayList.push(x.iso); return;
           }
           present++;
+          // Us din late/jaldi-jaana ginna hi nahi — poora present rahega
+          if(_LATE_WAIVE.has(x.iso)) return;
           // NIYAM: late = der se aaya, YA shift khatam hone se 20+ minute pehle chala gaya
           const _eMin  = (_EARLY_MIN > 0 && _hrsKnown) ? nxShortfallMins(code, r, x.iso) : 0;
           const _shiftMismatch = _eMin > _earlyCap;
