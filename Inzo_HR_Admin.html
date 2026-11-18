@@ -1527,8 +1527,8 @@ body.no-confidential .confidential-col{display:none!important}
       <hr style="margin:14px 0;border:none;border-top:1px solid var(--line)">
       <h3 class="display font-bold mt-0 mb-1 text-sm">Security / VMS ke liye</h3>
       <p class="text-xs mb-2" style="color:var(--muted)">Guard room me kholne ya VMS me daalne ke liye.</p>
-      <a href="blacklist.html" target="_blank" class="btn w-full justify-center mb-2" style="background:#7f1d1d;color:#fff;border:none;text-decoration:none"><i class="fa-solid fa-shield-halved"></i> Security screen kholein</a>
-      <p class="text-[11px] mb-2" style="color:var(--muted)">Guard room ke computer/phone par <b>blacklist.html</b> khol kar rakh dein \u2014 photo ke saath list dikhti rahegi aur har 2 minute me apne aap taaza ho jayegi. Login ki zaroorat nahi.</p>
+      <a href="https://zooto-dev.github.io/ViziTrack/kiosk.html" target="_blank" class="btn w-full justify-center mb-2" style="background:#7f1d1d;color:#fff;border:none;text-decoration:none"><i class="fa-solid fa-shield-halved"></i> Gate Kiosk \u2014 Blacklist screen</a>
+      <p class="text-[11px] mb-2" style="color:var(--muted)">Gate Kiosk ke home par <b>Blacklist</b> tile hai \u2014 usme photo ke saath list dikhti hai, naam/code se dhoondh bhi sakte hain. Guard wahin se dekh kar pehchan lega.</p>
       <button id="blPosterBtn" class="btn btn-ghost w-full justify-center mb-2"><i class="fa-solid fa-id-badge"></i> Photo wali list \u2014 print karein</button>
       <button id="blCsvBtn" class="btn btn-ghost w-full justify-center"><i class="fa-solid fa-file-csv"></i> CSV download (VMS import)</button>
     </div>
@@ -2902,7 +2902,27 @@ function nxArrivedOnTime(code, iso, row){
   return d <= 0;
 }
 function nxShortfallMins(code, row, iso){
-  const w = nxWorkedHrs(row);                 // raat bhar wale case ko khud sambhalta hai
+  // NIYAM: shift GHADI se puri karni hai.
+  //   • Jaldi aane ka koi credit nahi — 08:30 aaye to bhi 17:30 tak rukna hai.
+  //   • Der se aaye to utni hi der extra — 09:10 aaye to 17:40 tak.
+  // Yani: jaane ka waqt = shift ka end + (jitna der se aaye).
+  // ( + = itne minute kam ruke, - = itne minute zyada ruke )
+  const _m = t => { const x = String(t||'').match(/(\d{1,2}):(\d{2})/); return x ? (+x[1]*60 + +x[2]) : null; };
+  let sh = null; try{ sh = shiftOf(code, iso); }catch(e){ sh = null; }
+  const st = _m(sh && sh.start_time), en = _m(sh && sh.end_time);
+  const im = _m(row && row.in_time),  om = _m(row && row.out_time);
+  if(st !== null && en !== null && im !== null && om !== null){
+    let lateBy = im - st;                       // raat ki shift ka wrap
+    if(lateBy >  720) lateBy -= 1440;
+    if(lateBy < -720) lateBy += 1440;
+    const required = ((en + Math.max(0, lateBy)) % 1440 + 1440) % 1440;
+    let d = required - om;
+    if(d >  720) d -= 1440;
+    if(d < -720) d += 1440;
+    return Math.round(d);
+  }
+  // Waqt na mile (OUT punch nahi, ya shift set nahi) -> purana ghanton wala tarika
+  const w = nxWorkedHrs(row);
   if(!w || w <= 0) return 0;
   return Math.round(nxShiftHrsOf(code, iso) * 60 - w * 60);
 }
