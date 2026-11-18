@@ -1964,7 +1964,29 @@ function nxConfirm(msg, title){
             const _noFlexList = String((window.NX_SETTINGS && window.NX_SETTINGS.earlyDepts) || 'PRODUCTION,STORE').toUpperCase().split(',').map(s=>s.trim()).filter(Boolean);
             const _noFlex = _noFlexList.some(x => _dept.includes(x));
             const _staff = _cat === 'STAFF' && !_noFlex;
-            const lateCutoff = _staff ? "10:00:00" : "09:10:00";
+            // Shift wale logon ka cutoff unki SHIFT se aata hai, dept se nahi —
+            // warna 07:00 wali shift ka banda 06:40 par aakar bhi late gina jaata tha.
+            // Yahi niyam server (nx_punch_in) par chalta hai, dono ek jaise rehne chahiye.
+            let lateCutoff = _staff ? "10:00:00" : "09:10:00";
+            try{
+                const _shw = nxShiftOf(empCode) || {};
+                const _snm = String(_shw.name || '').trim().toUpperCase();
+                if(_shw.start && _snm && _snm !== 'GENERAL'){
+                    let _gr = 10;
+                    const _all = window.NX_SHIFTS_BY_ID || {};
+                    Object.keys(_all).forEach(k => {
+                        const sh = _all[k];
+                        if(sh && String(sh.name||'').trim().toUpperCase() === _snm && sh.grace_mins != null)
+                            _gr = Number(sh.grace_mins);
+                    });
+                    const _m = String(_shw.start).match(/(\d{1,2}):(\d{2})/);
+                    if(_m){
+                        const _tot = (+_m[1]) * 60 + (+_m[2]) + (isFinite(_gr) ? _gr : 10);
+                        lateCutoff = String(Math.floor(_tot / 60)).padStart(2,'0') + ':'
+                                   + String(_tot % 60).padStart(2,'0') + ':00';
+                    }
+                }
+            }catch(e){ /* kuch gadbad ho to purana dept wala niyam hi chalega */ }
             let isLate = timeStr > lateCutoff;
 
             // ===== SHIFT-WINDOW GATE (sirf live punch) =====
