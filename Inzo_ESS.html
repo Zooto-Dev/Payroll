@@ -257,7 +257,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <img src="nexus-logo.png" alt="Nexus" style="height:44px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
       <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Portal</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B74</b> — 18 Nov</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B75</b> — 18 Nov</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -284,7 +284,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
           <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B74</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B75</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -364,6 +364,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <button class="req-tile hidden" id="tilFuel" data-rs="fuel"><span class="rt-ic" style="background:#dbeafe;color:#2563eb"><i class="fa-solid fa-gas-pump"></i></span><span>Fuel Meter</span></button>
         <button class="req-tile" data-rs="payslip"><span class="rt-ic" style="background:#d1fae5;color:#059669"><i class="fa-solid fa-indian-rupee-sign"></i></span><span>Payslips</span></button>
         <button class="req-tile" data-rs="assets"><span class="rt-ic" style="background:#ede9fe;color:#7c3aed"><i class="fa-solid fa-boxes-stacked"></i></span><span>My Assets</span></button>
+        <button class="req-tile" data-rs="ticket"><span class="rt-ic" style="background:#f3e8ff;color:#7c3aed"><i class="fa-solid fa-headset"></i></span><span data-en="Raise Ticket" data-hi="टिकट">Raise Ticket</span></button>
           <button class="req-tile" data-rs="voice"><span class="rt-ic" style="background:#e0e7ff;color:#4f46e5"><i class="fa-solid fa-comments"></i></span><span>Voice Box</span></button>
         <button class="req-tile" data-rs="resign"><span class="rt-ic" style="background:#fee2e2;color:#dc2626"><i class="fa-solid fa-person-walking-arrow-right"></i></span><span>Resign</span></button>
         <button class="req-tile" data-rs="faq"><span class="rt-ic" style="background:#e0e7ff;color:#4338ca"><i class="fa-solid fa-circle-question"></i></span><span>Help / SOP</span></button>
@@ -588,6 +589,33 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         </div>
         <button id="otBtn" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Request OT Approval</button>
         <div id="otBox" class="mt-3"></div>
+      </div>
+      </div>
+      <div class="req-sec hidden" id="rs-ticket">
+      <div class="card">
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-headset" style="color:#7c3aed"></i> <span data-en="Raise a Ticket" data-hi="टिकट भेजें">Raise a Ticket</span></h3>
+        <div class="text-[11px] mt-0 mb-3 p-2 rounded" style="background:#f5f3ff;color:#4c1d95;line-height:1.5" data-en="Need something from HR (salary, attendance, PF/ESI, leave, documents, ID card) or from Admin (canteen, washroom, housekeeping, transport, electricity, repairs)? Raise a ticket here and the right team sees it with your details. You can follow the status and their remarks below." data-hi="HR से कुछ चाहिए (सैलरी, हाज़िरी, PF/ESI, छुट्टी, कागज़, ID कार्ड) या Admin से (कैंटीन, वॉशरूम, साफ़-सफ़ाई, गाड़ी, बिजली, मरम्मत)? यहाँ टिकट भेजें — सही टीम आपकी पूरी डिटेल के साथ देखेगी। नीचे स्टेटस और उनका जवाब भी दिखता रहेगा।">Need something from HR or Admin? Raise a ticket here.</div>
+        <label class="lbl" data-en="This ticket is for" data-hi="यह टिकट किसके लिए है">This ticket is for</label>
+        <select id="tkCat" class="inp mb-3">
+          <option value="" data-en="— choose HR or Admin —" data-hi="— HR या Admin चुनें —">— choose HR or Admin —</option>
+          <option value="HR" data-en="HR — salary, attendance, PF / ESI, leave, documents, ID card" data-hi="HR — सैलरी, हाज़िरी, PF / ESI, छुट्टी, कागज़, ID कार्ड">HR — salary, attendance, PF / ESI, leave, documents, ID card</option>
+          <option value="ADMIN" data-en="Admin — canteen, washroom, housekeeping, transport, electricity, repairs" data-hi="Admin — कैंटीन, वॉशरूम, साफ़-सफ़ाई, गाड़ी, बिजली, मरम्मत">Admin — canteen, washroom, housekeeping, transport, electricity, repairs</option>
+        </select>
+        <label class="lbl" data-en="Subject" data-hi="विषय">Subject</label>
+        <input id="tkSubject" class="inp mb-3" maxlength="150" placeholder="Short title">
+        <label class="lbl" data-en="Full details" data-hi="पूरी जानकारी">Full details</label>
+        <textarea id="tkDetails" class="inp mb-3" rows="4" maxlength="2000" placeholder="Kya dikkat hai, kab se hai, kahan hai — poora likho"></textarea>
+        <label class="lbl" data-en="How urgent is it?" data-hi="कितना ज़रूरी है?">How urgent is it?</label>
+        <select id="tkPri" class="inp mb-3">
+          <option value="LOW" data-en="Low — whenever possible" data-hi="कम — जब हो जाए">Low — whenever possible</option>
+          <option value="NORMAL" selected data-en="Normal" data-hi="सामान्य">Normal</option>
+          <option value="HIGH" data-en="High — work is stuck" data-hi="ज़्यादा — काम रुका है">High — work is stuck</option>
+          <option value="URGENT" data-en="Urgent — needs action today" data-hi="अत्यावश्यक — आज ही चाहिए">Urgent — needs action today</option>
+        </select>
+        <label class="lbl" data-en="Photo (optional)" data-hi="फ़ोटो (ज़रूरी नहीं)">Photo (optional)</label>
+        <input id="tkFile" type="file" accept="image/*" class="inp mb-3">
+        <button id="tkBtn" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> <span data-en="Submit Ticket" data-hi="टिकट भेजें">Submit Ticket</span></button>
+        <div id="tkBox" class="mt-3"></div>
       </div>
       </div>
       <div class="req-sec hidden" id="rs-voice">
@@ -1378,7 +1406,7 @@ document.querySelectorAll('.req-tile').forEach(t => t.addEventListener('click', 
   const opening = sec.classList.contains('hidden');
   document.querySelectorAll('.req-sec').forEach(s => s.classList.add('hidden'));
   document.querySelectorAll('.req-tile').forEach(x => x.classList.remove('active'));
-  if(opening){ sec.classList.remove('hidden'); t.classList.add('active'); if(t.dataset.rs === 'faq') essRenderFaq(); if(t.dataset.rs === 'visitor') loadVisitorReq(); }
+  if(opening){ sec.classList.remove('hidden'); t.classList.add('active'); if(t.dataset.rs === 'faq') essRenderFaq(); if(t.dataset.rs === 'visitor') loadVisitorReq(); if(t.dataset.rs === 'ticket') loadTickets(); }
 }));
 /* ===== ESS Help / SOP ===== */
 var ESS_FAQ = [
@@ -1395,6 +1423,7 @@ var ESS_FAQ = [
   { t:'Payslips', b:'Payslip tile → mahine wise apna payslip dekho/download karo. Payslip tab dikhta hai jab HR us mahine ka payroll finalize kar deta hai. Isme earnings (basic/HRA/allowance/OT) aur deductions (PF/ESI/PT/LWF/TDS/advance) sab breakup me hote hain.' },
   { t:'My Assets', b:'Everything the company has issued to you (laptop, phone, SIM, tools and so on) is listed here. If an entry is wrong, or an item you have already returned still shows, tell HR/Admin so the record can be corrected.' },
   { t:'Voice Box (Grievance / Suggestion / Kaizen)', b:'Apni shikayat, sujhaav ya kaam behtar karne ka idea (kaizen) bhejne ke liye. Voice Box tile → type + message. Ye seedha reporting manager/HR ko jaata hai. Chaho to confidential (naam chhupa kar) bhi bhej sakte ho. Accept kiya gaya kaizen reward payroll me jud sakta hai.' },
+  { t:'Raise Ticket (HR ya Admin se kaam)', b:'Jo cheez kisi leave/attendance request me nahi aati, wo ticket se maango. Raise Ticket tile kholo → pehle chuno ki ticket <b>HR</b> ki hai (salary, hazri, PF/ESI, chhutti ka record, koi kagaz, ID card) ya <b>Admin</b> ki (canteen, washroom, safai, gaadi, bijli, marammat) → subject, poori detail, kitna zaroori hai, aur chaho to photo lagao. Ticket number turant mil jaata hai. Ticket sirf usi team ko dikhti hai jiski aapne chuni hai — HR wali HR ko, Admin wali Admin ko. Unka har remark aur aakhiri jawab isi tile me aapko dikhta rehta hai, saath me status: Open → kaam chal raha hai → ho gaya. Galat side chun gayi to ticket me hi remark aa jayega.' },
   { t:'Resign', b:'Naukri chhodni ho to Resign tile se resignation daalo (last working day + reason). Notice period company policy ke hisaab se lagega. Iske baad HR aapka Full & Final (F&F) shuru karta hai — pending salary, leave encashment, advance recovery, assets clearance, aur relieving/experience letter.' },
   { t:'Supervisor: Work Pass (Trial Worker)', b:'Naye trial worker ke liye (payroll me aane se pehle). Team page → Work Pass banao (naam + mobile + dept/line). Wo worker VMS/ViziTrack kiosk par roz IN/OUT karega aur uski daily attendance record hoti rahegi. Trial theek chale to "Employee Banao / Convert" request bhejo — HR approve karega tabhi wo regular employee ban kar payroll me aayega. Convert hote hi wo Trial Workers list se hat jaata hai.' },
   { t:'Supervisor: Team Attendance', b:'Team page → apni poori team ki mahine wise attendance dekho. Agar kisi ka din galti se ABSENT dikh raha hai (jabki wo aaya tha), to us employee ke liye gate photo + asli IN time ke saath present-request bhejo; HR verify karke approve karega.' },
@@ -1414,6 +1443,7 @@ var ESS_FAQ_EN = [
   { t:"Payslips", b:"Open the Payslip tile to view or download your payslip month by month. A payslip appears once HR finalises that month's payroll. It carries the full breakup of earnings (basic, HRA, allowances, OT) and deductions (PF, ESI, PT, LWF, TDS, advance)." },
   { t:"My Assets", b:"Everything the company has issued to you — laptop, phone, SIM, tools and so on — is listed here. If you see a wrong entry, or an item you have already returned, tell HR or Admin so the record can be updated." },
   { t:"Voice Box (Grievance / Suggestion / Kaizen)", b:"For raising a complaint, a suggestion, or an idea to improve the work (kaizen). Open the Voice Box tile and choose a type, then write your message. It goes directly to your reporting manager and HR. You may also send it confidentially, without your name. An accepted kaizen can earn a reward added to your payroll." },
+  { t:"Raise Ticket (something you need from HR or Admin)", b:"Use a ticket for anything that is not a leave or attendance request. Open the Raise Ticket tile, then first choose whether it is for <b>HR</b> (salary, attendance, PF/ESI, leave records, documents, ID card) or for <b>Admin</b> (canteen, washroom, housekeeping, transport, electricity, repairs), and fill in the subject, the full details, how urgent it is, and a photo if it helps. You get a ticket number immediately. The ticket is visible only to the team you chose — HR tickets to HR, Admin tickets to Admin. Every remark they add and their final answer appear in the same tile, along with the status: Open, then being worked on, then resolved." },
   { t:"Resign", b:"To leave the company, submit your resignation from the Resign tile (last working day and reason). The notice period applies as per company policy. HR then begins your Full & Final (F&F) settlement — pending salary, leave encashment, advance recovery, asset clearance, and the relieving and experience letters." },
   { t:"Supervisor: Work Pass (Trial Worker)", b:"For a new trial worker, before they are added to payroll. Go to the Team page and create a Work Pass (name, mobile and department or line). The worker punches IN/OUT daily at the VMS/ViziTrack kiosk and their daily attendance is recorded. If the trial goes well, send a <b>Convert to Employee</b> request — only once HR approves do they become a regular employee on payroll. On conversion they are removed from the Trial Workers list." },
   { t:"Supervisor: Team Attendance", b:"Go to the Team page to view your whole team's attendance month by month. If a day is wrongly showing ABSENT although the person did attend, send a present-request for that employee with a gate photo and the actual IN time; HR will verify and approve it." },
@@ -3774,6 +3804,7 @@ function render(){
   renderResign();
   renderOT();
   loadFeedback();
+  try{ loadTickets(); }catch(e){ _dbg('tickets-ERROR', e); }
   loadMyAssets();
   loadMyShifts();          // roster se aane wali shift — entry na ho to card chhupa rehta hai
   loadMyNotices();         // Special Working/Off din + unauthorised absence. Pehle ye sirf
@@ -4338,6 +4369,119 @@ async function loadFeedback(){
     }).join('') : '';
   }catch(e){}
 }
+/* ===== Raise Ticket — HR ya Admin ke paas seedha =====
+   Ticket ek hi jagah banti hai (ess_raise_ticket) aur wahi tay karta hai kaun dekhega:
+   HR wali sirf HR ko, Admin wali sirf Admin ko. Employee ko sirf apni dikhti hain. */
+var TK_LIST = [];
+function tkWhen(ts){
+  try{ return new Date(ts).toLocaleString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }); }
+  catch(e){ return String(ts || '').slice(0,16).replace('T',' '); }
+}
+function tkStatusChip(st){
+  const cls = { OPEN:'chip-warn', IN_PROGRESS:'chip-blue', ON_HOLD:'chip-gray', RESOLVED:'chip-ok', CLOSED:'chip-ok', REJECTED:'chip-bad' }[st] || 'chip-gray';
+  const lbl = { OPEN:L('Open','खुला है'), IN_PROGRESS:L('Being worked on','काम चल रहा है'), ON_HOLD:L('On hold','रोका गया'),
+                RESOLVED:L('Resolved','हो गया'), CLOSED:L('Closed','बंद'), REJECTED:L('Not possible','नहीं हो सकता') }[st]
+             || String(st || '').replace(/_/g, ' ');
+  return '<span class="chip ' + cls + '">' + esc(lbl) + '</span>';
+}
+function tkPriChip(p){
+  if(p === 'URGENT') return ' <span class="chip chip-bad" style="font-size:9px">' + L('URGENT','अत्यावश्यक') + '</span>';
+  if(p === 'HIGH')   return ' <span class="chip chip-warn" style="font-size:9px">' + L('HIGH','ज़्यादा ज़रूरी') + '</span>';
+  return '';
+}
+function tkSideChip(c){
+  return c === 'ADMIN'
+    ? '<span class="chip" style="background:#dbeafe;color:#1e40af;font-size:9px">ADMIN</span>'
+    : '<span class="chip" style="background:#f3e8ff;color:#6b21a8;font-size:9px">HR</span>';
+}
+function tkRender(){
+  const box = $('tkBox');
+  if(!box) return;
+  if(!TK_LIST.length){
+    box.innerHTML = '<p class="text-[11px] m-0" style="color:var(--muted)">'
+      + L('No tickets yet. Whatever you raise will show here with its status.',
+          'अभी कोई टिकट नहीं है। जो भेजेंगे वो स्टेटस के साथ यहीं दिखेगा।') + '</p>';
+    return;
+  }
+  box.innerHTML = '<p class="lbl mb-2">' + L('My Tickets','मेरे टिकट') + ' (' + TK_LIST.length + ')</p>'
+    + TK_LIST.map(t => {
+    const rem = (t.remarks || []).map(r =>
+      '<div style="margin-top:6px;background:var(--surface-2,#f1f5f9);border-left:3px solid #7c3aed;border-radius:6px;padding:7px 10px;font-size:12px">'
+      + '<b style="color:#6b21a8;font-size:10.5px">' + esc(r.by_name || r.by_side || 'HR/Admin') + '</b>'
+      + ' <span style="color:var(--muted);font-size:10px">' + esc(tkWhen(r.created_at)) + '</span><br>'
+      + esc(r.remark || '') + '</div>').join('');
+    const fin = t.resolution
+      ? '<div style="margin-top:6px;background:#ecfdf5;border-left:3px solid #059669;border-radius:6px;padding:7px 10px;font-size:12px">'
+        + '<b style="color:#047857;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em">'
+        + L('Final answer','आख़िरी जवाब') + '</b>'
+        + (t.resolved_by ? ' <span style="color:var(--muted);font-size:10px">— ' + esc(t.resolved_by) + '</span>' : '')
+        + '<br>' + esc(t.resolution) + '</div>'
+      : '';
+    return '<div class="card m-0 mb-2" style="padding:10px 12px">'
+      + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">'
+      + '<div style="min-width:0">'
+      + '<div style="font-size:10px;color:var(--muted);letter-spacing:.04em">' + esc(t.ticket_no || '') + ' · ' + esc(tkWhen(t.created_at)) + '</div>'
+      + '<div style="font-weight:700;font-size:13px;margin-top:2px">' + esc(t.subject || '') + '</div>'
+      + '<div style="margin-top:3px">' + tkSideChip(t.category) + tkPriChip(t.priority) + '</div>'
+      + '</div>' + tkStatusChip(t.status) + '</div>'
+      + '<div style="font-size:12px;color:var(--muted);margin-top:6px;white-space:pre-wrap">' + esc(t.details || '') + '</div>'
+      + (t.attachment ? '<a href="' + esc(t.attachment) + '" target="_blank" rel="noopener" class="text-[11px]" style="display:inline-block;margin-top:6px"><i class="fa-solid fa-paperclip"></i> ' + L('Photo','फ़ोटो') + '</a>' : '')
+      + rem + fin + '</div>';
+  }).join('');
+}
+async function loadTickets(){
+  try{
+    const { data, error } = await sb.rpc('ess_my_tickets', { p_code: CODE, p_phone: PHONE });
+    if(error || !data || data.error) return;
+    TK_LIST = data.tickets || [];
+    tkRender();
+  }catch(e){ _dbg('tickets-ERROR', e); }
+}
+async function tkSubmit(){
+  const cat  = $('tkCat').value;
+  const subj = $('tkSubject').value.trim();
+  const det  = $('tkDetails').value.trim();
+  if(!cat)  return notify(L('First choose whether this is for HR or for Admin',
+                            'पहले चुनें कि यह HR के लिए है या Admin के लिए'));
+  if(!subj) return notify(L('Write a short subject','छोटा-सा विषय लिखें'));
+  if(det.length < 10) return notify(L('Please write the full details (at least 10 characters)',
+                                      'पूरी जानकारी लिखें (कम से कम 10 अक्षर)'));
+  const btn = $('tkBtn'), old = btn.innerHTML;
+  btn.innerHTML = '<div class="loader-ring"></div> ' + L('Sending…','भेज रहे हैं…'); btn.disabled = true;
+  try{
+    // Photo pehle chadhao — upload fail ho to ticket bina photo ke bhi jaani chahiye,
+    // isliye yahan throw nahi karte.
+    let url = null;
+    const f = ($('tkFile').files || [])[0];
+    if(f){
+      try{
+        const path = 'tickets/' + CODE + '_' + Date.now() + '.jpg';
+        const up = await sb.storage.from('attendance-photos').upload(path, f, { contentType: f.type, upsert: true });
+        if(!up.error) url = supabaseUrl + '/storage/v1/object/public/attendance-photos/' + path;
+      }catch(e){}
+    }
+    const { data, error } = await sb.rpc('ess_raise_ticket', {
+      p_code: CODE, p_phone: PHONE, p_category: cat, p_subject: subj,
+      p_details: det, p_priority: $('tkPri').value || 'NORMAL', p_attachment: url
+    });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    notify(L('Ticket ' + (data.ticket_no || '') + ' raised — ' + (cat === 'ADMIN' ? 'Admin' : 'HR') + ' will see it',
+             'टिकट ' + (data.ticket_no || '') + ' भेज दिया गया — ' + (cat === 'ADMIN' ? 'Admin' : 'HR') + ' इसे देखेंगे'), 'success');
+    $('tkSubject').value = ''; $('tkDetails').value = ''; $('tkFile').value = '';
+    $('tkCat').value = ''; $('tkPri').value = 'NORMAL';
+    loadTickets();
+    essSendApprovalEmail('ticket', (data && data.id) || '',
+      (cat === 'ADMIN' ? 'Admin' : 'HR') + ' Ticket ' + ((data && data.ticket_no) || '') + ' — ' + subj, [
+      ['Employee', ((D.employee && D.employee.Name) || CODE)],
+      ['Ticket', ((data && data.ticket_no) || '')],
+      ['For', cat], ['Priority', $('tkPri').value || 'NORMAL'],
+      ['Subject', subj], ['Details', det.replace(/\n/g, ' | ')]
+    ]);
+  }catch(err){ notify(err.message || 'Failed'); }
+  finally{ btn.innerHTML = old; btn.disabled = false; }
+}
+if($('tkBtn')) $('tkBtn').addEventListener('click', tkSubmit);
 $('fbBtn').addEventListener('click', async () => {
   // Salary Grievance — structured fields, GRIEVANCE type me bhejo taaki HR ki grievance list me dikhe
   if($('fbType').value === 'SALARY'){

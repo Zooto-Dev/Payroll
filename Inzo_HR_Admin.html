@@ -461,6 +461,7 @@ body.no-confidential .confidential-col{display:none!important}
       <button class="nav-item nxdi" data-page="letters"><span class="di"><i class="fa-solid fa-file-signature"></i></span><span style="flex:1"><span class="dt">Letters</span><span class="ds">Offer & experience letters</span></span></button>
       <button class="nav-item nxdi" data-page="idcards"><span class="di"><i class="fa-solid fa-id-card"></i></span><span style="flex:1"><span class="dt">ID Cards</span><span class="ds">Generate ID cards</span></span></button>
       <button class="nav-item nxdi" data-page="exits"><span class="di"><i class="fa-solid fa-person-walking-arrow-right"></i></span><span style="flex:1"><span class="dt">Exit / FnF</span><span class="ds">Resignations & F&F</span></span></button>
+      <button class="nav-item nxdi" data-page="tickets"><span class="di"><i class="fa-solid fa-headset"></i></span><span style="flex:1"><span class="dt">Tickets</span><span class="ds">HR / Admin — employee ki raised ticket</span></span><span id="tkBadge" class="dbg hidden">0</span></button>
       <button class="nav-item nxdi" data-page="blacklist"><span class="di"><i class="fa-solid fa-ban"></i></span><span style="flex:1"><span class="dt">Blacklist</span><span class="ds">Gate par rok \u2014 punch & face</span></span><span id="blkBadge" class="dbg hidden">0</span></button>
     </div></div>
   <div class="nxg"><button><i class="fa-solid fa-gear li"></i> System <i class="fa-solid fa-chevron-down ca"></i></button>
@@ -1555,6 +1556,42 @@ body.no-confidential .confidential-col{display:none!important}
         <thead><tr><th>Kab</th><th>Employee</th><th>Kism</th><th>Wajah</th></tr></thead>
         <tbody></tbody>
       </table>
+    </div>
+  </div>
+</div>
+<div class="page" id="page-tickets">
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="p-4 border-b" style="border-color:var(--line)">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h3 class="display font-bold m-0">Raised Tickets</h3>
+          <p class="text-xs m-0" style="color:var(--muted)" id="tkScope">&nbsp;</p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span id="tkCount" class="chip">0</span>
+          <button id="tkRefresh" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate"></i> Refresh</button>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap mt-3">
+        <select id="tkFSide" class="inp" style="max-width:180px">
+          <option value="">Dono — HR + Admin</option>
+          <option value="HR">Sirf HR</option>
+          <option value="ADMIN">Sirf Admin</option>
+        </select>
+        <select id="tkFStatus" class="inp" style="max-width:190px">
+          <option value="PENDING">Pending (open + chal rahi)</option>
+          <option value="">Saari tickets</option>
+          <option value="OPEN">Open</option>
+          <option value="IN_PROGRESS">Being worked on</option>
+          <option value="ON_HOLD">On hold</option>
+          <option value="RESOLVED">Resolved</option>
+          <option value="REJECTED">Not possible</option>
+        </select>
+        <input id="tkFSearch" class="inp" style="max-width:220px" placeholder="Naam / code / ticket no.">
+      </div>
+    </div>
+    <div class="p-4" id="tkAdmBox">
+      <p class="m-0 text-xs" style="color:var(--muted)">Loading…</p>
     </div>
   </div>
 </div>
@@ -3003,7 +3040,7 @@ $('loginBtn').addEventListener('click', async () => {
 $('loginPass').addEventListener('keydown', e => { if(e.key === 'Enter') $('loginBtn').click(); });
 $('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
 
-const ALL_PAGES = ['dashboard','ceo','mis','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','blacklist','reports','misspunch','visitors','letters','ctcreport','ctccalc','idcards','approvals','trial','voice','settings','faq'];
+const ALL_PAGES = ['dashboard','ceo','mis','employees','hiring','attendance','workhours','shifts','leaves','payroll','advances','expenses','assets','compliance','exits','blacklist','tickets','reports','misspunch','visitors','letters','ctcreport','ctccalc','idcards','approvals','trial','voice','settings','faq'];
 let ME_EMAIL = '';
 let FACE_CODES = new Set();
 function isSuper(){
@@ -3116,6 +3153,9 @@ function applyPerms(){
     // CEO Approvals saved page-list par nirbhar nahi hai: jo approve kar sakta hai
     // usi ko dikhta hai. Warna CEO ki list purani ho to unka apna page chhup jaata.
     if(pg === 'ceo'){ b.classList.toggle('hidden', !loanCanCEO()); return; }
+    // Tickets bhi saved page-list par nirbhar nahi: HR/Admin designation ya
+    // Admin/super-admin access \u2014 jisko tickets dekhni chahiye, usi ko dikhta hai.
+    if(pg === 'tickets'){ b.classList.toggle('hidden', !tkCanSee()); return; }
     b.classList.toggle('hidden', !!(allowed && !allowed.includes(pg)));
   });
   // manual attendance correction: hide button if this admin isn't allowed
@@ -3126,8 +3166,10 @@ function applyPerms(){
   if(bb) bb.classList.toggle('hidden', MANUAL_ATT_OFF);
   // Urgent Leave card sirf HR ko
   try{ ulApplyVisibility(); }catch(e){}
+  // Tickets ka pending count nav badge par
+  try{ tkBadgeRefresh(); }catch(e){}
 }
-const PAGE_ICONS = { dashboard:'gauge', mis:'chart-pie', employees:'users', attendance:'calendar-check', workhours:'business-time', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', ctccalc:'calculator', ctcreport:'file-invoice-dollar', idcards:'id-card', approvals:'clipboard-check', trial:'id-card-clip', voice:'comments', settings:'gear', faq:'circle-question', misspunch:'user-clock', visitors:'user-plus' };
+const PAGE_ICONS = { tickets:'headset', dashboard:'gauge', mis:'chart-pie', employees:'users', attendance:'calendar-check', workhours:'business-time', shifts:'clock', leaves:'umbrella-beach', payroll:'money-check-dollar', advances:'hand-holding-dollar', expenses:'receipt', assets:'boxes-stacked', compliance:'scale-balanced', exits:'door-open', reports:'chart-line', letters:'envelope-open-text', ctccalc:'calculator', ctcreport:'file-invoice-dollar', idcards:'id-card', approvals:'clipboard-check', trial:'id-card-clip', voice:'comments', settings:'gear', faq:'circle-question', misspunch:'user-clock', visitors:'user-plus' };
 function isRowLate(r){ return r.is_late === true || String(r.in_time||'').toUpperCase().includes('LATE'); }
 function cleanInTime(r){ return String(r.in_time||'').replace(/\s*\(?LATE\)?/i,'').trim(); }
 function initials(em){ return em.split('@')[0].replace(/[^a-z0-9]/gi, ' ').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'A'; }
@@ -3923,7 +3965,7 @@ $('rmbApplyBtn') && $('rmbApplyBtn').addEventListener('click', async () => {
 });
 
 /* ---------------- Router ---------------- */
-const TITLES = { mis:'MIS Report', dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', blacklist:'Blacklist \u2014 Gate par rok', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', trial:'Trial Workers (Work Pass)', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', ctccalc:'CTC Calculator', ctcreport:'Employee CTC \u2014 Sabhi Employees', faq:'FAQ / SOP — Har Feature ka Guide', adminctl:'Admin Control Panel', misspunch:'Miss Punch — Missing IN / OUT', visitors:'Visitor Requests — Employee Portal' };
+const TITLES = { mis:'MIS Report', dashboard:'Dashboard', employees:'Employees', attendance:'Attendance Register', workhours:'Work Hours & Overtime', hiring:'Hiring & Recruitment', shifts:'Shift Master', leaves:'Leave Management', payroll:'Payroll', advances:'Advances & Loans', expenses:'Expense & Reimbursement', assets:'Asset Management', compliance:'Statutory Compliance', exits:'Exit & Full-Final', blacklist:'Blacklist \u2014 Gate par rok', tickets:'Raised Tickets \u2014 HR / Admin', reports:'Analytics & Reports', letters:'HR Letters', idcards:'ID Card Generator', approvals:'Approvals Inbox', trial:'Trial Workers (Work Pass)', voice:'Voice Box — Grievance, Suggestion & Kaizen', settings:'Settings', ctccalc:'CTC Calculator', ctcreport:'Employee CTC \u2014 Sabhi Employees', faq:'FAQ / SOP — Har Feature ka Guide', adminctl:'Admin Control Panel', misspunch:'Miss Punch — Missing IN / OUT', visitors:'Visitor Requests — Employee Portal' };
 /* ---- Topbar dropdown open/close ---- */
 function nxCloseDD(){ document.querySelectorAll('.nxg').forEach(g=>g.classList.remove('open')); }
 const _nxNav = document.querySelector('.nxnav');
@@ -3947,7 +3989,8 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     const page = btn.dataset.page;
     const allowed = allowedPages();
     if(!canSeeConfidential() && CONFIDENTIAL_PAGES.includes(page)) return notify('You do not have access to confidential (salary) data', 'error');
-    if(page !== 'adminctl' && allowed && !allowed.includes(page)) return notify('You do not have access to this page', 'error');
+    if(page === 'tickets' && !tkCanSee()) return notify('Tickets sirf HR / Admin dekh sakte hain', 'error');
+    if(page !== 'adminctl' && page !== 'tickets' && allowed && !allowed.includes(page)) return notify('You do not have access to this page', 'error');
     if(page === 'adminctl' && !isSuper()) return;
     document.querySelectorAll('.page').forEach(p => p.classList.remove('show'));
     $('page-' + page).classList.add('show');
@@ -3971,6 +4014,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if(page === 'assets') loadAssets();
     if(page === 'exits') loadExits();
     if(page === 'blacklist') loadBlacklist();
+    if(page === 'tickets') loadTickets();
     if(page === 'reports') loadReports();
     if(page === 'adminctl'){ NX_AUTH_USERS = null; renderAdminCtl(); }
     if(page === 'ctccalc'){ renderCtcMaster(); }
@@ -10345,6 +10389,11 @@ document.body.addEventListener('click', async e => {
   if((act === 'ot-appr-grp' || act === 'ot-rej-grp') && !(canApprove('ot') && roleCEO())) return notify('Only the CEO can approve overtime', 'error');
   if((act === 'appr-exp' || act === 'rej-exp' || act === 'appr-ex' || act === 'rej-ex') && !(canApprove('expense') && roleAcctMgr())) return notify('Only the Accounts team can approve expenses', 'error');
   // Emergency leave ke do-step approval. Wahi hak jo aam leave par lagta hai.
+  // Raised tickets — HR / Admin. Side ka hak tkAct khud phir se check karta hai.
+  if(act && act.indexOf('tk-') === 0){
+    if(!tkCanSee()) return notify('Tickets sirf HR / Admin dekh sakte hain', 'error');
+    return tkAct(el.dataset.id, act);
+  }
   if(act === 'fd-loc')   return fdSetLocation(el.dataset.id);
   if(act === 'fd-track') return fdTrack(el.dataset.id);
   if(act === 'emg-ok' || act === 'emg-no' || act === 'emg-ask'){
@@ -14993,6 +15042,205 @@ document.body.addEventListener('click', e => {
 });
 
 /* ================= VOICE BOX ================= */
+/* ===== Raised Tickets — HR / Admin =====
+   Kaun kya dekhega:
+     super-admin / Admin role      -> dono side (HR + Admin)
+     designation ya department HR  -> sirf HR wali tickets
+     designation ya department Admin -> sirf Admin wali tickets
+   Jiske paas in me se kuch nahi, uske liye nav me page hi nahi aata. */
+function tkSides(){
+  if(isSuper() || isAdminRole()) return ['HR','ADMIN'];
+  const TK_HR_RE = /\bHR\b|HUMAN\s*RESOURCE/, TK_ADM_RE = /\bADMIN/;
+  const r = myEmpRole();
+  const d = String(r.dept || ''), g = String(r.desig || '');
+  const out = [];
+  if(TK_HR_RE.test(g)  || TK_HR_RE.test(d))  out.push('HR');
+  if(TK_ADM_RE.test(g) || TK_ADM_RE.test(d)) out.push('ADMIN');
+  return out;
+}
+function tkCanSee(){ return tkSides().length > 0; }
+function tkMeName(){
+  try{
+    const p = Object.values(PROFILES || {}).find(x => (x.email || '').toLowerCase() === ME_EMAIL);
+    if(p){ const e = (EMP || []).find(x => x['Employee code'] === p.employee_code); if(e && e.Name) return e.Name; }
+  }catch(e){}
+  return ((getSettings() || {}).hr) || ME_EMAIL || 'HR';
+}
+let TK_ADM = [];
+function tkStChip(st){
+  const cls = { OPEN:'chip-warn', IN_PROGRESS:'chip-blue', ON_HOLD:'chip-gray', RESOLVED:'chip-ok', REJECTED:'chip-bad' }[st] || 'chip-gray';
+  const lbl = { OPEN:'Open', IN_PROGRESS:'Being worked on', ON_HOLD:'On hold', RESOLVED:'Resolved', REJECTED:'Not possible' }[st] || String(st || '');
+  return '<span class="chip ' + cls + '" style="font-size:10px">' + esc(lbl) + '</span>';
+}
+function tkSideChipA(c){
+  return c === 'ADMIN'
+    ? '<span class="chip" style="background:#dbeafe;color:#1e40af;font-size:10px">ADMIN</span>'
+    : '<span class="chip" style="background:#f3e8ff;color:#6b21a8;font-size:10px">HR</span>';
+}
+function tkPriChipA(p){
+  if(p === 'URGENT') return ' <span class="chip chip-bad" style="font-size:10px"><i class="fa-solid fa-triangle-exclamation"></i> URGENT</span>';
+  if(p === 'HIGH')   return ' <span class="chip chip-warn" style="font-size:10px">HIGH</span>';
+  if(p === 'LOW')    return ' <span class="chip chip-gray" style="font-size:10px">LOW</span>';
+  return '';
+}
+function tkAgeTxt(ts){
+  try{
+    const h = Math.floor((Date.now() - new Date(ts).getTime()) / 3600000);
+    if(h < 1)  return 'abhi';
+    if(h < 24) return h + ' ghante';
+    return Math.floor(h / 24) + ' din';
+  }catch(e){ return ''; }
+}
+async function loadTickets(){
+  if(!tkCanSee()){ $('tkAdmBox').innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Tickets sirf HR / Admin dekh sakte hain.</p>'; return; }
+  const sides = tkSides();
+  const bothSel = $('tkFSide');
+  // Jiske paas sirf ek side hai, uske liye side ka chunav hi nahi — list bandhi hui hai.
+  if(bothSel) bothSel.classList.toggle('hidden', sides.length < 2);
+  $('tkScope').innerText = sides.length > 1
+    ? 'Aapko HR aur Admin, dono ki tickets dikhti hain.'
+    : 'Aapko sirf ' + (sides[0] === 'ADMIN' ? 'Admin' : 'HR') + ' wali tickets dikhti hain.';
+  $('tkAdmBox').innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Loading…</p>';
+  const q = await sb.from('tickets').select('*').in('category', sides).order('created_at', { ascending:false }).limit(500);
+  if(q.error){ $('tkAdmBox').innerHTML = '<p class="m-0 text-xs" style="color:var(--bad)">' + esc(q.error.message) + '</p>'; return; }
+  TK_ADM = q.data || [];
+  const ids = TK_ADM.map(t => t.id);
+  let rem = [];
+  if(ids.length){
+    const r = await sb.from('ticket_remarks').select('*').in('ticket_id', ids).order('created_at', { ascending:true });
+    rem = r.data || [];
+  }
+  const byT = {};
+  rem.forEach(r => { (byT[r.ticket_id] = byT[r.ticket_id] || []).push(r); });
+  TK_ADM.forEach(t => { t._rem = byT[t.id] || []; });
+  tkRenderAdm();
+  tkBadgeRefresh();
+}
+function tkRenderAdm(){
+  const sides = tkSides();
+  const fSide = (sides.length > 1 ? ($('tkFSide').value || '') : sides[0]);
+  const fSt   = $('tkFStatus').value;
+  const fQ    = String($('tkFSearch').value || '').trim().toUpperCase();
+  const PEND  = ['OPEN','IN_PROGRESS','ON_HOLD'];
+  const list = TK_ADM.filter(t => {
+    if(fSide && t.category !== fSide) return false;
+    if(fSt === 'PENDING'){ if(PEND.indexOf(t.status) < 0) return false; }
+    else if(fSt && t.status !== fSt) return false;
+    if(fQ){
+      const hay = [t.ticket_no, t.employee_code, t.name, t.subject].map(x => String(x || '').toUpperCase()).join(' ');
+      if(hay.indexOf(fQ) < 0) return false;
+    }
+    return true;
+  });
+  $('tkCount').innerText = list.length;
+  if(!list.length){
+    $('tkAdmBox').innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Is filter me koi ticket nahi.</p>';
+    return;
+  }
+  const PRI_ORD = { URGENT:0, HIGH:1, NORMAL:2, LOW:3 };
+  const open = list.filter(t => PEND.indexOf(t.status) > -1)
+                   .sort((a,b) => (PRI_ORD[a.priority] ?? 2) - (PRI_ORD[b.priority] ?? 2)
+                                  || new Date(a.created_at) - new Date(b.created_at));
+  const done = list.filter(t => PEND.indexOf(t.status) < 0);
+  let html = open.length
+    ? '<div class="space-y-2">' + open.map(tkCardAdm).join('') + '</div>'
+    : '<p class="m-0 text-xs" style="color:var(--muted)">Koi pending ticket nahi 🎉</p>';
+  if(done.length){
+    html += '<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);padding:8px 4px;border-top:1px dashed var(--line);list-style:none">'
+      + '<i class="fa-solid fa-circle-check" style="color:var(--ok)"></i> Band ho chuki (' + done.length + ') <span style="font-weight:400">— dekhne ke liye click</span></summary>'
+      + '<div class="space-y-2" style="margin-top:8px;opacity:.85">' + done.map(tkCardAdm).join('') + '</div></details>';
+  }
+  $('tkAdmBox').innerHTML = html;
+}
+function tkCardAdm(t){
+  const rem = (t._rem || []).map(r =>
+    '<div class="text-xs" style="margin-top:6px;background:var(--surface-2,#f1f5f9);border-left:3px solid #7c3aed;border-radius:6px;padding:6px 9px">'
+    + '<b>' + esc(r.by_name || r.by_side || '') + '</b>'
+    + (r.status_set ? ' <span class="chip chip-gray" style="font-size:9px">' + esc(String(r.status_set).replace(/_/g,' ')) + '</span>' : '')
+    + ' <span style="color:var(--muted);font-size:10px">' + esc(String(r.created_at || '').slice(0,16).replace('T',' ')) + '</span>'
+    + '<div style="white-space:pre-wrap">' + esc(r.remark || '') + '</div></div>').join('');
+  const fin = t.resolution
+    ? '<div class="text-xs" style="margin-top:6px;background:#ecfdf5;border-left:3px solid #059669;border-radius:6px;padding:6px 9px">'
+      + '<b style="color:#047857">Resolution</b>' + (t.resolved_by ? ' <span style="color:var(--muted)">— ' + esc(t.resolved_by) + '</span>' : '')
+      + '<div style="white-space:pre-wrap">' + esc(t.resolution) + '</div></div>'
+    : '';
+  const live = ['OPEN','IN_PROGRESS','ON_HOLD'].indexOf(t.status) > -1;
+  const acts = '<div class="flex gap-1 flex-wrap mt-2">'
+    + (t.status === 'OPEN' ? '<button class="btn btn-ghost btn-sm" data-act="tk-start" data-id="' + t.id + '"><i class="fa-solid fa-play"></i> Kaam shuru</button>' : '')
+    + (live ? '<button class="btn btn-ghost btn-sm" data-act="tk-remark" data-id="' + t.id + '"><i class="fa-solid fa-comment-dots"></i> Remark</button>' : '')
+    + (live ? '<button class="btn btn-ghost btn-sm" data-act="tk-hold" data-id="' + t.id + '"><i class="fa-solid fa-pause"></i> Hold</button>' : '')
+    + (live ? '<button class="btn btn-primary btn-sm" data-act="tk-resolve" data-id="' + t.id + '"><i class="fa-solid fa-check"></i> Resolve</button>' : '')
+    + (live ? '<button class="btn btn-danger btn-sm" data-act="tk-reject" data-id="' + t.id + '">Nahi ho sakta</button>' : '')
+    + (!live ? '<button class="btn btn-ghost btn-sm" data-act="tk-reopen" data-id="' + t.id + '"><i class="fa-solid fa-rotate-left"></i> Dobara kholo</button>' : '')
+    + '</div>';
+  return '<div class="p-3 rounded-lg" style="background:#faf8f4;border:1px solid var(--line)">'
+    + '<div class="flex items-start justify-between gap-2 mb-1">'
+    + '<div style="min-width:0">'
+    + '<div class="text-[10px]" style="color:var(--muted);letter-spacing:.04em">' + esc(t.ticket_no || '') + ' · ' + esc(tkAgeTxt(t.created_at)) + ' purani</div>'
+    + '<b class="text-xs">' + esc(t.name || t.employee_code) + ' <span style="color:var(--muted)">(' + esc(t.employee_code) + ')</span></b>'
+    + (t.emp_dept ? ' <span class="chip chip-gray" style="font-size:9px">' + esc(t.emp_dept) + '</span>' : '')
+    + '</div>'
+    + '<div style="text-align:right;white-space:nowrap">' + tkStChip(t.status) + '</div></div>'
+    + '<div class="font-semibold text-sm mb-1">' + esc(t.subject || '') + '</div>'
+    + '<div class="mb-1">' + tkSideChipA(t.category) + tkPriChipA(t.priority) + '</div>'
+    + '<div class="text-xs" style="color:#334155;white-space:pre-wrap">' + esc(t.details || '') + '</div>'
+    + (t.attachment ? '<div class="mt-2"><a href="' + esc(t.attachment) + '" target="_blank" rel="noopener" class="text-xs"><i class="fa-solid fa-paperclip"></i> Attachment</a></div>' : '')
+    + rem + fin + acts + '</div>';
+}
+async function tkBadgeRefresh(){
+  try{
+    const el = $('tkBadge'); if(!el) return;
+    if(!tkCanSee()){ el.classList.add('hidden'); return; }
+    const q = await sb.from('tickets').select('id', { count:'exact', head:true })
+      .in('category', tkSides()).in('status', ['OPEN','IN_PROGRESS']);
+    const n = q.count || 0;
+    el.innerText = n;
+    el.classList.toggle('hidden', n === 0);
+  }catch(e){}
+}
+async function tkAct(id, act){
+  const t = TK_ADM.find(x => String(x.id) === String(id));
+  if(!t) return;
+  if(tkSides().indexOf(t.category) < 0) return notify('Ye ticket aapki side ki nahi hai', 'error');
+  const me = tkMeName();
+  const now = new Date().toISOString();
+  let patch = null, remark = null, stSet = null;
+
+  if(act === 'tk-start'){ patch = { status:'IN_PROGRESS' }; stSet = 'IN_PROGRESS'; }
+  if(act === 'tk-reopen'){ patch = { status:'OPEN', resolved_by:null, resolved_at:null }; stSet = 'OPEN'; }
+  if(act === 'tk-remark' || act === 'tk-hold' || act === 'tk-resolve' || act === 'tk-reject'){
+    const ask = { 'tk-remark':'Remark — ye employee ko uske portal me dikhega:',
+                  'tk-hold':'Kis wajah se hold kar rahe hain? (employee ko dikhega)',
+                  'tk-resolve':'Kya kiya / kya jawab hai? (employee ko dikhega)',
+                  'tk-reject':'Kyon nahi ho sakta? (employee ko dikhega)' }[act];
+    const r = await nxPrompt(ask, act === 'tk-resolve' ? 'Resolve Ticket' : 'Ticket');
+    if(r === null) return;
+    remark = String(r || '').trim();
+    if(!remark) return notify('Kuch likhna zaroori hai', 'error');
+    if(act === 'tk-hold')    { patch = { status:'ON_HOLD' }; stSet = 'ON_HOLD'; }
+    if(act === 'tk-resolve') { patch = { status:'RESOLVED', resolution:remark, resolved_by:me, resolved_at:now }; stSet = 'RESOLVED'; }
+    if(act === 'tk-reject')  { patch = { status:'REJECTED', resolution:remark, resolved_by:me, resolved_at:now }; stSet = 'REJECTED'; }
+  }
+  if(!patch && !remark) return;
+  try{
+    if(remark){
+      const ri = await sb.from('ticket_remarks').insert([{ ticket_id:t.id, by_name:me, by_side:t.category, remark:remark, status_set:stSet }]);
+      if(ri.error) throw ri.error;
+    }
+    if(patch){
+      const up = await sb.from('tickets').update(patch).eq('id', t.id);
+      if(up.error) throw up.error;
+    }
+    // audit: ticket ka pura silsila ticket_remarks me hi rehta hai
+    notify('Ticket ' + (t.ticket_no || '') + ' update ho gayi', 'success');
+    loadTickets();
+  }catch(err){ notify(err.message || 'Failed', 'error'); }
+}
+['tkFSide','tkFStatus','tkFSearch'].forEach(idd => {
+  const el = $(idd);
+  if(el) el.addEventListener(idd === 'tkFSearch' ? 'input' : 'change', () => { try{ tkRenderAdm(); }catch(e){} });
+});
+if($('tkRefresh')) $('tkRefresh').addEventListener('click', () => loadTickets());
 async function loadVoice(){
   const { data, error } = await sb.from('feedback').select('*').order('created_at', { ascending:false }).limit(200);
   if(error) return notify(error.message + ' — have you run the V9 migration SQL?', 'error');
