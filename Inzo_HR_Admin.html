@@ -10345,6 +10345,8 @@ document.body.addEventListener('click', async e => {
   if((act === 'ot-appr-grp' || act === 'ot-rej-grp') && !(canApprove('ot') && roleCEO())) return notify('Only the CEO can approve overtime', 'error');
   if((act === 'appr-exp' || act === 'rej-exp' || act === 'appr-ex' || act === 'rej-ex') && !(canApprove('expense') && roleAcctMgr())) return notify('Only the Accounts team can approve expenses', 'error');
   // Emergency leave ke do-step approval. Wahi hak jo aam leave par lagta hai.
+  if(act === 'fd-loc')   return fdSetLocation(el.dataset.id);
+  if(act === 'fd-track') return fdTrack(el.dataset.id);
   if(act === 'emg-ok' || act === 'emg-no' || act === 'emg-ask'){
     if(!(canApprove('leave') && (roleCEO() || isAdminRole())))
       return notify('You are not allowed to approve leaves', 'error');
@@ -13030,6 +13032,76 @@ async function emgDecide(id, side, decision){
   if(data && data.error) return notify(data.error, 'error');
   notify('Emergency leave — ' + side + ' ' + decision.toLowerCase() + (data.status === 'APPROVED' ? ' · ab poori tarah APPROVED' : ''), 'success');
   loadLeaves();
+}
+
+/* ================= FIELD DUTY — jagah set karo aur punch dekho =================
+   Approved jagah se milan DATABASE karta hai (trigger), yahan sirf dikhaya jaata hai.
+   Jagah Google Maps ka link daal kar ya seedha "lat,lng" likh kar set hoti hai. */
+function fdLocBtn(r){
+  const t = String(r.req_type || 'FIELD').toUpperCase();
+  if(t !== 'FIELD' && r.req_type) return '';
+  const set = (r.duty_lat != null && r.duty_lng != null);
+  return ` <button class="btn btn-ghost btn-sm" data-act="fd-loc" data-id="${r.id}"
+            title="${set ? 'Duty location: ' + esc(r.duty_place || '') : 'Duty location set karein'}">
+            <i class="fa-solid fa-location-dot" style="color:${set ? 'var(--ok)' : '#f59e0b'}"></i></button>`;
+}
+// Google Maps link ya "28.367, 76.938" — dono se lat/lng nikal lo
+function fdParseLatLng(txt){
+  const s = String(txt || '');
+  let m = s.match(/@(-?\d+\.\d+),\s*(-?\d+\.\d+)/)            // .../@lat,lng,17z
+       || s.match(/[?&]q=(-?\d+\.\d+),\s*(-?\d+\.\d+)/)        // ...?q=lat,lng
+       || s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/)            // ...!3dlat!4dlng
+       || s.match(/^\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*$/);  // seedha lat,lng
+  if(!m) return null;
+  const lat = Number(m[1]), lng = Number(m[2]);
+  if(!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng };
+}
+async function fdSetLocation(id){
+  const { data: r } = await sb.from('ess_att_requests').select('*').eq('id', id).single();
+  if(!r) return notify('Request nahi mili', 'error');
+  const place = await nxPrompt('Jagah ka naam (jaise "Vendor — Sector 37, Manesar")', 'Field duty — jagah');
+  if(place === null) return;
+  const raw = await nxPrompt('Google Maps ka link paste karein, ya seedha  lat,lng  likhein', 'Jagah ki location');
+  if(raw === null) return;
+  const ll = fdParseLatLng(raw);
+  if(!ll) return notify('Location samajh nahi aayi. Maps ka link ya "28.367, 76.938" daalein.', 'error');
+  const radRaw = await nxPrompt('Kitne meter tak ki doori theek maani jaye? (default 500)', 'Radius');
+  if(radRaw === null) return;
+  const rad = Math.max(50, Math.min(5000, Number(radRaw) || 500));
+  const { error } = await sb.from('ess_att_requests').update({
+    duty_place: place || null, duty_lat: ll.lat, duty_lng: ll.lng, duty_radius_m: rad
+  }).eq('id', id);
+  if(error) return notify(error.message, 'error');
+  notify('Duty location set ho gayi — ' + ll.lat.toFixed(5) + ', ' + ll.lng.toFixed(5) + ' (' + rad + 'm)', 'success');
+  if($('page-approvals').classList.contains('show')) loadApprovals();
+}
+async function fdTrack(id){
+  const [{ data: r }, { data: lg }] = await Promise.all([
+    sb.from('ess_att_requests').select('*').eq('id', id).single(),
+    sb.from('field_duty_logs').select('*').eq('request_id', id).order('id')
+  ]);
+  const STG = { START:'Nikle', ARRIVE:'Pahunche', END:'Khatam' };
+  const rows = ['START','ARRIVE','END'].map(k => {
+    const x = (lg || []).find(y => String(y.stage).toUpperCase() === k);
+    if(!x) return `<tr><td class="font-semibold">${STG[k]}</td><td colspan="4" class="text-xs" style="color:var(--muted)">abhi nahi hua</td></tr>`;
+    const t = new Date(x.created_at).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+    const ver = (k === 'ARRIVE' && x.distance_m != null)
+      ? `<span class="chip ${x.verified ? 'chip-ok' : 'chip-bad'}" style="font-size:10px">${x.verified ? 'MILA' : 'DOOR'} · ${Math.round(x.distance_m)} m</span>`
+      : '<span style="color:var(--faint)">—</span>';
+    const map = (x.lat != null)
+      ? `<a href="https://www.google.com/maps?q=${x.lat},${x.lng}" target="_blank" style="color:var(--brand)">${Number(x.lat).toFixed(5)}, ${Number(x.lng).toFixed(5)}</a>`
+      : '—';
+    return `<tr><td class="font-semibold">${STG[k]}</td><td class="text-xs">${esc(t)}</td><td class="text-xs">${map}</td><td>${ver}</td>
+      <td>${x.photo_url ? `<img src="${esc(x.photo_url)}" style="width:46px;height:46px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">` : '—'}</td></tr>`;
+  }).join('');
+  const loc = (r && r.duty_lat != null)
+    ? `${esc(r.duty_place || '')} · <a href="https://www.google.com/maps?q=${r.duty_lat},${r.duty_lng}" target="_blank" style="color:var(--brand)">${Number(r.duty_lat).toFixed(5)}, ${Number(r.duty_lng).toFixed(5)}</a> · ${r.duty_radius_m || 500} m`
+    : '<span style="color:#b45309">Duty location set nahi hai — milan nahi ho sakta</span>';
+  nxInfo(' ', 'Field Duty — ' + ((r && (r.name || r.employee_code)) || ''));
+  const box = $('nxAskMsg');
+  if(box) box.innerHTML = `<div class="text-xs mb-2">${loc}</div>
+    <table class="tbl"><thead><tr><th>Step</th><th>Kab</th><th>Kahan</th><th>Milan</th><th>Photo</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 async function loadLeaves(){
@@ -15778,7 +15850,7 @@ async function loadApprovals(){
     return `<tr><td class="font-semibold">${esc(r.name || r.employee_code)}</td>
       ${extra ? `<td class="text-xs">${esc(extra)}${proofBtn}</td>` : (r.proof_path ? `<td>${proofBtn}</td>` : '<td>—</td>')}
       <td>${fmtDate(r.date)}</td><td class="text-xs" style="max-width:220px">${esc(r.reason||'—')}</td><td class="text-xs">${esc(mgr)}</td>
-      <td style="text-align:right;white-space:nowrap">${mine
+      <td style="text-align:right;white-space:nowrap">${fdLocBtn(r)}${mine
         ? `<button class="btn btn-ghost btn-sm" data-act="ea-appr" data-id="${r.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
            <button class="btn btn-danger btn-sm" data-act="ea-rej" data-id="${r.id}"><i class="fa-solid fa-xmark"></i></button>`
         : `<span class="text-[10px]" style="color:var(--muted)">Manager approves</span>`}</td></tr>`;
@@ -15955,7 +16027,9 @@ async function apEssMode(kind, mode){
           : r.req_type === 'GATE_HD' ? ('Half Day' + _gpPur)
           : r.req_type === 'ATT_FIX' ? ('In ' + (r.fix_in ? String(r.fix_in).substring(0,5) : '—') + (r.fix_out ? ' · Out ' + String(r.fix_out).substring(0,5) : '')) : (r.location||'—');
         const proofBtn = r.proof_path ? `<button class="btn btn-ghost btn-sm" data-act="ex-proof" data-path="${esc(r.proof_path)}" title="View proof"><i class="fa-solid fa-paperclip"></i> View</button>` : '<span style="color:var(--faint)">—</span>';
-        return `<tr><td class="font-semibold">${esc(r.name || nameOf(r.employee_code))}</td><td class="text-xs">${fmtDate(r.date)}</td><td class="text-xs">${esc(extra)}</td><td class="text-xs" style="max-width:200px">${esc(r.reason||'—')}</td><td>${proofBtn}</td>${isSuper()?`<td>${_stepBackBtn('ess_att_requests', r.id, 'status', _rl)}</td>`:''}</tr>`;
+        const trackBtn = (kind === 'field')
+          ? ` <button class="btn btn-ghost btn-sm" data-act="fd-track" data-id="${r.id}" title="Field duty punches"><i class="fa-solid fa-route"></i></button>${fdLocBtn(r)}` : '';
+        return `<tr><td class="font-semibold">${esc(r.name || nameOf(r.employee_code))}</td><td class="text-xs">${fmtDate(r.date)}</td><td class="text-xs">${esc(extra)}</td><td class="text-xs" style="max-width:200px">${esc(r.reason||'—')}</td><td>${proofBtn}${trackBtn}</td>${isSuper()?`<td>${_stepBackBtn('ess_att_requests', r.id, 'status', _rl)}</td>`:''}</tr>`;
       }).join('')}
       </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">No approved requests.</p>';
   }catch(e){ host.innerHTML = '<p class="m-0 text-xs p-3" style="color:var(--bad)">Error: '+esc(e.message||e)+'</p>'; }

@@ -257,7 +257,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <img src="nexus-logo.png" alt="Nexus" style="height:44px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
       <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Portal</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B73</b> — 18 Nov</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B74</b> — 18 Nov</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -284,7 +284,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
           <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B73</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B74</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -401,6 +401,11 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         </div>
         <button id="fldBtn" class="btn btn-primary w-full justify-center" style="background:#0284c7"><i class="fa-solid fa-paper-plane"></i> Request Approval</button>
         <div id="fldList" class="mt-2 text-xs"></div>
+      </div>
+      <div class="card hidden" id="fdCard" style="border:1.5px solid #86efac;background:linear-gradient(135deg,#f0fdf4,#ffffff)">
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-route" style="color:#15803d"></i>
+          <span data-en="Today's Field Duty" data-hi="आज की फील्ड ड्यूटी">Today's Field Duty</span></h3>
+        <div id="fdBox" class="text-xs"></div>
       </div>
       </div>
       <div class="req-sec hidden" id="rs-adv">
@@ -772,6 +777,15 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
   </div>
 
   <!-- photo capture overlay for present-marking -->
+  <div id="fdCam" style="display:none;position:fixed;inset:0;z-index:201;background:rgba(15,23,42,.94);flex-direction:column;align-items:center;justify-content:center;padding:16px">
+    <p id="fdCamTitle" style="color:#fff;font-weight:700;font-size:16px;margin-bottom:4px"></p>
+    <p id="fdCamGeo" style="color:#bbf7d0;font-size:11.5px;margin-bottom:8px"></p>
+    <video id="fdCamVideo" autoplay playsinline muted style="width:min(92vw,380px);border-radius:16px;transform:scaleX(-1)"></video>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button onclick="fdShoot()" class="btn btn-primary" style="padding:13px 26px;font-size:15px"><i class="fa-solid fa-camera"></i> <span data-en="Capture" data-hi="फ़ोटो लें">Capture</span></button>
+      <button onclick="fdCamClose()" class="btn btn-ghost" style="padding:13px 20px"><span data-en="Cancel" data-hi="रद्द">Cancel</span></button>
+    </div>
+  </div>
   <div id="supCam" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(15,23,42,.92);flex-direction:column;align-items:center;justify-content:center;padding:16px">
     <p id="supCamName" style="color:#fff;font-weight:700;font-size:16px;margin-bottom:8px"></p>
     <video id="supCamVideo" autoplay playsinline muted style="width:min(92vw,380px);border-radius:16px;transform:scaleX(-1)"></video>
@@ -1526,6 +1540,175 @@ document.addEventListener('click', async e => {
   }catch(err){ notify(err.message || 'Request failed'); }
   finally{ b.disabled = false; }
 });
+/* ================= FIELD DUTY — teen punch, har ek par geo + live selfie =================
+   Niyam: approval ke baad hi punch chalte hain, aur kram se —
+     1 START  : nikalte waqt (jahan se nikle)
+     2 ARRIVE : jagah par pahunch kar (yahi punch approved jagah se mila jaata hai)
+     3 END    : kaam khatam
+   Doori ki jaanch DATABASE karta hai (trigger), app par bharosa nahi — warna app ka
+   code badal kar koi bhi "verified" bhej deta. Selfie bina punch nahi hota.        */
+const FD_STAGES = [
+  { k:'START',  en:'Starting out',        hi:'निकलते समय',      ic:'fa-person-walking-arrow-right' },
+  { k:'ARRIVE', en:'Reached the place',   hi:'जगह पर पहुँचे',   ic:'fa-location-crosshairs' },
+  { k:'END',    en:'Duty finished',       hi:'ड्यूटी ख़त्म',     ic:'fa-flag-checkered' }
+];
+let FD_REQ = null, FD_LOGS = [], _fdStage = null, _fdGeo = null, _fdStream = null;
+
+async function loadFieldDuty(){
+  const card = $('fdCard'), box = $('fdBox');
+  if(!card || !box) return;
+  const codeU = String(CODE||'').trim().toUpperCase();
+  const today = new Date().toISOString().slice(0,10);
+  try{
+    const { data } = await sb.from('ess_att_requests').select('*')
+      .ilike('employee_code', codeU).eq('req_type','FIELD').eq('status','APPROVED')
+      .lte('date', today).order('date', { ascending:false }).limit(5);
+    FD_REQ = (data || []).find(r => String(r.date) === today) || null;
+    if(!FD_REQ){ card.classList.add('hidden'); return; }
+    const { data: lg } = await sb.from('field_duty_logs').select('*')
+      .eq('request_id', FD_REQ.id).order('id');
+    FD_LOGS = lg || [];
+    card.classList.remove('hidden');
+    fdRender();
+  }catch(e){ card.classList.add('hidden'); }
+}
+
+function fdLog(k){ return FD_LOGS.find(x => String(x.stage).toUpperCase() === k) || null; }
+
+function fdRender(){
+  const box = $('fdBox');
+  const place = FD_REQ.duty_place || '';
+  const hasLoc = FD_REQ.duty_lat != null && FD_REQ.duty_lng != null;
+  let html = `<p class="m-0 mb-2">${L('Approved for','मंज़ूर')}: <b>${esc(fmtDate(FD_REQ.date))}</b>`
+    + (place ? ` · <b>${esc(place)}</b>` : '')
+    + (FD_REQ.reason ? `<br><span style="color:var(--muted)">${esc(FD_REQ.reason)}</span>` : '') + '</p>';
+  if(!hasLoc) html += `<p class="tm-note mb-2" style="color:#92400e">${L(
+    'HR has not set the duty location, so the arrival cannot be matched automatically.',
+    'HR ने ड्यूटी की जगह सेट नहीं की है, इसलिए पहुँचना अपने आप मिलाया नहीं जाएगा।')}</p>`;
+
+  let nextDone = true;
+  FD_STAGES.forEach((st, i) => {
+    const lg = fdLog(st.k);
+    const done = !!lg;
+    const canDo = !done && nextDone;
+    if(!done) nextDone = false;
+    const t = done ? new Date(lg.created_at).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }) : '';
+    let verLine = '';
+    if(done && st.k === 'ARRIVE' && lg.distance_m != null){
+      const okk = lg.verified === true;
+      verLine = `<div style="font-size:11px;margin-top:2px;color:${okk ? '#15803d' : '#b91c1c'}">
+        ${okk ? '✓ ' + L('Matched the approved place','मंज़ूर जगह से मिल गया')
+              : '✗ ' + L('Away from the approved place','मंज़ूर जगह से दूर')}
+        · ${Math.round(lg.distance_m)} m</div>`;
+    }
+    html += `<div style="display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid #e2e8f0">
+      <div style="width:28px;height:28px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;
+                  background:${done ? '#dcfce7' : (canDo ? '#dbeafe' : '#f1f5f9')};
+                  color:${done ? '#15803d' : (canDo ? '#1d4ed8' : '#94a3b8')};font-weight:800;font-size:12px">${done ? '✓' : (i+1)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600"><i class="fa-solid ${st.ic}" style="opacity:.6;margin-right:4px"></i>${L(st.en, st.hi)}</div>
+        ${done ? `<div style="font-size:11px;color:var(--muted)">${esc(t)}${lg.lat != null ? ' · ' + Number(lg.lat).toFixed(5) + ', ' + Number(lg.lng).toFixed(5) : ''}</div>${verLine}
+                  ${lg.photo_url ? `<img src="${esc(lg.photo_url)}" style="width:54px;height:54px;object-fit:cover;border-radius:8px;margin-top:5px;border:1px solid #cbd5e1">` : ''}`
+                : (canDo ? `<button class="btn btn-primary btn-sm mt-1" onclick="fdStart('${st.k}')" style="background:#15803d">
+                      <i class="fa-solid fa-camera"></i> ${L('Punch here','यहीं पंच करें')}</button>`
+                         : `<div style="font-size:11px;color:var(--muted)">${L('after the previous step','पिछले चरण के बाद')}</div>`)}
+      </div></div>`;
+  });
+  box.innerHTML = html;
+}
+
+async function fdStart(stage){
+  _fdStage = stage; _fdGeo = null;
+  if(!navigator.geolocation)
+    return notify(L('This phone cannot give a location — field punch is not possible.',
+                    'इस फ़ोन से लोकेशन नहीं मिल रही — फील्ड पंच नहीं हो सकता।'));
+  notify(L('Getting your location…','लोकेशन ली जा रही है…'));
+  try{
+    const pos = await new Promise((res, rej) =>
+      navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy:true, timeout:15000, maximumAge:0 }));
+    _fdGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
+  }catch(e){
+    return notify(L('Location was not allowed. Field punch needs it — please allow location and try again.',
+                    'लोकेशन की अनुमति नहीं मिली। फील्ड पंच के लिए यह ज़रूरी है — अनुमति देकर दोबारा करें।'));
+  }
+  await fdCamOpen();
+}
+
+async function fdCamOpen(){
+  const st = FD_STAGES.find(x => x.k === _fdStage) || {};
+  $('fdCamTitle').innerText = L(st.en || '', st.hi || '');
+  $('fdCamGeo').innerText = _fdGeo
+    ? '📍 ' + _fdGeo.lat.toFixed(5) + ', ' + _fdGeo.lng.toFixed(5) + ' (±' + Math.round(_fdGeo.acc) + 'm)' : '';
+  $('fdCam').style.display = 'flex';
+  try{
+    _fdStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' }, audio:false });
+    $('fdCamVideo').srcObject = _fdStream;
+  }catch(e){
+    try{ _fdStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:false }); $('fdCamVideo').srcObject = _fdStream; }
+    catch(e2){ fdCamClose(); notify(L('The camera did not open. A selfie is required for field punch.',
+                                      'कैमरा नहीं खुला। फील्ड पंच के लिए सेल्फ़ी ज़रूरी है।')); }
+  }
+}
+function fdCamClose(){
+  try{ if(_fdStream) _fdStream.getTracks().forEach(t => t.stop()); }catch(e){}
+  _fdStream = null; const el = $('fdCam'); if(el) el.style.display = 'none';
+}
+function fdShoot(){
+  const v = $('fdCamVideo'); let img = null;
+  try{
+    const c = document.createElement('canvas');
+    c.width = v.videoWidth || 480; c.height = v.videoHeight || 640;
+    c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+    img = c.toDataURL('image/jpeg', 0.72);
+  }catch(e){}
+  if(!img || img.length < 2000) return notify(L('The photo was not captured. Try again.','फ़ोटो नहीं खिंची। दोबारा करें।'));
+  fdCamClose();
+  fdSubmit(img);
+}
+
+async function fdSubmit(imgData){
+  if(!FD_REQ || !_fdStage || !_fdGeo) return;
+  const stage = _fdStage, geo = _fdGeo;
+  _fdStage = null; _fdGeo = null;
+  notify(L('Saving…','सेव हो रहा है…'));
+  try{
+    const codeU = String(CODE||'').trim().toUpperCase();
+    let photoUrl = '';
+    try{
+      const bin = atob(imgData.split(',')[1]); const arr = new Uint8Array(bin.length);
+      for(let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      const fn = 'field_duty/' + codeU + '_' + FD_REQ.date + '_' + stage + '_' + Date.now() + '.jpg';
+      const up = await sb.storage.from('attendance-photos').upload(fn, new Blob([arr], { type:'image/jpeg' }), { contentType:'image/jpeg' });
+      if(up.error) throw up.error;
+      photoUrl = SUPABASE_URL + '/storage/v1/object/public/attendance-photos/' + fn;
+    }catch(e){
+      return notify(L('Photo upload failed — nothing was saved. Check your internet and try again.',
+                      'फ़ोटो अपलोड नहीं हुई — कुछ सेव नहीं हुआ। इंटरनेट देखकर दोबारा करें।'));
+    }
+    const { error } = await sb.from('field_duty_logs').insert([{
+      request_id: FD_REQ.id, employee_code: codeU, name: (D.employee && D.employee.Name) || codeU,
+      date: FD_REQ.date, stage: stage, lat: geo.lat, lng: geo.lng, accuracy_m: geo.acc, photo_url: photoUrl
+    }]);
+    if(error){
+      if(String(error.message || '').includes('duplicate'))
+        return notify(L('This step is already done.','यह चरण पहले ही हो चुका है।'));
+      throw error;
+    }
+    await loadFieldDuty();
+    const lg = fdLog(stage);
+    if(stage === 'ARRIVE' && lg && lg.distance_m != null){
+      notify(lg.verified
+        ? L('✓ Reached — matched the approved place (' + Math.round(lg.distance_m) + ' m)',
+            '✓ पहुँच गए — मंज़ूर जगह से मिल गया (' + Math.round(lg.distance_m) + ' मी)')
+        : L('Saved, but you are ' + Math.round(lg.distance_m) + ' m from the approved place — HR will see this.',
+            'सेव हो गया, पर आप मंज़ूर जगह से ' + Math.round(lg.distance_m) + ' मी दूर हैं — HR को दिखेगा।'),
+        lg.verified ? 'success' : 'error');
+    } else {
+      notify(L('Saved ✓','सेव हो गया ✓'), 'success');
+    }
+  }catch(err){ notify(err.message || 'Failed'); }
+}
+
 async function loadFieldReqs(){
   const host = $('fldList'); if(!host) return;
   if($('fldFrom') && !$('fldFrom').value) $('fldFrom').value = new Date().toISOString().slice(0,10);
@@ -3531,6 +3714,7 @@ $('loginBtn').addEventListener('click', async () => {
     try{ loadTeamApprovals(); }catch(e){ _dbg('team-ERROR', e); }
     try{ loadGatePass(); }catch(e){ _dbg('gate-ERROR', e); }
     try{ loadFieldReqs(); }catch(e){ _dbg('field-ERROR', e); }
+    try{ loadFieldDuty(); }catch(e){ _dbg('fieldduty-ERROR', e); }
     try{ loadAttFix(); }catch(e){ _dbg('attfix-ERROR', e); }
     try{ loadMoneyReqs(); }catch(e){ _dbg('mr-ERROR', e); }
     sb.rpc('ess_line_today', { p_code: CODE, p_phone: PHONE }).then(({ data: ld }) => {
