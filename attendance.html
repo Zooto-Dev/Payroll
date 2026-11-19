@@ -933,56 +933,13 @@ function nxConfirm(msg, title){
             return new Blob([ab], {type: mimeString});
         }
 
-        // ---- Employee cache: localStorage me samata hi nahi tha ----
-        // 400+ bande x 8 face samples = ~9 MB, aur localStorage ki hadd 5 MB hai.
-        // setItem QuotaExceededError phenkta tha, isliye cache mahino se jahan ka
-        // tahan jama rehta tha aur emp_sync_ts bhi aage nahi badh paata tha --
-        // yaani device purane chehron par hi atka reh jata tha aur jiska face
-        // baad me badla, uska punch hona band ho jata tha. IndexedDB me jagah ki
-        // ye dikkat nahi hai, isliye asli cache ab wahan rehta hai.
-        const EMP_CACHE_KEY = 'cached_employees_data';
-        async function _idbPutKey(key, str){
-            try{
-                const db = await _idbOpen();
-                return await new Promise(res => {
-                    const tx = db.transaction('kv','readwrite');
-                    const rq = tx.objectStore('kv').put(str, key);
-                    rq.onsuccess = () => res(true);
-                    rq.onerror   = () => res(false);
-                    tx.onabort   = () => res(false);
-                });
-            }catch(e){ return false; }
-        }
-        async function _idbGetKey(key){
-            try{
-                const db = await _idbOpen();
-                return await new Promise(res => {
-                    const g = db.transaction('kv','readonly').objectStore('kv').get(key);
-                    g.onsuccess = () => res(g.result || null);
-                    g.onerror   = () => res(null);
-                });
-            }catch(e){ return null; }
-        }
-        async function _loadEmpCache(){
-            const fromIdb = await _idbGetKey(EMP_CACHE_KEY);
-            if(fromIdb) return fromIdb;
-            try{ return localStorage.getItem(EMP_CACHE_KEY); }catch(e){ return null; }
-        }
-        async function _saveEmpCache(str){
-            const ok = await _idbPutKey(EMP_CACHE_KEY, str);
-            // chhota ho to localStorage me bhi rakh lo (purane raaste chalte rahen).
-            // Na samaye to purani adhoori copy hata do, warna wahi padi reh jayegi.
-            try{ localStorage.setItem(EMP_CACHE_KEY, str); return true; }
-            catch(e){ try{ localStorage.removeItem(EMP_CACHE_KEY); }catch(e2){} return ok; }
-        }
-
         // --- STREAMING_CHUNK: Lightweight AI Initialization ---
         async function fetchEmployeesData(isSilent = false) {
             try {
                 let data = null;
                 // start from whatever we already have cached (map by code)
                 let cacheMap = {};
-                try { (JSON.parse((await _loadEmpCache()) || '[]')).forEach(e => cacheMap[e['Employee code']] = e); } catch(e){}
+                try { (JSON.parse(localStorage.getItem('cached_employees_data') || '[]')).forEach(e => cacheMap[e['Employee code']] = e); } catch(e){}
                 const haveCache = Object.keys(cacheMap).length > 0;
 
                 if (navigator.onLine) {
@@ -1008,15 +965,8 @@ function nxConfirm(msg, title){
                             Object.keys(cacheMap).forEach(k => { if (!activeSet.has(k)) delete cacheMap[k]; });
                         }
                         data = Object.values(cacheMap);
-                        const cacheSaved = await _saveEmpCache(JSON.stringify(data));
-                        // emp_sync_ts tabhi aage badhao jab cache sach me likh gaya ho.
-                        // Warna agli baar device sirf badle hue row maangega jabki uske
-                        // paas baaki ka data hai hi nahi -- aur yahi ab tak ho raha tha.
-                        try{
-                            if (cacheSaved) { if (newestTs) localStorage.setItem('emp_sync_ts', newestTs); }
-                            else localStorage.removeItem('emp_sync_ts');
-                        }catch(e){}
-                        if (!cacheSaved) console.warn('[Nexus] employee cache save nahi ho paya \u2014 agli baar poora data dobara aayega');
+                        localStorage.setItem('cached_employees_data', JSON.stringify(data));
+                        if (newestTs) localStorage.setItem('emp_sync_ts', newestTs);
                         if (changed.length && isSilent) console.log('[Nexus] synced ' + changed.length + ' changed employee(s)');
                         // refresh the code list only occasionally (cheap, code-only column)
                         if (!since || !haveCache) {
@@ -1368,37 +1318,26 @@ function nxConfirm(msg, title){
                     statusText.innerText = 'SCANNING';
 
                     _gpuErrStreak = 0;   // a full successful detection = GPU healthy
+                    const match = faceMatcher.findBestMatch(detection.descriptor);
+                    if (match.label !== 'unknown' && detection.landmarks) trackBlink(match.label, detection.landmarks);
+                    trackUnknown(true, match.label !== 'unknown' && match.distance < 0.42);
+                    if(NX_DEBUG) hud('detect:' + (_t1-_t0).toFixed(0) + ' desc:' + (_t2-_t1).toFixed(0) + 'ms  best:' + match.label + ' dist:' + match.distance.toFixed(3) + ' conf:' + matchConfidence);
+
                     const CONFIDENT = 0.36;   // clearly this person -> one scan is enough (fast)
                     const STRICT    = 0.42;   // outer limit — isse door = unknown (galat match rokta hai)
-                    // Har bande ka SABSE PAAS WALA sample dekho (min), average NAHI.
-                    // face-api ka findBestMatch har bande ke saare samples ka AVERAGE
-                    // nikaalta hai, isliye jiske jitne zyada aur jitne alag-alag samples
-                    // hote the (autoLearn roz ek jodta hai, 8 tak) uska average utna hi
-                    // badhta jata tha — aur ek din wo bilkul pehchana jana band ho jata tha,
-                    // chahe ek sample bilkul sahi baitha ho. Min lena hi sahi hai.
-                    // Galat match se bachav pehle jaisa: neeche dusre bande se saaf gap maangte hain.
-                    let best = 1e9, second = 1e9, bestLabel = null, secondLabel = null;
-                    for (let li = 0; li < labeledFaceDescriptors.length; li++) {
-                        const lbl = labeledFaceDescriptors[li].label;
-                        const ds = labeledFaceDescriptors[li].descriptors;
-                        for (let di = 0; di < ds.length; di++) {
-                            const dd = faceapi.euclideanDistance(ds[di], detection.descriptor);
-                            if (dd < best) {
-                                // sirf tab khiskao jab wo DUSRA banda ho — warna apne hi
-                                // doosre sample ko "second" maan kar gap-check chhoot jata tha
-                                if (lbl !== bestLabel) { second = best; secondLabel = bestLabel; }
-                                best = dd; bestLabel = lbl;
-                            } else if (dd < second && lbl !== bestLabel) { second = dd; secondLabel = lbl; }
-                        }
-                    }
-                    const match = { label: (bestLabel && best < STRICT) ? bestLabel : 'unknown', distance: best };
-
-                    if (match.label !== 'unknown' && detection.landmarks) trackBlink(match.label, detection.landmarks);
-                    trackUnknown(true, match.label !== 'unknown', bestLabel, best);
-                    if(NX_DEBUG) hud('detect:' + (_t1-_t0).toFixed(0) + ' desc:' + (_t2-_t1).toFixed(0) + 'ms  best:' + match.label + ' dist:' + best.toFixed(3) + ' 2nd:' + (secondLabel||'-') + ' ' + (second<1e9?second.toFixed(3):'-') + ' conf:' + matchConfidence);
-
+                    // Compute best & second-best distance so we can guarantee it's not someone else.
                     let ambiguous = false, greyZone = false, matchOk = false;
-                    if (match.label !== 'unknown') {
+                    if (match.label !== 'unknown' && match.distance < STRICT) {
+                        let best = 1e9, second = 1e9, secondLabel = null, bestLabel = null;
+                        for (let li = 0; li < labeledFaceDescriptors.length; li++) {
+                            const lbl = labeledFaceDescriptors[li].label;
+                            const ds = labeledFaceDescriptors[li].descriptors;
+                            for (let di = 0; di < ds.length; di++) {
+                                const dd = faceapi.euclideanDistance(ds[di], detection.descriptor);
+                                if (dd < best) { second = best; secondLabel = bestLabel; best = dd; bestLabel = lbl; }
+                                else if (dd < second && lbl !== bestLabel) { second = dd; secondLabel = lbl; }
+                            }
+                        }
                         greyZone = best >= CONFIDENT;                 // borderline match
                         // Require a clear gap to the NEXT DIFFERENT person. Wider gap in the grey zone.
                         const needGap = greyZone ? 0.28 : 0.20;   // dusre bande se saaf gap — warna ambiguous = reject
@@ -1561,21 +1500,12 @@ function nxConfirm(msg, title){
         }
         // unknown-face tracker: a real face is visible but it matches nobody
         let _unkSince = 0, _unkSpokeAt = 0;
-        function trackUnknown(faceVisible, matched, nearLabel, nearDist){
+        function trackUnknown(faceVisible, matched){
             const nowT = Date.now();
             if (!faceVisible || matched){ _unkSince = 0; return; }
             if (!_unkSince) _unkSince = nowT;
             if (nowT - _unkSince > 2600){
-                // ?debug=1 par card par hi likh do ki sabse paas kaun tha aur kitni doori par.
-                // Iske bina pata hi nahi chalta ki chehra dikha hi nahi, ya dikha par door nikla.
-                let why = 'Register nahi hai ya saaf nahi dikh raha — seedha dekhein, roshni theek karein';
-                try{
-                    if (new URLSearchParams(location.search).get('debug') === '1')
-                        why += '<br><b>' + (nearLabel || '—') + '</b> sabse paas, doori '
-                             + (typeof nearDist === 'number' && nearDist < 1e8 ? nearDist.toFixed(3) : '—')
-                             + ' (0.420 se kam chahiye)';
-                }catch(e){}
-                showFeedback('unknown', '<i class="fa-solid fa-user-slash" style="color:#fcd34d"></i>', 'Chehra pehchana nahi gaya', why, 'warn', 2600);
+                showFeedback('unknown', '<i class="fa-solid fa-user-slash" style="color:#fcd34d"></i>', 'Chehra pehchana nahi gaya', 'Register nahi hai ya saaf nahi dikh raha — seedha dekhein, roshni theek karein', 'warn', 2600);
                 if (nowT - _unkSpokeAt > 10000){ _unkSpokeAt = nowT; speakText('Chehra pehchana nahi gaya. Kripya seedha dekhein.'); }
                 _unkSince = nowT;   // re-arm
             }
