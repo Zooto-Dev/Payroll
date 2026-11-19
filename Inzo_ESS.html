@@ -257,7 +257,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <img src="nexus-logo.png" alt="Nexus" style="height:44px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
       <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Portal</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B75</b> — 18 Nov</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B76</b> — 19 Nov</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -284,7 +284,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
           <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B75</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B76</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -364,6 +364,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <button class="req-tile hidden" id="tilFuel" data-rs="fuel"><span class="rt-ic" style="background:#dbeafe;color:#2563eb"><i class="fa-solid fa-gas-pump"></i></span><span>Fuel Meter</span></button>
         <button class="req-tile" data-rs="payslip"><span class="rt-ic" style="background:#d1fae5;color:#059669"><i class="fa-solid fa-indian-rupee-sign"></i></span><span>Payslips</span></button>
         <button class="req-tile" data-rs="assets"><span class="rt-ic" style="background:#ede9fe;color:#7c3aed"><i class="fa-solid fa-boxes-stacked"></i></span><span>My Assets</span></button>
+        <button class="req-tile hidden" id="tilAmgr" data-rs="amgr"><span class="rt-ic" style="background:#ccfbf1;color:#0f766e"><i class="fa-solid fa-warehouse"></i></span><span data-en="Asset Mgmt" data-hi="सामान / असेट">Asset Mgmt</span></button>
         <button class="req-tile" data-rs="ticket"><span class="rt-ic" style="background:#f3e8ff;color:#7c3aed"><i class="fa-solid fa-headset"></i></span><span data-en="Raise Ticket" data-hi="टिकट">Raise Ticket</span></button>
           <button class="req-tile" data-rs="voice"><span class="rt-ic" style="background:#e0e7ff;color:#4f46e5"><i class="fa-solid fa-comments"></i></span><span>Voice Box</span></button>
         <button class="req-tile" data-rs="resign"><span class="rt-ic" style="background:#fee2e2;color:#dc2626"><i class="fa-solid fa-person-walking-arrow-right"></i></span><span>Resign</span></button>
@@ -589,6 +590,56 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         </div>
         <button id="otBtn" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Request OT Approval</button>
         <div id="otBox" class="mt-3"></div>
+      </div>
+      </div>
+      <div class="req-sec hidden" id="rs-amgr">
+      <div class="card">
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-warehouse" style="color:#0f766e"></i> <span data-en="Issue an asset" data-hi="सामान इशू करें">Issue an asset</span></h3>
+        <div class="text-[11px] mt-0 mb-3 p-2 rounded" style="background:#f0fdfa;color:#115e59;line-height:1.5" data-en="Choose the person, then add each item from stock. Stock count drops only when you press Issue, and the person has to confirm receipt in their own portal." data-hi="पहले बंदा चुनें, फिर स्टॉक से एक-एक आइटम जोड़ें। स्टॉक की गिनती तभी घटेगी जब आप Issue दबाएँगे, और सामान मिला या नहीं, वो बंदा अपने पोर्टल में ख़ुद confirm करेगा।">Choose the person, then add each item from stock.</div>
+        <label class="lbl" data-en="Give it to" data-hi="किसको देना है">Give it to</label>
+        <input id="amEmpInp" class="inp mb-1" list="amEmpList" placeholder="Naam ya code likho">
+        <datalist id="amEmpList"></datalist>
+        <p class="text-[11px] mt-0 mb-3" id="amEmpPick" style="color:var(--muted)">&nbsp;</p>
+        <label class="lbl" data-en="Item (from stock)" data-hi="आइटम (स्टॉक से)">Item (from stock)</label>
+        <select id="amStock" class="inp mb-3"></select>
+        <div class="grid grid-cols-2 gap-2 mb-3">
+          <div><label class="lbl" data-en="Quantity" data-hi="कितने">Quantity</label><input id="amQty" type="number" min="1" value="1" class="inp"></div>
+          <div><label class="lbl" data-en="Return by" data-hi="वापसी कब तक">Return by</label><input id="amRetBy" type="date" class="inp"></div>
+        </div>
+        <label class="lbl" data-en="Serial no. (if any)" data-hi="सीरियल नंबर (हो तो)">Serial no. (if any)</label>
+        <input id="amSerial" class="inp mb-3" placeholder="SN…">
+        <label class="lbl" data-en="Brand" data-hi="ब्रांड">Brand</label>
+        <input id="amBrand" class="inp mb-3" placeholder="Dell / Samsung…">
+        <label class="lbl" data-en="With it (charger, bag, cable…)" data-hi="साथ में क्या (चार्जर, बैग, केबल…)">With it (charger, bag, cable…)</label>
+        <input id="amAcc" class="inp mb-3" placeholder="Charger, Bag">
+        <button id="amAddBtn" class="btn btn-ghost w-full justify-center mb-2"><i class="fa-solid fa-plus"></i> <span data-en="Add to list" data-hi="लिस्ट में जोड़ें">Add to list</span></button>
+        <div id="amCart" class="mb-2"></div>
+        <label class="lbl" data-en="Why / purpose" data-hi="किस काम के लिए">Why / purpose</label>
+        <input id="amPurpose" class="inp mb-3" placeholder="Office use / site work…">
+        <button id="amIssueBtn" class="btn btn-primary w-full justify-center"><i class="fa-solid fa-right-from-bracket"></i> <span data-en="Issue now" data-hi="अब इशू करें">Issue now</span></button>
+      </div>
+      <div class="card">
+        <h3 class="display font-bold mt-0 mb-3 text-sm"><i class="fa-solid fa-boxes-stacked" style="color:#0f766e"></i> <span data-en="Stock" data-hi="स्टॉक">Stock</span></h3>
+        <div id="amStockBox" class="mb-3"></div>
+        <details>
+          <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);padding:6px 0;list-style:none"><i class="fa-solid fa-plus"></i> <span data-en="Add new stock" data-hi="नया स्टॉक जोड़ें">Add new stock</span></summary>
+          <div class="mt-2">
+            <label class="lbl" data-en="Item type" data-hi="आइटम का प्रकार">Item type</label>
+            <input id="amNewType" class="inp mb-2" placeholder="LAPTOP / CHAIR / SIM…">
+            <label class="lbl" data-en="Name / model" data-hi="नाम / मॉडल">Name / model</label>
+            <input id="amNewName" class="inp mb-2" placeholder="Vostro 3400">
+            <div class="grid grid-cols-2 gap-2 mb-2">
+              <div><label class="lbl" data-en="Brand" data-hi="ब्रांड">Brand</label><input id="amNewBrand" class="inp" placeholder="Dell"></div>
+              <div><label class="lbl" data-en="How many" data-hi="कितने">How many</label><input id="amNewQty" type="number" min="1" value="1" class="inp"></div>
+            </div>
+            <button id="amStockBtn" class="btn btn-ghost w-full justify-center"><i class="fa-solid fa-warehouse"></i> <span data-en="Add to stock" data-hi="स्टॉक में जोड़ें">Add to stock</span></button>
+          </div>
+        </details>
+      </div>
+      <div class="card">
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-list-check" style="color:#0f766e"></i> <span data-en="Out with people" data-hi="लोगों के पास">Out with people</span></h3>
+        <input id="amSearch" class="inp mb-3" placeholder="Naam / code / item…">
+        <div id="amIssuedBox"></div>
       </div>
       </div>
       <div class="req-sec hidden" id="rs-ticket">
@@ -1406,7 +1457,7 @@ document.querySelectorAll('.req-tile').forEach(t => t.addEventListener('click', 
   const opening = sec.classList.contains('hidden');
   document.querySelectorAll('.req-sec').forEach(s => s.classList.add('hidden'));
   document.querySelectorAll('.req-tile').forEach(x => x.classList.remove('active'));
-  if(opening){ sec.classList.remove('hidden'); t.classList.add('active'); if(t.dataset.rs === 'faq') essRenderFaq(); if(t.dataset.rs === 'visitor') loadVisitorReq(); if(t.dataset.rs === 'ticket') loadTickets(); }
+  if(opening){ sec.classList.remove('hidden'); t.classList.add('active'); if(t.dataset.rs === 'faq') essRenderFaq(); if(t.dataset.rs === 'visitor') loadVisitorReq(); if(t.dataset.rs === 'ticket') loadTickets(); if(t.dataset.rs === 'amgr') loadAmgr(); }
 }));
 /* ===== ESS Help / SOP ===== */
 var ESS_FAQ = [
@@ -3776,6 +3827,8 @@ function render(){
   $('stPresent').innerText = att.filter(a => a.date && a.date.startsWith(ym)).length;
   // WFH sirf STAFF ke liye — worker ke paas ye option nahi hai.
   try{ if($('tilWfh')) $('tilWfh').classList.toggle('hidden', !essIsStaff()); }catch(e){}
+  // Asset management ka tile sirf ADMIN department wale ko. Asli rok server par hai.
+  try{ if($('tilAmgr')) $('tilAmgr').classList.toggle('hidden', !amIsAdminDept()); }catch(e){}
   try{ essApplyLang(); hmPaintHero(); hmTick(); }catch(e){}
   const slips = D.payslips || [];
   $('stNet').innerText = slips.length ? fmtINR(slips[0].net_pay) : '—';
@@ -3805,6 +3858,7 @@ function render(){
   renderOT();
   loadFeedback();
   try{ loadTickets(); }catch(e){ _dbg('tickets-ERROR', e); }
+  try{ if(amIsAdminDept()) loadAmgr(); }catch(e){ _dbg('assetmgr-ERROR', e); }
   loadMyAssets();
   loadMyShifts();          // roster se aane wali shift — entry na ho to card chhupa rehta hai
   loadMyNotices();         // Special Working/Off din + unauthorised absence. Pehle ye sirf
@@ -4369,6 +4423,240 @@ async function loadFeedback(){
     }).join('') : '';
   }catch(e){}
 }
+/* ===== Asset Management — sirf ADMIN department =====
+   Tile chhupa hua hai, par asli rok page par nahi hai: har RPC khud check karta hai
+   ki bulane wala ADMIN department ka ACTIVE banda hai (nx_is_admin_dept). */
+function amIsAdminDept(){
+  const d = String((((D || {}).employee) || {}).DEPARTMENT || '').toUpperCase();
+  return /\bADMIN/.test(d);
+}
+var AM_STOCK = [], AM_EMP = [], AM_ISSUED = [], AM_CART = [];
+function amNum(n){ return Number(n || 0); }
+function amStockLabel(s){
+  return s.asset_type + (s.asset_name && s.asset_name !== s.asset_type ? ' — ' + s.asset_name : '')
+       + (s.brand ? ' (' + s.brand + ')' : '')
+       + '  ·  ' + amNum(s.available_qty) + '/' + amNum(s.total_qty) + L(' available', ' बचे');
+}
+async function loadAmgr(){
+  if(!amIsAdminDept()) return;
+  const box = $('amIssuedBox');
+  if(box) box.innerHTML = '<p class="text-[11px] m-0" style="color:var(--muted)">' + L('Loading…','लोड हो रहा है…') + '</p>';
+  try{
+    const { data, error } = await sb.rpc('ess_adm_asset_data', { p_code: CODE, p_phone: PHONE });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    AM_STOCK  = data.stock || [];
+    AM_EMP    = data.employees || [];
+    AM_ISSUED = data.issued || [];
+    // employee picker
+    $('amEmpList').innerHTML = AM_EMP.map(e =>
+      '<option value="' + esc(e.name + ' (' + e.code + ')') + '"></option>').join('');
+    // stock dropdown — jo khatam hai wo chunne ke liye hi nahi
+    const avail = AM_STOCK.filter(s => amNum(s.available_qty) > 0);
+    $('amStock').innerHTML = '<option value="">' + L('— choose an item —','— आइटम चुनें —') + '</option>'
+      + avail.map(s => '<option value="' + s.id + '">' + esc(amStockLabel(s)) + '</option>').join('');
+    amRenderStock(); amRenderIssued(); amRenderCart();
+  }catch(e){
+    if(box) box.innerHTML = '<p class="text-[11px] m-0" style="color:var(--bad)">' + esc(e.message || 'Load failed') + '</p>';
+  }
+}
+function amRenderStock(){
+  const host = $('amStockBox'); if(!host) return;
+  if(!AM_STOCK.length){
+    host.innerHTML = '<p class="text-[11px] m-0" style="color:var(--muted)">'
+      + L('Stock is empty — add items below.','स्टॉक खाली है — नीचे से आइटम जोड़ें।') + '</p>';
+    return;
+  }
+  const rows = AM_STOCK.slice().sort((a,b) => amNum(b.available_qty) - amNum(a.available_qty));
+  host.innerHTML = rows.map(s => {
+    const av = amNum(s.available_qty), tot = amNum(s.total_qty);
+    const col = av === 0 ? '#b91c1c' : (av <= 2 ? '#b45309' : '#047857');
+    return '<div class="row"><span><b>' + esc(s.asset_type) + '</b>'
+      + (s.asset_name && s.asset_name !== s.asset_type ? ' <span style="color:var(--muted)">' + esc(s.asset_name) + '</span>' : '')
+      + (s.brand ? ' <span class="chip" style="font-size:9px">' + esc(s.brand) + '</span>' : '')
+      + '</span><span style="font-weight:700;color:' + col + '">' + av + '<span style="color:var(--muted);font-weight:400">/' + tot + '</span></span></div>';
+  }).join('');
+}
+function amRenderIssued(){
+  const host = $('amIssuedBox'); if(!host) return;
+  const q = String(($('amSearch') || {}).value || '').trim().toUpperCase();
+  const list = AM_ISSUED.filter(a => !q || [a.emp_name, a.employee_code, a.asset_type, a.asset_name, a.serial_no, a.pass_id]
+    .map(x => String(x || '').toUpperCase()).join(' ').indexOf(q) > -1);
+  if(!list.length){
+    host.innerHTML = '<p class="text-[11px] m-0" style="color:var(--muted)">'
+      + L('Nothing is out with anyone.','किसी के पास कुछ बाहर नहीं है।') + '</p>';
+    return;
+  }
+  const today = essToday();
+  host.innerHTML = list.map(a => {
+    const late = a.expected_return && String(a.expected_return) < today;
+    return '<div class="card m-0 mb-2" style="padding:10px 12px">'
+      + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">'
+      + '<div style="min-width:0">'
+      + '<div style="font-weight:700;font-size:13px">' + esc(a.asset_type)
+      + (a.asset_name && a.asset_name !== a.asset_type ? ' <span style="color:var(--muted);font-weight:400">' + esc(a.asset_name) + '</span>' : '')
+      + (amNum(a.quantity) > 1 ? ' ×' + amNum(a.quantity) : '') + '</div>'
+      + '<div style="font-size:12px;color:var(--muted);margin-top:2px">' + esc(a.emp_name || a.employee_code)
+      + ' (' + esc(a.employee_code) + ')' + (a.emp_dept ? ' · ' + esc(a.emp_dept) : '') + '</div>'
+      + '<div style="font-size:10px;color:var(--muted);margin-top:2px">' + esc(a.pass_id || '')
+      + ' · ' + L('issued','दिया') + ' ' + esc(String(a.issue_date || '').slice(0,10))
+      + (a.serial_no ? ' · SN ' + esc(a.serial_no) : '') + '</div>'
+      + (a.accessories ? '<div style="font-size:10px;color:var(--muted)">' + L('With: ','साथ में: ') + esc(a.accessories) + '</div>' : '')
+      + '</div><div style="text-align:right;white-space:nowrap">'
+      + (a.ack_status === 'PENDING_ACK'
+          ? '<span class="chip chip-warn" style="font-size:9px">' + L('not confirmed','confirm नहीं') + '</span>'
+          : '<span class="chip chip-ok" style="font-size:9px">' + L('confirmed','confirm') + '</span>')
+      + (a.expected_return
+          ? '<div style="font-size:10px;margin-top:3px;color:' + (late ? 'var(--bad)' : 'var(--muted)') + '">'
+            + L('due ','वापसी ') + esc(String(a.expected_return).slice(0,10)) + '</div>'
+          : '')
+      + '</div></div>'
+      + '<div class="flex gap-1 flex-wrap" style="margin-top:8px">'
+      + '<button class="btn btn-ghost" style="font-size:11px;padding:5px 9px" data-amret="' + a.id + '" data-amcond="OK"><i class="fa-solid fa-rotate-left"></i> ' + L('Returned OK','ठीक-ठाक वापस') + '</button>'
+      + '<button class="btn btn-ghost" style="font-size:11px;padding:5px 9px;color:var(--bad)" data-amret="' + a.id + '" data-amcond="DAMAGED"><i class="fa-solid fa-triangle-exclamation"></i> ' + L('Damaged / lost','टूटा / खो गया') + '</button>'
+      + '</div></div>';
+  }).join('');
+}
+function amRenderCart(){
+  const host = $('amCart'); if(!host) return;
+  if(!AM_CART.length){ host.innerHTML = ''; return; }
+  host.innerHTML = '<div class="p-2 rounded" style="background:#f0fdfa;border:1px solid #99f6e4">'
+    + '<div class="text-[11px] font-semibold mb-1" style="color:#115e59">' + L('Will be issued:','ये इशू होगा:') + '</div>'
+    + AM_CART.map((c, i) =>
+        '<div class="text-xs" style="display:flex;justify-content:space-between;gap:6px;padding:3px 0;border-bottom:1px dashed #99f6e4">'
+        + '<span><b>' + esc(c._label) + '</b> ×' + c.quantity
+        + (c.serial_no ? ' · SN ' + esc(c.serial_no) : '')
+        + (c.accessories ? '<div style="font-size:10px;color:var(--muted)">' + L('With: ','साथ में: ') + esc(c.accessories) + '</div>' : '')
+        + '</span><button class="btn btn-ghost" style="font-size:10px;padding:2px 7px" data-amdel="' + i + '">✕</button></div>').join('')
+    + '</div>';
+}
+function amPickedEmp(){
+  const raw = String($('amEmpInp').value || '').trim();
+  if(!raw) return null;
+  const m = raw.match(/\(([^)]+)\)\s*$/);
+  const byCode = m ? AM_EMP.find(e => e.code.toUpperCase() === m[1].trim().toUpperCase()) : null;
+  if(byCode) return byCode;
+  const up = raw.toUpperCase();
+  return AM_EMP.find(e => e.code.toUpperCase() === up)
+      || AM_EMP.find(e => String(e.name || '').toUpperCase() === up)
+      || null;
+}
+function amSyncEmp(){
+  const e = amPickedEmp();
+  $('amEmpPick').innerHTML = e
+    ? '<span style="color:#047857"><i class="fa-solid fa-circle-check"></i> ' + esc(e.name) + ' · ' + esc(e.code) + (e.dept ? ' · ' + esc(e.dept) : '') + '</span>'
+    : (String($('amEmpInp').value || '').trim()
+        ? '<span style="color:var(--bad)">' + L('No such employee — pick from the list','ऐसा कोई नहीं मिला — लिस्ट से चुनें') + '</span>'
+        : '&nbsp;');
+}
+function amAddCart(){
+  const sid = $('amStock').value;
+  if(!sid) return notify(L('Choose an item first','पहले आइटम चुनें'));
+  const s = AM_STOCK.find(x => String(x.id) === String(sid));
+  if(!s) return notify(L('Choose an item first','पहले आइटम चुनें'));
+  const qty = Math.max(1, Number($('amQty').value) || 1);
+  const already = AM_CART.filter(c => String(c.stock_id) === String(sid)).reduce((a, c) => a + c.quantity, 0);
+  if(qty + already > amNum(s.available_qty))
+    return notify(L('Only ' + amNum(s.available_qty) + ' available' + (already ? ' and ' + already + ' already in the list' : ''),
+                    'सिर्फ़ ' + amNum(s.available_qty) + ' बचे हैं' + (already ? ', और ' + already + ' पहले से लिस्ट में हैं' : '')));
+  AM_CART.push({
+    stock_id: s.id, quantity: qty,
+    serial_no: $('amSerial').value.trim() || null,
+    brand: $('amBrand').value.trim() || s.brand || null,
+    accessories: $('amAcc').value.trim() || null,
+    expected_return: $('amRetBy').value || null,
+    _label: s.asset_type + (s.asset_name && s.asset_name !== s.asset_type ? ' — ' + s.asset_name : '')
+  });
+  amRenderCart();
+  $('amStock').value = ''; $('amQty').value = 1; $('amSerial').value = '';
+  $('amBrand').value = ''; $('amAcc').value = ''; $('amRetBy').value = '';
+}
+async function amIssue(){
+  const e = amPickedEmp();
+  if(!e) return notify(L('Pick who it goes to','पहले चुनें किसको देना है'));
+  if($('amStock').value) amAddCart();          // form me item pada hai to khud jod do
+  if(!AM_CART.length) return notify(L('Add at least one item','कम से कम एक आइटम जोड़ें'));
+  const btn = $('amIssueBtn'), old = btn.innerHTML;
+  btn.innerHTML = '<div class="loader-ring"></div> ' + L('Issuing…','इशू हो रहा है…'); btn.disabled = true;
+  try{
+    const items = AM_CART.map(c => ({
+      stock_id: c.stock_id, quantity: c.quantity, serial_no: c.serial_no,
+      brand: c.brand, accessories: c.accessories, expected_return: c.expected_return
+    }));
+    const { data, error } = await sb.rpc('ess_adm_asset_issue', {
+      p_code: CODE, p_phone: PHONE, p_emp: e.code, p_items: items,
+      p_purpose: $('amPurpose').value.trim() || null, p_date: essToday()
+    });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    notify(L(data.count + ' item issued to ' + e.name + ' — waiting for them to confirm',
+             data.count + ' आइटम ' + e.name + ' को दे दिए — अब उनका confirm आना है'), 'success');
+    AM_CART = [];
+    $('amEmpInp').value = ''; $('amPurpose').value = '';
+    amSyncEmp();
+    loadAmgr();
+  }catch(err){ notify(err.message || 'Failed'); }
+  finally{ btn.innerHTML = old; btn.disabled = false; }
+}
+async function amReturn(id, cond){
+  const a = AM_ISSUED.find(x => String(x.id) === String(id));
+  if(!a) return;
+  const what = a.asset_type + (amNum(a.quantity) > 1 ? ' ×' + amNum(a.quantity) : '')
+             + ' — ' + (a.emp_name || a.employee_code);
+  let note = null;
+  if(cond === 'OK'){
+    if(!(await nxConfirm(L('Taking this back into stock?\n\n' + what, 'इसे स्टॉक में वापस ले रहे हैं?\n\n' + what),
+                         L('Return','वापसी')))) return;
+  }else{
+    note = await nxPrompt(L('What happened? (damaged / lost — this stays on the record)\n\n' + what,
+                            'क्या हुआ? (टूटा / खो गया — ये रिकॉर्ड में रहेगा)\n\n' + what),
+                          L('Damaged / lost','टूटा / खो गया'));
+    if(note === null) return;
+    if(!String(note).trim()) return notify(L('Please write what happened','क्या हुआ, वो लिखना ज़रूरी है'));
+  }
+  try{
+    const { data, error } = await sb.rpc('ess_adm_asset_return', {
+      p_code: CODE, p_phone: PHONE, p_id: a.id, p_condition: cond, p_note: note
+    });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    notify(cond === 'OK' ? L('Returned — back in stock','वापस आ गया — स्टॉक में जुड़ गया')
+                         : L('Marked damaged / lost — not added back to stock','टूटा/खोया दर्ज — स्टॉक में वापस नहीं जोड़ा'), 'success');
+    loadAmgr();
+  }catch(err){ notify(err.message || 'Failed'); }
+}
+async function amStockAdd(){
+  const type = $('amNewType').value.trim();
+  if(!type) return notify(L('Write the item type','आइटम का प्रकार लिखें'));
+  const qty = Number($('amNewQty').value) || 0;
+  if(qty < 1) return notify(L('How many? At least 1','कितने? कम से कम 1'));
+  const btn = $('amStockBtn'), old = btn.innerHTML;
+  btn.innerHTML = '<div class="loader-ring"></div> ' + L('Adding…','जोड़ रहे हैं…'); btn.disabled = true;
+  try{
+    const { data, error } = await sb.rpc('ess_adm_asset_stock_add', {
+      p_code: CODE, p_phone: PHONE, p_type: type,
+      p_name: $('amNewName').value.trim() || null,
+      p_brand: $('amNewBrand').value.trim() || null, p_qty: qty
+    });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    notify(L(qty + ' added to stock', qty + ' स्टॉक में जुड़ गए'), 'success');
+    $('amNewType').value = ''; $('amNewName').value = ''; $('amNewBrand').value = ''; $('amNewQty').value = 1;
+    loadAmgr();
+  }catch(err){ notify(err.message || 'Failed'); }
+  finally{ btn.innerHTML = old; btn.disabled = false; }
+}
+if($('amAddBtn'))   $('amAddBtn').addEventListener('click', amAddCart);
+if($('amIssueBtn')) $('amIssueBtn').addEventListener('click', amIssue);
+if($('amStockBtn')) $('amStockBtn').addEventListener('click', amStockAdd);
+if($('amEmpInp'))   $('amEmpInp').addEventListener('input', amSyncEmp);
+if($('amSearch'))   $('amSearch').addEventListener('input', () => { try{ amRenderIssued(); }catch(e){} });
+if($('rs-amgr')) $('rs-amgr').addEventListener('click', (ev) => {
+  const d = ev.target.closest('[data-amdel]');
+  if(d){ AM_CART.splice(Number(d.dataset.amdel), 1); amRenderCart(); return; }
+  const r = ev.target.closest('[data-amret]');
+  if(r){ amReturn(r.dataset.amret, r.dataset.amcond); }
+});
 /* ===== Raise Ticket — HR ya Admin ke paas seedha =====
    Ticket ek hi jagah banti hai (ess_raise_ticket) aur wahi tay karta hai kaun dekhega:
    HR wali sirf HR ko, Admin wali sirf Admin ko. Employee ko sirf apni dikhti hain. */
