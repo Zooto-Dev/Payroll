@@ -131,7 +131,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .d-L{background:#fdba74;color:#7c2d12}
 .d-A{background:#fbcfe8;color:#9d174d}
 .d-WO{background:#fef9c3;color:#854d0e}
-.d-WFH{background:#f3e8ff;color:#6b21a8;font-weight:700}
+.d-WFH{background:#2563eb;color:#fff;font-weight:700}
 /* Requests tiles */
 .req-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
 .req-tile{display:flex;flex-direction:column;align-items:center;gap:5px;padding:11px 4px 9px;border:1.5px solid var(--line);border-radius:14px;background:#fff;cursor:pointer;font-size:10.5px;font-weight:600;color:var(--muted);transition:all .15s}
@@ -257,7 +257,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <img src="nexus-logo.png" alt="Nexus" style="height:44px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
       <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Portal</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B77</b> — 20 Nov</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B78</b> — 20 Nov</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -284,7 +284,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
           <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B77</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B78</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -439,6 +439,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <b>Short Leave</b> — 2 hours (arrive late or leave early) · <b>Half Day</b> — half working day.<br>
           Monthly limit: <b>1 Half Day OR 2 Short Leaves</b>. Requires reporting manager approval. Approved passes are fully paid.<br>
           <b>Official</b> — out on company work: the day is excused and your monthly personal quota is <b>not</b> used up. <b>Personal</b> — uses one from the quota above.</div>
+        <p class="text-[11px] mt-0 mb-2 p-2 rounded font-semibold" id="gpRule" style="background:#fffbeb;color:#92400e;border:1px solid #fde68a;line-height:1.45" data-en="A gate pass can be requested only for a day on which you have already punched. Punch first, then request." data-hi="गेट पास सिर्फ़ उसी दिन का डाल सकते हैं जिस दिन आपका पंच हो चुका हो। पहले पंच करें, फिर रिक्वेस्ट डालें।">A gate pass can be requested only for a day on which you have already punched. Punch first, then request.</p>
         <p class="text-[11px] mt-0 mb-3 font-semibold" id="gpQuota" style="color:#0d9488">…</p>
         <div class="grid grid-cols-2 gap-2 mb-2">
           <div><label class="lbl">Type</label><select id="gpKind" class="inp">
@@ -2386,9 +2387,11 @@ document.addEventListener('click', async e => {
     loadMoneyReqs();
   }catch(err){ notify(err.message || 'Failed — run the V60 SQL if not done yet'); }
 });
+function _gpToday(){ const t = new Date(); return new Date(t.getTime() - t.getTimezoneOffset()*60000).toISOString().slice(0,10); }
 async function loadGatePass(){
   const host = $('gpList'); if(!host) return;
-  if($('gpDate') && !$('gpDate').value) $('gpDate').value = new Date().toISOString().slice(0,10);
+  // Gate pass sirf aaj ya pichhle din ka (jis din punch ho) — aage ki date band
+  if($('gpDate')){ $('gpDate').max = _gpToday(); if(!$('gpDate').value || $('gpDate').value > _gpToday()) $('gpDate').value = _gpToday(); }
   const codeU = String(CODE||'').trim().toUpperCase();
   try{
     const ym = new Date().toISOString().slice(0,7);
@@ -2432,6 +2435,7 @@ document.addEventListener('click', async e => {
   const codeU = String(CODE||'').trim().toUpperCase();
   const d = $('gpDate').value;
   if(!d) return notify('Select a date');
+  if(d > _gpToday()) return notify('Aage ki date ka gate pass nahi daal sakte — jis din aao, punch karne ke baad usi din daalo');
   // Monthly quota: YA TO 2 Short Leave YA 1 Half Day (dono nahi — mutually exclusive).
   // Official gate pass company ke kaam ka hai, isliye wo quota me ginta hi nahi —
   // na ye check uspe lagta hai, na wo quota kharch karta hai.
@@ -3022,6 +3026,8 @@ var NX_EN = {
  "UPI saved ✓ — approved expenses ab isi par pay honge": "UPI saved ✓ — approved expenses will now be paid to this ID",
  "Update Bhejo": "Send Update",
  "Us din ki ek request pehle se hai": "A request for that date already exists",
+ "Aage ki date ka gate pass nahi daal sakte — jis din aao, punch karne ke baad usi din daalo": "A gate pass cannot be requested for a future date. Request it on the day itself, after you have punched.",
+ "Us din ka koi punch nahi hai — gate pass sirf punch karne ke baad hi daal sakte ho": "No punch is recorded for that day. A gate pass can be requested only after you have punched.",
  "Visit date chunein": "Pick the visit date",
  "Visitor Entry Banao": "Create Visitor Entry",
  "Visitor entry cancelled. They will no longer be allowed at the gate.": "Visitor entry cancelled — entry will no longer be allowed at the gate",
@@ -3369,6 +3375,8 @@ var NX_HI = {
  "Update Bhejo": "बदलाव भेजें",
  "Uploading photo…": "फ़ोटो अपलोड हो रही है…",
  "Us din ki ek request pehle se hai": "उस दिन का एक अनुरोध पहले से है",
+ "Aage ki date ka gate pass nahi daal sakte — jis din aao, punch karne ke baad usi din daalo": "आगे की तारीख़ का गेट पास नहीं डाल सकते। जिस दिन आएँ, पंच करने के बाद उसी दिन डालें।",
+ "Us din ka koi punch nahi hai — gate pass sirf punch karne ke baad hi daal sakte ho": "उस दिन का कोई पंच नहीं है। गेट पास सिर्फ़ पंच करने के बाद ही डाल सकते हैं।",
  "View My HR": "मेरा HR देखें",
  "Visit date": "आने की तारीख़",
  "Visit date chunein": "आने की तारीख़ चुनें",

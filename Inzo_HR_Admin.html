@@ -262,7 +262,8 @@ body.not-super .super-only{display:none !important;}
 .c-WO{background:#f0ede6;color:#94a3b8}
 .c-H{background:var(--brand-soft);color:var(--brand);font-weight:700}
 .c-LV{background:#f5f3ff;color:#7c3aed;font-weight:700}
-.c-WFH{background:#f3e8ff;color:#6b21a8;font-weight:700;font-size:8.5px}
+.c-WFH{background:#2563eb;color:#fff;font-weight:700;font-size:8.5px}
+.c-HD{background:#f3e8ff;color:#6b21a8;font-weight:700;font-size:8.5px}
 /* ===== MIS dashboard ===== */
 .mis-kpi{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px}
 .mis-kpi .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
@@ -655,7 +656,7 @@ body.no-confidential .confidential-col{display:none!important}
       <button id="faceAuditBtn" class="btn btn-ghost" style="border-color:#e6c4c0;color:var(--bad)"><i class="fa-solid fa-face-viewfinder"></i> Face Mismatch Audit</button>
       <div class="tb-gap"></div>
       <div class="tb-legend text-[11px]">
-        <span class="chip c-P">P</span><span class="chip c-L">L</span><span class="chip c-A">A</span><span class="chip c-WO">WO</span><span class="chip c-H">H</span><span class="chip c-LV">LV</span>
+        <span class="chip c-P">P</span><span class="chip c-L">L</span><span class="chip c-A">A</span><span class="chip c-WO">WO</span><span class="chip c-H">H</span><span class="chip c-LV">LV</span><span class="chip c-WFH">WFH</span><span class="chip c-HD">HD</span>
       </div>
     </div>
   </div>
@@ -2200,7 +2201,7 @@ body.no-confidential .confidential-col{display:none!important}
     </div><!-- /FACE pane -->
     <!-- ===== TAB: BANK & DOCS ===== -->
     <div class="ep-pane hidden" data-eppane="bank">
-    <h4 class="display font-bold mt-1 mb-2">Bank & Statutory</h4>
+    <h4 class="display font-bold mt-1 mb-2">Bank & Statutory <span id="epBankHint" class="text-[10px] font-normal" style="color:var(--muted)"></span></h4>
     <div class="grid grid-cols-2 gap-3">
       <div><label class="lbl">Bank Name</label><input id="epBank" class="inp"></div>
       <div><label class="lbl">Account No.</label><input id="epAcc" class="inp"></div>
@@ -2288,7 +2289,7 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">Reporting Manager</label><input id="aeMgr" class="inp" list="mgrDL" placeholder="Select after department"></div>
     </div>
 
-    <div class="text-[11px] font-bold uppercase tracking-wide mb-2" style="color:var(--brand)">Bank & Statutory <span class="text-[10px] font-normal" style="color:var(--muted)">(optional — can fill later)</span></div>
+    <div class="text-[11px] font-bold uppercase tracking-wide mb-2" style="color:var(--brand)">Bank & Statutory <span id="aeBankHint" class="text-[10px] font-normal" style="color:var(--muted)">(Bank Name, Account No and IFSC are mandatory)</span></div>
     <div class="grid grid-cols-2 gap-3 mb-4">
       <div><label class="lbl">Bank Name</label><input id="aeBank" class="inp"></div>
       <div><label class="lbl">Account No</label><input id="aeAcc" class="inp"></div>
@@ -4269,7 +4270,7 @@ function renderIncompleteCard(){
     if(!p.dob) miss.push('DOB');
     if(!e.DEPARTMENT) miss.push('Department');
     if(!e.DESIGNATION) miss.push('Designation');
-    if(!p.bank_name || !p.account_no || !p.ifsc) miss.push('Bank');
+    if(String(p.roll_type||'').trim().toUpperCase() !== 'OFR' && (!p.bank_name || !p.account_no || !p.ifsc)) miss.push('Bank');
     if(!p.pan) miss.push('PAN');
     if(!p.aadhaar && !p.aadhaar_no) miss.push('Aadhaar');
     if(!FACE_CODES.has(code)) miss.push('Face');
@@ -4861,8 +4862,10 @@ $('aeSaveBtn').addEventListener('click', async () => {
     ['aePhone','Phone'], ['aeEmail','Email'], ['aeEmergency','Emergency Contact'], ['aeAddress','Address'],
     ['aeDept','Department'], ['aeDesig','Designation'], ['aeDOJ','Date of Joining'], ['aeEmpType','Employment Type'],
     ['aeRoll','Roll Type (On-Roll/Off-Roll)'],
-    ['aeMgr','Reporting Manager'], ['aeBank','Bank Name'], ['aeAcc','Account No'], ['aeIFSC','IFSC']
+    ['aeMgr','Reporting Manager']
   ];
+  // Bank details are not mandatory when the Roll Type is OFR
+  if(String($('aeRoll').value||'').toUpperCase() !== 'OFR') _req.push(['aeBank','Bank Name'], ['aeAcc','Account No'], ['aeIFSC','IFSC']);
   for(let _i=0;_i<_req.length;_i++){ const el=$(_req[_i][0]); if(!el || !String(el.value||'').trim()) return notify(_req[_i][1] + ' is required', 'error'); }
   // Line aur PAN ab optional hain — mandatory nahi
   // Contractor fields — sirf Contract type par
@@ -4972,7 +4975,18 @@ function _wireExitAuto(){
   const ex = document.getElementById('epExitDate');
   if(ex && !ex._wired){ ex._wired = true; ex.addEventListener('change', () => { if(ex.value) document.getElementById('epStatus').value = 'INACTIVE'; }); }
 }
+// Bank details: mandatory, except when the Roll Type is OFR
+function nxBankHint(){
+  [['aeRoll','aeBankHint'], ['epRoll','epBankHint']].forEach(function(p){
+    const r = $(p[0]), h = $(p[1]); if(!r || !h) return;
+    const ofr = String(r.value||'').toUpperCase() === 'OFR';
+    h.textContent = ofr ? '(Bank Name, Account No and IFSC are optional for this Roll Type)'
+                        : (p[0] === 'aeRoll' || window._epNewMode === true ? '(Bank Name, Account No and IFSC are mandatory)' : '');
+  });
+}
+document.addEventListener('change', function(e){ if(e.target && (e.target.id === 'aeRoll' || e.target.id === 'epRoll')) nxBankHint(); });
 function epSwitchTab(name){
+  try{ nxBankHint(); }catch(e){}
   document.querySelectorAll('.ep-tab').forEach(t => t.classList.toggle('active', t.dataset.eptab === name));
   document.querySelectorAll('.ep-pane').forEach(p => p.classList.toggle('hidden', p.dataset.eppane !== name));
   const box = document.querySelector('#empModal .modal-box'); if(box) box.scrollTop = 0;
@@ -6025,9 +6039,10 @@ $('epSaveBtn').addEventListener('click', async () => {
       ['epDOB','Date of Birth'], ['epGender','Gender'], ['epPhone','Phone'], ['epEmail','Email'],
       ['epEmPhone','Emergency Phone'], ['epAddr','Address'], ['epDeptSel','Department'],
       ['epDesigSel','Designation'], ['epDOJ','Date of Joining'], ['epType','Employment Type'],
-      ['epRoll','Roll Type (ONR/OFR)'], ['epManager','Reporting Manager'], ['epBank','Bank Name'],
-      ['epAcc','Account No'], ['epIFSC','IFSC']
+      ['epRoll','Roll Type (ONR/OFR)'], ['epManager','Reporting Manager']
     ];
+    // Bank details are not mandatory when the Roll Type is OFR
+    if(String($('epRoll').value||'').toUpperCase() !== 'OFR') _req.push(['epBank','Bank Name'], ['epAcc','Account No'], ['epIFSC','IFSC']);
     for(let i=0;i<_req.length;i++){ const el=$(_req[i][0]); if(!el || !String(el.value||'').trim()){ epSwitchTab(/^(epUnitSel|epName|epFather|epDOB|epGender|epPhone|epEmail|epEmPhone|epAddr|epDeptSel|epDesigSel|epDOJ)$/.test(_req[i][0])?'basic':(/^(epBank|epAcc|epIFSC|epPAN)$/.test(_req[i][0])?'bank':'job')); return notify(_req[i][1] + ' is required', 'error'); } }
     if(($('epPhone').value||'').replace(/\D/g,'').length < 10) return notify('Phone must be a valid 10-digit number', 'error');
     if(($('epEmPhone').value||'').replace(/\D/g,'').length < 10) return notify('Emergency Phone must be a valid 10-digit number', 'error');
@@ -8121,7 +8136,7 @@ async function loadRegister(){
           const hasSL = (gateSLRegMap[code]||new Set()).has(x.iso);
           const hasHD = (gateHDRegMap[code]||new Set()).has(x.iso);
           const isL = nxIsLateOn(code, x.iso, r) && !hasHD;   // is_late already accounts for morning short-leave grace; half-day fully excused
-          cls = hasHD ? 'c-WFH' : (isL ? 'c-L' : 'c-P');
+          cls = hasHD ? 'c-HD' : (isL ? 'c-L' : 'c-P');
           txt = hasHD ? 'HD' : (hasSL ? 'SL' : (isL ? 'L' : 'P'));
           p++; if(isL) l++;
         }
@@ -15622,7 +15637,7 @@ const FAQ_SOP = [
   { c:'Attendance', t:'Present / Late / Absent Today + Export', b:'<li>Click a Dashboard KPI → list; "Export CSV" is at the top right.</li><li>Present shows Department and Section, and includes trial workers who came today.</li>' },
   { c:'Attendance', t:'Shifts (Shift Master)', b:'<li>Add Shift: name, start/end time, grace (mins), night flag.</li><li>Edit: click the pencil next to a shift → it loads into the form → "Update Shift". The new timing and grace apply to all employees on that shift immediately.</li><li>Late = an IN after shift start + grace. Shifts are assigned from Profile → Job.</li>' },
   { c:'Attendance', t:'Roster & Shift Change', b:'<li>At the bottom of the Shifts page. Shows each assigned shift next to the actual median IN→OUT.</li><li>Spot a mismatch 🔴, change the shift from the dropdown, then click "Save Changes".</li>' },
-  { c:'Workforce', t:'Employees — Add / Edit / Profile', b:'<li>Add Employee: opens the Profile screen directly — the code is generated when the Unit is selected; all fields are mandatory.</li><li>Roll Type (ONR/OFR) is confidential; Section holds the line/sub-unit.</li><li>Salary, Shift, Face and Documents are all managed from the Profile tabs.</li>' },
+  { c:'Workforce', t:'Employees — Add / Edit / Profile', b:'<li>Add Employee: opens the Profile screen directly — the code is generated when the Unit is selected; all fields are mandatory, except that Bank Name, Account No and IFSC may be left blank when the Roll Type is OFR.</li><li>Roll Type (ONR/OFR) is confidential; Section holds the line/sub-unit.</li><li>Salary, Shift, Face and Documents are all managed from the Profile tabs.</li>' },
   { c:'Workforce', t:'Face Registration', b:'<li>Profile → Face: upload a clear front photo → Detect & Register.</li><li>Live re-registration: face-verify.html — search the employee and capture 10 clear samples from the camera; it registers only at high confidence.</li>' },
   { c:'Workforce', t:'Trial Workers (Work Pass)', b:'<li>Workforce → Trial Workers. 3 tabs: Convert Requests, Active Trial Workers, Daily Attendance.</li><li>The supervisor creates the pass from ESS; the trial worker punches at the kiosk.</li><li>Convert Requests → "Approve → Add Employee" (trial attendance syncs into payroll automatically). The worker leaves the list when the trial ends.</li>' },
   { c:'Workforce', t:'Hiring & Recruitment', b:'<li>Add candidates, move them through the stages, and send offers.</li><li>"Convert to Employee" opens the Add Employee form pre-filled for the candidate.</li>' },
