@@ -257,7 +257,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <img src="nexus-logo.png" alt="Nexus" style="height:44px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
       <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Portal</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B76</b> — 19 Nov</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B77</b> — 20 Nov</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -284,7 +284,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
           <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B76</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B77</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -360,7 +360,6 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <button class="req-tile" data-rs="visitor"><span class="rt-ic" style="background:#cffafe;color:#0891b2"><i class="fa-solid fa-user-plus"></i></span><span>Visitor</span></button>
         <button class="req-tile" data-rs="money"><span class="rt-ic" style="background:#dbeafe;color:#2563eb"><i class="fa-solid fa-receipt"></i></span><span>Expenses</span></button>
         <button class="req-tile" data-rs="adv"><span class="rt-ic" style="background:#fef9c3;color:#ca8a04"><i class="fa-solid fa-sack-dollar"></i></span><span>Advance / Loan</span></button>
-        <button class="req-tile hidden" id="tilOT" data-rs="ot"><span class="rt-ic" style="background:#fef3c7;color:#d97706"><i class="fa-solid fa-clock"></i></span><span>Overtime</span></button>
         <button class="req-tile hidden" id="tilFuel" data-rs="fuel"><span class="rt-ic" style="background:#dbeafe;color:#2563eb"><i class="fa-solid fa-gas-pump"></i></span><span>Fuel Meter</span></button>
         <button class="req-tile" data-rs="payslip"><span class="rt-ic" style="background:#d1fae5;color:#059669"><i class="fa-solid fa-indian-rupee-sign"></i></span><span>Payslips</span></button>
         <button class="req-tile" data-rs="assets"><span class="rt-ic" style="background:#ede9fe;color:#7c3aed"><i class="fa-solid fa-boxes-stacked"></i></span><span>My Assets</span></button>
@@ -563,35 +562,6 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <div id="fuelBox" class="mt-3 space-y-1 text-xs"></div>
       </div>
       </div>
-      <div class="req-sec hidden" id="rs-ot">
-      <div class="card hidden" id="otCard">
-        <h3 class="display font-bold mt-0 mb-3 text-sm"><i class="fa-solid fa-clock" style="color:var(--warn)"></i> Apply Overtime</h3>
-        <div class="grid grid-cols-2 gap-3 mb-3">
-          <div><label class="lbl">Date</label><input id="otDate" type="date" class="inp"></div>
-          <div><label class="lbl">Hours</label><input id="otHours" type="number" step="0.5" class="inp" placeholder="2"></div>
-        </div>
-        <label class="lbl">Reason / Production Line</label>
-        <input id="otReason" class="inp mb-3" placeholder="Line 3 urgent dispatch…">
-        <div class="flex gap-2 mb-3">
-          <button id="otModeSelf" class="chip chip-blue" style="border:none;cursor:pointer;flex:1;justify-content:center;padding:8px">For Myself</button>
-          <button id="otModeTeam" class="chip chip-gray" style="border:none;cursor:pointer;flex:1;justify-content:center;padding:8px">For My Team (Bulk)</button>
-        </div>
-        <div id="otTeamWrap" class="hidden mb-3">
-          <p id="otPresentNote" class="text-[11px] mt-0 mb-2 p-2 rounded" style="background:#ecfdf5;color:#065f46">…</p>
-          <select id="otDept" class="inp mb-2"><option value="">All sections</option></select>
-          <input id="otSearch" class="inp mb-2" placeholder="Search workers…">
-          <div class="flex items-center gap-2 mb-2">
-            <button id="otAllBtn" class="chip chip-gray" style="border:none;cursor:pointer">Select all shown</button>
-            <button id="otNoneBtn" class="chip chip-gray" style="border:none;cursor:pointer">Clear</button>
-            <span class="chip chip-blue" style="margin-left:auto" id="otSelCount">0 selected</span>
-          </div>
-          <div id="otSelWrap" class="flex flex-wrap gap-1 mb-2"></div>
-          <div id="otWorkers" style="max-height:220px;overflow-y:auto" class="space-y-1"></div>
-        </div>
-        <button id="otBtn" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Request OT Approval</button>
-        <div id="otBox" class="mt-3"></div>
-      </div>
-      </div>
       <div class="req-sec hidden" id="rs-amgr">
       <div class="card">
         <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-warehouse" style="color:#0f766e"></i> <span data-en="Issue an asset" data-hi="सामान इशू करें">Issue an asset</span></h3>
@@ -741,7 +711,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div class="card">
         <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-circle-question" style="color:#4338ca"></i> Help / SOP — Har cheez ka tarika</h3>
         <p class="text-[11px] mt-0 mb-2" style="color:var(--muted)">ESS ki har request kaise, kab aur kis rule se hoti hai. Kisi bhi cheez par tap karo. Prepared by <b>Pankaj Kumar</b>.</p>
-        <input id="essFaqSearch" class="inp mb-2" placeholder="🔍 Dhoondo (leave, OT, expense…)" oninput="essRenderFaq()">
+        <input id="essFaqSearch" class="inp mb-2" placeholder="🔍 Dhoondo (leave, payslip, expense…)" oninput="essRenderFaq()">
         <div id="essFaqWrap"></div>
       </div>
       </div>
@@ -1313,7 +1283,7 @@ async function loadTeamApprovals(){
     TM.pend = reqs.length;
     TM.name = data.my_name || '';
     tmPaint();
-    if(typeof renderOT === 'function') try{ renderOT(); if(typeof renderFuel === "function") renderFuel(); }catch(e){}
+    try{ if(typeof renderFuel === "function") renderFuel(); }catch(e){}
     const card = $('teamApprCard'); if(!card) return;
     if(isManager || reqs.length){
       // manager hai -> Team tab HAMESHA dikhega (pending ho ya na ho)
@@ -1469,7 +1439,6 @@ var ESS_FAQ = [
   { t:'WFH (Work From Home)', b:'Ghar se kaam ke liye. WFH tile → date + reason, din se pehle daalo. Manager approve karta hai. Approved WFH us din present ki tarah paid hota hai aur iske liye face/kiosk punch ki zaroorat nahi. Jo din pehle se attendance/leave me hai us par WFH dubara mat daalo.' },
   { t:'Expenses / Reimbursement', b:'Company ke kaam me kharch kiya paisa wapas paane ke liye. Expenses tile → category + amount + bill/receipt ki photo bharo. NOTE: 7 din se purana kharch claim nahi hota, isliye bill turant daal do. Claim seedha ACCOUNTS ke paas jaata hai — reporting manager ka koi approval nahi lagta. Accounts bill, date aur amount check karke approve/reject karta hai; approve + paid hone par amount aapko milta hai. Status har step par tile me dikhta hai.' },
   { t:'Advance / Loan', b:'Advance = ek baar ka paisa jo agli hi salary se poora kat jaata hai. Loan = CEO approval → Loan Agreement (yahin ESS me Accept karna hoga) → Accounts se disbursement → har mahine EMI katauti. Advance/Loan tile → type + amount + reason (Loan me months bhi) bharo. Manager/Accounts/CEO approve karte hain; katauti aapke payslip me saaf dikhti hai.' },
-  { t:'Overtime (OT)', b:'OT sirf unhe dikhta hai jinhe allowed hai. OT tile → date + hours + reason; supervisor poori team ka OT ek saath bhi bhej sakta hai. Rule: din ka actual OT = us din ke total kaam ke ghante − aapke shift ke ghante (General shift = 8.5 hrs). 20 minute se kam bache to us din ka OT 0. Weekly-off/Sunday ko kaam kiya to poora din OT. Paid OT = min(jitne ghante approve hue, jitna actual OT hua) — yaani approval ek upper limit hai. OT sirf unhi logon ka lag sakta hai jo us din PRESENT hain (punch hua ho) — absent bande ki list me hi nahi aayenge. Paid tabhi hoga jab (1) OT approve ho AUR (2) gate par guard/security ne ViziTrack se verify kiya ho — dono zaroori, warna 0. Single rate par pay hota hai, double pay nahi.' },
   { t:'Visitor Request (guest ko bulana)', b:'Aapse milne koi bahar se aa raha hai to pehle se entry kar do. Visitor tile → visitor ka naam, mobile, company, visit date/time aur purpose bharo. Ek request = ek visitor. Koi approval nahi lagti — entry daalte hi gate par live ho jaati hai aur security aapke guest ko uske mobile number se pehchan kar andar bhej deti hai (isliye visitor ka 10 digit mobile zaroori hai). Guest kab andar aaya aur kab bahar gaya, wo bhi isi tile me dikhta rehta hai. Guest aane se pehle entry daal dena; plan badal jaye to usi tile se cancel kar do. Jo visitor pehle aa chuka hai use dobara bulana ho to upar "Pehle aa chuke visitor" wali list me se chun lo, ya neeche uski purani entry par <b>Reinvite</b> dabao — saari detail apne aap bhar jayegi, bas date chun kar bhej do.' },
   { t:'Payslips', b:'Payslip tile → mahine wise apna payslip dekho/download karo. Payslip tab dikhta hai jab HR us mahine ka payroll finalize kar deta hai. Isme earnings (basic/HRA/allowance/OT) aur deductions (PF/ESI/PT/LWF/TDS/advance) sab breakup me hote hain.' },
   { t:'My Assets', b:'Everything the company has issued to you (laptop, phone, SIM, tools and so on) is listed here. If an entry is wrong, or an item you have already returned still shows, tell HR/Admin so the record can be corrected.' },
@@ -1489,7 +1458,6 @@ var ESS_FAQ_EN = [
   { t:"WFH (Work From Home)", b:"For working from home. Open the WFH tile and enter the date and a reason, before the day itself. Your manager approves it. An approved WFH day is paid as present and needs no face or kiosk punch. Do not apply for WFH on a day that already has attendance or leave recorded." },
   { t:"Expenses / Reimbursement", b:"To recover money you spent on company work. Open the Expenses tile and enter the category, amount and a photo of the bill or receipt. <b>Note:</b> expenses older than 7 days cannot be claimed, so submit the bill promptly. The claim goes directly to ACCOUNTS — no reporting manager approval is required. Accounts verify the bill, date and amount and then approve or reject it; once approved and paid, the amount reaches you. The status is shown on the tile at every step." },
   { t:"Advance / Loan", b:"An <b>advance</b> is a one-time amount recovered in full from your next salary. A <b>loan</b> follows CEO approval → Loan Agreement (to be accepted here in ESS) → disbursement by Accounts → monthly EMI deduction. Open the Advance / Loan tile and enter the type, amount and reason (plus the number of months for a loan). Manager, Accounts and the CEO approve it; the deduction is shown clearly on your payslip." },
-  { t:"Overtime (OT)", b:"OT is visible only to employees for whom it is enabled. Open the OT tile and enter the date, hours and a reason; a supervisor can also submit OT for the whole team at once. Rule: a day's actual OT = total hours worked that day − your shift hours (General shift = 8.5 hrs). If less than 20 minutes remains, that day's OT is zero. Work on a weekly off or Sunday counts as a full day of OT. Paid OT = min(hours approved, actual OT) — approval is an upper limit, not a guarantee. OT can only be applied for employees who are PRESENT that day (a punch must exist) — absent employees do not appear in the list. OT is paid only when (1) it is approved AND (2) the gate security has verified it in ViziTrack — both are required, otherwise it is zero. OT is paid at single rate, not double." },
   { t:"Visitor Request (inviting a guest)", b:"If someone is visiting you from outside, register the entry in advance. Open the Visitor tile and enter the visitor's name, mobile, company, visit date and time, and the purpose. One request = one visitor. No approval is required — the entry goes live at the gate immediately and security identifies your guest by their mobile number (which is why a 10-digit mobile is mandatory). The guest's in and out times also appear on the same tile. Register the entry before the guest arrives; if plans change, cancel it from the same tile. To invite a visitor who has come before, pick them from the <b>Previous visitors</b> list at the top, or tap <b>Reinvite</b> on their earlier entry below — all details are filled in automatically, so you only pick a date and submit." },
   { t:"Payslips", b:"Open the Payslip tile to view or download your payslip month by month. A payslip appears once HR finalises that month's payroll. It carries the full breakup of earnings (basic, HRA, allowances, OT) and deductions (PF, ESI, PT, LWF, TDS, advance)." },
   { t:"My Assets", b:"Everything the company has issued to you — laptop, phone, SIM, tools and so on — is listed here. If you see a wrong entry, or an item you have already returned, tell HR or Admin so the record can be updated." },
@@ -1509,7 +1477,6 @@ var ESS_FAQ_HI = [
   { t:"WFH (घर से काम)", b:"घर से काम करने के लिए। WFH वाली टाइल खोलें और तारीख़ तथा कारण भरें, उस दिन से पहले। मैनेजर मंज़ूरी देता है। मंज़ूर हुआ WFH उस दिन हाज़िरी की तरह वेतन पाता है और इसके लिए चेहरे या कियोस्क के पंच की ज़रूरत नहीं। जिस दिन पहले से हाज़िरी या छुट्टी दर्ज है, उस पर WFH दोबारा न लगाएँ। यह सुविधा सिर्फ़ स्टाफ़ के लिए है।" },
   { t:"ख़र्च की वापसी", b:"कंपनी के काम में ख़र्च किया पैसा वापस पाने के लिए। ख़र्च वाली टाइल खोलें और श्रेणी, रक़म तथा बिल या रसीद की फ़ोटो भरें। <b>ध्यान दें:</b> 7 दिन से पुराने ख़र्च का दावा नहीं होता, इसलिए बिल तुरंत भेज दें। दावा सीधे अकाउंट्स के पास जाता है — रिपोर्टिंग मैनेजर की मंज़ूरी नहीं लगती। अकाउंट्स बिल, तारीख़ और रक़म जाँच कर मंज़ूरी देता या अस्वीकार करता है; मंज़ूरी और भुगतान के बाद रक़म आपको मिल जाती है। हर चरण की स्थिति टाइल में दिखती है।" },
   { t:"एडवांस / लोन", b:"<b>एडवांस</b> एक बार का पैसा है जो अगली ही सैलरी से पूरा कट जाता है। <b>लोन</b> में: CEO की मंज़ूरी → लोन एग्रीमेंट (यहीं पोर्टल में स्वीकार करना होगा) → अकाउंट्स से भुगतान → हर महीने EMI की कटौती। एडवांस / लोन वाली टाइल खोलें और प्रकार, रक़म तथा कारण भरें (लोन में महीने भी)। मैनेजर, अकाउंट्स और CEO मंज़ूरी देते हैं; कटौती आपकी वेतन पर्ची में साफ़ दिखती है।" },
-  { t:"ओवरटाइम (OT)", b:"OT सिर्फ़ उन्हें दिखता है जिनके लिए यह चालू है। OT वाली टाइल खोलें और तारीख़, घंटे तथा कारण भरें; सुपरवाइज़र पूरी टीम का OT एक साथ भी भेज सकता है। नियम: किसी दिन का असली OT = उस दिन के कुल काम के घंटे − आपकी शिफ़्ट के घंटे (जनरल शिफ़्ट = 8.5 घंटे)। 20 मिनट से कम बचे तो उस दिन का OT शून्य। साप्ताहिक छुट्टी या रविवार को काम किया तो पूरा दिन OT। वेतन वाला OT = मंज़ूर घंटे और असली OT में से जो कम हो — यानी मंज़ूरी एक ऊपरी सीमा है। OT सिर्फ़ उन्हीं लोगों का लग सकता है जो उस दिन हाज़िर हैं (पंच हुआ हो) — ग़ैरहाज़िर व्यक्ति सूची में ही नहीं आएगा। वेतन तभी मिलेगा जब (1) OT मंज़ूर हो और (2) गेट पर सुरक्षाकर्मी ने ViziTrack से पुष्टि की हो — दोनों ज़रूरी हैं, वरना शून्य। OT एक गुना दर पर मिलता है, दोगुना नहीं।" },
   { t:"मुलाक़ाती का अनुरोध (मेहमान बुलाना)", b:"आपसे मिलने कोई बाहर से आ रहा हो तो एंट्री पहले से कर दें। मुलाक़ाती वाली टाइल खोलें और उनका नाम, मोबाइल, कंपनी, आने की तारीख़ तथा समय और मक़सद भरें। एक अनुरोध = एक मुलाक़ाती। कोई मंज़ूरी नहीं लगती — एंट्री डालते ही वह गेट पर पहुँच जाती है और सुरक्षाकर्मी आपके मेहमान को उनके मोबाइल नंबर से पहचान कर अंदर भेज देते हैं (इसीलिए 10 अंकों का मोबाइल ज़रूरी है)। मेहमान कब अंदर आए और कब बाहर गए, यह भी इसी टाइल में दिखता रहता है। मेहमान के आने से पहले एंट्री डाल दें; योजना बदल जाए तो उसी टाइल से रद्द कर दें। जो मुलाक़ाती पहले आ चुका है उसे दोबारा बुलाना हो तो ऊपर <b>पहले आ चुके मुलाक़ाती</b> वाली सूची से चुन लें, या नीचे उनकी पुरानी एंट्री पर <b>दोबारा बुलाएँ</b> दबाएँ — सारा ब्यौरा अपने आप भर जाएगा, बस तारीख़ चुन कर भेज दें।" },
   { t:"वेतन पर्ची", b:"वेतन पर्ची वाली टाइल खोलकर महीने के हिसाब से अपनी पर्ची देखें या डाउनलोड करें। पर्ची तब दिखती है जब HR उस महीने का पेरोल पूरा कर देता है। इसमें कमाई (बेसिक, HRA, भत्ते, OT) और कटौती (PF, ESI, PT, LWF, TDS, एडवांस) का पूरा ब्यौरा होता है।" },
   { t:"मेरा सामान", b:"कंपनी ने जो सामान (लैपटॉप, फ़ोन, SIM, औज़ार…) आपको दिया है वह यहाँ सूची में रहता है। कोई ग़लत एंट्री हो, या वापस किया हुआ सामान अभी भी दिख रहा हो, तो HR या एडमिन को बताएँ ताकि रिकॉर्ड सही हो जाए।" },
@@ -3078,7 +3045,7 @@ var NX_EN = {
  "✓ Agreement signed. Accounts will release the money next.": "✓ Agreement signed. Accounts will now process the disbursement.",
  "✓ Gate par entry ban gayi — guest seedha aa sakta hai": "✓ Entry created at the gate — your guest can come straight in",
  "📩 Visitor ko badge bhej diya": "📩 Badge sent to the visitor",
- "🔍 Dhoondo (leave, OT, expense…)": "🔍 Search (leave, OT, expense…)"
+ "🔍 Dhoondo (leave, payslip, expense…)": "🔍 Search (leave, payslip, expense…)"
 };
 var NX_HI = {
  "Who approves what": "कौन सी रिक्वेस्ट कौन मंजूर करेगा",
@@ -3448,7 +3415,7 @@ var NX_HI = {
  "✓ Gate par entry ban gayi — guest seedha aa sakta hai": "✓ गेट पर एंट्री बन गई — मेहमान सीधे आ सकते हैं",
  "📩 Visitor ko badge bhej diya": "📩 मुलाक़ाती को बैज भेज दिया",
  "📸 PHOTO & SUBMIT": "📸 फ़ोटो लें और भेजें",
- "🔍 Dhoondo (leave, OT, expense…)": "🔍 खोजें (छुट्टी, OT, ख़र्च…)"
+ "🔍 Dhoondo (leave, payslip, expense…)": "🔍 खोजें (छुट्टी, वेतन पर्ची, ख़र्च…)"
 };
 function essDict(){ return essIsStaff() ? NX_EN : NX_HI; }
 // T(): translate one string for the current reader. Safe on anything.
@@ -3855,7 +3822,6 @@ function render(){
   // requests
   renderExpenses();
   renderResign();
-  renderOT();
   loadFeedback();
   try{ loadTickets(); }catch(e){ _dbg('tickets-ERROR', e); }
   try{ if(amIsAdminDept()) loadAmgr(); }catch(e){ _dbg('assetmgr-ERROR', e); }
@@ -3941,7 +3907,6 @@ async function renderReportingInfo(){
     ['Leave', 'Reporting Manager'],
     ['Field Duty / WFH / Gate Pass', 'Reporting Manager'],
     ['Attendance Correction', 'Reporting Manager'],
-    ['Overtime (OT)', 'CEO / Management'],
     ['Advance / Loan', 'Accounts / CEO'],
     ['Expense Claim', 'Accounts'],
     ['Salary / CTC', 'CEO']
@@ -4898,178 +4863,6 @@ async function submitFuel(){
   }catch(e){ notify('Failed: '+(e.message||e)); }
   b.disabled = false;
 }
-/* ---------- Overtime requests ---------- */
-function renderOT(){
-  // OT sabko apna to milta hi hai. Bulk (doosron ka) OT department ke hisaab se:
-  //   • PRODUCTION dept -> sirf APNE department ka
-  //   • PLANNING dept   -> SAARE departments ka
-  //   • baaki sab        -> sirf apna (self)
-  $('otCard').classList.remove('hidden');
-  if($('tilOT')) $('tilOT').classList.remove('hidden');
-  //   • PLANNING dept   -> SAARE employees   • PRODUCTION dept -> sirf apna department
-  //   • baaki           -> apne reportees (jinke reporting manager wo hain) — warna sirf self
-  const _d = String((D && D.employee && (D.employee.DEPARTMENT||D.employee.department))||'').toUpperCase();
-  window._otUserDept = _d;
-  window._otScope = /PLAN/.test(_d) ? 'all' : (/PROD/.test(_d) ? 'own' : 'team');
-  const isMgr = (window._essTeamCount || 0) > 0;
-  const showTeam = window._otScope === 'all' || window._otScope === 'own' || (window._otScope === 'team' && isMgr);
-  const teamBtn = $('otModeTeam');
-  if(teamBtn){
-    teamBtn.style.display = showTeam ? '' : 'none';
-    teamBtn.textContent = window._otScope === 'own' ? 'For My Department (Bulk)'
-                        : window._otScope === 'all' ? 'For Any Department (Bulk)' : 'For My Team (Bulk)';
-  }
-  if(!showTeam) setOtMode('self');
-  $('otDate').value = $('otDate').value || new Date().toISOString().slice(0,10);
-  const ot = D.ot_requests || [];
-  $('otBox').innerHTML = ot.length ? ot.map(o => {
-    const chip = o.status === 'APPROVED' ? 'chip-ok' : (o.status === 'PENDING' ? 'chip-warn' : 'chip-bad');
-    return `<div class="row"><span>${fmtDate(o.ot_date)} — <b>${o.hours} hrs</b>${o.reason ? ' • ' + esc(o.reason) : ''}</span><span class="chip ${chip}">${esc(o.status)}</span></div>`;
-  }).join('') : '';
-  loadMyTeamOt();   // team ke liye bheji OT ka status bhi dikhao
-}
-// Supervisor ne jo OT DOOSRON ke liye bheji, uska status
-async function loadMyTeamOt(){
-  try{
-    const { data } = await sb.rpc('ess_team_ot', { p_code: CODE, p_phone: PHONE });
-    if(!data || data.error || !data.rows) return;
-    const meU = String(CODE||'').toUpperCase();
-    const rows = data.rows.filter(r => String(r.employee_code||'').toUpperCase() !== meU);   // self alag list me hai
-    if(!rows.length) return;
-    const groups = {};
-    rows.forEach(r => { const k = r.group_id || ('id'+r.id); (groups[k] = groups[k] || []).push(r); });
-    let html = '<p class="lbl mt-3 mb-1" style="color:var(--muted)">MERI BHEJI OT (TEAM) — STATUS</p>';
-    Object.keys(groups).forEach(k => {
-      const g = groups[k], r0 = g[0];
-      const chip = r0.status === 'APPROVED' ? 'chip-ok' : (r0.status === 'PENDING' ? 'chip-warn' : 'chip-bad');
-      const names = g.map(x => esc(x.name)).slice(0,4).join(', ') + (g.length > 4 ? ' +' + (g.length - 4) : '');
-      html += `<div class="row"><span>${fmtDate(r0.ot_date)} — <b>${r0.hours} hrs</b> · ${g.length} worker: ${names}</span><span class="chip ${chip}">${esc(r0.status)}</span></div>`;
-    });
-    $('otBox').insertAdjacentHTML('beforeend', html);
-  }catch(e){}
-}
-let OT_MODE = 'self', WORKERS = null;
-const OT_SEL = new Set();   // chune hue worker codes — search/filter badalne par bhi bache rehte hain
-let OT_LOADED_DATE = null;  // list kis date ke present logon ki hai
-function otDateVal(){ return ($('otDate') && $('otDate').value) || new Date().toISOString().slice(0,10); }
-function setOtMode(m){
-  OT_MODE = m;
-  $('otModeSelf').className = 'chip ' + (m === 'self' ? 'chip-blue' : 'chip-gray');
-  $('otModeTeam').className = 'chip ' + (m === 'team' ? 'chip-blue' : 'chip-gray');
-  $('otModeSelf').style.cssText = 'border:none;cursor:pointer;flex:1;justify-content:center;padding:8px';
-  $('otModeTeam').style.cssText = 'border:none;cursor:pointer;flex:1;justify-content:center;padding:8px';
-  $('otTeamWrap').classList.toggle('hidden', m !== 'team');
-  if(m === 'team' && (!WORKERS || OT_LOADED_DATE !== otDateVal())) loadWorkers();
-}
-$('otModeSelf').addEventListener('click', () => setOtMode('self'));
-$('otModeTeam').addEventListener('click', () => setOtMode('team'));
-async function loadWorkers(){
-  $('otWorkers').innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">Loading workers…</p>';
-  // scope: 'team' -> sirf apne reportees; 'own' (production) -> apna dept; 'all' (planning) -> saare.
-  const _teamOnly = (window._otScope === 'team');
-  const _otDate = otDateVal();
-  const { data, error } = await sb.rpc('ess_get_workers', { p_code: CODE, p_phone: PHONE, p_team_only: _teamOnly, p_date: _otDate });
-  if(error || (data && data.error)){ $('otWorkers').innerHTML = '<p class="m-0 text-xs" style="color:var(--bad)">' + esc((data && data.error) || error.message) + '</p>'; return; }
-  let rows = data.rows || [];
-  if(window._otScope === 'own'){
-    rows = rows.filter(w => String(w.dept||'').trim().toUpperCase() === String(window._otUserDept||'').toUpperCase());
-  }
-  WORKERS = rows;
-  OT_SEL.clear();
-  OT_LOADED_DATE = _otDate;
-  const note = $('otPresentNote');
-  if(note){
-    if(data.future){
-      note.style.background = '#fffbeb'; note.style.color = '#92400e';
-      note.innerHTML = L(`<b>${fmtDate(_otDate)}</b> is a future date — there is no attendance for it yet, so all active employees are listed.`,
-        `<b>${fmtDate(_otDate)}</b> aane wali date hai — us din ka attendance abhi nahi hai, isliye saare active employees dikh rahe hain.`);
-    }else{
-      note.style.background = '#ecfdf5'; note.style.color = '#065f46';
-      note.innerHTML = L(`Showing only employees <b>present</b> (already punched) on <b>${fmtDate(_otDate)}</b> — <b>${rows.length}</b> people. OT cannot be applied for anyone absent that day.`,
-        `Sirf <b>${fmtDate(_otDate)}</b> ko <b>present</b> (punch ho chuka) employees dikh rahe hain — <b>${rows.length}</b> log. Jo us din present nahi, unka OT apply nahi ho sakta.`);
-    }
-  }
-  // Filter dropdown ab SECTION ke hisaab se (department ki jagah)
-  const secs = [...new Set((WORKERS||[]).map(w => String(w.section||'').trim()).filter(Boolean))].sort();
-  $('otDept').innerHTML = '<option value="">All sections</option>' + secs.map(s => `<option>${esc(s)}</option>`).join('');
-  $('otDept').disabled = false;
-  renderWorkers('');
-}
-function renderWorkers(q){
-  q = (q||'').toLowerCase();
-  const sec = $('otDept') ? $('otDept').value : '';
-  $('otWorkers').innerHTML = (WORKERS||[])
-    .filter(w => w.code !== CODE)
-    .filter(w => !sec || String(w.section||'').trim().toUpperCase() === String(sec).trim().toUpperCase())
-    .filter(w => !q || [w.name, w.code, w.dept, w.section].join(' ').toLowerCase().includes(q))
-    .map(w => `<label class="flex items-center gap-2 p-2 rounded-lg text-sm" style="background:#f8fafc">
-      <input type="checkbox" class="otw-chk" value="${esc(w.code)}"${OT_SEL.has(w.code) ? ' checked' : ''}>
-      <span><b>${esc(w.name)}</b> <span style="color:var(--muted);font-size:11px">${esc(w.code)}${w.dept ? ' • ' + esc(w.dept) : ''}${w.section ? ' • ' + esc(w.section) : ''}</span></span>
-    </label>`).join('') || '<p class="m-0 text-xs" style="color:var(--muted)">No workers found.</p>';
-  updateOtCount();
-}
-function updateOtCount(){
-  $('otSelCount').innerText = OT_SEL.size + ' selected';
-  const wrap = $('otSelWrap'); if(!wrap) return;
-  if(!OT_SEL.size){ wrap.innerHTML = ''; return; }
-  const byCode = {}; (WORKERS||[]).forEach(w => { byCode[w.code] = w; });
-  wrap.innerHTML = [...OT_SEL].map(c => {
-    const w = byCode[c];
-    return `<span class="chip chip-blue" style="font-size:10px">${esc(w ? w.name : c)}<button data-unsel="${esc(c)}" style="border:none;background:none;cursor:pointer;color:inherit;padding:0 0 0 4px"><i class="fa-solid fa-xmark"></i></button></span>`;
-  }).join('');
-}
-$('otSearch').addEventListener('input', e => renderWorkers(e.target.value));
-$('otDate') && $('otDate').addEventListener('change', () => { if(OT_MODE === 'team') loadWorkers(); });
-$('otDept') && $('otDept').addEventListener('change', () => renderWorkers($('otSearch').value));
-$('otWorkers').addEventListener('change', e => {
-  const c = e.target.closest('.otw-chk'); if(!c) return;
-  if(c.checked) OT_SEL.add(c.value); else OT_SEL.delete(c.value);
-  updateOtCount();
-});
-$('otSelWrap').addEventListener('click', e => {
-  const b = e.target.closest('[data-unsel]'); if(!b) return;
-  OT_SEL.delete(b.dataset.unsel);
-  renderWorkers($('otSearch').value);
-});
-$('otAllBtn').addEventListener('click', () => { document.querySelectorAll('.otw-chk').forEach(c => { c.checked = true; OT_SEL.add(c.value); }); updateOtCount(); });
-$('otNoneBtn').addEventListener('click', () => { OT_SEL.clear(); document.querySelectorAll('.otw-chk').forEach(c => c.checked = false); updateOtCount(); });
-
-$('otBtn').addEventListener('click', async () => {
-  if(!$('otDate').value || !Number($('otHours').value)) return notify('Enter date and hours');
-  const btn = $('otBtn');
-  btn.innerHTML = '<div class="loader-ring"></div> Submitting…'; btn.disabled = true;
-  try{
-    if(OT_MODE === 'team'){
-      const codes = [...OT_SEL];
-      if(!codes.length) return notify('Select at least one worker');
-      const { data, error } = await sb.rpc('ess_apply_ot_bulk', { p_code: CODE, p_phone: PHONE, p_date: $('otDate').value, p_hours: Number($('otHours').value), p_reason: $('otReason').value, p_workers: codes });
-      if(error) throw error;
-      if(data && data.error) return notify(data.error);
-      notify(`OT requested for ${data.inserted} worker(s)` + (data.skipped ? ` — ${data.skipped} already had OT for this date` : '') + (data.absent ? L(` — ${data.absent} were not present that day, so no OT was applied`, ` — ${data.absent} उस दिन हाज़िर नहीं थे, उनका OT नहीं लगा`) : '') + ' — pending approval');
-      // OT request -> CEO ko approval email
-      essSendApprovalEmail('ot', (data&&data.group_id)||'', 'Overtime Request — ' + ((D.employee&&D.employee.Name)||CODE), [
-        ['Requested by', (D.employee&&D.employee.Name)||CODE], ['Date', $('otDate').value],
-        ['Hours', $('otHours').value], ['Workers', data.inserted], ['Reason', $('otReason').value||'—']
-      ]);
-      OT_SEL.clear(); document.querySelectorAll('.otw-chk').forEach(c => c.checked = false); updateOtCount();
-    } else {
-      const { data, error } = await sb.rpc('ess_apply_ot', { p_code: CODE, p_phone: PHONE, p_date: $('otDate').value, p_hours: Number($('otHours').value), p_reason: $('otReason').value });
-      if(error) throw error;
-      if(data && data.error) return notify(data.error);
-      notify('OT request submitted — pending approval');
-      // OT request -> CEO ko approval email (single OT bhi group_id return karta hai)
-      essSendApprovalEmail('ot', (data&&data.group_id)||'', 'Overtime Request — ' + ((D.employee&&D.employee.Name)||CODE), [
-        ['Employee', (D.employee&&D.employee.Name)||CODE], ['Date', $('otDate').value],
-        ['Hours', $('otHours').value], ['Reason', $('otReason').value||'—']
-      ]);
-      D.ot_requests = [{ ot_date: $('otDate').value, hours: Number($('otHours').value), reason: $('otReason').value, status: 'PENDING' }].concat(D.ot_requests || []);
-      renderOT();
-    }
-    $('otHours').value = ''; $('otReason').value = '';
-  }catch(err){ notify(err.message); }
-  finally{ btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Request OT Approval'; btn.disabled = false; }
-});
-
 // Leave ka hisaab: koi balance nahi hota. Niyam seedha hai — har mahine 1 leave PAID,
 // usi mahine ki usse zyada leave (approved ho to bhi) UNPAID. Bachi hui leave agle
 // mahine nahi jaati, aur na hi uska paisa milta hai.

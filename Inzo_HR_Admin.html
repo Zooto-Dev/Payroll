@@ -950,7 +950,6 @@ body.no-confidential .confidential-col{display:none!important}
 <div class="page" id="page-approvals">
   <div class="ap-tabs">
     <button class="ap-tab active" data-aptab="leaves"><i class="fa-solid fa-umbrella-beach"></i> Leaves <span class="ap-cnt" id="apCntLv">0</span></button>
-    <button class="ap-tab" data-aptab="ot"><i class="fa-solid fa-clock"></i> Overtime <span class="ap-cnt" id="apCntOt">0</span></button>
     <button class="ap-tab" data-aptab="exp"><i class="fa-solid fa-receipt"></i> Expenses <span class="ap-cnt" id="apCntEx">0</span></button>
     <button class="ap-tab" data-aptab="field"><i class="fa-solid fa-location-dot"></i> Field <span class="ap-cnt" id="apCntField">0</span></button>
     <button class="ap-tab" data-aptab="wfh"><i class="fa-solid fa-house-laptop"></i> WFH <span class="ap-cnt" id="apCntWfh">0</span></button>
@@ -971,14 +970,6 @@ body.no-confidential .confidential-col{display:none!important}
         <button class="btn btn-ghost btn-sm" id="apLvAppr" onclick="apLvMode('APPROVED')">Approved</button>
       </div>
       <div id="apLeaves" class="text-sm" style="padding:0"></div>
-    </div>
-    <div class="ap-panel hidden" id="apPanel-ot">
-      <div class="p-3 border-b flex items-center gap-2" style="border-color:var(--line)">
-        <button class="btn btn-primary btn-sm" id="apOtPend" onclick="apEssMode('ot','PENDING')">Pending</button>
-        <button class="btn btn-ghost btn-sm" id="apOtAppr" onclick="apEssMode('ot','APPROVED')">Approved</button>
-        <button class="btn btn-ghost btn-sm ml-auto" data-act="ot-approve-all"><i class="fa-solid fa-check-double"></i> Approve All</button>
-      </div>
-      <div id="apOT" class="text-sm" style="padding:0"></div>
     </div>
     <div class="ap-panel hidden" id="apPanel-exp">
       <div class="p-3 border-b flex gap-2" style="border-color:var(--line)">
@@ -2356,29 +2347,6 @@ body.no-confidential .confidential-col{display:none!important}
   </div>
 </div>
 
-<!-- ================= BULK OT MODAL ================= -->
-<div class="modal" id="bulkOtModal">
-  <div class="modal-box" style="max-width:560px">
-    <div class="flex items-center justify-between mb-4">
-      <h3 class="display font-bold text-lg m-0">Add Bulk Overtime (Approved)</h3>
-      <button class="btn btn-ghost btn-sm" data-close="bulkOtModal"><i class="fa-solid fa-xmark"></i></button>
-    </div>
-    <div class="grid grid-cols-3 gap-3 mb-3">
-      <div><label class="lbl">Date</label><input id="botDate" type="date" class="inp"></div>
-      <div><label class="lbl">Hours (each)</label><input id="botHours" type="number" step="0.5" class="inp" placeholder="2"></div>
-      <div><label class="lbl">Reason / Line</label><input id="botReason" class="inp" placeholder="Line 3 dispatch"></div>
-    </div>
-    <input id="botSearch" class="inp mb-2" placeholder="Search employees…">
-    <div class="flex gap-2 mb-2">
-      <button class="btn btn-ghost btn-sm" id="botAllBtn">Select all shown</button>
-      <button class="btn btn-ghost btn-sm" id="botNoneBtn">Clear</button>
-      <span class="chip chip-blue ml-auto" id="botCount">0 selected</span>
-    </div>
-    <div id="botList" style="max-height:260px;overflow-y:auto" class="space-y-1"></div>
-    <button id="botSaveBtn" class="btn btn-primary w-full justify-center mt-4"><i class="fa-solid fa-check-double"></i> Add OT for Selected (Approved)</button>
-  </div>
-</div>
-
 <!-- ================= SALARY REVISION MODAL ================= -->
 <div class="modal" id="revModal">
   <div class="modal-box" style="max-width:560px">
@@ -3587,7 +3555,7 @@ document.addEventListener('click', async e => {
       (p.pages && p.pages.length && p.pages.length < ALL_PAGES.length) || // custom page set
       p.dept || p.desig ||                                               // has a role set
       p.confidential === true || p.finalize === true ||                  // special rights
-      p.approve.leave === false || p.approve.ot === false ||             // an approval removed
+      p.approve.leave === false ||             // an approval removed
       p.approve.expense === false || p.approve.advance === false;
     if(meaningful) keep[em] = perms[em];
   });
@@ -3631,7 +3599,7 @@ async function renderAdminCtl(){
   <div style="overflow-x:auto"><table class="tbl" style="min-width:760px">
     <thead><tr>
       <th>User</th><th>Role</th><th>Department</th><th>Designation</th><th>Pages</th>
-      <th style="text-align:center">Leave<br>Approve</th><th style="text-align:center">OT<br>Approve</th>
+      <th style="text-align:center">Leave<br>Approve</th>
       <th style="text-align:center">Expense<br>Approve</th><th style="text-align:center">Att. Fix<br>Approve</th><th style="text-align:center">Advance<br>Add</th>
       <th style="text-align:center">Payroll<br>Finalize</th><th style="text-align:center">See Salary /<br>Confidential</th><th style="text-align:center">Manual<br>Attendance</th><th></th>
     </tr></thead>
@@ -3653,7 +3621,6 @@ async function renderAdminCtl(){
         </select></td>
         <td><button class="btn btn-ghost btn-sm" data-act="ac-edit" data-em="${esc(em)}">${p.pages.length}/${ALL_PAGES.length} <i class="fa-solid fa-pen text-[10px]"></i></button></td>
         <td style="text-align:center">${sw(em, 'leave', p.approve.leave !== false)}</td>
-        <td style="text-align:center">${sw(em, 'ot', p.approve.ot !== false)}</td>
         <td style="text-align:center">${sw(em, 'expense', p.approve.expense !== false)}</td>
         <td style="text-align:center">${sw(em, 'attfix', p.approve.attfix === true)}</td>
         <td style="text-align:center">${sw(em, 'advance', p.approve.advance !== false)}</td>
@@ -10398,7 +10365,6 @@ document.body.addEventListener('click', async e => {
     return (r === null) ? null : (String(r||'').trim() || 'Not specified');
   });
   if((act === 'appr-leave' || act === 'rej-leave') && !(canApprove('leave') && (roleCEO() || isAdminRole()))) return notify('You are not allowed to approve leaves', 'error');
-  if((act === 'ot-appr-grp' || act === 'ot-rej-grp') && !(canApprove('ot') && roleCEO())) return notify('Only the CEO can approve overtime', 'error');
   if((act === 'appr-exp' || act === 'rej-exp' || act === 'appr-ex' || act === 'rej-ex') && !(canApprove('expense') && roleAcctMgr())) return notify('Only the Accounts team can approve expenses', 'error');
   // Emergency leave ke do-step approval. Wahi hak jo aam leave par lagta hai.
   // Raised tickets — HR / Admin. Side ka hak tkAct khud phir se check karta hai.
@@ -10424,34 +10390,6 @@ document.body.addEventListener('click', async e => {
     if(reason === null) return;
     await sb.from('leaves').update({ status: 'REJECTED', admin_note: reason, ...nxDecidedNow() }).eq('id', el.dataset.id);
     notify('Leave rejected', 'success');
-    loadApprovals();
-  }
-  if(act === 'ot-approve-all'){
-    if(!(canApprove('ot') && roleCEO())) return notify('Only the CEO can approve overtime', 'error');
-    if(!(await nxConfirm('Approve ALL pending overtime requests?', 'Approve Overtime'))) return;
-    const { error } = await sb.from('ot_requests').update({ status: 'APPROVED' }).eq('status', 'PENDING');
-    if(error) return notify(error.message, 'error');
-    notify('All pending overtime approved', 'success');
-    loadApprovals();
-  }
-  if(act === 'ot-bulk-add'){
-    $('botDate').value = todayISO(); $('botSearch').value = '';
-    renderBotList('');
-    $('bulkOtModal').classList.add('show');
-  }
-  if(act === 'ot-view'){
-    const box = document.getElementById('otg-' + el.dataset.g);
-    if(box) box.classList.toggle('hidden');
-  }
-  if(act === 'ot-appr-grp'){
-    const ids = el.dataset.ids.split(',').map(Number);
-    await sb.from('ot_requests').update({ status: 'APPROVED' }).in('id', ids);
-    notify(`Overtime approved for ${ids.length} employee(s) — it will be used in payroll`, 'success');
-    loadApprovals();
-  }
-  if(act === 'ot-rej-grp'){
-    const ids = el.dataset.ids.split(',').map(Number);
-    await sb.from('ot_requests').update({ status: 'REJECTED' }).in('id', ids);
     loadApprovals();
   }
   if(act === 'vb-review'){ await sb.from('feedback').update({ status:'IN_REVIEW' }).eq('id', el.dataset.id); loadVoice(); }
@@ -15113,7 +15051,7 @@ const HELP = {
   attendance: ['Pick a month and click Load Register — P Present, L Late, A Absent, WO Week Off, H Holiday, LV Leave.', 'Late is based on each employee\'s assigned shift start time + grace minutes.', 'Use "Manual Punch / Fix" to add a missing punch or correct an in/out time.'],
   shifts: ['Create every shift you run (e.g. Morning 6–2, Evening 2–10, Night 10–6 with the night toggle).', 'Assign a shift to each employee from Employees → Profile. Late and overtime are computed from it.'],
   leaves: ['Apply and approve leave here, or approve employee requests from the Approvals page.', 'Rule: one paid leave per month. Any further leave in the same month stays unpaid (LOP) even after approval — there is no leave balance and nothing carries forward.', 'Tick "Half day" for a 0.5-day leave on a single date.'],
-  approvals: ['Everything waiting for your decision in one inbox — leaves, overtime and expense claims from ESS.', 'The orange badge in the sidebar shows the pending count.', 'Approved overtime hours are used in payroll instead of the auto-calculation.'],
+  approvals: ['Everything waiting for your decision in one inbox — leaves, expense claims and other requests from ESS.', 'The orange badge in the sidebar shows the pending count.',],
   payroll: ['Pick the month and click Calculate — attendance, leaves, OT, PF/ESI/PT/LWF/TDS and advances are applied automatically.', 'Edit OT hours, bonus or other deductions inline; the net and totals update live.', 'Click Finalize & Save All to lock payslips, record employer contributions and update advance balances.', 'Then use Bank Advice (bank portions), Cash Register (cash portions with signature column) and Print All Payslips.'],
   advances: ['Record an advance/loan with a monthly EMI — payroll deducts it automatically until the balance reaches zero.'],
   expenses: ['Claims arrive from ESS as Pending. Approve or reject, then Mark Paid once reimbursed.'],
@@ -15688,9 +15626,9 @@ const FAQ_SOP = [
   { c:'Workforce', t:'Face Registration', b:'<li>Profile → Face: upload a clear front photo → Detect & Register.</li><li>Live re-registration: face-verify.html — search the employee and capture 10 clear samples from the camera; it registers only at high confidence.</li>' },
   { c:'Workforce', t:'Trial Workers (Work Pass)', b:'<li>Workforce → Trial Workers. 3 tabs: Convert Requests, Active Trial Workers, Daily Attendance.</li><li>The supervisor creates the pass from ESS; the trial worker punches at the kiosk.</li><li>Convert Requests → "Approve → Add Employee" (trial attendance syncs into payroll automatically). The worker leaves the list when the trial ends.</li>' },
   { c:'Workforce', t:'Hiring & Recruitment', b:'<li>Add candidates, move them through the stages, and send offers.</li><li>"Convert to Employee" opens the Add Employee form pre-filled for the candidate.</li>' },
-  { c:'Approvals', t:'Approvals Inbox', b:'<li>One place for: Leaves, Overtime, Expenses, Field, WFH, Gate Pass, Att. Fix, Advance/Loan, Supervisor Attendance, Fuel.</li><li>The reporting manager or a Super Admin approves or rejects; the buttons in the email work as well.</li><li>The Expenses tab has a Timestamp column (when the claim was submitted).</li>' },
+  { c:'Approvals', t:'Approvals Inbox', b:'<li>One place for: Leaves, Expenses, Field, WFH, Gate Pass, Att. Fix, Advance/Loan, Supervisor Attendance, Fuel.</li><li>The reporting manager or a Super Admin approves or rejects; the buttons in the email work as well.</li><li>The Expenses tab has a Timestamp column (when the claim was submitted).</li>' },
   { c:'Approvals', t:'Leaves', b:'<li>The employee applies for leave from ESS → the reporting manager approves; a Super Admin is always emailed.</li><li>Approved paid leave counts as present in payroll (sandwich and half-day rules apply automatically).</li>' },
-  { c:'Payroll', t:'Overtime (OT) — Current Rule', b:'<li>Actual OT for a day = total hours worked − shift hours (General = 8.5); below 20 minutes it is 0; on a weekly off or Sunday the full day is OT. Paid = min(approved hours, actual OT). Single rate — <b>no double pay</b>.</li><li>Rate/hr = Gross ÷ (days in the month × shift hours) × OT multiplier.</li><li>Both CEO approval and guard verification (ViziTrack) are required; without them OT is 0.</li><li>Full SOP: see the OT SOP document.</li>' },
+  { c:'Payroll', t:'Overtime (OT)', b:'<li>Overtime is not paid through payroll, and overtime approval has been withdrawn — there is no OT request in the Employee Portal and no OT approval in this panel.</li><li>The OT Report under Work Hours still shows the actual extra hours worked each day, calculated from punches (total hours worked − shift hours).</li><li>Overtime requests raised before 20 Nov 2026 are kept on record; the ones that were still pending are marked CLOSED.</li>' },
   { c:'Payroll', t:'Payroll (Salary Sheet)', b:'<li>Select a month → Generate. Present/paid days, lates, verified OT and deductions are all calculated automatically.</li><li>ONR and OFR download separately; a combined total is also available.</li><li>A salary is counted only after CEO approval (pending or rejected salaries are skipped).</li>' },
   { c:'Payroll', t:'Income Tax (TDS) & Slabs', b:'<li>Profile → Salary → TDS Regime (New/Old/No TDS). Nexus calculates TDS automatically and shows it as a line on the payslip.</li><li>New Regime FY25-26: standard deduction ₹75,000; nil up to ₹12L taxable (87A); then 5/10/15/20/30% + 4% cess; yearly ÷ 12 for the monthly figure.</li><li>The Annexure of the appointment letter also shows TDS as per the regime.</li>' },
   { c:'Payroll', t:'Advances & Loans', b:'<li>Request from ESS → approved by manager/accounts/CEO → recovered from salary.</li><li>Tracked on the Advances page; the deduction appears on the payslip.</li>' },
@@ -16106,7 +16044,6 @@ let AP_INBOX_KIND = '';            // '' = sab
 
 const AP_KINDS = {
   leave:  { label: 'Leave',        icon: 'fa-umbrella-beach',      tab: 'leaves' },
-  ot:     { label: 'Overtime',     icon: 'fa-clock',               tab: 'ot'     },
   exp:    { label: 'Expense',      icon: 'fa-receipt',             tab: 'exp'    },
   field:  { label: 'Field Duty',   icon: 'fa-location-dot',        tab: 'field'  },
   wfh:    { label: 'WFH',          icon: 'fa-house-laptop',        tab: 'wfh'    },
@@ -16140,9 +16077,8 @@ async function loadApInbox(){
   const push = o => items.push(o);
   // sabhi source ek saath — ek bhi fail ho to baaki phir bhi dikhen
   const safe = p => p.then(r => r, () => ({ data: [] }));
-  const [lv, ot, ex, ea, ml, fuel, sup, lateR, wp] = await Promise.all([
+  const [lv, ex, ea, ml, fuel, sup, lateR, wp] = await Promise.all([
     safe(sb.from('leaves').select('*').eq('status','PENDING').order('created_at')),
-    safe(sb.from('ot_requests').select('*').eq('status','PENDING').order('ot_date')),
     safe(sb.from('expenses').select('*').eq('status','PENDING').order('created_at')),
     safe(sb.from('ess_att_requests').select('*').eq('status','PENDING').order('created_at')),
     safe(sb.from('money_requests').select('*').eq('status','PENDING').order('created_at')),
@@ -16158,16 +16094,6 @@ async function loadApInbox(){
     why: L.reason, at: L.created_at, can: canLeave,
     act: _apOkBtn('appr-leave','data-id="'+L.id+'"') + _apNoBtn('cancel-leave-x','data-id="'+L.id+'"'),
     wait: 'Awaiting Manager/CEO approval' }));
-
-  const canOt = canApprove('ot') && roleCEO();
-  const otG = {};
-  (ot.data||[]).forEach(o => { const g = o.group_id || 'single-'+o.id; (otG[g] = otG[g] || []).push(o); });
-  Object.entries(otG).forEach(([gid, rows]) => { const f = rows[0];
-    push({ kind:'ot', who: rows.length > 1 ? rows.length + ' employees' : apNameOf(f.employee_code), code: rows.length > 1 ? '' : f.employee_code,
-      detail: f.hours + ' hrs · ' + fmtDate(f.ot_date) + (gid.startsWith('single-') ? '' : ' · ' + gid),
-      why: 'Maanga: ' + apNameOf(f.requested_by || f.employee_code), at: f.created_at || f.ot_date, can: canOt,
-      act: _apOkBtn('ot-appr-grp','data-ids="'+rows.map(r=>r.id).join(',')+'"') + _apNoBtn('ot-rej-grp','data-ids="'+rows.map(r=>r.id).join(',')+'"'),
-      wait: 'Only the CEO can approve' }); });
 
   const canEx = canApprove('expense') && roleAcctMgr();
   (ex.data||[]).forEach(x => push({ kind:'exp', who: apNameOf(x.employee_code), code: x.employee_code,
@@ -16346,9 +16272,8 @@ async function apSetLateDecision(code, month, decision){
 
 async function loadApprovals(){
   loadSupAttApprovals();
-  const [lv, ot, ex, ea] = await Promise.all([
+  const [lv, ex, ea] = await Promise.all([
     sb.from('leaves').select('*').eq('status','PENDING').order('created_at'),
-    sb.from('ot_requests').select('*').eq('status','PENDING').order('ot_date'),
     sb.from('expenses').select('*').eq('status','PENDING').order('created_at'),
     sb.from('ess_att_requests').select('*').eq('status','PENDING').order('created_at')
   ]);
@@ -16424,28 +16349,6 @@ async function loadApprovals(){
         <button class="btn btn-ghost btn-sm" data-act="appr-leave" data-id="${L.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
         <button class="btn btn-danger btn-sm" data-act="cancel-leave-x" data-id="${L.id}"><i class="fa-solid fa-xmark"></i></button></td></tr>`).join('')}
     </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
-  // group by request ID (bulk requests appear as ONE entry with a View button)
-  const groups = {};
-  (ot.data||[]).forEach(o => {
-    const g = o.group_id || 'single-' + o.id;
-    (groups[g] = groups[g] || []).push(o);
-  });
-  $('apOT').innerHTML = Object.keys(groups).length ? `<div style="overflow-x:auto"><table class="tbl">
-    <thead><tr><th>Request</th><th>Employees</th><th>Initiated By</th><th>Date</th><th>Hrs</th><th style="text-align:right"></th></tr></thead><tbody>
-    ${Object.entries(groups).map(([gid, rows]) => {
-      const f = rows[0];
-      const initiator = f.requested_by ? nameOf(f.requested_by) : nameOf(f.employee_code);
-      const ids = rows.map(r => r.id).join(',');
-      return `<tr><td class="font-semibold text-xs">${esc(gid.startsWith('single-') ? 'OT Request' : gid)}</td>
-        <td><span class="chip chip-blue">${rows.length}</span></td>
-        <td class="text-xs">${esc(initiator)}</td><td class="text-xs">${fmtDate(f.ot_date)}</td><td>${f.hours}</td>
-        <td style="text-align:right;white-space:nowrap">
-          <button class="btn btn-ghost btn-sm" data-act="ot-view" data-g="${esc(gid)}"><i class="fa-solid fa-eye"></i></button>
-          <button class="btn btn-ghost btn-sm" data-act="ot-appr-grp" data-ids="${ids}" title="Approve all"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
-          <button class="btn btn-danger btn-sm" data-act="ot-rej-grp" data-ids="${ids}"><i class="fa-solid fa-xmark"></i></button></td></tr>
-      <tr class="hidden" id="otg-${esc(gid)}"><td colspan="6" style="background:#faf8f4">
-        <div class="text-[11px] space-y-1 p-1">${rows.map(r => `<div class="flex justify-between"><span>${esc(nameOf(r.employee_code))} <span style="color:var(--muted)">(${esc(r.employee_code)})</span></span><span>${r.hours} hrs</span></div>`).join('')}</div></td></tr>`;
-    }).join('')}</tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
   const _fmtTs = ts => { if(!ts) return '—'; try{ return new Date(ts).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}); }catch(e){ return String(ts).slice(0,16); } };
   $('apExp').innerHTML = (ex.data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
     <thead><tr><th>Timestamp</th><th>Employee</th><th>Category</th><th>Amount</th><th>Date</th><th>Note</th><th>Bills</th><th style="text-align:right"></th></tr></thead><tbody>
@@ -16486,9 +16389,7 @@ async function loadApprovals(){
     </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">Nothing pending.</p>';
   if($('apCntMl')) $('apCntMl').innerText = (ml.data||[]).length;
   // tab count badges
-  const otGroupCount = Object.keys(groups).length;
   if($('apCntLv')) $('apCntLv').innerText = (lv.data||[]).length;
-  if($('apCntOt')) $('apCntOt').innerText = otGroupCount;
   if($('apCntEx')) $('apCntEx').innerText = (ex.data||[]).length;
   
   // "Sab Kuch" inbox + Salary/CTC + Late-LOP: inhe yahin bhar dete hain taaki CEO ko
@@ -16514,7 +16415,6 @@ async function apEssMode(kind, mode){
     wfh:   { host:'apWfh',   pend:'apWfhPend',   appr:'apWfhAppr' },
     gate:  { host:'apGate',  pend:'apGatePend',  appr:'apGateAppr' },
     attfix:{ host:'apAttfix',pend:'apAfPend',    appr:'apAfAppr' },
-    ot:    { host:'apOT',    pend:'apOtPend',    appr:'apOtAppr' },
     mloan: { host:'apMloan', pend:'apMlPend',    appr:'apMlAppr' }
   };
   const m = map[kind]; if(!m) return;
@@ -16525,14 +16425,6 @@ async function apEssMode(kind, mode){
   const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
 
   try{
-    if(kind === 'ot'){
-      const { data } = await sb.from('ot_requests').select('*').eq('status','APPROVED').order('ot_date',{ascending:false}).limit(200);
-      host.innerHTML = (data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
-        <thead><tr><th>Employee</th><th>Date</th><th>Hours</th><th>Reason</th></tr></thead><tbody>
-        ${data.map(r=>`<tr><td class="font-semibold">${esc(nameOf(r.employee_code))}</td><td class="text-xs">${fmtDate(r.ot_date)}</td><td>${esc(String(r.hours||r.ot_hours||''))}</td><td class="text-xs">${esc(r.reason||'—')}</td></tr>`).join('')}
-        </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">No approved overtime.</p>';
-      return;
-    }
     if(kind === 'mloan'){
       const { data } = await sb.from('money_requests').select('*').in('status',['APPROVED','CEO_APPROVED','PAID']).order('created_at',{ascending:false}).limit(200);
       host.innerHTML = (data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
@@ -16606,46 +16498,6 @@ document.querySelectorAll('.ap-tab').forEach(t => t.addEventListener('click', ()
 // inbox ka "sirf mere kaam" tick
 document.addEventListener('change', e => {
   if(e.target && e.target.id === 'apInboxMine'){ AP_INBOX_KIND = ''; apRenderInbox(); }
-});
-
-/* ---------------- Bulk OT (admin, directly approved) ---------------- */
-function renderBotList(q){
-  q = (q||'').toLowerCase();
-  $('botList').innerHTML = activeEmps()
-    .filter(e => !q || [e.Name, e['Employee code'], e.DEPARTMENT, e.LINE].join(' ').toLowerCase().includes(q))
-    .map(e => `<label class="flex items-center gap-2 p-2 rounded-lg text-sm" style="background:#faf8f4;cursor:pointer">
-      <input type="checkbox" class="bot-chk" value="${esc(e['Employee code'])}">
-      <span><b>${esc(e.Name)}</b> <span style="color:var(--muted)">${esc(e['Employee code'])} • ${esc(e.DEPARTMENT||'—')}${e.LINE ? ' • ' + esc(e.LINE) : ''}</span></span>
-    </label>`).join('');
-  updateBotCount();
-}
-function updateBotCount(){
-  $('botCount').innerText = document.querySelectorAll('.bot-chk:checked').length + ' selected';
-}
-$('botSearch').addEventListener('input', e => renderBotList(e.target.value));
-$('botList').addEventListener('change', updateBotCount);
-$('botAllBtn').addEventListener('click', () => { document.querySelectorAll('.bot-chk').forEach(c => c.checked = true); updateBotCount(); });
-$('botNoneBtn').addEventListener('click', () => { document.querySelectorAll('.bot-chk').forEach(c => c.checked = false); updateBotCount(); });
-$('botSaveBtn').addEventListener('click', async () => {
-  const codes = [...document.querySelectorAll('.bot-chk:checked')].map(c => c.value);
-  const hours = Number($('botHours').value);
-  if(!codes.length) return notify('Select at least one employee', 'error');
-  if(!$('botDate').value || !hours || hours <= 0 || hours > 12) return notify('Enter a date and hours (0.5–12)', 'error');
-  const btn = $('botSaveBtn');
-  btn.innerHTML = '<div class="loader-ring"></div> Saving…'; btn.disabled = true;
-  try{
-    const { data: existing } = await sb.from('ot_requests').select('employee_code').eq('ot_date', $('botDate').value).neq('status','REJECTED');
-    const have = new Set((existing||[]).map(x => x.employee_code));
-    const rows = codes.filter(c => !have.has(c)).map(c => ({ employee_code: c, ot_date: $('botDate').value, hours, reason: $('botReason').value, status: 'APPROVED' }));
-    if(rows.length){
-      const { error } = await sb.from('ot_requests').insert(rows);
-      if(error) throw error;
-    }
-    notify(`OT added for ${rows.length} employee(s)` + (codes.length - rows.length ? ` — ${codes.length - rows.length} already had OT for this date` : ''), 'success');
-    $('bulkOtModal').classList.remove('show');
-    loadApprovals();
-  }catch(err){ notify(err.message, 'error'); }
-  finally{ btn.innerHTML = '<i class="fa-solid fa-check-double"></i> Add OT for Selected (Approved)'; btn.disabled = false; }
 });
 
 /* ================= SALARY REVISION ================= */
