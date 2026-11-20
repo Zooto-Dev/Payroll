@@ -4979,7 +4979,7 @@ $('aeSaveBtn').addEventListener('click', async () => {
         if(eb) notify('Attendance sync issue: ' + eb.message, 'error');
         else if(wsync && wsync.error) notify('Attendance sync issue: ' + wsync.error, 'error');
         await sb.rpc('wp_decide', { p_id: Number(wpc.id), p_approve: true, p_emp_code: code });
-        notify(`✓ Work pass converted — ${(wsync && wsync.inserted) || 0} day(s) of trial attendance synced`, 'success');
+        notify(`✓ Work pass converted — ${((wsync && wsync.inserted) || 0) + ((wsync && wsync.skipped) || 0)} day(s) of trial attendance are on the employee record`, 'success');
       }catch(e){ notify('Work pass convert issue: ' + (e.message || e), 'error'); }
       window._convertingWorkPass = null;
       try{ loadTrialPage(); }catch(e){}
@@ -7189,6 +7189,28 @@ async function convertCandidate(id){
 async function convertWorkPass(id){
   const w = (window._wpPending || []).find(x => String(x.id) === String(id));
   if(!w) return notify('Work pass details could not be loaded — please reopen Approvals', 'error');
+  /* Already an employee (same mobile and first name)? Then the pass is linked to that record.
+     Opening Add Employee here would make a second code for the same person, and the trial
+     days would land on the wrong one — this is how re-joiners lost their trial attendance. */
+  try{
+    const { data: wr } = await sb.from('work_passes').select('phone').eq('id', id).maybeSingle();
+    const ph = String((wr && wr.phone) || '').replace(/\D/g, '').slice(-10);
+    const nm4 = String(w.name || '').trim().toUpperCase().split(/\s+/)[0].slice(0, 4);
+    const hit = ph.length === 10 ? activeEmps().find(e => {
+      const p = PROFILES[e['Employee code']] || {};
+      return String(p.phone || '').replace(/\D/g, '').slice(-10) === ph
+          && String(e.Name || '').trim().toUpperCase().split(/\s+/)[0].slice(0, 4) === nm4;
+    }) : null;
+    if(hit){
+      const code = hit['Employee code'];
+      if(!(await nxConfirm(`${w.name} is already an employee: ${hit.Name} (${code}).\n\nLink this work pass to that employee? The trial attendance will be copied to ${code}. No new employee is created.`, 'Already an Employee'))) return;
+      const { data: dr, error: de } = await sb.rpc('wp_decide', { p_id: Number(id), p_approve: true, p_emp_code: code });
+      if(de || (dr && dr.error)) return notify('The work pass could not be linked: ' + ((de && de.message) || dr.error), 'error');
+      notify(`✓ Work pass linked to ${hit.Name} (${code}) — trial attendance copied`, 'success');
+      try{ loadTrialPage(); }catch(e){}
+      return;
+    }
+  }catch(e){ console.warn('work pass link check failed', e); }
   if(!(await nxConfirm(`Convert ${w.name} to an employee?\n\nThe Add Employee form will open — the code is generated when the Unit is selected. Trial attendance moves to payroll automatically.`, 'Work Pass → Employee'))) return;
   // trial attendance abhi utha lo (Add ke baad sync karenge)
   let attRows = [];
@@ -10542,7 +10564,7 @@ document.body.addEventListener('click', async e => {
       else if(wsync && wsync.error) notify('Attendance sync issue: ' + wsync.error, 'error');
       // 4) pass CONVERTED
       await sb.rpc('wp_decide', { p_id: Number(id), p_approve: true, p_emp_code: code });
-      notify(`✓ ${el.dataset.name} is now an employee (${code}) — ${(wsync && wsync.inserted) || 0} day(s) of trial attendance synced`, 'success');
+      notify(`✓ ${el.dataset.name} is now an employee (${code}) — ${((wsync && wsync.inserted) || 0) + ((wsync && wsync.skipped) || 0)} day(s) of trial attendance are on the employee record`, 'success');
       await loadEmployees(); loadTrialPage();
     }catch(err){ notify('Failed: ' + (err.message||err), 'error'); }
     return;
@@ -15741,7 +15763,7 @@ function ceoCard(o){
         <div style="flex:1;min-width:220px">
           <div class="font-bold" style="font-size:14.5px">${o.title}</div>
           ${o.sub ? `<div class="text-xs mt-1" style="color:var(--muted)">${o.sub}</div>` : ''}
-          ${o.facts && o.facts.length ? `<div class="flex flex-wrap gap-x-5 gap-y-1 mt-2">${o.facts.map(f =>
+          ${o.facts && o.facts.length ? `<div class="flex flex-wrap gap-x-5 gap-y-2 mt-2">${o.facts.map(f =>
             `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">${f[0]}</div>
              <div style="font-size:13px;font-weight:600">${f[1]}</div></div>`).join('')}</div>` : ''}
           ${o.note ? `<div class="mt-2 p-2 rounded text-xs" style="background:var(--brand-soft)">${o.note}</div>` : ''}
@@ -15749,20 +15771,73 @@ function ceoCard(o){
         </div>
         <div style="white-space:nowrap">${o.actions}</div>
       </div>
+      ${o.detail ? `<div class="mt-3" style="overflow-x:auto">${o.detail}</div>` : ''}
     </div>
   </div>`;
 }
-function ceoSection(title, icon, hint, cards){
-  if(!cards.length) return '';
-  return `<div class="mb-5">
-    <div class="flex items-center gap-2 mb-2">
-      <h3 class="display font-bold m-0" style="font-size:15px"><i class="fa-solid ${icon}" style="color:var(--brand)"></i> ${title}</h3>
-      <span class="chip chip-blue" style="font-size:11px">${cards.length}</span>
-    </div>
-    ${hint ? `<p class="text-xs mt-0 mb-2" style="color:var(--muted)">${hint}</p>` : ''}
-    ${cards.join('')}
-  </div>`;
+/* Detail table inside a card. rows: { cells:[...], bold?, head? } — first column left, the rest right-aligned. */
+function ceoTable(head, rows){
+  const td = (c, i, extra) => `<td style="padding:5px 10px;border-bottom:1px solid var(--line);${i ? 'text-align:right;white-space:nowrap;' : ''}${extra || ''}">${c}</td>`;
+  return `<table style="width:100%;max-width:720px;border-collapse:collapse;font-size:12px">
+    <thead><tr>${head.map((h, i) => `<th style="padding:6px 10px;text-align:${i ? 'right' : 'left'};font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:1.5px solid var(--line)">${h}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r => r.head
+      ? `<tr><td colspan="${head.length}" style="padding:7px 10px 4px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--brand)">${r.head}</td></tr>`
+      : `<tr>${r.cells.map((c, i) => td(c, i, r.bold ? 'font-weight:700;background:var(--surface-2,#f8fafc);' : '')).join('')}</tr>`).join('')}</tbody></table>`;
 }
+/* Statutory figures for a gross / basic pair, the same way the payslip works them out. */
+function ceoStat(gross, basic, f){
+  const S = getSettings();
+  const er = employerSides(gross, basic, !!f.pf, !!f.esi, !!f.lwf);
+  const pfBase = Number(S.pfCap) > 0 ? Math.min(basic, Number(S.pfCap)) : basic;
+  const eePF = f.pf ? Math.round(pfBase * Number(S.pfPct) / 100) : 0;
+  const eeESI = (f.esi && gross > 0 && gross <= Number(S.esiLimit)) ? Math.ceil(gross * Number(S.esiPct) / 100) : 0;
+  const eeLWF = f.lwf ? lwfEE(gross) : 0;
+  return { erPF: er.erPF, erESI: er.erESI, erLWF: er.erLWF, erTotal: er.total,
+           eePF, eeESI, eeLWF, eeTotal: eePF + eeESI + eeLWF,
+           net: gross - (eePF + eeESI + eeLWF), ctc: gross + er.total };
+}
+function ceoStatRows(st, cols){
+  // cols = how many value columns the table has (1 = monthly only, 2 = monthly + annual)
+  const v = n => cols === 2 ? [_ceoINR(n), _ceoINR(n * 12)] : [_ceoINR(n)];
+  return [
+    { head: 'Employee deductions' },
+    { cells: ['Provident Fund'].concat(v(st.eePF)) },
+    { cells: ['ESI'].concat(v(st.eeESI)) },
+    { cells: ['Labour Welfare Fund'].concat(v(st.eeLWF)) },
+    { cells: ['Net take-home'].concat(v(st.net)), bold: true },
+    { head: 'Employer contribution' },
+    { cells: ['Provident Fund'].concat(v(st.erPF)) },
+    { cells: ['ESI'].concat(v(st.erESI)) },
+    { cells: ['Labour Welfare Fund'].concat(v(st.erLWF)) },
+    { cells: ['Cost to company (CTC)'].concat(v(st.ctc)), bold: true }
+  ];
+}
+
+/* One tab per kind of approval. The open tab is remembered across reloads of the list. */
+let CEO_TAB = '';
+let CEO_TABS = [];
+function ceoRenderTabs(){
+  const host = $('ceoBox'); if(!host) return;
+  if(!CEO_TABS.some(t => t.key === CEO_TAB)) CEO_TAB = (CEO_TABS.find(t => t.cards.length) || CEO_TABS[0] || {}).key || '';
+  const cur = CEO_TABS.find(t => t.key === CEO_TAB);
+  host.innerHTML = `<div class="ap-tabs" id="ceoTabs">${CEO_TABS.map(t =>
+      `<button class="ap-tab${t.key === CEO_TAB ? ' active' : ''}" data-ceotab="${t.key}"><i class="fa-solid ${t.icon}"></i> ${t.title} <span class="ap-cnt">${t.cards.length}</span></button>`).join('')}</div>`
+    + (cur ? `<p class="text-xs mt-0 mb-3" style="color:var(--muted)">${cur.hint}</p>`
+        + (cur.cards.length ? cur.cards.join('')
+           : `<div class="card" style="text-align:center;padding:34px 20px">
+                <div style="font-size:34px">✅</div>
+                <p class="display font-bold m-0 mt-2" style="font-size:15px">Nothing pending under ${cur.title}</p>
+                <p class="m-0 mt-1 text-xs" style="color:var(--muted)">${cur.empty}</p></div>`) : '')
+    + `<p class="text-xs mt-3" style="color:var(--muted)"><i class="fa-solid fa-circle-info"></i>
+        Leave, expenses, gate passes, field duty, attendance corrections and work passes are not shown here —
+        HR and reporting managers handle those on the <b>Approvals</b> page.</p>`;
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest && e.target.closest('[data-ceotab]');
+  if(!t) return;
+  CEO_TAB = t.dataset.ceotab;
+  ceoRenderTabs();
+});
 
 async function loadCeoApprovals(){
   const host = $('ceoBox'); if(!host) return;
@@ -15772,25 +15847,53 @@ async function loadCeoApprovals(){
   }
   host.innerHTML = '<p class="p-4 m-0 text-sm" style="color:var(--muted)">Loading…</p>';
   const safe = p => p.then(r => r, () => ({ data: [] }));
-  const [cand, ot, ml, lateR] = await Promise.all([
+  const [cand, ml, lateR] = await Promise.all([
     safe(sb.from('candidates').select('*').eq('offer_approval','PENDING_CEO').order('updated_at')),
-    safe(sb.from('ot_requests').select('*').eq('status','PENDING').order('ot_date')),
     safe(sb.from('money_requests').select('*').eq('status','PENDING').order('created_at')),
     safe(sb.from('payroll_late_reviews').select('*').eq('status','PENDING').order('month'))
   ]);
-  // offerCeoDecide CANDIDATES se record uthata hai — isliye yahan bhar dete hain
+  // offerCeoDecide reads the record from CANDIDATES, so keep it filled here
   (cand.data || []).forEach(c => {
     const i = CANDIDATES.findIndex(x => String(x.id) === String(c.id));
     if(i >= 0) CANDIDATES[i] = c; else CANDIDATES.push(c);
   });
+  const S = getSettings();
+  const comps = S.earnComps || [];
+  const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
+  const empOf = c => EMP.find(x => x['Employee code'] === c) || {};
+  const codeTag = c => ' <span style="font-weight:400;color:var(--muted);font-size:12px">' + esc(c) + '</span>';
+  const diff = (a, b) => { const d = Math.round(b - a); return d === 0 ? '—' : `<span style="color:${d > 0 ? 'var(--ok,#16a34a)' : 'var(--bad,#dc2626)'}">${d > 0 ? '+' : '−'}${_ceoINR(Math.abs(d))}</span>`; };
+  const tenure = doj => { const n = ceoDays(doj); if(n === null) return '—'; const y = Math.floor(n / 365), m = Math.floor((n % 365) / 30); return (y ? y + ' yr ' : '') + m + ' mo'; };
+
+  // pending salary / CTC employees — and the extra records their tabs show
+  const salEmps = [], ctcEmps = [];
+  activeEmps().forEach(e => {
+    const pr = PROFILES[e['Employee code']] || {};
+    if(String(pr.salary_status || '').toUpperCase() === 'PENDING') salEmps.push(e);
+    if(String(pr.ctc_status || '').toUpperCase() === 'PENDING_CEO') ctcEmps.push(e);
+  });
+  const mlCodes = [...new Set((ml.data || []).map(r => r.employee_code))];
+  const lateCodes = [...new Set((lateR.data || []).map(r => r.employee_code))];
+  const lateMonths = [...new Set((lateR.data || []).map(r => r.month))].sort();
+  const [revR, advR, lateAtt] = await Promise.all([
+    salEmps.length ? safe(sb.from('salary_revisions').select('employee_code,old_gross,new_gross,old_earn,new_earn,reason,note,changed_by,created_at')
+                            .in('employee_code', salEmps.map(e => e['Employee code'])).order('created_at', { ascending: false }).limit(400)) : { data: [] },
+    mlCodes.length ? safe(sb.from('advances').select('employee_code,amount,emi,balance,status,type,date').in('employee_code', mlCodes)) : { data: [] },
+    lateCodes.length ? safe(sb.from('attendance').select('employee_code,date,in_time').eq('is_late', true).in('employee_code', lateCodes)
+                              .gte('date', lateMonths[0] + '-01').lte('date', lateMonths[lateMonths.length - 1] + '-31').order('date').limit(2000)) : { data: [] }
+  ]);
+  const lastRev = {};
+  (revR.data || []).forEach(r => { if(!lastRev[r.employee_code]) lastRev[r.employee_code] = r; });
 
   // ---------- 1. Job offers ----------
   const offers = (cand.data || []).map(c => {
     let f = { pf:true, esi:false, lwf:true, tds:false };
     try{ if(c.offer_flags) f = Object.assign({}, f, JSON.parse(c.offer_flags)); }catch(e){}
     const g = Number(c.agreed_salary) || 0;
-    const p = ctcParts(g, f);
+    const p = ctcPartsFromCTC(ctcParts(g, f).monthlyCTC, f);     // same figures as the offer letter's Annexure A
+    const gg = p.gross, basic = Math.round(gg * 0.5), hra = Math.round(gg * 0.25), conv = Math.round(gg * 0.15), spl = gg - basic - hra - conv;
     const on = [f.pf ? 'PF' : null, f.esi ? 'ESI' : null, f.lwf ? 'LWF' : null, f.tds ? 'TDS' : null].filter(Boolean);
+    const m2 = n => [_ceoINR(n), _ceoINR(n * 12)];
     return ceoCard({
       accent:'#1f3864',
       title: esc(c.name || '(no name)'),
@@ -15798,125 +15901,204 @@ async function loadCeoApprovals(){
       facts: [
         ['Monthly CTC', '<b>' + _ceoINR(p.monthlyCTC) + '</b>'],
         ['Annual CTC', _ceoINR(p.annualCTC)],
-        ['Monthly gross', _ceoINR(g)],
+        ['Monthly gross', _ceoINR(gg)],
+        ['Net take-home', _ceoINR(p.net)],
         ['Statutory', on.length ? on.join(', ') : 'none'],
-        ['Joining date', c.join_date ? esc(fmtDate(c.join_date)) : 'not set']
+        ['Joining date', c.join_date ? esc(fmtDate(c.join_date)) : 'not set'],
+        ['Experience', esc(c.experience || '—')],
+        ['Expected salary', c.expected_salary ? esc(String(c.expected_salary)) : '—'],
+        ['Interview score', c.interview_score != null && c.interview_score !== '' ? esc(String(c.interview_score)) : '—'],
+        ['Source', esc(c.source || '—')],
+        ['Phone', esc(c.phone || '—')],
+        ['Email', esc(c.email || '—')]
       ],
       note: c.email
         ? 'On approval the signed offer letter is emailed to <b>' + esc(c.email) + '</b> straight away.'
         : '<b style="color:var(--bad)">No email address saved</b> — the approval will be recorded and the letter will carry your signature, but nothing can be sent until an email is added.',
       at: c.updated_at || c.offer_date || c.created_at,
+      detail: ceoTable(['Salary breakup', 'Monthly', 'Annual'], [
+        { head: 'Earnings' },
+        { cells: ['Basic'].concat(m2(basic)) }, { cells: ['House Rent Allowance'].concat(m2(hra)) },
+        { cells: ['Conveyance'].concat(m2(conv)) }, { cells: ['Special Allowance'].concat(m2(spl)) },
+        { cells: ['Gross salary'].concat(m2(gg)), bold: true },
+        { head: 'Employee deductions' },
+        { cells: ['Provident Fund'].concat(m2(p.eePF)) }, { cells: ['ESI'].concat(m2(p.eeESI)) },
+        { cells: ['Labour Welfare Fund'].concat(m2(p.eeLWF)) }, { cells: ['TDS (estimated)'].concat(m2(p.eeTDS)) },
+        { cells: ['Net take-home'].concat(m2(p.net)), bold: true },
+        { head: 'Employer contribution' },
+        { cells: ['Provident Fund'].concat(m2(p.empPF)) }, { cells: ['ESI'].concat(m2(p.empESI)) },
+        { cells: ['Labour Welfare Fund'].concat(m2(p.empLWF)) },
+        { cells: ['Cost to company (CTC)', _ceoINR(p.monthlyCTC), _ceoINR(p.annualCTC)], bold: true }
+      ]),
       actions: `<button class="btn btn-primary btn-sm" onclick="offerCeoDecide('${c.id}', true)"><i class="fa-solid fa-check"></i> Approve &amp; send offer</button>
                 <button class="btn btn-danger btn-sm" onclick="offerCeoDecide('${c.id}', false)"><i class="fa-solid fa-xmark"></i> Reject</button>`
     });
   });
 
-  // ---------- 2. Salary structures + 3. Annual CTC ----------
-  const salCards = [], ctcCards = [];
-  activeEmps().forEach(e => {
+  // ---------- 2. Salary structures ----------
+  const salCards = salEmps.map(e => {
     const code = e['Employee code'], pr = PROFILES[code] || {};
     const mine = isMyOwnProfile(code);
-    const facts = (extra) => [['Department', esc(e.DEPARTMENT || '—')], ['Designation', esc(e.DESIGNATION || '—')]].concat(extra);
-    if(String(pr.salary_status || '').toUpperCase() === 'PENDING'){
-      const gross = Object.values((pr.salary || {}).earn || {}).reduce((a,b) => a + (Number(b)||0), 0);
-      salCards.push(ceoCard({
-        accent:'#2f7d54',
-        title: esc(e.Name) + ' <span style="font-weight:400;color:var(--muted);font-size:12px">' + esc(code) + '</span>',
-        sub:'New or revised salary structure submitted by HR',
-        facts: facts([['Monthly gross', '<b>' + _ceoINR(gross) + '</b>']]),
-        note: mine ? '<b style="color:var(--bad)">This is your own profile</b> — someone else has to approve it.'
-                   : 'This salary does not enter payroll until you approve it.',
-        at: pr.salary_submitted_at,
-        actions: mine ? '<span class="text-xs" style="color:var(--muted)">Not yours to approve</span>'
-          : `<button class="btn btn-primary btn-sm" data-act="sal-approve" data-code="${esc(code)}"><i class="fa-solid fa-check"></i> Approve</button>
-             <button class="btn btn-danger btn-sm" data-act="sal-reject" data-code="${esc(code)}"><i class="fa-solid fa-xmark"></i> Reject</button>
-             <button class="btn btn-ghost btn-sm" data-act="sal-view" data-code="${esc(code)}" title="Open profile"><i class="fa-solid fa-eye"></i></button>`
-      }));
-    }
-    if(String(pr.ctc_status || '').toUpperCase() === 'PENDING_CEO'){
-      const annual = Number(pr.ctc_annual) || 0;
-      ctcCards.push(ceoCard({
-        accent:'#a9701e',
-        title: esc(e.Name) + ' <span style="font-weight:400;color:var(--muted);font-size:12px">' + esc(code) + '</span>',
-        sub:'Annual CTC locked by HR, waiting for you',
-        facts: facts([['Annual CTC', '<b>' + _ceoINR(annual) + '</b>'], ['Monthly CTC', _ceoINR(Math.round(annual/12))]]),
-        note:'Approving rewrites the salary structure from this CTC (Basic 50%, HRA 25%, Conveyance 15%, Special 10%).',
-        at: null,
-        actions: `<button class="btn btn-primary btn-sm" onclick="ctcCeoDecide('${esc(code)}', true)"><i class="fa-solid fa-check"></i> Approve</button>
-                  <button class="btn btn-danger btn-sm" onclick="ctcCeoDecide('${esc(code)}', false)"><i class="fa-solid fa-xmark"></i> Reject</button>`
-      }));
-    }
-  });
-
-  // ---------- 4. Overtime ----------
-  const otG = {};
-  (ot.data || []).forEach(o => { const k = o.group_id || 'single-' + o.id; (otG[k] = otG[k] || []).push(o); });
-  const nameOf = c => { const e = EMP.find(x => x['Employee code'] === c); return e ? e.Name : c; };
-  const otCards = Object.entries(otG).map(([gid, rows]) => {
-    const f = rows[0];
-    const hrs = rows.reduce((a,r) => a + (Number(r.hours)||0), 0);
+    const earn = (pr.salary && pr.salary.earn) || {};
+    const val = (o, k) => Number((o || {})[k]) || 0;
+    const gross = comps.reduce((a, c) => a + val(earn, c.k), 0);
+    const rev = lastRev[code];
+    // the revision row written with this submission holds the figures it replaces
+    const old = (rev && Math.round(Number(rev.new_gross) || 0) === Math.round(gross) && rev.old_earn && typeof rev.old_earn === 'object') ? rev.old_earn : null;
+    const oldGross = old ? comps.reduce((a, c) => a + val(old, c.k), 0) : (rev && Math.round(Number(rev.new_gross) || 0) === Math.round(gross) ? Number(rev.old_gross) || 0 : 0);
+    const f = ctcFlagsOf(code);
+    const st = ceoStat(gross, val(earn, 'basic'), f);
+    const on = [f.pf ? 'PF' : null, f.esi ? 'ESI' : null, f.lwf ? 'LWF' : null].filter(Boolean);
+    const why = (pr.salary && pr.salary.change_reason) || (rev && (rev.reason || rev.note)) || '';
+    const rows = [{ head: 'Earnings' }].concat(comps.map(c => ({ cells: [esc(c.name || c.k),
+        old ? _ceoINR(val(old, c.k)) : '—', _ceoINR(val(earn, c.k)), old ? diff(val(old, c.k), val(earn, c.k)) : '—'] })));
+    rows.push({ cells: ['Gross salary', oldGross ? _ceoINR(oldGross) : '—', _ceoINR(gross), oldGross ? diff(oldGross, gross) : '—'], bold: true });
+    const sr = ceoStatRows(st, 1).map(r => r.head ? r : { cells: [r.cells[0], '', r.cells[1], ''], bold: r.bold });
     return ceoCard({
-      accent:'#1d4ed8',
-      title: rows.length > 1 ? rows.length + ' employees' : esc(nameOf(f.employee_code)),
-      sub: 'Overtime on ' + esc(fmtDate(f.ot_date)) + (gid.startsWith('single-') ? '' : ' · request ' + esc(gid)),
-      facts: [['Hours each', (Number(f.hours)||0) + ' hrs'], ['Total hours', hrs + ' hrs'],
-              ['Requested by', esc(nameOf(f.requested_by || f.employee_code))]],
-      note: rows.length > 1 ? 'Names: ' + rows.slice(0,8).map(r => esc(nameOf(r.employee_code))).join(', ') + (rows.length > 8 ? ' +' + (rows.length-8) + ' more' : '') : '',
-      at: f.created_at || f.ot_date,
-      actions: `<button class="btn btn-primary btn-sm" data-act="ot-appr-grp" data-ids="${rows.map(r=>r.id).join(',')}"><i class="fa-solid fa-check"></i> Approve all</button>
-                <button class="btn btn-danger btn-sm" data-act="ot-rej-grp" data-ids="${rows.map(r=>r.id).join(',')}"><i class="fa-solid fa-xmark"></i> Reject</button>`
+      accent:'#2f7d54',
+      title: esc(e.Name) + codeTag(code),
+      sub: oldGross ? 'Revised salary structure submitted by HR' : 'New salary structure submitted by HR',
+      facts: [
+        ['Department', esc(e.DEPARTMENT || '—')], ['Designation', esc(e.DESIGNATION || '—')],
+        ['Date of joining', e.DOJ ? esc(fmtDate(e.DOJ)) : '—'], ['Category', esc(pr.category || '—')],
+        ['Current gross', oldGross ? _ceoINR(oldGross) : 'none (first salary)'],
+        ['Proposed gross', '<b>' + _ceoINR(gross) + '</b>'],
+        ['Change', oldGross ? diff(oldGross, gross) : '—'],
+        ['Statutory', on.length ? on.join(', ') : 'none'],
+        ['Submitted by', esc(nameForEmail(pr.salary_submitted_by || '') || pr.salary_submitted_by || '—')],
+        ['Reason', esc(why || '—')]
+      ],
+      note: mine ? '<b style="color:var(--bad)">This is your own profile</b> — someone else has to approve it.'
+                 : 'This salary does not enter payroll until you approve it.',
+      at: pr.salary_submitted_at,
+      detail: ceoTable(['Salary structure (monthly)', 'Current', 'Proposed', 'Change'], rows.concat(sr)),
+      actions: mine ? '<span class="text-xs" style="color:var(--muted)">Not yours to approve</span>'
+        : `<button class="btn btn-primary btn-sm" data-act="sal-approve" data-code="${esc(code)}"><i class="fa-solid fa-check"></i> Approve</button>
+           <button class="btn btn-danger btn-sm" data-act="sal-reject" data-code="${esc(code)}"><i class="fa-solid fa-xmark"></i> Reject</button>
+           <button class="btn btn-ghost btn-sm" data-act="sal-view" data-code="${esc(code)}" title="Open profile"><i class="fa-solid fa-eye"></i></button>`
     });
   });
 
-  // ---------- 5. Loans & advances ----------
-  const mlCards = (ml.data || []).map(r => ceoCard({
-    accent:'#854d0e',
-    title: esc(r.name || nameOf(r.employee_code)) + ' <span style="font-weight:400;color:var(--muted);font-size:12px">' + esc(r.employee_code) + '</span>',
-    sub: (r.req_type === 'LOAN' ? 'Loan request' : 'Salary advance request'),
-    facts: [['Amount', '<b>' + _ceoINR(r.amount) + '</b>'],
-            ['Recovery', r.months ? r.months + ' monthly instalments' : 'from next salary'],
-            ['Reason', esc(r.reason || '—')]],
-    note: r.req_type === 'LOAN' ? 'On approval the employee must accept a loan agreement in the app before Accounts can disburse.' : '',
-    at: r.created_at,
-    actions: `<button class="btn btn-primary btn-sm" data-act="ml-appr" data-id="${r.id}" data-code="${esc(r.employee_code)}" data-type="${esc(r.req_type)}" data-amount="${r.amount}" data-months="${r.months||''}" data-reason="${esc(r.reason||'')}"><i class="fa-solid fa-check"></i> Approve</button>
-              <button class="btn btn-danger btn-sm" data-act="ml-rej" data-id="${r.id}"><i class="fa-solid fa-xmark"></i> Reject</button>`
-  }));
+  // ---------- 3. Annual CTC ----------
+  const ctcCards = ctcEmps.map(e => {
+    const code = e['Employee code'], pr = PROFILES[code] || {};
+    const annual = Number(pr.ctc_annual) || 0;
+    const f = ctcFlagsOf(code);
+    const p = ctcPartsFromCTC(Math.round(annual / 12), f);
+    const gg = p.gross, basic = Math.round(gg * 0.5), hra = Math.round(gg * 0.25), conv = Math.round(gg * 0.15), spl = gg - basic - hra - conv;
+    const cur = grossOf(code);
+    const on = [f.pf ? 'PF' : null, f.esi ? 'ESI' : null, f.lwf ? 'LWF' : null].filter(Boolean);
+    const m2 = n => [_ceoINR(n), _ceoINR(n * 12)];
+    return ceoCard({
+      accent:'#a9701e',
+      title: esc(e.Name) + codeTag(code),
+      sub:'Annual CTC locked by HR, waiting for you',
+      facts: [
+        ['Department', esc(e.DEPARTMENT || '—')], ['Designation', esc(e.DESIGNATION || '—')],
+        ['Date of joining', e.DOJ ? esc(fmtDate(e.DOJ)) : '—'],
+        ['Annual CTC', '<b>' + _ceoINR(annual) + '</b>'], ['Monthly CTC', _ceoINR(Math.round(annual / 12))],
+        ['Current gross', cur ? _ceoINR(cur) : 'none'], ['Gross after approval', '<b>' + _ceoINR(gg) + '</b>'],
+        ['Change in gross', cur ? diff(cur, gg) : '—'], ['Statutory', on.length ? on.join(', ') : 'none']
+      ],
+      note:'Approving rewrites the salary structure from this CTC (Basic 50%, HRA 25%, Conveyance 15%, Special 10% of gross).',
+      at: null,
+      detail: ceoTable(['Salary after approval', 'Monthly', 'Annual'], [
+        { head: 'Earnings' },
+        { cells: ['Basic'].concat(m2(basic)) }, { cells: ['House Rent Allowance'].concat(m2(hra)) },
+        { cells: ['Conveyance'].concat(m2(conv)) }, { cells: ['Special Allowance'].concat(m2(spl)) },
+        { cells: ['Gross salary'].concat(m2(gg)), bold: true },
+        { head: 'Employee deductions' },
+        { cells: ['Provident Fund'].concat(m2(p.eePF)) }, { cells: ['ESI'].concat(m2(p.eeESI)) },
+        { cells: ['Labour Welfare Fund'].concat(m2(p.eeLWF)) },
+        { cells: ['Net take-home'].concat(m2(p.net)), bold: true },
+        { head: 'Employer contribution' },
+        { cells: ['Provident Fund'].concat(m2(p.empPF)) }, { cells: ['ESI'].concat(m2(p.empESI)) },
+        { cells: ['Labour Welfare Fund'].concat(m2(p.empLWF)) },
+        { cells: ['Cost to company (CTC)', _ceoINR(p.monthlyCTC), _ceoINR(p.annualCTC)], bold: true }
+      ]),
+      actions: `<button class="btn btn-primary btn-sm" onclick="ctcCeoDecide('${esc(code)}', true)"><i class="fa-solid fa-check"></i> Approve</button>
+                <button class="btn btn-danger btn-sm" onclick="ctcCeoDecide('${esc(code)}', false)"><i class="fa-solid fa-xmark"></i> Reject</button>`
+    });
+  });
 
-  // ---------- 6. Late deductions ----------
-  const lateCards = (lateR.data || []).map(r => ceoCard({
-    accent:'#b3443c',
-    title: esc(nameOf(r.employee_code)) + ' <span style="font-weight:400;color:var(--muted);font-size:12px">' + esc(r.employee_code) + '</span>',
-    sub: 'Late arrivals in ' + esc(monthLabel(r.month)),
-    facts: [['Late arrivals', (r.lates || 0) + ' times'], ['Days to be cut', '<b style="color:var(--bad)">' + (r.base_late_lop || 0) + '</b>']],
-    note: 'Waive = the late deduction is dropped and the employee is paid in full. Charge = the days are cut from this month’s pay.',
-    at: r.created_at || (r.month + '-01'),
-    actions: `<button class="btn btn-primary btn-sm" data-act="late-appr" data-code="${esc(r.employee_code)}" data-month="${esc(r.month)}"><i class="fa-solid fa-check"></i> Waive</button>
-              <button class="btn btn-danger btn-sm" data-act="late-rej" data-code="${esc(r.employee_code)}" data-month="${esc(r.month)}"><i class="fa-solid fa-xmark"></i> Charge</button>`
-  }));
+  // ---------- 4. Loans & advances ----------
+  const mlCards = (ml.data || []).map(r => {
+    const e = empOf(r.employee_code);
+    const g = grossOf(r.employee_code);
+    const amt = Number(r.amount) || 0, months = Number(r.months) || 0;
+    const emi = months ? Math.ceil(amt / months) : amt;
+    const mine = (advR.data || []).filter(a => a.employee_code === r.employee_code);
+    const open = mine.filter(a => (Number(a.balance) || 0) > 0);
+    const owed = open.reduce((a, x) => a + (Number(x.balance) || 0), 0);
+    return ceoCard({
+      accent:'#854d0e',
+      title: esc(r.name || nameOf(r.employee_code)) + codeTag(r.employee_code),
+      sub: (r.req_type === 'LOAN' ? 'Loan request' : 'Salary advance request'),
+      facts: [
+        ['Amount', '<b>' + _ceoINR(amt) + '</b>'],
+        ['Recovery', months ? months + ' monthly instalments' : 'from the next salary'],
+        ['Instalment', _ceoINR(emi) + (months ? ' / month' : '')],
+        ['Monthly gross', g ? _ceoINR(g) : '—'],
+        ['Instalment as % of gross', g ? Math.round(emi * 100 / g) + '%' : '—'],
+        ['Already outstanding', owed ? '<b style="color:var(--bad)">' + _ceoINR(owed) + '</b>' : 'nothing'],
+        ['Department', esc(e.DEPARTMENT || '—')], ['Designation', esc(e.DESIGNATION || '—')],
+        ['Date of joining', e.DOJ ? esc(fmtDate(e.DOJ)) : '—'], ['Service', tenure(e.DOJ)],
+        ['Requested on', r.created_at ? esc(fmtDate(String(r.created_at).slice(0, 10))) : '—'],
+        ['Reason', esc(r.reason || '—')]
+      ],
+      note: r.req_type === 'LOAN' ? 'On approval the employee must accept a loan agreement in the app before Accounts can disburse.' : '',
+      at: r.created_at,
+      detail: mine.length ? ceoTable(['Earlier advances and loans', 'Amount', 'Instalment', 'Balance', 'Status'],
+        mine.slice(0, 8).map(a => ({ cells: [esc((a.type || 'ADVANCE') + (a.date ? ' · ' + fmtDate(a.date) : '')), _ceoINR(a.amount), _ceoINR(a.emi), _ceoINR(a.balance), esc(a.status || '—')] }))) : '',
+      actions: `<button class="btn btn-primary btn-sm" data-act="ml-appr" data-id="${r.id}" data-code="${esc(r.employee_code)}" data-type="${esc(r.req_type)}" data-amount="${r.amount}" data-months="${r.months||''}" data-reason="${esc(r.reason||'')}"><i class="fa-solid fa-check"></i> Approve</button>
+                <button class="btn btn-danger btn-sm" data-act="ml-rej" data-id="${r.id}"><i class="fa-solid fa-xmark"></i> Reject</button>`
+    });
+  });
 
-  const total = offers.length + salCards.length + ctcCards.length + otCards.length + mlCards.length + lateCards.length;
+  // ---------- 5. Late deductions ----------
+  const lateCards = (lateR.data || []).map(r => {
+    const e = empOf(r.employee_code);
+    const g = grossOf(r.employee_code);
+    const dim = new Date(Number(String(r.month).slice(0, 4)), Number(String(r.month).slice(5, 7)), 0).getDate() || 30;
+    const lop = Number(r.base_late_lop) || 0;
+    const days = (lateAtt.data || []).filter(a => a.employee_code === r.employee_code && String(a.date).slice(0, 7) === r.month);
+    return ceoCard({
+      accent:'#b3443c',
+      title: esc(nameOf(r.employee_code)) + codeTag(r.employee_code),
+      sub: 'Late arrivals in ' + esc(monthLabel(r.month)),
+      facts: [
+        ['Late arrivals', (r.lates || 0) + ' times'],
+        ['Days to be cut', '<b style="color:var(--bad)">' + lop + '</b>'],
+        ['Approx. amount', g ? '<b>' + _ceoINR(g / dim * lop) + '</b>' : '—'],
+        ['Monthly gross', g ? _ceoINR(g) : '—'],
+        ['Department', esc(e.DEPARTMENT || '—')], ['Designation', esc(e.DESIGNATION || '—')]
+      ],
+      note: 'Waive = the late deduction is dropped and the employee is paid in full. Charge = the days are cut from this month’s pay.',
+      at: r.created_at || (r.month + '-01'),
+      detail: days.length ? ceoTable(['Late days in ' + esc(monthLabel(r.month)), 'IN time'],
+        days.map(a => ({ cells: [esc(fmtDate(a.date)), esc(String(a.in_time || '').slice(0, 5))] }))) : '',
+      actions: `<button class="btn btn-primary btn-sm" data-act="late-appr" data-code="${esc(r.employee_code)}" data-month="${esc(r.month)}"><i class="fa-solid fa-check"></i> Waive</button>
+                <button class="btn btn-danger btn-sm" data-act="late-rej" data-code="${esc(r.employee_code)}" data-month="${esc(r.month)}"><i class="fa-solid fa-xmark"></i> Charge</button>`
+    });
+  });
+
+  CEO_TABS = [
+    { key:'offers', title:'Job Offers', icon:'fa-file-signature', cards: offers,
+      hint:'Approving emails the candidate a signed offer letter.', empty:'Every job offer has been decided.' },
+    { key:'salary', title:'Salary Structures', icon:'fa-indian-rupee-sign', cards: salCards,
+      hint:'A new or revised salary cannot enter payroll until you approve it.', empty:'Every salary structure has been decided.' },
+    { key:'ctc', title:'Annual CTC', icon:'fa-sack-dollar', cards: ctcCards,
+      hint:'HR has locked these figures and is waiting for your sign-off.', empty:'No annual CTC is waiting for sign-off.' },
+    { key:'loans', title:'Loans &amp; Advances', icon:'fa-hand-holding-dollar', cards: mlCards,
+      hint:'Money paid out before it is earned, recovered from salary later.', empty:'No loan or advance requests are waiting.' },
+    { key:'late', title:'Late Deductions', icon:'fa-user-clock', cards: lateCards,
+      hint:'Staff who would lose pay for late arrivals this month.', empty:'No late deductions are waiting for a decision.' }
+  ];
+  const total = CEO_TABS.reduce((a, t) => a + t.cards.length, 0);
   if($('ceoTotal')) $('ceoTotal').innerText = total;
   const bdg = $('ceoBadge');
   if(bdg){ bdg.innerText = total; bdg.classList.toggle('hidden', total === 0); }
-
-  if(!total){
-    host.innerHTML = `<div class="card" style="text-align:center;padding:40px 20px">
-      <div style="font-size:42px">✅</div>
-      <p class="display font-bold m-0 mt-2" style="font-size:17px">Nothing is waiting for you</p>
-      <p class="m-0 mt-1 text-sm" style="color:var(--muted)">Every offer, salary, CTC, overtime, loan and late deduction has been decided.</p>
-    </div>`;
-    return;
-  }
-  host.innerHTML =
-    ceoSection('Job offers', 'fa-file-signature', 'Approving emails the candidate a signed offer letter.', offers) +
-    ceoSection('Salary structures', 'fa-indian-rupee-sign', 'A new or revised salary cannot enter payroll until you approve it.', salCards) +
-    ceoSection('Annual CTC', 'fa-sack-dollar', 'HR has locked these figures and is waiting for your sign-off.', ctcCards) +
-    ceoSection('Overtime', 'fa-clock', 'Only you can approve overtime. Approved hours are recorded against the month.', otCards) +
-    ceoSection('Loans &amp; advances', 'fa-hand-holding-dollar', 'Money paid out before it is earned, recovered from salary later.', mlCards) +
-    ceoSection('Late deductions', 'fa-user-clock', 'Staff who lost pay for late arrivals and have appealed.', lateCards) +
-    `<p class="text-xs mt-1" style="color:var(--muted)"><i class="fa-solid fa-circle-info"></i>
-      Leave, expenses, gate passes, field duty, attendance corrections and work passes are not shown here —
-      HR and reporting managers handle those on the <b>Approvals</b> page.</p>`;
+  ceoRenderTabs();
 }
 
 let AP_INBOX = [];
