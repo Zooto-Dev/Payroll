@@ -11541,8 +11541,9 @@ async function obxAct(act, id, btn){
     const pdfB64 = await letterHTMLtoPdfBase64(html);
     notify('Email bheja ja raha hai…', 'info');
     const body_html = `<p>Dear ${esc(o.employee_name || 'Sir/Madam')},</p>`
-      + `<p>Please find attached <b>${esc(o.title)}</b> (Ref: ${esc(o.doc_no)}).</p>`
-      + `<p>Kindly acknowledge receipt of this email.</p><p>Regards,<br>${esc(co)}</p>`;
+      + `<p>Please find attached <b>${esc(o.title)}</b> (Ref: ${esc(o.doc_no)}).</p>`;
+    /* "Regards" aur "is mail ka jawab na dein, HR se sampark karein" wali line GAS khud
+       jodta hai — mail no-reply se jaata hai, isliye yahan jawab maangna galat hota. */
     let r = null;
     try{
       const res = await fetch(NX_CONFIG_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
