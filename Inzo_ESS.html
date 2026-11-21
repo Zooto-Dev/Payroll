@@ -257,7 +257,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <img src="nexus-logo.png" alt="Nexus" style="height:44px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
       <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Portal</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B80</b> — 21 Nov</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B81</b> — 21 Nov</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -284,7 +284,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
           <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B80</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B81</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -511,8 +511,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
             <input type="checkbox" id="lvEmg" style="margin-top:3px;transform:scale(1.25)">
             <span><b style="color:#9a3412"><span data-en="Emergency Leave" data-hi="आपातकालीन छुट्टी">Emergency Leave</span></b>
             <span style="display:block;color:#9a3412;font-size:11.5px;margin-top:2px"
-              data-en="For a real emergency only — you do not have to wait for permission first. Reason is compulsory, and it needs two approvals: your manager, then HOD."
-              data-hi="सिर्फ़ सच्ची आपात स्थिति के लिए — पहले अनुमति का इंतज़ार नहीं करना पड़ेगा। कारण लिखना ज़रूरी है, और दो मंज़ूरी लगेंगी: पहले आपके मैनेजर की, फिर HOD की।">For a real emergency only — you do not have to wait for permission first. Reason is compulsory, and it needs two approvals: your manager, then HOD.</span></span>
+              data-en="For a real emergency only — you do not have to wait for permission first. Reason is compulsory, and it needs two approvals: your manager, then HOD. Allowed once in a month, for at most 2 days at a time."
+              data-hi="सिर्फ़ सच्ची आपात स्थिति के लिए — पहले अनुमति का इंतज़ार नहीं करना पड़ेगा। कारण लिखना ज़रूरी है, और दो मंज़ूरी लगेंगी: पहले आपके मैनेजर की, फिर HOD की। महीने में सिर्फ़ एक बार मिलती है, और एक बार में ज़्यादा से ज़्यादा 2 दिन की।">For a real emergency only — you do not have to wait for permission first. Reason is compulsory, and it needs two approvals: your manager, then HOD. Allowed once in a month, for at most 2 days at a time.</span></span>
           </label>
           <div id="lvEmgWarn" class="hidden" style="margin-top:8px;font-size:11.5px;padding:7px 9px;border-radius:8px"></div>
         </div>
@@ -3026,6 +3026,8 @@ var NX_EN = {
  "UPI saved ✓ — approved expenses ab isi par pay honge": "UPI saved ✓ — approved expenses will now be paid to this ID",
  "Update Bhejo": "Send Update",
  "Us din ki ek request pehle se hai": "A request for that date already exists",
+ "Emergency leave ek baar me 2 din se zyada ki nahi lag sakti — zyada din ke liye normal leave lagayein": "An emergency leave cannot be for more than 2 days at a time. For a longer absence, apply for normal leave.",
+ "Is mahine ki emergency leave aap pehle hi laga chuke ho — mahine me sirf ek baar milti hai": "You have already applied for an emergency leave this month. Only one is allowed in a month.",
  "Aage ki date ka gate pass nahi daal sakte — jis din aao, punch karne ke baad usi din daalo": "A gate pass cannot be requested for a future date. Request it on the day itself, after you have punched.",
  "Us din ka koi punch nahi hai — gate pass sirf punch karne ke baad hi daal sakte ho": "No punch is recorded for that day. A gate pass can be requested only after you have punched.",
  "Visit date chunein": "Pick the visit date",
@@ -3375,6 +3377,8 @@ var NX_HI = {
  "Update Bhejo": "बदलाव भेजें",
  "Uploading photo…": "फ़ोटो अपलोड हो रही है…",
  "Us din ki ek request pehle se hai": "उस दिन का एक अनुरोध पहले से है",
+ "Emergency leave ek baar me 2 din se zyada ki nahi lag sakti — zyada din ke liye normal leave lagayein": "आपातकालीन छुट्टी एक बार में 2 दिन से ज़्यादा की नहीं लग सकती। ज़्यादा दिन के लिए सामान्य छुट्टी लगाएँ।",
+ "Is mahine ki emergency leave aap pehle hi laga chuke ho — mahine me sirf ek baar milti hai": "इस महीने आप आपातकालीन छुट्टी पहले ही लगा चुके हैं। महीने में सिर्फ़ एक बार मिलती है।",
  "Aage ki date ka gate pass nahi daal sakte — jis din aao, punch karne ke baad usi din daalo": "आगे की तारीख़ का गेट पास नहीं डाल सकते। जिस दिन आएँ, पंच करने के बाद उसी दिन डालें।",
  "Us din ka koi punch nahi hai — gate pass sirf punch karne ke baad hi daal sakte ho": "उस दिन का कोई पंच नहीं है। गेट पास सिर्फ़ पंच करने के बाद ही डाल सकते हैं।",
  "View My HR": "मेरा HR देखें",
@@ -4924,6 +4928,8 @@ async function lvSubmitEmergency(){
   if(why.length < 10)
     return notify(L('Please write what the emergency is (at least 10 characters)',
                     'क्या आपात स्थिति है, थोड़ा विस्तार से लिखें (कम से कम 10 अक्षर)'));
+  const _eDays = Math.round((new Date($('lvTo').value + 'T00:00:00') - new Date($('lvFrom').value + 'T00:00:00')) / 86400000) + 1;
+  if(_eDays > 2) return notify('Emergency leave ek baar me 2 din se zyada ki nahi lag sakti — zyada din ke liye normal leave lagayein');
   const btn = $('lvBtn');
   const old = btn.innerHTML;
   btn.innerHTML = '<div class="loader-ring"></div> ' + L('Submitting…','भेज रहे हैं…'); btn.disabled = true;
@@ -5003,6 +5009,19 @@ async function lvEmgToggle(){
   const warn = $('lvEmgWarn');
   warn.classList.add('hidden');
   if(!on) return;
+  // Mahine me sirf ek emergency leave: pehle hi lagi ho to yahin bata do (server bhi rokta hai)
+  try{
+    const _ym = String($('lvFrom').value || today).slice(0,7);
+    const _used = ((D && D.leaves) || []).find(x => x.is_emergency && String(x.status||'').toUpperCase() !== 'CANCELLED' && String(x.from_date||'').slice(0,7) === _ym);
+    if(_used){
+      warn.className = '';
+      warn.style.background = '#fee2e2'; warn.style.border = '1px solid #fca5a5'; warn.style.color = '#991b1b';
+      warn.innerHTML = '<b>' + L('Not available','उपलब्ध नहीं') + ':</b> ' + L(
+        'You have already applied for an emergency leave this month (' + fmtDate(_used.from_date) + '). Only one is allowed in a month.',
+        'इस महीने आप आपातकालीन छुट्टी पहले ही लगा चुके हैं (' + fmtDate(_used.from_date) + ')। महीने में सिर्फ़ एक बार मिलती है।');
+      return;
+    }
+  }catch(e){}
   try{
     const { data } = await sb.rpc('nx_emergency_count', { p_code: String(CODE||'').trim().toUpperCase() });
     const n = Number(data) || 0;
@@ -5022,6 +5041,7 @@ async function lvEmgToggle(){
   }catch(e){}
 }
 try{ $('lvEmg').addEventListener('change', lvEmgToggle); }catch(e){}
+try{ $('lvFrom').addEventListener('change', () => { if(($('lvEmg') || {}).checked) lvEmgToggle(); }); }catch(e){}
 $('lvBtn').addEventListener('click', async () => {
   if(!$('lvFrom').value || !$('lvTo').value) return notify('Select From and To dates');
   const _emg = !!($('lvEmg') || {}).checked;

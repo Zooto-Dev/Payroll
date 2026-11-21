@@ -2049,6 +2049,15 @@ body.no-confidential .confidential-col{display:none!important}
     </div>
   </div>
 </div>
+<div class="modal" id="emgModal">
+  <div class="modal-box" style="max-width:680px">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="display font-bold text-lg m-0"><i class="fa-solid fa-triangle-exclamation" style="color:#c2410c"></i> Emergency Leave — Details</h3>
+      <button class="btn btn-ghost btn-sm" data-close="emgModal"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="emgBody" class="text-sm"></div>
+  </div>
+</div>
 <div class="modal" id="empModal">
   <div class="modal-box">
     <div class="flex items-center justify-between mb-4">
@@ -10389,6 +10398,7 @@ document.body.addEventListener('click', async e => {
   }
   if(act === 'fd-loc')   return fdSetLocation(el.dataset.id);
   if(act === 'fd-track') return fdTrack(el.dataset.id);
+  if(act === 'emg-view') return emgDetails(el.dataset.id);
   if(act === 'emg-ok' || act === 'emg-no' || act === 'emg-ask'){
     if(!(canApprove('leave') && (roleCEO() || isAdminRole())))
       return notify('You are not allowed to approve leaves', 'error');
@@ -13119,7 +13129,86 @@ function emgBadge(L){
   return `<div style="margin-top:3px">
     <span class="chip" style="background:${bg};color:${col};font-size:9px;font-weight:700">
       <i class="fa-solid fa-triangle-exclamation"></i> ${esc(txt)} · ${n}${n === 1 ? 'st' : (n === 2 ? 'nd' : (n === 3 ? 'rd' : 'th'))} in 12 months
-    </span></div>`;
+    </span>
+    <button class="btn btn-ghost btn-sm" data-act="emg-view" data-id="${L.id}" style="padding:1px 7px;font-size:10px;margin-left:3px" title="Full details of this emergency leave"><i class="fa-solid fa-eye"></i> Details</button></div>`;
+}
+/* Emergency leave ki poori detail ek jagah: kab lagayi, leave ke kitne din baad, wajah, dono
+   approval, us din punch hua ya nahi, is mahine / 12 mahine me kitni, aur purani saari. */
+async function emgDetails(id){
+  const box = $('emgBody');
+  box.innerHTML = '<p class="m-0" style="color:var(--muted)">Loading…</p>';
+  $('emgModal').classList.add('show');
+  const dOnly = v => String(v || '').slice(0, 10);
+  const dt = v => { if(!v) return '—'; try{ return new Date(v).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Asia/Kolkata' }); }catch(e){ return String(v).slice(0,16); } };
+  const who = v => v ? esc(String(v).split('@')[0]) : '—';
+  const stChip = s => { const S = String(s || 'PENDING').toUpperCase();
+    const c = S === 'APPROVED' ? 'chip-ok' : (S === 'PENDING' ? 'chip-warn' : (S === 'REJECTED' ? 'chip-bad' : 'chip-gray'));
+    return '<span class="chip ' + c + '">' + esc(S === 'NEEDS_INFO' ? 'CLARIFICATION ASKED' : S) + '</span>'; };
+  try{
+    const { data: L, error } = await sb.from('leaves').select('*').eq('id', Number(id)).maybeSingle();
+    if(error) throw error;
+    if(!L){ box.innerHTML = '<p class="m-0" style="color:var(--muted)">This leave record was not found.</p>'; return; }
+    const code = String(L.employee_code || '').toUpperCase();
+    const emp = EMP.find(e => String(e['Employee code']).toUpperCase() === code) || {};
+    const prof = PROFILES[code] || PROFILES[L.employee_code] || {};
+    const [histR, attR] = await Promise.all([
+      sb.from('leaves').select('*').eq('employee_code', L.employee_code).eq('is_emergency', true).order('from_date', { ascending:false }).limit(60),
+      sb.from('attendance').select('date,in_time,out_time').eq('employee_code', L.employee_code).gte('date', dOnly(L.from_date)).lte('date', dOnly(L.to_date))
+    ]);
+    const hist = histR.data || [], att = attR.data || [];
+    // kab lagayi: leave shuru hone ke kitne din pehle / baad
+    let appliedIso = ''; try{ appliedIso = new Date(L.created_at).toLocaleDateString('en-CA', { timeZone:'Asia/Kolkata' }); }catch(e){}
+    const gap = appliedIso ? Math.round((new Date(appliedIso + 'T00:00:00') - new Date(dOnly(L.from_date) + 'T00:00:00')) / 86400000) : null;
+    const gapTxt = gap === null ? '' : (gap > 0 ? 'Applied ' + gap + (gap === 1 ? ' day' : ' days') + ' after the leave started'
+                 : (gap === 0 ? 'Applied on the day of the leave' : 'Applied ' + (-gap) + (gap === -1 ? ' day' : ' days') + ' before the leave'));
+    const gapCol = gap !== null && gap > 1 ? '#b91c1c' : 'var(--muted)';
+    // is mahine aur pichhle 12 mahine me kitni (cancel ki hui nahi ginti)
+    const ym = dOnly(L.from_date).slice(0, 7);
+    const live = hist.filter(h => String(h.status || '').toUpperCase() !== 'CANCELLED');
+    const inMonth = live.filter(h => dOnly(h.from_date).slice(0, 7) === ym);
+    const yearAgo = new Date(dOnly(L.from_date) + 'T00:00:00'); yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+    const in12 = live.filter(h => new Date(dOnly(h.from_date) + 'T00:00:00') > yearAgo && dOnly(h.from_date) <= dOnly(L.from_date));
+    const monthName = new Date(ym + '-01T00:00:00').toLocaleString('en-IN', { month:'long', year:'numeric' });
+    const flag = String(L.emg_flag || 'NORMAL').toUpperCase();
+    const flagTxt = flag === 'HR_HOD_REVIEW' ? 'HR + HOD review' : (flag === 'HR_REVIEW' ? 'HR review' : 'Normal');
+    // leave ke dinon par punch
+    const days = []; { const d = new Date(dOnly(L.from_date) + 'T00:00:00'), end = new Date(dOnly(L.to_date) + 'T00:00:00'); let g = 0;
+      while(d <= end && g++ < 40){ days.push(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')); d.setDate(d.getDate() + 1); } }
+    const attHtml = days.map(iso => { const a = att.find(x => dOnly(x.date) === iso);
+      const has = a && (/\d/.test(String(a.in_time || '')) || /\d/.test(String(a.out_time || '')));
+      return '<div>' + fmtDate(iso) + ' — ' + (has
+        ? '<b style="color:#b91c1c">Punched</b> · IN ' + esc(String(a.in_time || '—').slice(0,5)) + ' · OUT ' + esc(String(a.out_time || '—').slice(0,5))
+        : '<span style="color:var(--muted)">No punch</span>') + '</div>'; }).join('');
+    const step = (st, by, at, note) => stChip(st) + (by ? ' · ' + who(by) : '') + (at ? ' · ' + dt(at) : '') + (note ? '<div class="text-xs" style="margin-top:2px">' + esc(note) + '</div>' : '');
+    const decided = String(L.status || '').toUpperCase() !== 'PENDING';
+    const oneStep = decided && String(L.l1_status || 'PENDING').toUpperCase() === 'PENDING' && String(L.l2_status || 'PENDING').toUpperCase() === 'PENDING';
+    const row = (k, v) => '<tr><th style="text-align:left;vertical-align:top;white-space:nowrap;padding:6px 14px 6px 0;font-weight:600;color:var(--muted);width:170px">' + k + '</th><td style="padding:6px 0">' + v + '</td></tr>';
+    box.innerHTML =
+      '<div class="mb-3"><div class="font-bold" style="font-size:15px">' + esc(emp.Name || L.employee_code) + ' <span class="text-xs font-normal" style="color:var(--muted)">' + esc(code) + '</span></div>'
+      + '<div class="text-xs" style="color:var(--muted)">' + esc([emp.DEPARTMENT, emp.DESIGNATION].filter(Boolean).join(' · ') || '—')
+      + (prof.reporting_manager ? ' · Reports to ' + esc(prof.reporting_manager) : '') + '</div></div>'
+      + '<table style="width:100%;border-collapse:collapse">'
+      + row('Leave type', '<span class="chip ' + (L.leave_type === 'LWP' ? 'chip-bad' : 'chip-blue') + '">' + esc(L.leave_type || '—') + '</span>')
+      + row('Leave dates', fmtDate(dOnly(L.from_date)) + ' → ' + fmtDate(dOnly(L.to_date)) + ' · <b>' + esc(String(L.days)) + (Number(L.days) === 1 ? ' day' : ' days') + '</b>')
+      + row('Applied on', dt(L.created_at) + (gapTxt ? '<div class="text-xs" style="color:' + gapCol + ';font-weight:600">' + gapTxt + '</div>' : ''))
+      + row('Reason given', '<div style="white-space:pre-wrap">' + esc(L.reason || '—') + '</div>')
+      + row('Status', stChip(L.status) + (L.provisional && !decided ? ' <span class="text-xs" style="color:#92400e">Provisional — the employee is treated as covered until it is decided</span>' : ''))
+      + row('Step 1 — Manager', step(L.l1_status, L.l1_by, L.l1_at, L.l1_note))
+      + row('Step 2 — HOD / HR', step(L.l2_status, L.l2_by, L.l2_at, L.l2_note))
+      + (decided ? row('Final decision', who(L.approved_by) + (L.decided_at ? ' · ' + dt(L.decided_at) : '')
+            + (L.admin_note ? '<div class="text-xs">' + esc(L.admin_note) + '</div>' : '')
+            + (oneStep ? '<div class="text-xs" style="color:#b91c1c">Decided in a single step — the two-step approval was not used for this leave.</div>' : '')) : '')
+      + row('In ' + esc(monthName), '<b' + (inMonth.length > 1 ? ' style="color:#b91c1c"' : '') + '>' + inMonth.length + '</b> emergency ' + (inMonth.length === 1 ? 'leave' : 'leaves') + ' <span class="text-xs" style="color:var(--muted)">(limit: 1 in a month, at most 2 days at a time)</span>')
+      + row('In the last 12 months', '<b>' + in12.length + '</b> · review level: ' + esc(flagTxt))
+      + row('Attendance on the leave ' + (days.length === 1 ? 'date' : 'dates'), attHtml || '—')
+      + '</table>'
+      + '<div class="font-bold mt-4 mb-2">All emergency leaves by this employee</div>'
+      + '<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Applied on</th><th>Leave dates</th><th>Days</th><th>Type</th><th>Reason</th><th>Status</th></tr></thead><tbody>'
+      + hist.map(h => '<tr' + (h.id === L.id ? ' style="background:#fff7ed"' : '') + '><td class="text-xs">' + dt(h.created_at) + '</td><td class="text-xs">' + fmtDate(dOnly(h.from_date))
+          + (dOnly(h.to_date) !== dOnly(h.from_date) ? ' → ' + fmtDate(dOnly(h.to_date)) : '') + '</td><td>' + esc(String(h.days)) + '</td><td>' + esc(h.leave_type || '') + '</td><td class="text-xs" style="max-width:220px">'
+          + esc(h.reason || '—') + '</td><td>' + stChip(h.status) + '</td></tr>').join('')
+      + '</tbody></table></div>';
+  }catch(err){ box.innerHTML = '<p class="m-0" style="color:var(--bad)">' + esc(err.message || String(err)) + '</p>'; }
 }
 function emgStep(label, st, by, note){
   const S = String(st || 'PENDING').toUpperCase();
@@ -15065,7 +15154,7 @@ const HELP = {
   employees: ['Click Profile on any row to fill in phone (needed for ESS login), salary, shift, documents and face registration.', 'Use "Add Employee" for staff without face-attendance; register their face later from the profile if needed.', 'Enter the target CTC and click "Build from CTC" — the salary structure and employer contributions are calculated per government rules.', 'The red "Below minimum wage" warning appears if the gross is under the Haryana rate for the selected skill category.'],
   attendance: ['Pick a month and click Load Register — P Present, L Late, A Absent, WO Week Off, H Holiday, LV Leave.', 'Late is based on each employee\'s assigned shift start time + grace minutes.', 'Use "Manual Punch / Fix" to add a missing punch or correct an in/out time.'],
   shifts: ['Create every shift you run (e.g. Morning 6–2, Evening 2–10, Night 10–6 with the night toggle).', 'Assign a shift to each employee from Employees → Profile. Late and overtime are computed from it.'],
-  leaves: ['Apply and approve leave here, or approve employee requests from the Approvals page.', 'Rule: one paid leave per month. Any further leave in the same month stays unpaid (LOP) even after approval — there is no leave balance and nothing carries forward.', 'Tick "Half day" for a 0.5-day leave on a single date.'],
+  leaves: ['Apply and approve leave here, or approve employee requests from the Approvals page.', 'Rule: one paid leave per month. Any further leave in the same month stays unpaid (LOP) even after approval — there is no leave balance and nothing carries forward.', 'Tick "Half day" for a 0.5-day leave on a single date.', 'Emergency leave: an employee can apply once in a calendar month, for at most 2 days at a time. Click Details on an emergency row to see when it was applied, the reason, both approval steps, attendance on those dates and the employee\'s earlier emergency leaves.'],
   approvals: ['Everything waiting for your decision in one inbox — leaves, expense claims and other requests from ESS.', 'The orange badge in the sidebar shows the pending count.',],
   payroll: ['Pick the month and click Calculate — attendance, leaves, OT, PF/ESI/PT/LWF/TDS and advances are applied automatically.', 'Edit OT hours, bonus or other deductions inline; the net and totals update live.', 'Click Finalize & Save All to lock payslips, record employer contributions and update advance balances.', 'Then use Bank Advice (bank portions), Cash Register (cash portions with signature column) and Print All Payslips.'],
   advances: ['Record an advance/loan with a monthly EMI — payroll deducts it automatically until the balance reaches zero.'],
@@ -15642,7 +15731,7 @@ const FAQ_SOP = [
   { c:'Workforce', t:'Trial Workers (Work Pass)', b:'<li>Workforce → Trial Workers. 3 tabs: Convert Requests, Active Trial Workers, Daily Attendance.</li><li>The supervisor creates the pass from ESS; the trial worker punches at the kiosk.</li><li>Convert Requests → "Approve → Add Employee" (trial attendance syncs into payroll automatically). The worker leaves the list when the trial ends.</li>' },
   { c:'Workforce', t:'Hiring & Recruitment', b:'<li>Add candidates, move them through the stages, and send offers.</li><li>"Convert to Employee" opens the Add Employee form pre-filled for the candidate.</li>' },
   { c:'Approvals', t:'Approvals Inbox', b:'<li>One place for: Leaves, Expenses, Field, WFH, Gate Pass, Att. Fix, Advance/Loan, Supervisor Attendance, Fuel.</li><li>The reporting manager or a Super Admin approves or rejects; the buttons in the email work as well.</li><li>The Expenses tab has a Timestamp column (when the claim was submitted).</li>' },
-  { c:'Approvals', t:'Leaves', b:'<li>The employee applies for leave from ESS → the reporting manager approves; a Super Admin is always emailed.</li><li>Approved paid leave counts as present in payroll (sandwich and half-day rules apply automatically).</li>' },
+  { c:'Approvals', t:'Leaves', b:'<li>The employee applies for leave from ESS → the reporting manager approves; a Super Admin is always emailed.</li><li>Approved paid leave counts as present in payroll (sandwich and half-day rules apply automatically).</li><li>Emergency leave is limited to one request per employee in a calendar month and to 2 days per request; a cancelled request does not count. Emergency rows carry a badge and a Details button showing the full record.</li>' },
   { c:'Payroll', t:'Overtime (OT)', b:'<li>Overtime is not paid through payroll, and overtime approval has been withdrawn — there is no OT request in the Employee Portal and no OT approval in this panel.</li><li>The OT Report under Work Hours still shows the actual extra hours worked each day, calculated from punches (total hours worked − shift hours).</li><li>Overtime requests raised before 20 Nov 2026 are kept on record; the ones that were still pending are marked CLOSED.</li>' },
   { c:'Payroll', t:'Payroll (Salary Sheet)', b:'<li>Select a month → Generate. Present/paid days, lates, verified OT and deductions are all calculated automatically.</li><li>ONR and OFR download separately; a combined total is also available.</li><li>A salary is counted only after CEO approval (pending or rejected salaries are skipped).</li>' },
   { c:'Payroll', t:'Income Tax (TDS) & Slabs', b:'<li>Profile → Salary → TDS Regime (New/Old/No TDS). Nexus calculates TDS automatically and shows it as a line on the payslip.</li><li>New Regime FY25-26: standard deduction ₹75,000; nil up to ₹12L taxable (87A); then 5/10/15/20/30% + 4% cess; yearly ÷ 12 for the monthly figure.</li><li>The Annexure of the appointment letter also shows TDS as per the regime.</li>' },
@@ -16358,7 +16447,7 @@ async function loadApprovals(){
       </div></div>`;
   $('apLeaves').innerHTML = (lv.data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
     <thead><tr><th>Employee</th><th>Type</th><th>Days</th><th>Dates</th><th>Reason</th><th style="text-align:right"></th></tr></thead><tbody>
-    ${lv.data.map(L => `<tr><td class="font-semibold">${esc(nameOf(L.employee_code))}</td><td><span class="chip chip-blue">${esc(L.leave_type)}</span></td><td>${L.days}</td>
+    ${lv.data.map(L => `<tr><td><div class="font-semibold">${esc(nameOf(L.employee_code))}</div>${emgBadge(L)}</td><td><span class="chip chip-blue">${esc(L.leave_type)}</span></td><td>${L.days}</td>
       <td class="text-xs">${fmtDate(L.from_date)} → ${fmtDate(L.to_date)}</td><td class="text-xs" style="max-width:220px">${esc(L.reason||'—')}</td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn btn-ghost btn-sm" data-act="appr-leave" data-id="${L.id}"><i class="fa-solid fa-check" style="color:var(--ok)"></i></button>
@@ -16483,7 +16572,7 @@ async function apLvMode(mode){
   const { data } = await sb.from('leaves').select('*').eq('status','APPROVED').order('from_date', { ascending:false }).limit(150);
   $('apLeaves').innerHTML = (data||[]).length ? `<div style="overflow-x:auto"><table class="tbl">
     <thead><tr><th>Employee</th><th>Type</th><th>Days</th><th>Dates</th><th>Reason</th>${isSuper()?'<th></th>':''}</tr></thead><tbody>
-    ${data.map(L => `<tr><td class="font-semibold">${esc(nameOf(L.employee_code))}</td><td><span class="chip chip-ok">${esc(L.leave_type)}</span></td><td>${L.days}</td>
+    ${data.map(L => `<tr><td><div class="font-semibold">${esc(nameOf(L.employee_code))}</div>${emgBadge(L)}</td><td><span class="chip chip-ok">${esc(L.leave_type)}</span></td><td>${L.days}</td>
       <td class="text-xs">${fmtDate(L.from_date)} → ${fmtDate(L.to_date)}</td><td class="text-xs">${esc(L.reason||'—')}</td>${isSuper()?`<td>${_stepBackBtn('leaves', L.id, 'status', "()=>apLvMode('APPROVED')")}</td>`:''}</tr>`).join('')}
     </tbody></table></div>` : '<p class="m-0 text-xs p-3" style="color:var(--muted)">No approved leaves yet.</p>';
 }
