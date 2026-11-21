@@ -146,6 +146,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .d-MO{background:#e2e8f0;color:#475569}
 /* Half day — aadha Present ka hara, aadha Absent ka gulabi */
 .d-HD{background:linear-gradient(135deg,#bbf7d0 0 50%,#fbcfe8 50%);color:#334155}
+/* 4 ghante se kam kaam — payroll is din ko leave ginta hai: Absent ka gulabi + gehra ghera */
+.d-SD{background:#fbcfe8;color:#9d174d;box-shadow:inset 0 0 0 2px #db2777;font-weight:700}
 .day{position:relative}
 .gflag{position:absolute;top:-3px;right:-3px;font-size:8px;font-weight:800;background:#7c3aed;color:#fff;border-radius:50%;width:12px;height:12px;line-height:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.25)}
 .d-none{color:#cbd5e1}
@@ -257,7 +259,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <img src="nexus-logo.png" alt="Nexus" style="height:44px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
       <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Portal</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B78</b> — 20 Nov</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B79</b> — 21 Nov</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -284,7 +286,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
           <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B78</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B79</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -328,7 +330,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <div class="cal" id="calGrid"></div>
         <div class="legend">
           <span class="chip d-P">Present</span><span class="chip d-L">Late</span><span class="chip d-A">Absent</span>
-          <span class="chip d-WO">Week Off</span><span class="chip d-H">Holiday</span><span class="chip d-LV">Leave</span><span class="chip d-WFH">WFH</span><span class="chip d-HD">Half Day</span><span class="chip d-MO">OUT missing</span>
+          <span class="chip d-WO">Week Off</span><span class="chip d-H">Holiday</span><span class="chip d-LV">Leave</span><span class="chip d-WFH">WFH</span><span class="chip d-HD">Half Day</span><span class="chip d-SD">Under 4 hrs</span><span class="chip d-MO">OUT missing</span>
         </div>
       </div>
       <div class="card">
@@ -3553,7 +3555,9 @@ function renderAttPage(){
           ))}">${L('OUT missing', 'OUT नहीं हुआ')}</span>` }
       ${a.total_hours ? `<span class="chip chip-blue">${esc(a.total_hours.substring(0,5))} h</span>` : ''}
       ${(!(window._myGateSet && window._myGateSet.has(a.date)) && essHalfDay(a))
-        ? `<span class="chip d-HD">${L('Half day', '\u0906\u0927\u093e \u0926\u093f\u0928')}</span>` : ''}</span></div>`;
+        ? `<span class="chip d-HD">${L('Half day', '\u0906\u0927\u093e \u0926\u093f\u0928')}</span>` : ''}
+      ${(!(window._myGateSet && window._myGateSet.has(a.date)) && !essOffDayLite(a.date) && essShortDay(a))
+        ? `<span class="chip d-SD">${L('Under ' + essShortDayHrs() + ' hrs — counted as leave', essShortDayHrs() + ' घंटे से कम — छुट्टी गिनी जाएगी')}</span>` : ''}</span></div>`;
   }).join('') : '<p class="m-0" style="color:var(--muted)">No attendance in the last 35 days.</p>';
   $('attPageInfo').innerText = (ATT_PAGE + 1) + '/' + pages;
 }
@@ -3985,6 +3989,25 @@ function essHalfDay(r){
   if(w < sd) return false;                 // 4 ghante se kam -> leave, half day nahi
   return w < sh * pc;
 }
+/* 4 ghante se kam kaam (OUT ho chuka ho): payroll is din ko LEAVE ginta hai, present nahi.
+   Gate pass wale din aur week-off / holiday par ye niyam nahi lagta. Settings me 0 = niyam band. */
+function essShortDayHrs(){
+  const raw = ((D && D.company) || {}).shortDayHrs;
+  if(raw === 0 || raw === '0') return 0;
+  return Number(raw) > 0 ? Number(raw) : 4;
+}
+function essShortDay(r){
+  const sd = essShortDayHrs(), w = essWorkedHrs(r);
+  return sd > 0 && !!(r && r.out_time) && w > 0 && w < sd;
+}
+function essOffDayLite(iso){
+  iso = String(iso || '').slice(0, 10);
+  const ov = window._essOv || {};
+  if(ov[iso] === 'OFF') return true;
+  if(ov[iso] === 'WORKING') return false;
+  if(((D && D.holidays) || []).some(h => String(h.date).slice(0, 10) === iso)) return true;
+  return new Date(iso + 'T00:00:00').getDay() === Number((((D && D.company) || {}).weekOff) ?? 0);
+}
 // Announcement ki poori baat kholo / band karo
 function essAnnToggle(i){
   const b = document.getElementById('annBody' + i);
@@ -4031,6 +4054,7 @@ async function renderCalendar(){
   try{
     const { data: ov } = await sb.from('day_overrides').select('date, otype').gte('date', ym + '-01').lte('date', _lastDay(ym));
     (ov||[]).forEach(o => { if(o.otype === 'WORKING') ovWork.add(String(o.date)); if(o.otype === 'OFF') ovOff.add(String(o.date)); });
+    window._essOv = window._essOv || {}; (ov||[]).forEach(o => { window._essOv[String(o.date).slice(0,10)] = o.otype; });
   }catch(e){}
   const lvSet = new Set();
   (D.leaves||[]).forEach(L => {
@@ -4060,7 +4084,9 @@ async function renderCalendar(){
       // dikhata hai, dono jagah ek jaisa rehna chahiye. Late ki baat tooltip me.
       const noOut = !r.out_time;
       const half  = !noOut && !hasG && essHalfDay(r);
-      cls = noOut ? 'd-MO' : (half ? 'd-HD' : (late ? 'd-L' : 'd-P'));
+      const shortD = !noOut && !hasG && !essOffDayLite(iso) && essShortDay(r);
+      cls = noOut ? 'd-MO' : (shortD ? 'd-SD' : (half ? 'd-HD' : (late ? 'd-L' : 'd-P')));
+      if(shortD) tip += ' | Worked under ' + essShortDayHrs() + ' hours — this day is counted as leave, not as present';
       tip += ` | IN ${(r.in_time||'').substring(0,5)}${r.out_time ? ' OUT ' + r.out_time.substring(0,5) : ''}`;
       if(noOut) tip += ' | OUT missing — hours unknown, short-hours/half-day rules skipped'
                      + (late ? ' (but the late arrival still counts)' : '');
