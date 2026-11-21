@@ -4792,7 +4792,7 @@ function openNewEmpModal(){
   window._convertingCandidate = null;
   window._epNewMode = true;
   // naya employee -> koi purana snapshot nahi, saare field save hone chahiye
-  window._epRowSnap = null; window._epSalSnap = null; window._epOtSnap = null;
+  window._epRowSnap = null; window._epRowSnapCode = null; window._epSalSnap = null; window._epOtSnap = null;
   _wireExitAuto(); _wireEpTabs(); epSwitchTab('basic');
   populateDLs(); renderLines();
   const units = (SETTINGS && SETTINGS.units) || (getSettings().units || []);
@@ -4945,10 +4945,19 @@ $('aeSaveBtn').addEventListener('click', async () => {
       prof.salary = { earn, ded: {}, wageType: mgmt ? 'custom' : 'category', skill, otAllowed: aeOTAllowed };
       prof.basic = earn.basic || 0; prof.hra = earn.hra || 0; prof.conveyance = earn.conveyance || 0; prof.special_allowance = earn.special_allowance || 0;
     }
-    await sb.from('hr_profiles').upsert(prof, { onConflict: 'employee_code' });
+    // Pehle is upsert ka error dekha hi nahi jaata tha: profile save fail hone par bhi
+    // "added" dikh jaata tha aur baad me employees ki row par sirf naam/department bachta tha.
+    const { error: _profErr } = await sb.from('hr_profiles').upsert(prof, { onConflict: 'employee_code' });
     PROFILES[code] = Object.assign(PROFILES[code] || {}, prof);
+    if(_profErr){
+      // Profile ki details DB tak nahi pahunchin. Work pass ko converted mat maano, aur
+      // Profile screen wahi details le kar khulegi taaki ek click me dobara save ho jaye.
+      window._epForceFullSave = code;
+      notify('The employee was created, but the profile details did NOT save: ' + _profErr.message
+           + ' — the Profile screen is opening with everything you entered; click Save Profile to store it.', 'error');
+    }
     // Work Pass conversion: trial attendance sync + pass ko CONVERTED mark karo
-    if(window._convertingWorkPass && window._convertingWorkPass.id){
+    if(!_profErr && window._convertingWorkPass && window._convertingWorkPass.id){
       try{
         const wpc = window._convertingWorkPass;
         // Trial ke din server khud work_pass_att se padhta hai — time client se
@@ -4963,7 +4972,7 @@ $('aeSaveBtn').addEventListener('click', async () => {
       window._convertingWorkPass = null;
       try{ loadTrialPage(); }catch(e){}
     }
-    notify(`${name} added` + (salaryAllowed ? ' — the Profile is open; set the shift, face and salary here' : ' — Accounts will set the salary'), 'success');
+    if(!_profErr) notify(`${name} added` + (salaryAllowed ? ' — the Profile is open; set the shift, face and salary here' : ' — Accounts will set the salary'), 'success');
     $('addEmpModal').classList.remove('show');
     await loadCore();
     // GUARANTEE: abhi-add kiya employee + uska data second (Profile) screen me pakka dikhe
@@ -5009,6 +5018,11 @@ async function openEmpModal(code){
   _wireExitAuto();
   _wireEpTabs();
   epSwitchTab('basic');   // hamesha pehle tab se shuru
+  // Purana snapshot pehle hi girao. Pehle ye global tha: agar ye function beech me
+  // ruk jaata (employee list me row na mili, ya koi error), to pichhle employee ka
+  // snapshot bacha reh jaata aur agle Save par is employee ke field uske hisaab se
+  // likhe jaate the — isi se bhari hui details khali ho jaati thin.
+  window._epRowSnap = null; window._epRowSnapCode = null;
   const e = EMP.find(x => x['Employee code'] === code); if(!e) return;
   const p = PROFILES[code] || {};
   $('epCode').value = code;
@@ -5107,6 +5121,7 @@ async function openEmpModal(code){
   window._epSalSnap = nxCanonSal(epFormSalary());
   window._epOtSnap  = !!epFormSalary().otAllowed;   // OT tick alag se yaad rakho
   window._epRowSnap = epFormRow();   // baaki saare field ka snapshot — sirf badla hua hi save hoga
+  window._epRowSnapCode = code;      // snapshot kis employee ka hai, ye bhi yaad rakho
   $('empModal').classList.add('show');
 }
 // standard split: Basic 50%, HRA 25%, remainder in Special Allowance (Code on Wages compliant)
@@ -6091,11 +6106,40 @@ $('epSaveBtn').addEventListener('click', async () => {
     // (jaise Roll Type ya phone udd jaana). Ab modal khulte waqt ka snapshot (_epRowSnap) se
     // compare hota hai aur sirf badle hue column bheje jaate hain.
     const _nowRow = epFormRow();
-    const _snapRow = window._epRowSnap || null;
-    const row = { employee_code: $('epCode').value };
+    const _epCode = $('epCode').value;
+    let _snapRow = window._epRowSnap || null;
+    // Snapshot doosre employee ka hua to use mat maano.
+    if(_snapRow && window._epRowSnapCode && window._epRowSnapCode !== _epCode) _snapRow = null;
+    // Snapshot hai hi nahi (naya employee, ya modal adhoora khula) — tab form ka har field
+    // DB par likh dena khatarnak hai, kyunki jo field screen par dikha hi nahi wo khali
+    // likha jaata hai. Isliye DB se maujooda row padh kar usi se compare karo. Nayi
+    // profile ho to wahan kuch milega hi nahi, to poora form likha jayega — jaisa chahiye.
+    const _forceFull = window._epForceFullSave === _epCode;
+    let _snapFromDb = false;
+    if(!_snapRow && !_forceFull){
+      try{
+        const { data: _live } = await sb.from('hr_profiles').select('*').eq('employee_code', _epCode).maybeSingle();
+        if(_live){ _snapRow = _live; _snapFromDb = true; }
+      }catch(e){}
+    }
+    const row = { employee_code: _epCode };
     Object.keys(_nowRow).forEach(k => {
-      if(!_snapRow || _epValChanged(_snapRow[k], _nowRow[k])) row[k] = _nowRow[k];
+      if(_forceFull || !_snapRow || _epValChanged(_snapRow[k], _nowRow[k])) row[k] = _nowRow[k];
     });
+    // Snapshot tha hi nahi, yaani ye screen theek se khuli hi nahi thi. Aise me khali
+    // dikhne wale field par bharosa nahi kiya ja sakta — ho sakta hai wo kabhi load hi
+    // na hue hon. Jo DB me bhara hua hai use khali mat karo; jaan-boojh kar khali karna
+    // ho to profile dobara kholne par snapshot ban jata hai aur ye rok lagti hi nahi.
+    if(_snapFromDb){
+      const _blank = v => v === '' || v === null || v === undefined;
+      const _kept = [];
+      Object.keys(row).forEach(k => {
+        if(k === 'employee_code') return;
+        if(_blank(row[k]) && !_blank(_snapRow[k])){ delete row[k]; _kept.push(k); }
+      });
+      if(_kept.length) notify('The profile screen had not loaded fully, so these fields were left unchanged instead of being emptied: '
+        + _kept.join(', ') + '. Reopen the Profile if you meant to clear them.', 'info');
+    }
     // ===== SALARY KO CHHEDO HI NAHI JAB TAK ADMIN NE KHUD NA BADLI HO =====
     // Pehle har Save par salary form se dobara likhi jaati thi, aur zara se farak par approval
     // PENDING chala jaata tha — isliye phone / address / shift / section jaisa koi bhi edit
@@ -6147,6 +6191,9 @@ $('epSaveBtn').addEventListener('click', async () => {
     }
     const { error } = await sb.from('hr_profiles').upsert(row, { onConflict: 'employee_code' });
     if(error) throw error;
+    // Save ho gaya: snapshot ab isi screen ke hisaab se, taaki dusra Save kuch dobara na likhe.
+    window._epRowSnap = _nowRow; window._epRowSnapCode = _epCode;
+    if(_forceFull) window._epForceFullSave = null;
     /* ===== SALARY BADLAV KA LOG =====
        Pehle ye kaam yahin, app ke is ek raaste me hota tha. Par CTC approve,
        bulk upload, employee import, ya seedha database se badalne par kuch
