@@ -257,7 +257,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <img src="nexus-logo.png" alt="Nexus" style="height:44px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
       <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Portal</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B81</b> — 21 Nov</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B82</b> — 23 Nov</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -284,7 +284,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
           <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B81</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B82</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -364,6 +364,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <button class="req-tile" data-rs="payslip"><span class="rt-ic" style="background:#d1fae5;color:#059669"><i class="fa-solid fa-indian-rupee-sign"></i></span><span>Payslips</span></button>
         <button class="req-tile" data-rs="assets"><span class="rt-ic" style="background:#ede9fe;color:#7c3aed"><i class="fa-solid fa-boxes-stacked"></i></span><span>My Assets</span></button>
         <button class="req-tile hidden" id="tilAmgr" data-rs="amgr"><span class="rt-ic" style="background:#ccfbf1;color:#0f766e"><i class="fa-solid fa-warehouse"></i></span><span data-en="Asset Mgmt" data-hi="सामान / असेट">Asset Mgmt</span></button>
+        <button class="req-tile hidden" id="tilStr" data-rs="strength"><span class="rt-ic" style="background:#ffedd5;color:#c2410c"><i class="fa-solid fa-users-line"></i></span><span data-en="Strength" data-hi="\u0939\u093e\u091c\u093f\u0930\u0940 \u0938\u0902\u0916\u094d\u092f\u093e">Strength</span></button>
         <button class="req-tile" data-rs="ticket"><span class="rt-ic" style="background:#f3e8ff;color:#7c3aed"><i class="fa-solid fa-headset"></i></span><span data-en="Raise Ticket" data-hi="टिकट">Raise Ticket</span></button>
           <button class="req-tile" data-rs="voice"><span class="rt-ic" style="background:#e0e7ff;color:#4f46e5"><i class="fa-solid fa-comments"></i></span><span>Voice Box</span></button>
         <button class="req-tile" data-rs="resign"><span class="rt-ic" style="background:#fee2e2;color:#dc2626"><i class="fa-solid fa-person-walking-arrow-right"></i></span><span>Resign</span></button>
@@ -611,6 +612,25 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-list-check" style="color:#0f766e"></i> <span data-en="Out with people" data-hi="लोगों के पास">Out with people</span></h3>
         <input id="amSearch" class="inp mb-3" placeholder="Naam / code / item…">
         <div id="amIssuedBox"></div>
+      </div>
+      </div>
+      <div class="req-sec hidden" id="rs-strength">
+      <div class="card" style="background:linear-gradient(135deg,#fff7ed,#ffffff);border:1.5px solid #fed7aa">
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-users-line" style="color:#c2410c"></i>
+          <span data-en="Production Strength" data-hi="\u092a\u094d\u0930\u094b\u0921\u0915\u094d\u0936\u0928 \u0915\u0940 \u0939\u093e\u091c\u093f\u0930\u0940">Production Strength</span></h3>
+        <p class="text-[11px] mt-0 mb-3 p-2 rounded" style="background:#fff7ed;color:#9a3412;line-height:1.5"
+           data-en="Section-wise count for the day. Only people who actually punched are counted, and only the Production department. Pick any past date to see what the strength was that day."
+           data-hi="\u0909\u0938 \u0926\u093f\u0928 \u0915\u0940 \u0938\u0947\u0915\u094d\u0936\u0928-\u0935\u093e\u0930 \u0917\u093f\u0928\u0924\u0940\u0964 \u0938\u093f\u0930\u094d\u092b\u093c \u0935\u0947 \u0932\u094b\u0917 \u0917\u093f\u0928\u0947 \u091c\u093e\u0924\u0947 \u0939\u0948\u0902 \u091c\u093f\u0928\u0915\u093e \u092a\u0902\u091a \u0939\u0941\u0906 \u0939\u094b, \u0914\u0930 \u0938\u093f\u0930\u094d\u092b\u093c \u092a\u094d\u0930\u094b\u0921\u0915\u094d\u0936\u0928 \u0935\u093f\u092d\u093e\u0917 \u0915\u0947\u0964 \u092a\u093f\u091b\u0932\u0940 \u0915\u094b\u0908 \u092d\u0940 \u0924\u093e\u0930\u0940\u0916\u093c \u091a\u0941\u0928 \u0915\u0930 \u0909\u0938 \u0926\u093f\u0928 \u0915\u0940 \u0917\u093f\u0928\u0924\u0940 \u0926\u0947\u0916 \u0938\u0915\u0924\u0947 \u0939\u0948\u0902\u0964">Section-wise count for the day. Only people who actually punched are counted, and only the Production department. Pick any past date to see what the strength was that day.</p>
+        <div class="grid grid-cols-2 gap-2 mb-3">
+          <div><label class="lbl" data-en="Date" data-hi="\u0924\u093e\u0930\u0940\u0916\u093c">Date</label><input id="strDate" type="date" class="inp"></div>
+          <div style="display:flex;align-items:flex-end"><button id="strTodayBtn" class="btn btn-ghost w-full justify-center" style="border-color:#fed7aa;color:#c2410c"><i class="fa-solid fa-rotate-left"></i> <span data-en="Today" data-hi="\u0906\u091c">Today</span></button></div>
+        </div>
+        <div id="strBox"></div>
+      </div>
+      <div class="card">
+        <h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-regular fa-calendar-days" style="color:#c2410c"></i>
+          <span data-en="Day by day" data-hi="\u0926\u093f\u0928-\u0935\u093e\u0930">Day by day</span></h3>
+        <div id="strHist" class="text-xs"></div>
       </div>
       </div>
       <div class="req-sec hidden" id="rs-ticket">
@@ -1428,7 +1448,7 @@ document.querySelectorAll('.req-tile').forEach(t => t.addEventListener('click', 
   const opening = sec.classList.contains('hidden');
   document.querySelectorAll('.req-sec').forEach(s => s.classList.add('hidden'));
   document.querySelectorAll('.req-tile').forEach(x => x.classList.remove('active'));
-  if(opening){ sec.classList.remove('hidden'); t.classList.add('active'); if(t.dataset.rs === 'faq') essRenderFaq(); if(t.dataset.rs === 'visitor') loadVisitorReq(); if(t.dataset.rs === 'ticket') loadTickets(); if(t.dataset.rs === 'amgr') loadAmgr(); }
+  if(opening){ sec.classList.remove('hidden'); t.classList.add('active'); if(t.dataset.rs === 'faq') essRenderFaq(); if(t.dataset.rs === 'visitor') loadVisitorReq(); if(t.dataset.rs === 'ticket') loadTickets(); if(t.dataset.rs === 'amgr') loadAmgr(); if(t.dataset.rs === 'strength') loadStrength(); }
 }));
 /* ===== ESS Help / SOP ===== */
 var ESS_FAQ = [
@@ -3810,6 +3830,8 @@ function render(){
   try{ if($('tilWfh')) $('tilWfh').classList.toggle('hidden', !essIsStaff()); }catch(e){}
   // Asset management ka tile sirf ADMIN department wale ko. Asli rok server par hai.
   try{ if($('tilAmgr')) $('tilAmgr').classList.toggle('hidden', !amIsAdminDept()); }catch(e){}
+  // Production strength ka tile sirf PPC / Planning ko. Asli rok server par hai.
+  try{ if($('tilStr')) $('tilStr').classList.toggle('hidden', !strIsPpc()); }catch(e){}
   try{ essApplyLang(); hmPaintHero(); hmTick(); }catch(e){}
   const slips = D.payslips || [];
   $('stNet').innerText = slips.length ? fmtINR(slips[0].net_pay) : '—';
@@ -4427,6 +4449,71 @@ async function loadFeedback(){
 /* ===== Asset Management — sirf ADMIN department =====
    Tile chhupa hua hai, par asli rok page par nahi hai: har RPC khud check karta hai
    ki bulane wala ADMIN department ka ACTIVE banda hai (nx_is_admin_dept). */
+/* ===== Production strength (sirf PPC / Planning) =====
+   Server (ess_section_strength) khud check karta hai ki poochne wala PPC/Planning me hai,
+   sirf PRODUCTION department ginta hai, aur sirf unhe jinka us din punch hua. Yahan se
+   ek hi call me chuni hui date se pichhle 14 din aate hain — upar wala card us din ka,
+   neeche ki list baaki dinon ki. */
+function strIsPpc(){
+  const d = String((((D || {}).employee) || {}).DEPARTMENT || '').toUpperCase();
+  return /PPC|PLANN/.test(d);
+}
+function strToday(){ const t = new Date(); return new Date(t.getTime() - t.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+function strAddDays(iso, n){ const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+function strRenderDay(day){
+  const box = $('strBox'); if(!box) return;
+  if(!day){ box.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">' + L('No data for this date.', 'इस तारीख़ का डेटा नहीं।') + '</p>'; return; }
+  const secs = Object.keys(day.by_section || {}).map(k => [k, Number(day.by_section[k]) || 0]).sort((a, b) => b[1] - a[1]);
+  const top = secs.length ? secs[0][1] : 0;
+  const units = Object.keys(day.by_unit || {}).sort();
+  box.innerHTML =
+    '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px">'
+    + '<span style="font-size:30px;font-weight:800;color:#c2410c;line-height:1">' + (Number(day.total) || 0) + '</span>'
+    + '<span class="text-xs" style="color:var(--muted)">' + esc(L('present on ', 'हाज़िर — ')) + fmtDate(day.date) + '</span></div>'
+    + (units.length ? '<div class="mb-2">' + units.map(u =>
+        '<span class="chip chip-gray" style="margin-right:4px">' + esc(u) + ' ' + (Number(day.by_unit[u]) || 0) + '</span>').join('') + '</div>' : '')
+    + (secs.length
+        ? secs.map(p => '<div style="margin-bottom:6px">'
+            + '<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600"><span>' + esc(p[0]) + '</span><span>' + p[1] + '</span></div>'
+            + '<div style="height:6px;border-radius:4px;background:#f1f5f9;overflow:hidden"><div style="height:6px;border-radius:4px;background:#fb923c;width:'
+            + (top > 0 ? Math.round(p[1] * 100 / top) : 0) + '%"></div></div></div>').join('')
+        : '<p class="m-0 text-xs" style="color:var(--muted)">' + L('Nobody punched in Production on this date.', 'इस दिन प्रोडक्शन में किसी का पंच नहीं हुआ।') + '</p>');
+}
+function strRenderHist(days, picked){
+  const host = $('strHist'); if(!host) return;
+  const rest = (days || []).filter(d => d.date !== picked);
+  if(!rest.length){ host.innerHTML = '<p class="m-0" style="color:var(--muted)">' + L('No earlier days.', 'और दिन नहीं।') + '</p>'; return; }
+  const top = Math.max.apply(null, rest.map(d => Number(d.total) || 0).concat([1]));
+  host.innerHTML = rest.map(d =>
+    '<div class="row" style="cursor:pointer" data-strday="' + esc(d.date) + '">'
+    + '<span class="k">' + fmtDate(d.date) + '</span>'
+    + '<span style="display:flex;align-items:center;gap:6px">'
+    + '<span style="display:inline-block;height:6px;border-radius:4px;background:#fdba74;width:' + Math.max(4, Math.round((Number(d.total) || 0) * 70 / top)) + 'px"></span>'
+    + '<b>' + (Number(d.total) || 0) + '</b></span></div>').join('');
+}
+async function loadStrength(day){
+  if(!strIsPpc()) return;
+  const box = $('strBox'); if(!box) return;
+  const to = String(day || ($('strDate') && $('strDate').value) || strToday()).slice(0, 10);
+  if($('strDate')){ $('strDate').max = strToday(); $('strDate').value = to; }
+  box.innerHTML = '<p class="m-0 text-xs" style="color:var(--muted)">' + L('Loading…', 'लोड हो रहा है…') + '</p>';
+  try{
+    const { data, error } = await sb.rpc('ess_section_strength', { p_code: CODE, p_phone: PHONE, p_from: strAddDays(to, -13), p_to: to });
+    if(error) throw error;
+    if(data && data.error){ box.innerHTML = '<p class="m-0 text-xs" style="color:var(--bad)">' + esc(T(data.error)) + '</p>'; $('strHist').innerHTML = ''; return; }
+    const days = (data && data.days) || [];
+    strRenderDay(days.find(d => d.date === to) || null);
+    strRenderHist(days, to);
+  }catch(err){ box.innerHTML = '<p class="m-0 text-xs" style="color:var(--bad)">' + esc(err.message || String(err)) + '</p>'; }
+}
+document.addEventListener('click', e => {
+  const r = e.target.closest('[data-strday]'); if(!r) return;
+  loadStrength(r.dataset.strday);
+});
+document.addEventListener('change', e => { if(e.target && e.target.id === 'strDate') loadStrength(e.target.value); });
+document.addEventListener('click', e => { if(e.target.closest('#strTodayBtn')) loadStrength(strToday()); });
+
 function amIsAdminDept(){
   const d = String((((D || {}).employee) || {}).DEPARTMENT || '').toUpperCase();
   return /\bADMIN/.test(d);
