@@ -10563,9 +10563,18 @@ document.body.addEventListener('click', async e => {
       const unit = code.startsWith('ZM02') ? 'ZM02' : 'ZM01';
       const { error: e1 } = await sb.from('employees').insert([{ 'Employee code': code, Name: String(el.dataset.name).toUpperCase(), DEPARTMENT: dept || null, DESIGNATION: desig || null, LINE: el.dataset.line || null, UNIT: unit, DOJ: el.dataset.from, Status: 'ACTIVE' }]);
       if(e1) throw e1;
-      // 2) profile: WORKER + General shift
+      // 2) profile: pass par jo kuch hai wo sab utha lo. Pehle yahan sirf category aur
+      //    shift likhi jaati thi — phone tak nahi, jabki wo pass par maujood hota hai.
+      //    Isi wajah se convert kiye hue employee ke paas naam ke alawa kuch nahi bachta tha.
       const gen = (SHIFTS||[]).find(x => String(x.start_time).slice(0,5) === '09:00' && String(x.end_time).slice(0,5) === '17:30');
-      await sb.from('hr_profiles').insert([{ employee_code: code, category: 'WORKER', shift_id: gen ? gen.id : null }]);
+      const _wpPhone = String(el.dataset.phone || '').replace(/\D/g, '');
+      const _wpProf = { employee_code: code, category: 'WORKER', shift_id: gen ? gen.id : null,
+        employment_type: 'Probation',
+        phone: _wpPhone || null,
+        section: String(el.dataset.line || '').trim().toUpperCase() || null,
+        reporting_manager: String(el.dataset.sup || '').trim() || null };
+      const { error: e2 } = await sb.from('hr_profiles').insert([_wpProf]);
+      if(e2) throw new Error('The employee row was created, but the profile could not be saved: ' + e2.message);
       // 3) trial attendance -> payroll attendance. Server khud work_pass_att se
       //    padhta hai (time client se nahi jaata), late rule bhi wahin lagta hai.
       const { data: wsync, error: e3 } = await sb.rpc('nx_wp_convert_att',
@@ -10576,6 +10585,12 @@ document.body.addEventListener('click', async e => {
       await sb.rpc('wp_decide', { p_id: Number(id), p_approve: true, p_emp_code: code });
       notify(`✓ ${el.dataset.name} is now an employee (${code}) — ${((wsync && wsync.inserted) || 0) + ((wsync && wsync.skipped) || 0)} day(s) of trial attendance are on the employee record`, 'success');
       await loadEmployees(); loadTrialPage();
+      // Ek-click convert me date of birth, father's name, address aur bank aate hi nahi —
+      // wo sirf Profile se bharte hain. Isliye Profile khol do aur saaf bata do, warna
+      // employee adhoore record ke saath chalta rehta hai.
+      notify('Date of birth, father\'s name, address, emergency contact and bank details are still blank for ' + code
+           + ' — the Profile is open, please complete it.', 'info');
+      try{ openEmpModal(code); }catch(e){}
     }catch(err){ notify('Failed: ' + (err.message||err), 'error'); }
     return;
   }
