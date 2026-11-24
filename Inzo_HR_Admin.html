@@ -2219,6 +2219,24 @@ body.no-confidential .confidential-col{display:none!important}
       <div><label class="lbl">UAN (PF)</label><input id="epUAN" class="inp"></div>
       <div><label class="lbl">ESI No.</label><input id="epESINo" class="inp"></div>
     </div>
+    <h4 class="display font-bold mt-5 mb-2">Salary Split <span class="text-[10px] font-normal" style="color:var(--muted)">(part of the salary paid to another account)</span></h4>
+    <p class="text-[11px] mt-0 mb-2 p-2 rounded" style="background:#fff7ed;color:#9a3412;line-height:1.5">
+      Each share is a percentage of that month's earnings and is paid as a clean amount — nothing is deducted from it.
+      PF, ESI, LWF, TDS and advances are still calculated on the <b>full</b> salary and are all taken out of the employee's own share,
+      so the employee's own account receives whatever is left. At most 90% in total can be sent elsewhere.
+      Keep the employee's written authorisation on file before adding a payee.</p>
+    <div class="grid gap-2 mb-2" style="grid-template-columns:1.4fr 1fr 1.2fr 1.3fr 1fr auto">
+      <div><label class="lbl">Payee name</label><input id="spName" class="inp" placeholder="As in the bank account"></div>
+      <div><label class="lbl">Relation</label><input id="spRel" class="inp" placeholder="Wife / Father…"></div>
+      <div><label class="lbl">Bank</label><input id="spBank" class="inp"></div>
+      <div><label class="lbl">Account No.</label><input id="spAcc" class="inp" inputmode="numeric"></div>
+      <div><label class="lbl">IFSC</label><input id="spIfsc" class="inp" style="text-transform:uppercase"></div>
+      <div style="display:flex;align-items:flex-end;gap:6px">
+        <div style="width:72px"><label class="lbl">Share %</label><input id="spPct" type="number" min="1" max="90" step="0.5" class="inp"></div>
+        <button id="spAddBtn" class="btn btn-ghost" title="Add this payee"><i class="fa-solid fa-plus"></i></button>
+      </div>
+    </div>
+    <div id="spList" class="text-xs"></div>
     <h4 class="display font-bold mt-5 mb-2">Documents <span class="text-[10px] font-normal" style="color:var(--muted)">(private storage — accessible only after login)</span></h4>
     <div class="flex gap-2 items-end flex-wrap">
       <div><label class="lbl">Type</label>
@@ -5024,6 +5042,93 @@ $('aeSaveBtn').addEventListener('click', async () => {
   finally{ btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Add Employee'; btn.disabled = false; }
 });
 
+/* ===== Salary split =====
+   Salary ka ek hissa kisi doosre account me. Hissa percent me hai aur us par koi
+   katauti nahi lagti — PF/ESI/LWF/TDS/advance poori salary par hi bante hain aur
+   poore ke poore employee ke apne hisse se katte hain. Rok database me bhi hai
+   (90% se zyada nahi, account/IFSC ka format, aur har badlav audit log me). */
+let SP_ROWS = [];
+function spFmtPct(p){ const n = Number(p) || 0; return (n % 1 === 0 ? String(n) : n.toFixed(2).replace(/0$/,'')) + '%'; }
+async function loadSalaryPayees(code){
+  const host = $('spList'); if(!host) return;
+  SP_ROWS = [];
+  if(!code){ host.innerHTML = ''; return; }
+  host.innerHTML = '<p class="m-0" style="color:var(--muted)">Loading…</p>';
+  try{
+    const { data, error } = await sb.from('salary_payees').select('*')
+      .ilike('employee_code', code).order('id');
+    if(error) throw error;
+    SP_ROWS = data || [];
+    renderSalaryPayees();
+  }catch(err){ host.innerHTML = '<p class="m-0" style="color:var(--bad)">' + esc(err.message || String(err)) + '</p>'; }
+}
+function renderSalaryPayees(){
+  const host = $('spList'); if(!host) return;
+  const act = SP_ROWS.filter(r => r.active);
+  if(!SP_ROWS.length){
+    host.innerHTML = '<p class="m-0" style="color:var(--muted)">No split — the whole salary goes to the employee’s own account.</p>';
+    return;
+  }
+  const total = act.reduce((a, r) => a + (Number(r.percent) || 0), 0);
+  host.innerHTML = '<div style="overflow-x:auto"><table class="tbl"><thead><tr>'
+    + '<th>Payee</th><th>Relation</th><th>Bank</th><th>Account</th><th>IFSC</th><th>Share</th><th>Added by</th><th></th></tr></thead><tbody>'
+    + SP_ROWS.map(r => '<tr' + (r.active ? '' : ' style="opacity:.5"') + '>'
+        + '<td class="font-semibold">' + esc(r.payee_name) + (r.active ? '' : ' <span class="chip chip-gray">off</span>') + '</td>'
+        + '<td>' + esc(r.relation || '—') + '</td><td>' + esc(r.bank_name || '—') + '</td>'
+        + '<td>…' + esc(String(r.account_no || '').slice(-4)) + '</td><td>' + esc(r.ifsc || '') + '</td>'
+        + '<td class="money">' + spFmtPct(r.percent) + '</td>'
+        + '<td class="text-[10px]" style="color:var(--muted)">' + esc(String(r.created_by || '').split('@')[0]) + '</td>'
+        + '<td style="text-align:right;white-space:nowrap">'
+        + '<button class="btn btn-ghost btn-sm" data-act="sp-toggle" data-id="' + r.id + '" title="' + (r.active ? 'Stop this split' : 'Start it again') + '"><i class="fa-solid fa-' + (r.active ? 'pause' : 'play') + '"></i></button> '
+        + '<button class="btn btn-danger btn-sm" data-act="sp-del" data-id="' + r.id + '"><i class="fa-solid fa-trash"></i></button></td></tr>').join('')
+    + '</tbody></table></div>'
+    + '<p class="text-[11px] mt-2 mb-0" style="color:' + (total > 90 ? 'var(--bad)' : 'var(--muted)') + '">'
+    + 'Going to other accounts: <b>' + spFmtPct(total) + '</b> of earnings · the employee’s own account gets the rest, after every deduction.</p>';
+}
+document.addEventListener('click', async e => {
+  const add = e.target.closest('#spAddBtn');
+  if(add){
+    const code = ($('epCode') || {}).value;
+    if(!code) return notify('Open an employee profile first', 'error');
+    const name = String(($('spName')||{}).value || '').trim();
+    const acct = String(($('spAcc')||{}).value || '').replace(/\s/g, '');
+    const ifsc = String(($('spIfsc')||{}).value || '').trim().toUpperCase();
+    const pct  = Number(($('spPct')||{}).value) || 0;
+    if(!name) return notify('Payee name is required', 'error');
+    if(!/^[0-9]{9,18}$/.test(acct)) return notify('Account number must be 9 to 18 digits', 'error');
+    if(!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) return notify('IFSC does not look right (e.g. SBIN0001234)', 'error');
+    if(!(pct > 0 && pct <= 90)) return notify('Share must be between 1 and 90 percent', 'error');
+    if(!(await nxConfirm('Pay ' + pct + '% of ' + (($('epNameShow')||{}).innerText || code) + '’s salary to:\\n\\n'
+        + name + ' · ' + ifsc + ' · ' + acct
+        + '\\n\\nNothing is deducted from this share. PF, ESI and LWF stay on the full salary and come out of the employee’s own part.'
+        + '\\n\\nIs the employee’s written authorisation on file?', 'Add salary split'))) return;
+    const { error } = await sb.from('salary_payees').insert([{ employee_code: code, payee_name: name,
+      relation: String(($('spRel')||{}).value || '').trim() || null,
+      bank_name: String(($('spBank')||{}).value || '').trim() || null,
+      account_no: acct, ifsc, percent: pct, created_by: ME_EMAIL || '' }]);
+    if(error) return notify(error.message, 'error');
+    ['spName','spRel','spBank','spAcc','spIfsc','spPct'].forEach(id => { if($(id)) $(id).value = ''; });
+    notify('Salary split added', 'success');
+    return loadSalaryPayees(code);
+  }
+  const tgl = e.target.closest('[data-act="sp-toggle"]');
+  if(tgl){
+    const row = SP_ROWS.find(r => String(r.id) === String(tgl.dataset.id)); if(!row) return;
+    const { error } = await sb.from('salary_payees').update({ active: !row.active }).eq('id', row.id);
+    if(error) return notify(error.message, 'error');
+    notify(row.active ? 'Split stopped' : 'Split started again', 'success');
+    return loadSalaryPayees(($('epCode')||{}).value);
+  }
+  const del = e.target.closest('[data-act="sp-del"]');
+  if(del){
+    const row = SP_ROWS.find(r => String(r.id) === String(del.dataset.id)); if(!row) return;
+    if(!(await nxConfirm('Remove ' + row.payee_name + ' (' + spFmtPct(row.percent) + ') from the salary split?', 'Remove payee'))) return;
+    const { error } = await sb.from('salary_payees').delete().eq('id', row.id);
+    if(error) return notify(error.message, 'error');
+    notify('Payee removed', 'success');
+    return loadSalaryPayees(($('epCode')||{}).value);
+  }
+});
 function _wireExitAuto(){
   const ex = document.getElementById('epExitDate');
   if(ex && !ex._wired){ ex._wired = true; ex.addEventListener('change', () => { if(ex.value) document.getElementById('epStatus').value = 'INACTIVE'; }); }
@@ -5150,6 +5255,7 @@ async function openEmpModal(code){
   if($('epNomName')) $('epNomName').value = p.nominee_name || '';
   if($('epNomRel')) $('epNomRel').value = p.nominee_relation || '';
   loadDocs(code);
+  loadSalaryPayees(code);
   updateGrossPreview();
   // Modal khulte waqt ki salary ka snapshot — Save par isi se compare hoga. Admin ne salary
   // ko haath hi nahi lagaya to salary aur uski approval DB me chhedi hi nahi jayegi.
@@ -9748,8 +9854,24 @@ function nxBankFitName(base, code, dup){
   if(room < 3) return c.slice(0, NX_BANK_NAME_MAX);
   return (base.length > room ? base.slice(0, room).trim() : base) + ' ' + c;
 }
+/* Har account ka I ya N uske APNE IFSC se tay hota hai — apne hi bank (HDFC) ke
+   andar jaye to I (internal), baaki NEFT to N. Split wale account ka bank alag ho
+   sakta hai, isliye uska IFSC alag se dekha jaata hai. */
+function nxBankTyp(ifsc){ return /^HDFC/.test(String(ifsc || '').trim().toUpperCase()) ? 'I' : 'N'; }
+/* Jis employee ki salary ka hissa kisi aur account me jata hai, uske saare active
+   payee. Advice banane se pehle ek hi baar load hote hain. */
+async function nxLoadPayees(){
+  try{
+    const { data } = await sb.from('salary_payees').select('*').eq('active', true);
+    const map = {};
+    (data || []).forEach(p => { const c = String(p.employee_code || '').toUpperCase();
+      (map[c] = map[c] || []).push(p); });
+    window._payPayees = map;
+  }catch(e){ window._payPayees = window._payPayees || {}; }
+}
 function nxBankAdviceRows(){
-  const out = [], noAcct = [], unver = [], notOnr = [];
+  const out = [], noAcct = [], unver = [], notOnr = [], splitBad = [];
+  const PAYEES = window._payPayees || {};
   PAY_ROWS.filter(r => r.hasSalary).forEach(r => {
     const p = PROFILES[r.code] || {};
     // Bank Advice sirf ONR ki — baaki kisi ki nahi
@@ -9760,11 +9882,36 @@ function nxBankAdviceRows(){
     if(!acct || /^(NA|N\/A|-)$/i.test(acct) || !/^\d{9,18}$/.test(acct)){ noAcct.push(r); return; }
     if(net <= 0) return;
     const ifsc = String(p.ifsc || '').trim().toUpperCase();
-    // Apne hi bank (HDFC) ke andar bhejna internal transfer hai -> I, baaki NEFT -> N
-    const typ = /^HDFC/.test(ifsc) ? 'I' : 'N';
     if(String(p.bank_verify_status||'').toUpperCase() !== 'VERIFIED'
        || String(p.bank_verify_acct||'') !== acct.replace(/\D/g,'')) unver.push(r);
-    out.push({ typ, acct, amt: net, name: r.name, code: r.code, ifsc });
+
+    /* ===== Salary split =====
+       Hissa us mahine ki KAMAI (earnings) ka percent hai aur saaf jaata hai — us par
+       koi katauti nahi. PF/ESI/LWF/TDS/advance poori salary par hi bane hain aur
+       poore ke poore employee ke apne hisse se katte hain. Isliye:
+         doosre account  = earnings x percent
+         apna account    = net - (sab doosre accounts ka jod)
+       aur dono ka jod hamesha net ke barabar rehta hai. */
+    const earnings = (Number(r.earnedGross)||0) + (Number(r.bonus)||0) + (Number(r.arrears)||0)
+                   + (Number(r.reward)||0) + (Number(r.encash)||0);
+    const mine = (PAYEES[String(r.code).toUpperCase()] || [])
+      .filter(x => /^\d{9,18}$/.test(String(x.account_no||'')) && /^[A-Z]{4}0[A-Z0-9]{6}$/.test(String(x.ifsc||'').toUpperCase()));
+    const splits = mine.map(x => ({ payee: x,
+      amt: Math.round(earnings * (Number(x.percent) || 0) / 100) }))
+      .filter(x => x.amt > 0);
+    const splitTotal = splits.reduce((a, x) => a + x.amt, 0);
+    const own = net - splitTotal;
+    if(splits.length && own <= 0){
+      // itna hissa bahar ja raha hai ki katauti ke baad employee ke paas kuch nahi bachta
+      splitBad.push({ name: r.name, code: r.code });
+      out.push({ typ: nxBankTyp(ifsc), acct, amt: net, name: r.name, code: r.code, ifsc });
+      return;
+    }
+    splits.forEach(x => out.push({ typ: nxBankTyp(x.payee.ifsc), acct: String(x.payee.account_no),
+      amt: x.amt, name: x.payee.payee_name, code: r.code, ifsc: String(x.payee.ifsc).toUpperCase(),
+      splitOf: r.name, splitPct: Number(x.payee.percent) || 0 }));
+    out.push({ typ: nxBankTyp(ifsc), acct, amt: own, name: r.name, code: r.code, ifsc,
+               splitRemainder: splits.length > 0 });
   });
   // Naam chhota karo, phir dekho kis naam par ek se zyada log aa gaye — unke aage code.
   const _nameCount = {};
@@ -9775,11 +9922,12 @@ function nxBankAdviceRows(){
     r.bankName = nxBankFitName(r._base, r.code, dup);
     if(dup) dupNames.push(r.bankName);
   });
-  return { rows: out, noAcct, unver, notOnr, dupNames };
+  return { rows: out, noAcct, unver, notOnr, dupNames, splitBad };
 }
-$('payBankBtn').addEventListener('click', () => {
+$('payBankBtn').addEventListener('click', async () => {
   if(!PAY_ROWS.length) return notify('Run payroll first', 'error');
-  const { rows, noAcct, unver, notOnr, dupNames } = nxBankAdviceRows();
+  await nxLoadPayees();
+  const { rows, noAcct, unver, notOnr, dupNames, splitBad } = nxBankAdviceRows();
   if(!rows.length) return notify('No ONR employees found for bank transfer — the Bank Advice would be empty', 'error');
   dlText('Bank_Advice_ONR_' + PAY_MONTH + '.xls',
          nxBankAdviceXml(rows, _bankNarration(PAY_MONTH), _bankPayDate(PAY_MONTH)),
@@ -9789,26 +9937,37 @@ $('payBankBtn').addEventListener('click', () => {
   if(noAcct.length) bits.push(noAcct.length + ' ONR without a bank account: ' + noAcct.slice(0,4).map(r => r.name).join(', ') + (noAcct.length > 4 ? ' +' + (noAcct.length-4) : ''));
   if(unver.length)  bits.push(unver.length + ' with bank details not verified by the employee');
   if(dupNames.length) bits.push(dupNames.length + ' with a repeated name — the employee code was added: ' + dupNames.slice(0,3).join(', ') + (dupNames.length > 3 ? ' +' + (dupNames.length-3) : ''));
+  const _splitCount = rows.filter(r => r.splitOf).length;
+  if(_splitCount) bits.push(_splitCount + ' split payment(s) to another account');
+  if(splitBad.length) bits.push('SPLIT SKIPPED for ' + splitBad.map(x => x.name + ' (' + x.code + ')').join(', ')
+    + ' — after the deductions nothing would be left in their own account; the whole net was sent to them instead');
   notify('Bank Advice: ' + bits.join(' · '), (noAcct.length || unver.length) ? 'info' : 'success');
 });
 // purani detail wali CSV (code/dept/bank/verification ke saath) — hisaab milane ke liye
-$('payBankCsvBtn').addEventListener('click', () => {
+$('payBankCsvBtn').addEventListener('click', async () => {
+  await nxLoadPayees();
   const rows = PAY_ROWS.filter(r => r.hasSalary
     && String((PROFILES[r.code]||{}).roll_type || '').trim().toUpperCase() === 'ONR');
   if(!rows.length) return notify('No ONR employees found', 'error');
-  // wahi naam aur wahi I/N jo asli bank file me ja raha hai — milan ke liye
-  const _advByCode = {};
-  nxBankAdviceRows().rows.forEach(a => { _advByCode[a.code] = a; });
+  // Bilkul wahi line-by-line jo asli bank file me ja rahi hain (split samet)
+  const _adv = nxBankAdviceRows().rows;
   dlText('Bank_Advice_ONR_Detail_' + PAY_MONTH + '.csv',
-    ['Type (I=own bank / N=NEFT),Employee Code,Name,Name Sent To Bank,Department,Section,Bank,Account No,IFSC,Verified,Amount (Net Pay)',
-     ...rows.map(r => { const p = PROFILES[r.code]||{};
-       const e = EMP.find(x => x['Employee code'] === r.code);
-       const ver = (String(p.bank_verify_status||'').toUpperCase() === 'VERIFIED'
-                 && String(p.bank_verify_acct||'') === String(p.account_no||'').replace(/\D/g,'')) ? 'YES' : 'NO';
-       const _adv = (_advByCode[r.code] || {});
-       return [_adv.typ || '', r.code, '"' + r.name + '"', '"' + (_adv.bankName || '') + '"',
+    ['Type (I=own bank / N=NEFT),Employee Code,Employee,Paid To,Name Sent To Bank,Share,Department,Section,Bank,Account No,IFSC,Verified,Amount',
+     ..._adv.map(a => { const p = PROFILES[a.code]||{};
+       const e = EMP.find(x => x['Employee code'] === a.code);
+       const own = !a.splitOf;
+       const ver = own
+         ? ((String(p.bank_verify_status||'').toUpperCase() === 'VERIFIED'
+             && String(p.bank_verify_acct||'') === String(p.account_no||'').replace(/\D/g,'')) ? 'YES' : 'NO')
+         : 'N/A (other account)';
+       return [a.typ, a.code,
+               '"' + (own ? a.name : a.splitOf) + '"',
+               '"' + (own ? 'Own account' : a.name) + '"',
+               '"' + (a.bankName || '') + '"',
+               own ? (a.splitRemainder ? 'remainder' : 'full') : (a.splitPct + '%'),
                '"' + ((e && e.DEPARTMENT) || '') + '"', '"' + (p.section||'') + '"',
-               '"' + (p.bank_name||'') + '"', '="' + (p.account_no||'') + '"', p.ifsc||'', ver, netOf(r)].join(','); })].join('\n'),
+               '"' + (own ? (p.bank_name||'') : '') + '"',
+               '="' + a.acct + '"', a.ifsc || '', ver, a.amt].join(','); })].join('\n'),
     'text/csv');
   notify('Detailed CSV exported', 'success');
 });
@@ -15292,7 +15451,7 @@ const HELP = {
   shifts: ['Create every shift you run (e.g. Morning 6–2, Evening 2–10, Night 10–6 with the night toggle).', 'Assign a shift to each employee from Employees → Profile. Late and overtime are computed from it.'],
   leaves: ['Apply and approve leave here, or approve employee requests from the Approvals page.', 'Rule: one paid leave per month. Any further leave in the same month stays unpaid (LOP) even after approval — there is no leave balance and nothing carries forward.', 'Tick "Half day" for a 0.5-day leave on a single date.', 'Emergency leave: an employee can apply once in a calendar month, for at most 2 days at a time. Click Details on an emergency row to see when it was applied, the reason, both approval steps, attendance on those dates and the employee\'s earlier emergency leaves.'],
   approvals: ['Everything waiting for your decision in one inbox — leaves, expense claims and other requests from ESS.', 'The orange badge in the sidebar shows the pending count.',],
-  payroll: ['Pick the month and click Calculate — attendance, leaves, OT, PF/ESI/PT/LWF/TDS and advances are applied automatically.', 'Edit OT hours, bonus or other deductions inline; the net and totals update live.', 'Click Finalize & Save All to lock payslips, record employer contributions and update advance balances.', 'Once a past month is Locked or Finalized, its attendance and leave cannot be changed — the database refuses it, so a saved payslip can never drift from the attendance behind it. To correct a closed month, press Unlock here, make the correction, then lock it again. The current month is never blocked, so kiosk punching is unaffected.', 'Then use Bank Advice (bank portions), Cash Register (cash portions with signature column) and Print All Payslips.'],
+  payroll: ['Pick the month and click Calculate — attendance, leaves, OT, PF/ESI/PT/LWF/TDS and advances are applied automatically.', 'Edit OT hours, bonus or other deductions inline; the net and totals update live.', 'Click Finalize & Save All to lock payslips, record employer contributions and update advance balances.', 'Salary split: part of an employee\u2019s salary can be paid to another account (Profile \u2192 Bank). The share is a percentage of that month\u2019s earnings and goes as a clean amount; PF, ESI, LWF, TDS and advances are still calculated on the full salary and all come out of the employee\u2019s own share. The Bank Advice then carries one line per account, each with its own I/N from its own IFSC.', 'Once a past month is Locked or Finalized, its attendance and leave cannot be changed — the database refuses it, so a saved payslip can never drift from the attendance behind it. To correct a closed month, press Unlock here, make the correction, then lock it again. The current month is never blocked, so kiosk punching is unaffected.', 'Then use Bank Advice (bank portions), Cash Register (cash portions with signature column) and Print All Payslips.'],
   advances: ['Record an advance/loan with a monthly EMI — payroll deducts it automatically until the balance reaches zero.'],
   expenses: ['Claims arrive from ESS as Pending. Approve or reject, then Mark Paid once reimbursed.'],
   assets: ['Issue laptops, uniforms, ID cards etc. with serial numbers. Use Return when they come back — damage gets noted.', 'Issued assets automatically appear in the exit checklist when an employee resigns.'],
