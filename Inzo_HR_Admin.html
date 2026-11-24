@@ -9697,7 +9697,7 @@ function nxBankAdviceXml(rows, narration, payDate){
       + (r.typ === 'I' ? cellAt(2, _a(r.acct), 'String') : '')
       + cellAt(3,  _a(r.acct), 'String')    // TEXT + apostrophe
       + cellAt(4,  Math.round(Number(r.amt)||0), 'Number')
-      + cellAt(5,  r.name, 'String')
+      + cellAt(5,  r.bankName || r.name, 'String')
       + cellAt(14, narration, 'String')
       + cellAt(23, payDate, 'String')
       + cellAt(25, r.ifsc, 'String')
@@ -9727,6 +9727,27 @@ function _bankPayDate(ym){
   const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
   return '07/' + String(nm).padStart(2,'0') + '/' + ny;
 }
+/* ===== Bank file ka naam =====
+   Bank ke naam wale khane me poora naam nahi jaata: sirf pehla aur doosra naam,
+   aur kul 21 character se kam. Do logon ka naam ek jaisa pad jaye to dono ke naam
+   ke aage unka employee code lag jaata hai, taaki bank me aur hamare record me
+   koi gadbad na ho. Special character hata dete hain — bank file unhe reject karti hai. */
+const NX_BANK_NAME_MAX = 20;
+function nxBankBaseName(full){
+  const w = String(full || '').toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+  if(!w.length) return '';
+  let s = w.slice(0, 2).join(' ');            // sirf pehla + doosra naam
+  if(s.length > NX_BANK_NAME_MAX) s = w[0];   // itna lamba ho to sirf pehla naam
+  return s.slice(0, NX_BANK_NAME_MAX).trim();
+}
+function nxBankFitName(base, code, dup){
+  const c = String(code || '').toUpperCase().trim();
+  if(!base) return c.slice(0, NX_BANK_NAME_MAX);
+  if(!dup) return base;
+  const room = NX_BANK_NAME_MAX - c.length - 1;   // naam + space + code
+  if(room < 3) return c.slice(0, NX_BANK_NAME_MAX);
+  return (base.length > room ? base.slice(0, room).trim() : base) + ' ' + c;
+}
 function nxBankAdviceRows(){
   const out = [], noAcct = [], unver = [], notOnr = [];
   PAY_ROWS.filter(r => r.hasSalary).forEach(r => {
@@ -9743,13 +9764,22 @@ function nxBankAdviceRows(){
     const typ = /^HDFC/.test(ifsc) ? 'I' : 'N';
     if(String(p.bank_verify_status||'').toUpperCase() !== 'VERIFIED'
        || String(p.bank_verify_acct||'') !== acct.replace(/\D/g,'')) unver.push(r);
-    out.push({ typ, acct, amt: net, name: r.name, ifsc });
+    out.push({ typ, acct, amt: net, name: r.name, code: r.code, ifsc });
   });
-  return { rows: out, noAcct, unver, notOnr };
+  // Naam chhota karo, phir dekho kis naam par ek se zyada log aa gaye — unke aage code.
+  const _nameCount = {};
+  out.forEach(r => { r._base = nxBankBaseName(r.name); _nameCount[r._base] = (_nameCount[r._base] || 0) + 1; });
+  const dupNames = [];
+  out.forEach(r => {
+    const dup = _nameCount[r._base] > 1;
+    r.bankName = nxBankFitName(r._base, r.code, dup);
+    if(dup) dupNames.push(r.bankName);
+  });
+  return { rows: out, noAcct, unver, notOnr, dupNames };
 }
 $('payBankBtn').addEventListener('click', () => {
   if(!PAY_ROWS.length) return notify('Run payroll first', 'error');
-  const { rows, noAcct, unver, notOnr } = nxBankAdviceRows();
+  const { rows, noAcct, unver, notOnr, dupNames } = nxBankAdviceRows();
   if(!rows.length) return notify('No ONR employees found for bank transfer — the Bank Advice would be empty', 'error');
   dlText('Bank_Advice_ONR_' + PAY_MONTH + '.xls',
          nxBankAdviceXml(rows, _bankNarration(PAY_MONTH), _bankPayDate(PAY_MONTH)),
@@ -9758,6 +9788,7 @@ $('payBankBtn').addEventListener('click', () => {
   if(notOnr.length) bits.push(notOnr.length + ' non-ONR skipped');
   if(noAcct.length) bits.push(noAcct.length + ' ONR without a bank account: ' + noAcct.slice(0,4).map(r => r.name).join(', ') + (noAcct.length > 4 ? ' +' + (noAcct.length-4) : ''));
   if(unver.length)  bits.push(unver.length + ' with bank details not verified by the employee');
+  if(dupNames.length) bits.push(dupNames.length + ' with a repeated name — the employee code was added: ' + dupNames.slice(0,3).join(', ') + (dupNames.length > 3 ? ' +' + (dupNames.length-3) : ''));
   notify('Bank Advice: ' + bits.join(' · '), (noAcct.length || unver.length) ? 'info' : 'success');
 });
 // purani detail wali CSV (code/dept/bank/verification ke saath) — hisaab milane ke liye
@@ -9765,13 +9796,18 @@ $('payBankCsvBtn').addEventListener('click', () => {
   const rows = PAY_ROWS.filter(r => r.hasSalary
     && String((PROFILES[r.code]||{}).roll_type || '').trim().toUpperCase() === 'ONR');
   if(!rows.length) return notify('No ONR employees found', 'error');
+  // wahi naam aur wahi I/N jo asli bank file me ja raha hai — milan ke liye
+  const _advByCode = {};
+  nxBankAdviceRows().rows.forEach(a => { _advByCode[a.code] = a; });
   dlText('Bank_Advice_ONR_Detail_' + PAY_MONTH + '.csv',
-    ['Employee Code,Name,Department,Section,Bank,Account No,IFSC,Verified,Amount (Net Pay)',
+    ['Type (I=own bank / N=NEFT),Employee Code,Name,Name Sent To Bank,Department,Section,Bank,Account No,IFSC,Verified,Amount (Net Pay)',
      ...rows.map(r => { const p = PROFILES[r.code]||{};
        const e = EMP.find(x => x['Employee code'] === r.code);
        const ver = (String(p.bank_verify_status||'').toUpperCase() === 'VERIFIED'
                  && String(p.bank_verify_acct||'') === String(p.account_no||'').replace(/\D/g,'')) ? 'YES' : 'NO';
-       return [r.code, '"' + r.name + '"', '"' + ((e && e.DEPARTMENT) || '') + '"', '"' + (p.section||'') + '"',
+       const _adv = (_advByCode[r.code] || {});
+       return [_adv.typ || '', r.code, '"' + r.name + '"', '"' + (_adv.bankName || '') + '"',
+               '"' + ((e && e.DEPARTMENT) || '') + '"', '"' + (p.section||'') + '"',
                '"' + (p.bank_name||'') + '"', '="' + (p.account_no||'') + '"', p.ifsc||'', ver, netOf(r)].join(','); })].join('\n'),
     'text/csv');
   notify('Detailed CSV exported', 'success');
