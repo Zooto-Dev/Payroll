@@ -14223,6 +14223,10 @@ async function loadAssets(){
   ]);
   if(aRes.error) return notify(aRes.error.message + ' — run the asset migration SQL?', 'error');
   ASSETS = aRes.data || [];
+  // Stock na padh paane par pehle chupchaap khali list reh jaati thi, isliye kuch issue
+  // hi nahi hota tha aur wajah kahin dikhti bhi nahi thi.
+  if(sRes.error) notify('Stock could not be read: ' + sRes.error.message
+    + ' — this account may not have admin access, so nothing can be issued.', 'error');
   STOCK = sRes.data || [];
   fillStockDropdown();
   renderAssets();
@@ -14283,12 +14287,14 @@ $('emAddBtn') && $('emAddBtn').addEventListener('click', async () => {
 });
 function fillStockDropdown(){
   const dl = $('asStockDL'); if(!dl) return;
-  const avail = STOCK.filter(s => s.available_qty > 0);
-  const label = s => `${s.asset_type}${s.brand ? ' · ' + s.brand : ''}${s.asset_name ? ' — ' + s.asset_name : ''} (${s.available_qty} available)`;
-  dl.innerHTML = avail.map(s => `<option value="${esc(label(s))}" data-id="${s.id}">`).join('');
+  // Khatam ho chuke item bhi list me rakhte hain — warna "Shoes" jaisi cheez dhoondne
+  // par kuch milta hi nahi tha aur lagta tha ki issue hi nahi ho raha.
+  const sorted = STOCK.slice().sort((a, b) => (b.available_qty || 0) - (a.available_qty || 0));
+  const label = s => `${s.asset_type}${s.brand ? ' · ' + s.brand : ''}${s.asset_name ? ' — ' + s.asset_name : ''} (${s.available_qty > 0 ? s.available_qty + ' available' : 'out of stock — add stock first'})`;
+  dl.innerHTML = sorted.map(s => `<option value="${esc(label(s))}" data-id="${s.id}">`).join('');
   const inp = $('asStockInp');
   if(inp){
-    inp._map = {}; avail.forEach(s => inp._map[label(s)] = s.id);
+    inp._map = {}; sorted.forEach(s => inp._map[label(s)] = s.id);
     if(!inp._wired){
       inp._wired = true;
       inp.addEventListener('input', () => { $('asStock').value = inp._map[inp.value] || ''; updateStockHint(); });
@@ -14298,7 +14304,12 @@ function fillStockDropdown(){
 }
 function updateStockHint(){
   const s = STOCK.find(x => String(x.id) === String($('asStock').value));
-  $('asStockHint').innerText = s ? `${s.available_qty} available of ${s.total_qty} total` : '';
+  const hint = $('asStockHint');
+  if(!STOCK.length) hint.innerText = 'Stock is empty — add the item under "Add to Stock" on the right, then issue it.';
+  else if(!s) hint.innerText = '';
+  else if(s.available_qty > 0) hint.innerText = `${s.available_qty} available of ${s.total_qty} total`;
+  else hint.innerText = `${s.asset_type} is out of stock — add quantity under "Add to Stock" on the right, then issue it.`;
+  hint.style.color = (s && s.available_qty <= 0) || !STOCK.length ? 'var(--bad)' : 'var(--muted)';
   if(s && $('asBrand') && !$('asBrand').value) $('asBrand').value = s.brand || '';
   // accessories only for laptop / mobile
   const isPC = s && ['LAPTOP','MOBILE'].includes((s.asset_type||'').toUpperCase());
@@ -14401,7 +14412,10 @@ function renderCart(){
 function removeCartItem(i){ ISSUE_CART.splice(i,1); renderCart(); }
 function readIssueForm(){
   const stock = STOCK.find(s => String(s.id) === String($('asStock').value));
-  if(!stock){ notify('Pick an item from stock', 'error'); return null; }
+  if(!stock){ notify(STOCK.length ? 'Pick an item from stock'
+    : 'There is nothing in stock yet — add the item under "Add to Stock" first', 'error'); return null; }
+  if((stock.available_qty || 0) <= 0){
+    notify(stock.asset_type + ' is out of stock — add quantity under "Add to Stock", then issue it', 'error'); return null; }
   const qty = Number($('asQty').value) || 1;
   // check available minus what's already in cart for this stock item
   const inCart = ISSUE_CART.filter(c => c.stock_id === stock.id).reduce((a,c)=>a+c.quantity,0);

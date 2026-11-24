@@ -257,7 +257,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <img src="nexus-logo.png" alt="Nexus" style="height:44px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
       <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Portal</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B83</b> — 24 Nov</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B84</b> — 24 Nov</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -284,7 +284,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
           <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B83</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B84</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -299,6 +299,11 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div id="bankVerifyCard" class="card hidden" style="border:1.5px solid #fcd34d;background:linear-gradient(135deg,#fffbeb,#ffffff)">
         <h3 class="display font-bold mt-0 mb-2 text-sm" style="color:#92400e"><i class="fa-solid fa-building-columns"></i> <span data-en="Check your bank details" data-hi="अपने बैंक विवरण जाँचें">Apne bank details check karo</span></h3>
         <div id="bankVerifyBox" class="text-xs"></div>
+      </div>
+      <div id="fdHomeCard" class="card hidden" style="border:1.5px solid #86efac;background:linear-gradient(135deg,#f0fdf4,#ffffff)">
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-route" style="color:#15803d"></i>
+          <span data-en="Today's Field Duty" data-hi="आज की फील्ड ड्यूटी">Today's Field Duty</span></h3>
+        <div id="fdHomeBox" class="text-xs"></div>
       </div>
       <div id="declCard" class="card hidden" style="border:1.5px solid #fcd34d;background:linear-gradient(135deg,#fffbeb,#ffffff)">
         <h3 class="display font-bold mt-0 mb-2 text-sm" style="color:#92400e"><i class="fa-solid fa-file-signature"></i> <span data-en="Salary payment declaration" data-hi="सैलरी भुगतान घोषणा">Salary payment declaration</span></h3>
@@ -370,6 +375,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <button class="req-tile hidden" id="tilAmgr" data-rs="amgr"><span class="rt-ic" style="background:#ccfbf1;color:#0f766e"><i class="fa-solid fa-warehouse"></i></span><span data-en="Asset Mgmt" data-hi="सामान / असेट">Asset Mgmt</span></button>
         <button class="req-tile hidden" id="tilStr" data-rs="strength"><span class="rt-ic" style="background:#ffedd5;color:#c2410c"><i class="fa-solid fa-users-line"></i></span><span data-en="Strength" data-hi="\u0939\u093e\u091c\u093f\u0930\u0940 \u0938\u0902\u0916\u094d\u092f\u093e">Strength</span></button>
         <button class="req-tile" data-rs="ticket"><span class="rt-ic" style="background:#f3e8ff;color:#7c3aed"><i class="fa-solid fa-headset"></i></span><span data-en="Raise Ticket" data-hi="टिकट">Raise Ticket</span></button>
+        <button class="req-tile hidden" id="tilTkAdm" data-rs="tkadm" style="position:relative"><span class="rt-ic" style="background:#fee2e2;color:#b91c1c"><i class="fa-solid fa-inbox"></i></span><span data-en="Ticket Inbox" data-hi="टिकट इनबॉक्स">Ticket Inbox</span><span id="tkAdmBadge" class="hidden" style="position:absolute;top:4px;right:6px;background:#dc2626;color:#fff;border-radius:999px;font-size:9px;font-weight:800;padding:1px 5px">0</span></button>
           <button class="req-tile" data-rs="voice"><span class="rt-ic" style="background:#e0e7ff;color:#4f46e5"><i class="fa-solid fa-comments"></i></span><span>Voice Box</span></button>
         <button class="req-tile" data-rs="resign"><span class="rt-ic" style="background:#fee2e2;color:#dc2626"><i class="fa-solid fa-person-walking-arrow-right"></i></span><span>Resign</span></button>
         <button class="req-tile" data-rs="faq"><span class="rt-ic" style="background:#e0e7ff;color:#4338ca"><i class="fa-solid fa-circle-question"></i></span><span>Help / SOP</span></button>
@@ -577,7 +583,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <datalist id="amEmpList"></datalist>
         <p class="text-[11px] mt-0 mb-3" id="amEmpPick" style="color:var(--muted)">&nbsp;</p>
         <label class="lbl" data-en="Item (from stock)" data-hi="आइटम (स्टॉक से)">Item (from stock)</label>
-        <select id="amStock" class="inp mb-3"></select>
+        <select id="amStock" class="inp mb-1"></select>
+        <p id="amStockWarn" class="hidden text-[11px] mt-0 mb-3 p-2 rounded" style="background:#fef2f2;color:#7f1d1d;line-height:1.5"></p>
         <div class="grid grid-cols-2 gap-2 mb-3">
           <div><label class="lbl" data-en="Quantity" data-hi="कितने">Quantity</label><input id="amQty" type="number" min="1" value="1" class="inp"></div>
           <div><label class="lbl" data-en="Return by" data-hi="वापसी कब तक">Return by</label><input id="amRetBy" type="date" class="inp"></div>
@@ -635,6 +642,22 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
         <h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-regular fa-calendar-days" style="color:#c2410c"></i>
           <span data-en="Day by day" data-hi="\u0926\u093f\u0928-\u0935\u093e\u0930">Day by day</span></h3>
         <div id="strHist" class="text-xs"></div>
+      </div>
+      </div>
+      <div class="req-sec hidden" id="rs-tkadm">
+      <div class="card">
+        <h3 class="display font-bold mt-0 mb-1 text-sm"><i class="fa-solid fa-inbox" style="color:#b91c1c"></i>
+          <span data-en="Tickets for you" data-hi="आपके लिए आई टिकट">Tickets for you</span>
+          <span id="tkAdmSides" class="text-[10px] font-normal" style="color:var(--muted)"></span></h3>
+        <div class="text-[11px] mt-0 mb-3 p-2 rounded" style="background:#fef2f2;color:#7f1d1d;line-height:1.5"
+             data-en="Every ticket your team has been sent is here, with the person's details. Open one, change where it stands, and write what you did — the employee sees it the moment you save."
+             data-hi="आपकी टीम को भेजी गई हर टिकट यहीं है, बंदे की पूरी डिटेल के साथ। खोलिए, स्टेटस बदलिए और जो किया वो लिख दीजिए — सेव करते ही उस बंदे को दिख जाएगा।">Every ticket your team has been sent is here.</div>
+        <div class="flex gap-1 mb-3">
+          <button class="btn btn-ghost tkadm-sc active" data-sc="OPEN" style="flex:1;font-size:11px;padding:7px"><span data-en="To do" data-hi="करने हैं">To do</span></button>
+          <button class="btn btn-ghost tkadm-sc" data-sc="DONE" style="flex:1;font-size:11px;padding:7px"><span data-en="Finished" data-hi="हो चुकीं">Finished</span></button>
+          <button class="btn btn-ghost tkadm-sc" data-sc="ALL" style="flex:1;font-size:11px;padding:7px"><span data-en="All" data-hi="सब">All</span></button>
+        </div>
+        <div id="tkAdmBox" class="text-xs"></div>
       </div>
       </div>
       <div class="req-sec hidden" id="rs-ticket">
@@ -1460,7 +1483,7 @@ document.querySelectorAll('.req-tile').forEach(t => t.addEventListener('click', 
   const opening = sec.classList.contains('hidden');
   document.querySelectorAll('.req-sec').forEach(s => s.classList.add('hidden'));
   document.querySelectorAll('.req-tile').forEach(x => x.classList.remove('active'));
-  if(opening){ sec.classList.remove('hidden'); t.classList.add('active'); if(t.dataset.rs === 'faq') essRenderFaq(); if(t.dataset.rs === 'visitor') loadVisitorReq(); if(t.dataset.rs === 'ticket') loadTickets(); if(t.dataset.rs === 'amgr') loadAmgr(); if(t.dataset.rs === 'strength') loadStrength(); }
+  if(opening){ sec.classList.remove('hidden'); t.classList.add('active'); if(t.dataset.rs === 'faq') essRenderFaq(); if(t.dataset.rs === 'visitor') loadVisitorReq(); if(t.dataset.rs === 'ticket') loadTickets(); if(t.dataset.rs === 'tkadm') loadTkAdm(); if(t.dataset.rs === 'amgr') loadAmgr(); if(t.dataset.rs === 'strength') loadStrength(); }
 }));
 /* ===== ESS Help / SOP ===== */
 var ESS_FAQ = [
@@ -1637,6 +1660,7 @@ let FD_REQ = null, FD_LOGS = [], _fdStage = null, _fdGeo = null, _fdStream = nul
 
 async function loadFieldDuty(){
   const card = $('fdCard'), box = $('fdBox');
+  const hCard = $('fdHomeCard');
   if(!card || !box) return;
   const codeU = String(CODE||'').trim().toUpperCase();
   const today = new Date().toISOString().slice(0,10);
@@ -1645,13 +1669,14 @@ async function loadFieldDuty(){
       .ilike('employee_code', codeU).eq('req_type','FIELD').eq('status','APPROVED')
       .lte('date', today).order('date', { ascending:false }).limit(5);
     FD_REQ = (data || []).find(r => String(r.date) === today) || null;
-    if(!FD_REQ){ card.classList.add('hidden'); return; }
+    if(!FD_REQ){ card.classList.add('hidden'); if(hCard) hCard.classList.add('hidden'); return; }
     const { data: lg } = await sb.from('field_duty_logs').select('*')
       .eq('request_id', FD_REQ.id).order('id');
     FD_LOGS = lg || [];
     card.classList.remove('hidden');
+    if(hCard) hCard.classList.remove('hidden');
     fdRender();
-  }catch(e){ card.classList.add('hidden'); }
+  }catch(e){ card.classList.add('hidden'); if(hCard) hCard.classList.add('hidden'); }
 }
 
 function fdLog(k){ return FD_LOGS.find(x => String(x.stage).toUpperCase() === k) || null; }
@@ -1690,29 +1715,79 @@ function fdRender(){
         <div style="font-weight:600"><i class="fa-solid ${st.ic}" style="opacity:.6;margin-right:4px"></i>${L(st.en, st.hi)}</div>
         ${done ? `<div style="font-size:11px;color:var(--muted)">${esc(t)}${lg.lat != null ? ' · ' + Number(lg.lat).toFixed(5) + ', ' + Number(lg.lng).toFixed(5) : ''}</div>${verLine}
                   ${lg.photo_url ? `<img src="${esc(lg.photo_url)}" style="width:54px;height:54px;object-fit:cover;border-radius:8px;margin-top:5px;border:1px solid #cbd5e1">` : ''}`
-                : (canDo ? `<button class="btn btn-primary btn-sm mt-1" onclick="fdStart('${st.k}')" style="background:#15803d">
+                : (canDo ? `<button class="btn btn-primary btn-sm mt-1 fd-go" data-fdst="${st.k}" onclick="fdStart('${st.k}', this)" style="background:#15803d">
                       <i class="fa-solid fa-camera"></i> ${L('Punch here','यहीं पंच करें')}</button>`
                          : `<div style="font-size:11px;color:var(--muted)">${L('after the previous step','पिछले चरण के बाद')}</div>`)}
       </div></div>`;
   });
+  // Ek hi cheez do jagah: Home par (jaisa help me likha hai) aur Requests > Field Duty me
   box.innerHTML = html;
+  const hb = $('fdHomeBox'); if(hb) hb.innerHTML = html;
 }
 
-async function fdStart(stage){
+/* Pehle button daba kar kuch dikhta hi nahi tha: GPS chupchaap 15 second tak
+   koshish karta rehta tha, aur agar phone ne location block kar rakhi ho to kuch
+   bhi na toast aata na button badalta. Ab button par hi saaf likha jaata hai ki
+   kya ho raha hai, har rukawat ka apna message hai, aur dheema GPS hone par ek
+   kam-satik koshish aur ki jaati hai. */
+function _fdBtnBusy(btn, txt){
+  if(!btn) return () => {};
+  const old = btn.innerHTML;
+  btn.disabled = true; btn.style.opacity = '.75';
+  btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> ' + txt;
+  return () => { btn.disabled = false; btn.style.opacity = ''; btn.innerHTML = old; };
+}
+function _fdGetPos(hi, ms){
+  return new Promise((res, rej) =>
+    navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: hi, timeout: ms, maximumAge: 0 }));
+}
+async function fdStart(stage, btn){
   _fdStage = stage; _fdGeo = null;
-  if(!navigator.geolocation)
-    return notify(L('This phone cannot give a location — field punch is not possible.',
-                    'इस फ़ोन से लोकेशन नहीं मिल रही — फील्ड पंच नहीं हो सकता।'));
-  notify(L('Getting your location…','लोकेशन ली जा रही है…'));
+  const done = _fdBtnBusy(btn, L('Getting location…','लोकेशन ली जा रही है…'));
   try{
-    const pos = await new Promise((res, rej) =>
-      navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy:true, timeout:15000, maximumAge:0 }));
+    if(!window.isSecureContext){
+      done();
+      return notify(L('Open the portal with https:// — the camera and location do not work otherwise.',
+                      'पोर्टल https:// से खोलिए — वरना कैमरा और लोकेशन काम नहीं करते।'));
+    }
+    if(!navigator.geolocation){
+      done();
+      return notify(L('This phone cannot give a location — field punch is not possible.',
+                      'इस फ़ोन से लोकेशन नहीं मिल रही — फील्ड पंच नहीं हो सकता।'));
+    }
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      done();
+      return notify(L('This browser has no camera access. Open the portal in Chrome.',
+                      'इस ब्राउज़र में कैमरा नहीं चलता। पोर्टल Chrome में खोलिए।'));
+    }
+    notify(L('Getting your location…','लोकेशन ली जा रही है…'));
+    let pos = null, err = null;
+    try{ pos = await _fdGetPos(true, 12000); }
+    catch(e1){
+      err = e1;
+      // GPS ne der ki — ek baar tower/wifi wali kam-satik location se koshish
+      if(e1 && e1.code === 3){
+        notify(L('GPS is slow — trying once more…','GPS धीमा है — एक बार और कोशिश…'));
+        try{ pos = await _fdGetPos(false, 10000); err = null; }catch(e2){ err = e2; }
+      }
+    }
+    if(!pos){
+      done();
+      const c = err && err.code;
+      if(c === 1) return notify(L('Location permission is blocked. Allow location for this site in the browser settings, then try again.',
+                                  'लोकेशन की अनुमति बंद है। ब्राउज़र सेटिंग में इस साइट को लोकेशन की अनुमति दीजिए, फिर दोबारा कीजिए।'), 'error');
+      if(c === 3) return notify(L('Location did not come through. Switch on GPS, step outside, and try again.',
+                                  'लोकेशन नहीं मिली। GPS चालू कीजिए, थोड़ा बाहर आइए और दोबारा कीजिए।'), 'error');
+      return notify(L('Location did not come through — switch on GPS and try again.',
+                      'लोकेशन नहीं मिली — GPS चालू करके दोबारा कीजिए।'), 'error');
+    }
     _fdGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
+    await fdCamOpen();
+    done();
   }catch(e){
-    return notify(L('Location was not allowed. Field punch needs it — please allow location and try again.',
-                    'लोकेशन की अनुमति नहीं मिली। फील्ड पंच के लिए यह ज़रूरी है — अनुमति देकर दोबारा करें।'));
+    done();
+    notify((L('Could not start the punch: ','पंच शुरू नहीं हो पाया: ')) + (e && e.message ? e.message : String(e)), 'error');
   }
-  await fdCamOpen();
 }
 
 async function fdCamOpen(){
@@ -4016,8 +4091,11 @@ function render(){
   $('stPresent').innerText = att.filter(a => a.date && a.date.startsWith(ym)).length;
   // WFH sirf STAFF ke liye — worker ke paas ye option nahi hai.
   try{ if($('tilWfh')) $('tilWfh').classList.toggle('hidden', !essIsStaff()); }catch(e){}
-  // Asset management ka tile sirf ADMIN department wale ko. Asli rok server par hai.
+  // Asset management ka tile: ADMIN department ya super admin. Server se poochhte hain,
+  // kyonki super admin ka pata sirf settings me hai, employee ke department me nahi.
   try{ if($('tilAmgr')) $('tilAmgr').classList.toggle('hidden', !amIsAdminDept()); }catch(e){}
+  try{ amRefreshAccess(); }catch(e){}
+  try{ tkAdmRefreshAccess(); }catch(e){}
   // Production strength ka tile sirf PPC / Planning ko. Asli rok server par hai.
   try{ if($('tilStr')) $('tilStr').classList.toggle('hidden', !strIsPpc()); }catch(e){}
   try{ essApplyLang(); hmPaintHero(); hmTick(); }catch(e){}
@@ -4703,9 +4781,22 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => { if(e.target && e.target.id === 'strDate') loadStrength(e.target.value); });
 document.addEventListener('click', e => { if(e.target.closest('#strTodayBtn')) loadStrength(strToday()); });
 
+let AM_CAN = null;          // server ka jawab: ye banda asset manage kar sakta hai ya nahi
 function amIsAdminDept(){
+  if(AM_CAN !== null) return AM_CAN;
   const d = String((((D || {}).employee) || {}).DEPARTMENT || '').toUpperCase();
   return /\bADMIN/.test(d);
+}
+/* Super admin kisi bhi department me ho sakta hai — DEPARTMENT dekh kar pata nahi
+   chalta. Isliye server se poochhte hain aur tile usi hisaab se dikhate hain. */
+async function amRefreshAccess(){
+  try{
+    const { data, error } = await sb.rpc('ess_asset_can_manage', { p_code: CODE, p_phone: PHONE });
+    if(error || !data || data.error) return;
+    AM_CAN = data.can_manage === true;
+    if($('tilAmgr')) $('tilAmgr').classList.toggle('hidden', !AM_CAN);
+    if(AM_CAN) loadAmgr();
+  }catch(e){}
 }
 var AM_STOCK = [], AM_EMP = [], AM_ISSUED = [], AM_CART = [];
 function amNum(n){ return Number(n || 0); }
@@ -4728,10 +4819,22 @@ async function loadAmgr(){
     // employee picker
     $('amEmpList').innerHTML = AM_EMP.map(e =>
       '<option value="' + esc(e.name + ' (' + e.code + ')') + '"></option>').join('');
-    // stock dropdown — jo khatam hai wo chunne ke liye hi nahi
+    /* Pehle khatam ho chuke item list me aate hi nahi the, isliye SHOES/UNIFORM jaisi
+       cheez issue karne par kuch chunne ko hi nahi milta tha aur lagta tha ki issue
+       hota hi nahi. Ab sab dikhte hain — khatam wale saaf nishan ke saath. */
     const avail = AM_STOCK.filter(s => amNum(s.available_qty) > 0);
+    const empty = AM_STOCK.filter(s => amNum(s.available_qty) <= 0);
     $('amStock').innerHTML = '<option value="">' + L('— choose an item —','— आइटम चुनें —') + '</option>'
-      + avail.map(s => '<option value="' + s.id + '">' + esc(amStockLabel(s)) + '</option>').join('');
+      + avail.map(s => '<option value="' + s.id + '">' + esc(amStockLabel(s)) + '</option>').join('')
+      + (empty.length ? '<optgroup label="' + esc(L('Finished — add stock first','खत्म — पहले स्टॉक जोड़ें')) + '">'
+          + empty.map(s => '<option value="' + s.id + '" data-empty="1">' + esc(amStockLabel(s)) + '</option>').join('')
+          + '</optgroup>' : '');
+    const hint = $('amStockWarn');
+    if(hint){
+      hint.classList.toggle('hidden', avail.length > 0);
+      hint.innerHTML = L('Nothing is left in stock. Add the item below under <b>Add to stock</b> first, then issue it.',
+                         'स्टॉक में कुछ नहीं बचा है। नीचे <b>स्टॉक जोड़ें</b> से पहले आइटम जोड़िए, फिर इशू कीजिए।');
+    }
     amRenderStock(); amRenderIssued(); amRenderCart();
   }catch(e){
     if(box) box.innerHTML = '<p class="text-[11px] m-0" style="color:var(--bad)">' + esc(e.message || 'Load failed') + '</p>';
@@ -4831,6 +4934,9 @@ function amAddCart(){
   if(!sid) return notify(L('Choose an item first','पहले आइटम चुनें'));
   const s = AM_STOCK.find(x => String(x.id) === String(sid));
   if(!s) return notify(L('Choose an item first','पहले आइटम चुनें'));
+  if(amNum(s.available_qty) <= 0)
+    return notify(L(s.asset_type + ' is finished — add it under "Add to stock" below, then issue it.',
+                    s.asset_type + ' खत्म है — नीचे "स्टॉक जोड़ें" से जोड़िए, फिर इशू कीजिए।'));
   const qty = Math.max(1, Number($('amQty').value) || 1);
   const already = AM_CART.filter(c => String(c.stock_id) === String(sid)).reduce((a, c) => a + c.quantity, 0);
   if(qty + already > amNum(s.available_qty))
@@ -4994,6 +5100,123 @@ function tkRender(){
       + rem + fin + '</div>';
   }).join('');
 }
+/* ===== TICKET INBOX — HR / Admin apne hi portal se nipta len =====
+   Jo ticket jis team ko bheji gayi hai, us team ka banda yahin se dekh kar status
+   badal sakta hai aur jawab likh sakta hai. Kaun dekhega, ye server tay karta hai
+   (HR/Admin department ya designation, aur super admin dono side) — app par bharosa
+   nahi, isliye har call par wahi jaanch dobara hoti hai. */
+let TKA = { sides: [], rows: [], scope: 'OPEN', open: 0 };
+function tkaDT(t){ try{ return new Date(t).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }); }catch(e){ return ''; } }
+function tkaStChip(st){
+  const m = { OPEN:['#fef3c7','#92400e','Not started','शुरू नहीं'], IN_PROGRESS:['#dbeafe','#1e40af','Being done','चल रहा है'],
+              ON_HOLD:['#f1f5f9','#475569','On hold','रुका हुआ'], RESOLVED:['#dcfce7','#166534','Done','हो गया'],
+              REJECTED:['#fee2e2','#b91c1c','Not possible','नहीं हो सकता'] }[st] || ['#f1f5f9','#475569',st,st];
+  return '<span class="chip" style="background:' + m[0] + ';color:' + m[1] + ';font-size:9px">' + esc(L(m[2], m[3])) + '</span>';
+}
+function tkaPri(p){
+  if(p === 'URGENT') return ' <span class="chip" style="background:#fee2e2;color:#b91c1c;font-size:9px">' + L('URGENT','अत्यावश्यक') + '</span>';
+  if(p === 'HIGH')   return ' <span class="chip" style="background:#ffedd5;color:#9a3412;font-size:9px">' + L('HIGH','ज़्यादा') + '</span>';
+  return '';
+}
+async function tkAdmRefreshAccess(){
+  try{
+    const { data, error } = await sb.rpc('ess_ticket_inbox', { p_code: CODE, p_phone: PHONE, p_scope: 'OPEN' });
+    if(error || !data || data.error) return;
+    TKA.sides = data.sides || [];
+    TKA.open = Number(data.open_count) || 0;
+    const show = TKA.sides.length > 0;
+    if($('tilTkAdm')) $('tilTkAdm').classList.toggle('hidden', !show);
+    const b = $('tkAdmBadge');
+    if(b){ b.innerText = String(TKA.open); b.classList.toggle('hidden', !(show && TKA.open > 0)); }
+    if(show){ TKA.rows = data.tickets || []; tkAdmRender(); }
+  }catch(e){}
+}
+async function loadTkAdm(){
+  const box = $('tkAdmBox'); if(!box) return;
+  box.innerHTML = '<p class="m-0" style="color:var(--muted)">' + L('Loading…','लोड हो रहा है…') + '</p>';
+  try{
+    const { data, error } = await sb.rpc('ess_ticket_inbox', { p_code: CODE, p_phone: PHONE, p_scope: TKA.scope });
+    if(error) throw error;
+    if(data && data.error){ box.innerHTML = '<p class="m-0" style="color:var(--bad)">' + esc(data.error) + '</p>'; return; }
+    TKA.sides = data.sides || []; TKA.rows = data.tickets || []; TKA.open = Number(data.open_count) || 0;
+    const b = $('tkAdmBadge');
+    if(b){ b.innerText = String(TKA.open); b.classList.toggle('hidden', TKA.open === 0); }
+    tkAdmRender();
+  }catch(e){ box.innerHTML = '<p class="m-0" style="color:var(--bad)">' + esc(e.message || 'Load failed') + '</p>'; }
+}
+function tkAdmRender(){
+  const box = $('tkAdmBox'); if(!box) return;
+  const sl = $('tkAdmSides');
+  if(sl) sl.innerText = TKA.sides.length ? '· ' + TKA.sides.join(' + ') : '';
+  if(!TKA.rows.length){
+    box.innerHTML = '<p class="m-0" style="color:var(--muted)">'
+      + (TKA.scope === 'OPEN' ? L('Nothing pending — you are all clear.','कुछ बाकी नहीं — सब निपट गया।')
+                              : L('Nothing here.','यहाँ कुछ नहीं है।')) + '</p>';
+    return;
+  }
+  box.innerHTML = TKA.rows.map(t => {
+    const done = t.status === 'RESOLVED' || t.status === 'REJECTED';
+    return '<div class="card m-0 mb-2" style="padding:11px 12px">'
+      + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'
+      + '<div style="min-width:0"><div style="font-weight:700;font-size:13px">' + esc(t.subject || '') + '</div>'
+      + '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + esc(t.name || t.employee_code)
+      + ' (' + esc(t.employee_code) + ')' + (t.emp_dept ? ' · ' + esc(t.emp_dept) : '')
+      + (t.emp_desig ? ' · ' + esc(t.emp_desig) : '') + '</div>'
+      + '<div style="font-size:10px;color:var(--muted)">' + esc(t.ticket_no || '') + ' · ' + esc(tkaDT(t.created_at))
+      + (t.emp_phone ? ' · <a href="tel:' + esc(t.emp_phone) + '" style="color:#2563eb">' + esc(t.emp_phone) + '</a>' : '') + '</div></div>'
+      + '<div style="text-align:right;white-space:nowrap">' + tkaStChip(t.status) + tkaPri(t.priority)
+      + '<div style="font-size:9px;color:var(--muted);margin-top:3px">' + esc(t.category) + '</div></div></div>'
+      + '<div style="font-size:12px;color:#334155;white-space:pre-wrap;margin-top:7px;line-height:1.55">' + esc(t.details || '') + '</div>'
+      + (t.attachment ? '<a href="' + esc(t.attachment) + '" target="_blank" style="font-size:11px;color:#2563eb;display:inline-block;margin-top:5px"><i class="fa-solid fa-paperclip"></i> ' + L('See the photo','फ़ोटो देखें') + '</a>' : '')
+      + (t.resolution ? '<div class="p-2 rounded mt-2" style="background:#f0fdf4;border:1px solid #bbf7d0;font-size:11.5px;color:#166534"><b>' + L('What was done','क्या किया गया') + ':</b> ' + esc(t.resolution)
+          + (t.resolved_by ? '<div style="font-size:10px;margin-top:2px">' + esc(t.resolved_by) + (t.resolved_at ? ' · ' + esc(tkaDT(t.resolved_at)) : '') + '</div>' : '') + '</div>' : '')
+      + (done ? '' :
+          '<div class="flex gap-1 flex-wrap" style="margin-top:9px">'
+          + '<button class="btn btn-ghost" style="font-size:11px;padding:5px 9px" data-tka="' + t.id + '" data-st="IN_PROGRESS"><i class="fa-solid fa-person-digging"></i> ' + L('Started it','शुरू कर दिया') + '</button>'
+          + '<button class="btn btn-ghost" style="font-size:11px;padding:5px 9px" data-tka="' + t.id + '" data-st="ON_HOLD"><i class="fa-solid fa-pause"></i> ' + L('Hold','रोकें') + '</button>'
+          + '<button class="btn btn-ghost" style="font-size:11px;padding:5px 9px;color:#166534" data-tka="' + t.id + '" data-st="RESOLVED"><i class="fa-solid fa-circle-check"></i> ' + L('Done','हो गया') + '</button>'
+          + '<button class="btn btn-ghost" style="font-size:11px;padding:5px 9px;color:var(--bad)" data-tka="' + t.id + '" data-st="REJECTED"><i class="fa-solid fa-circle-xmark"></i> ' + L('Cannot be done','नहीं हो सकता') + '</button>'
+          + '</div>')
+      + '</div>';
+  }).join('');
+}
+async function tkAdmAct(id, st){
+  const t = TKA.rows.find(x => String(x.id) === String(id)); if(!t) return;
+  let note = null;
+  if(st === 'RESOLVED' || st === 'REJECTED'){
+    note = await nxPrompt(L((st === 'RESOLVED' ? 'What did you do? The employee will read this.\n\n' : 'Why can this not be done? The employee will read this.\n\n')
+                            + t.ticket_no + ' — ' + t.subject,
+                            (st === 'RESOLVED' ? 'आपने क्या किया? यह बंदे को दिखेगा।\n\n' : 'यह क्यों नहीं हो सकता? यह बंदे को दिखेगा।\n\n')
+                            + t.ticket_no + ' — ' + t.subject),
+                          st === 'RESOLVED' ? L('Done','हो गया') : L('Cannot be done','नहीं हो सकता'));
+    if(note === null) return;
+    if(!String(note).trim()) return notify(L('Please write something — the employee needs to know.','कुछ लिखिए — बंदे को पता चलना चाहिए।'));
+  }else{
+    note = await nxPrompt(L('Any note for the employee? (you can leave this blank)\n\n' + t.ticket_no + ' — ' + t.subject,
+                            'बंदे के लिए कुछ लिखना है? (खाली भी छोड़ सकते हैं)\n\n' + t.ticket_no + ' — ' + t.subject),
+                          st === 'ON_HOLD' ? L('Hold','रोकें') : L('Started it','शुरू कर दिया'));
+    if(note === null) return;
+  }
+  try{
+    const { data, error } = await sb.rpc('ess_ticket_act', {
+      p_code: CODE, p_phone: PHONE, p_id: t.id, p_status: st, p_resolution: String(note || '').trim() || null });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    notify(L('Saved — the employee can see it now','सेव हो गया — बंदे को अब दिख जाएगा'), 'success');
+    loadTkAdm();
+  }catch(err){ notify(err.message || 'Failed'); }
+}
+document.addEventListener('click', ev => {
+  const sc = ev.target.closest('.tkadm-sc');
+  if(sc){
+    TKA.scope = sc.dataset.sc;
+    document.querySelectorAll('.tkadm-sc').forEach(b => b.classList.toggle('active', b === sc));
+    return loadTkAdm();
+  }
+  const a = ev.target.closest('[data-tka]');
+  if(a) tkAdmAct(a.dataset.tka, a.dataset.st);
+});
+
 async function loadTickets(){
   try{
     const { data, error } = await sb.rpc('ess_my_tickets', { p_code: CODE, p_phone: PHONE });
