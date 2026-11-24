@@ -10018,7 +10018,12 @@ function nxBankFitName(base, code, dup){
   if(!dup) return base;
   const room = NX_BANK_NAME_MAX - c.length - 1;   // naam + space + code
   if(room < 3) return c.slice(0, NX_BANK_NAME_MAX);
-  return (base.length > room ? base.slice(0, room).trim() : base) + ' ' + c;
+  if(base.length <= room) return base + ' ' + c;
+  // Code ke saath poora naam nahi samata. Shabd ko beech me se nahi kaatte
+  // (SANTOSH KUMAR ka "KUMA" jaisa adhoora tukda) — sirf pehla naam rakhte hain.
+  const first = base.split(' ')[0];
+  if(first.length <= room) return first + ' ' + c;
+  return first.slice(0, room).trim() + ' ' + c;   // pehla naam hi itna lamba ho to hi katega
 }
 /* Har account ka I ya N uske APNE IFSC se tay hota hai — apne hi bank (HDFC) ke
    andar jaye to I (internal), baaki NEFT to N. Split wale account ka bank alag ho
