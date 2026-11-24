@@ -2224,7 +2224,8 @@ body.no-confidential .confidential-col{display:none!important}
       Each share is a percentage of that month's earnings and is paid as a clean amount — nothing is deducted from it.
       PF, ESI, LWF, TDS and advances are still calculated on the <b>full</b> salary and are all taken out of the employee's own share,
       so the employee's own account receives whatever is left. At most 90% in total can be sent elsewhere.
-      Keep the employee's written authorisation on file before adding a payee.</p>
+      A share is paid only after the employee has signed the printed declaration and then confirmed it with an
+      e-signature on the employee portal. Adding a payee opens that declaration straight away.</p>
     <div class="grid gap-2 mb-2" style="grid-template-columns:1.4fr 1fr 1.2fr 1.3fr 1fr auto">
       <div><label class="lbl">Payee name</label><input id="spName" class="inp" placeholder="As in the bank account"></div>
       <div><label class="lbl">Relation</label><input id="spRel" class="inp" placeholder="Wife / Father…"></div>
@@ -5070,20 +5071,166 @@ function renderSalaryPayees(){
     return;
   }
   const total = act.reduce((a, r) => a + (Number(r.percent) || 0), 0);
+  const live = act.filter(r => spDeclState(r) === 'VERIFIED').reduce((a, r) => a + (Number(r.percent) || 0), 0);
+  const held = total - live;
   host.innerHTML = '<div style="overflow-x:auto"><table class="tbl"><thead><tr>'
-    + '<th>Payee</th><th>Relation</th><th>Bank</th><th>Account</th><th>IFSC</th><th>Share</th><th>Added by</th><th></th></tr></thead><tbody>'
+    + '<th>Payee</th><th>Relation</th><th>Bank</th><th>Account</th><th>IFSC</th><th>Share</th><th>Declaration</th><th>Added by</th><th></th></tr></thead><tbody>'
     + SP_ROWS.map(r => '<tr' + (r.active ? '' : ' style="opacity:.5"') + '>'
         + '<td class="font-semibold">' + esc(r.payee_name) + (r.active ? '' : ' <span class="chip chip-gray">off</span>') + '</td>'
         + '<td>' + esc(r.relation || '—') + '</td><td>' + esc(r.bank_name || '—') + '</td>'
         + '<td>…' + esc(String(r.account_no || '').slice(-4)) + '</td><td>' + esc(r.ifsc || '') + '</td>'
         + '<td class="money">' + spFmtPct(r.percent) + '</td>'
+        + '<td>' + spDeclCell(r) + '</td>'
         + '<td class="text-[10px]" style="color:var(--muted)">' + esc(String(r.created_by || '').split('@')[0]) + '</td>'
         + '<td style="text-align:right;white-space:nowrap">'
+        + '<button class="btn btn-ghost btn-sm" data-act="sp-decl" data-id="' + r.id + '" title="Open the declaration letter"><i class="fa-solid fa-file-signature"></i></button> '
+        + (spDeclState(r) === 'PENDING'
+            ? '<button class="btn btn-ghost btn-sm" data-act="sp-paper" data-id="' + r.id + '" title="The employee has signed the printed declaration — send it to them for e-signature"><i class="fa-solid fa-paper-plane"></i></button> '
+            : '')
         + '<button class="btn btn-ghost btn-sm" data-act="sp-toggle" data-id="' + r.id + '" title="' + (r.active ? 'Stop this split' : 'Start it again') + '"><i class="fa-solid fa-' + (r.active ? 'pause' : 'play') + '"></i></button> '
         + '<button class="btn btn-danger btn-sm" data-act="sp-del" data-id="' + r.id + '"><i class="fa-solid fa-trash"></i></button></td></tr>').join('')
     + '</tbody></table></div>'
     + '<p class="text-[11px] mt-2 mb-0" style="color:' + (total > 90 ? 'var(--bad)' : 'var(--muted)') + '">'
-    + 'Going to other accounts: <b>' + spFmtPct(total) + '</b> of earnings · the employee’s own account gets the rest, after every deduction.</p>';
+    + 'Going to other accounts: <b>' + spFmtPct(live) + '</b> of earnings'
+    + (held > 0 ? ' (another <b>' + spFmtPct(held) + '</b> is on hold until the employee e-signs the declaration)' : '')
+    + ' · the employee’s own account gets the rest, after every deduction.</p>'
+    + '<p class="text-[11px] mt-1 mb-0" style="color:var(--muted)">A share is paid only once the employee has signed the printed declaration and confirmed it with an e-signature in the employee portal. Changing the payee name, relation, account number, IFSC or share cancels the declaration and a fresh one has to be signed.</p>';
+}
+/* ===== Payee declaration + employee e-sign =====
+   Payee jodte hi declaration ban jaata hai. HR usko print karke employee se sign
+   karwata hai, phir "signed paper received" dabata hai — tab declaration employee
+   ke portal par e-sign ke liye chala jaata hai (bilkul bank verification jaisa).
+   E-sign ke baad hi uska hissa bank advice me jaata hai. */
+function spDeclState(r){ return String((r && r.decl_status) || 'PENDING').toUpperCase(); }
+function spDeclCell(r){
+  const st = spDeclState(r);
+  const when = t => { try{ return new Date(t).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }); }catch(e){ return ''; } };
+  if(st === 'VERIFIED') return '<span class="chip chip-ok">E-signed</span>'
+    + '<div class="text-[10px]" style="color:var(--muted)">' + esc(r.esign_name || '') + (r.esign_at ? ' · ' + esc(when(r.esign_at)) : '') + '</div>';
+  if(st === 'AWAITING_ESIGN') return '<span class="chip chip-warn">Waiting for e-signature</span>'
+    + '<div class="text-[10px]" style="color:var(--muted)">Sent ' + esc(r.decl_sent_at ? when(r.decl_sent_at) : '') + '</div>';
+  if(st === 'DISPUTED') return '<span class="chip" style="background:#fee2e2;color:#b91c1c">Employee says it is wrong</span>'
+    + '<div class="text-[10px]" style="color:var(--bad)">' + esc(r.decl_note || '') + '</div>';
+  return '<span class="chip chip-gray">Not signed yet</span>'
+    + '<div class="text-[10px]" style="color:var(--muted)">Print it, take the signature, then send for e-signature</div>';
+}
+function spDeclLetter(id){
+  const r = SP_ROWS.find(x => String(x.id) === String(id));
+  if(!r) return notify('Payee not found — reopen the profile', 'error');
+  const code = String(r.employee_code || '').toUpperCase();
+  const emp = (typeof EMP !== 'undefined' ? EMP : []).find(x => String(x['Employee code'] || '').toUpperCase() === code) || {};
+  const prof = (typeof PROFILES !== 'undefined' ? PROFILES : {})[code] || {};
+  const nm = emp['Name'] || code;
+  const dmy = v => { if(!v) return ''; const d = new Date(v); return isNaN(d) ? String(v)
+    : String(d.getDate()).padStart(2,'0') + '-' + d.toLocaleString('en-IN',{month:'short'}) + '-' + d.getFullYear(); };
+  const dmyt = v => { if(!v) return ''; const d = new Date(v); return isNaN(d) ? String(v)
+    : dmy(v) + ' at ' + d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}); };
+  const st = spDeclState(r);
+  const pct = spFmtPct(r.percent);
+  const w = window.open('', '_blank');
+  if(!w) return notify('The popup was blocked — please allow popups in the browser', 'error');
+  const esignBlock = st === 'VERIFIED'
+    ? `<div class="es ok">
+         <b>Confirmed by the employee in the employee portal</b>
+         <table class="kv">
+           <tr><td>Signed as</td><td>${esc(r.esign_name || '')}</td></tr>
+           <tr><td>Date and time</td><td>${esc(dmyt(r.esign_at))}</td></tr>
+           <tr><td>Mobile number checked</td><td>${r.esign_phone_checked ? 'Yes, against the registered number' : 'No registered number on the profile'}</td></tr>
+           <tr><td>IP address</td><td>${esc(r.esign_ip || 'not captured')}</td></tr>
+           <tr><td>Location</td><td>${esc(r.esign_geo || 'not shared')}</td></tr>
+           <tr><td>Signature reference</td><td class="mono">${esc(String(r.esign_hash || '').slice(0, 32))}${String(r.esign_hash || '').length > 32 ? '…' : ''}</td></tr>
+         </table>
+       </div>`
+    : st === 'AWAITING_ESIGN'
+    ? `<div class="es wait"><b>Waiting for the employee’s e-signature</b><br>
+         This declaration was sent to the employee portal on ${esc(dmyt(r.decl_sent_at))}. The share will be paid only after the employee confirms it there.</div>`
+    : st === 'DISPUTED'
+    ? `<div class="es bad"><b>The employee has reported these details as wrong</b><br>${esc(r.decl_note || '')}<br>
+         Correct the details and have a fresh declaration signed.</div>`
+    : `<div class="es wait"><b>Not signed yet</b><br>
+         Print this declaration, take the employee’s signature on it, and then press the send button in the Salary Split list. The declaration will go to the employee portal for an e-signature, and the share will be paid only after that.</div>`;
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+   <title>Salary Payment Declaration — ${esc(nm)} (${esc(code)})</title><style>
+   *{box-sizing:border-box;margin:0;padding:0}
+   body{font-family:"Times New Roman",Georgia,serif;color:#111;background:#eef1f4;padding:18px;font-size:13.3px;line-height:1.62}
+   .pg{max-width:820px;margin:0 auto;background:#fff;padding:40px 46px 34px;box-shadow:0 2px 14px rgba(0,0,0,.12)}
+   .co{text-align:center;border-bottom:2.5px solid #1f3864;padding-bottom:10px;margin-bottom:16px}
+   .co h1{font-size:21px;letter-spacing:.06em;color:#1f3864}
+   .co p{font-size:11.5px;color:#555;margin-top:3px}
+   h2{text-align:center;font-size:14.5px;letter-spacing:.04em;margin:14px 0 4px;text-decoration:underline}
+   .sub{text-align:center;font-size:11.5px;color:#555;margin-bottom:14px}
+   .ref{display:flex;justify-content:space-between;font-size:11.5px;color:#333;margin-bottom:16px}
+   table.kv{width:100%;border-collapse:collapse;margin:10px 0 14px}
+   table.kv td{border:1px solid #bbb;padding:6px 9px;font-size:12.5px;vertical-align:top}
+   table.kv td:first-child{width:34%;background:#f4f6f9;color:#333}
+   ol{margin:8px 0 8px 20px}ol li{margin-bottom:7px}
+   .amt{background:#fff8e1;font-weight:bold}
+   .es{border:1px solid #bbb;border-radius:5px;padding:10px 12px;margin:14px 0;font-size:12px}
+   .es.ok{background:#f1f8f3;border-color:#8ab79a}
+   .es.wait{background:#fffaf0;border-color:#dbb978}
+   .es.bad{background:#fdf1f1;border-color:#d99}
+   .mono{font-family:"Courier New",monospace;font-size:11px;word-break:break-all}
+   .sg{display:flex;gap:28px;margin-top:30px}
+   .sg div{flex:1;border-top:1px solid #333;padding-top:5px;font-size:11.5px}
+   .ft{margin-top:26px;border-top:1px solid #ccc;padding-top:8px;font-size:10.5px;color:#666;text-align:center}
+   .no{text-align:center;margin:14px 0}
+   .no button{font-family:Arial,sans-serif;font-size:13px;padding:9px 20px;border:none;border-radius:6px;background:#1f3864;color:#fff;cursor:pointer}
+   @media print{body{background:#fff;padding:0}.pg{box-shadow:none;padding:24px 28px}.no{display:none}}
+   </style></head><body>
+   <div class="no"><button onclick="window.print()">Print this declaration</button></div>
+   <div class="pg">
+     <div class="co"><h1>ZOOTO FASHION PRIVATE LIMITED</h1><p>Human Resources &amp; Payroll Department</p></div>
+     <h2>DECLARATION AND AUTHORISATION FOR PART PAYMENT OF SALARY TO ANOTHER BANK ACCOUNT</h2>
+     <div class="sub">To be signed by the employee and kept on the employee’s personal file</div>
+     <div class="ref"><span>Reference: <b>${esc(r.decl_ref || (code + '/SP/' + r.id))}</b></span><span>Date: ______________________</span></div>
+
+     <table class="kv">
+       <tr><td>Employee name</td><td><b>${esc(nm)}</b></td></tr>
+       <tr><td>Employee code</td><td>${esc(code)}</td></tr>
+       <tr><td>Father’s / husband’s name</td><td>${esc(prof.father_name || '')}</td></tr>
+       <tr><td>Designation</td><td>${esc(emp['DESIGNATION'] || '')}</td></tr>
+       <tr><td>Department / Section</td><td>${esc(emp['DEPARTMENT'] || '')}${prof.section ? ' / ' + esc(prof.section) : ''}</td></tr>
+       <tr><td>Date of joining</td><td>${esc(dmy(emp['DOJ']))}</td></tr>
+       <tr><td>My own salary account</td><td>${esc(prof.bank_name || '')}${prof.account_no ? ' · A/c ' + esc(prof.account_no) : ''}${prof.ifsc ? ' · ' + esc(String(prof.ifsc).toUpperCase()) : ''}</td></tr>
+     </table>
+
+     <p>I, the employee named above, request and authorise Zooto Fashion Private Limited to pay a part of my monthly salary into the bank account given below, which does not stand in my name. I give this authorisation of my own free will.</p>
+
+     <table class="kv">
+       <tr><td>Account holder’s name</td><td><b>${esc(r.payee_name || '')}</b></td></tr>
+       <tr><td>Relationship to me</td><td>${esc(r.relation || '')}</td></tr>
+       <tr><td>Bank</td><td>${esc(r.bank_name || '')}</td></tr>
+       <tr><td>Account number</td><td><b>${esc(r.account_no || '')}</b></td></tr>
+       <tr><td>IFSC</td><td>${esc(String(r.ifsc || '').toUpperCase())}</td></tr>
+       <tr><td>Share of my monthly earnings</td><td class="amt">${esc(pct)}</td></tr>
+     </table>
+
+     <p><b>I have read and I accept the following:</b></p>
+     <ol>
+       <li>The share is <b>${esc(pct)}</b> of my earnings for that month and will be paid as a clean amount. Nothing will be deducted from it.</li>
+       <li>Provident Fund, ESI, Labour Welfare Fund, Professional Tax, income tax and any advance, loan instalment or other recovery will continue to be worked out on my <b>full</b> salary and will be deducted in full from the part that is paid into my own account. My own account will receive whatever is left after all of them.</li>
+       <li>I have checked the account number and the IFSC written above and they are correct. If money reaches a wrong account because the details I gave were wrong, the responsibility is mine and not the company’s.</li>
+       <li>The amount paid into that account is salary paid to me. Once the company has paid it, the company owes me nothing further for that amount.</li>
+       <li>This authorisation stays in force until I withdraw it in writing. A withdrawal will apply from the payroll month after the month in which the company receives it.</li>
+       <li>If the account holder’s name, the relationship, the account number, the IFSC or the share changes, this declaration stops being valid and I will sign a fresh one.</li>
+       <li>After I sign this paper, the same declaration will be sent to me on the employee portal, where I will confirm it with my digital signature. The company will begin paying this share only after that confirmation.</li>
+     </ol>
+
+     ${esignBlock}
+
+     <div class="sg">
+       <div>Employee’s signature<br><span style="font-size:11px;color:#555">${esc(nm)} (${esc(code)}) · Date: ____________</span></div>
+       <div>Account holder’s signature<br><span style="font-size:11px;color:#555">${esc(r.payee_name || '')} · Date: ____________</span></div>
+     </div>
+     <div class="sg">
+       <div>Checked by (HR)<br><span style="font-size:11px;color:#555">Name, signature and date</span></div>
+       <div>Approved by (Payroll)<br><span style="font-size:11px;color:#555">Name, signature and date</span></div>
+     </div>
+
+     <div class="ft">Zooto Fashion Private Limited · Reference ${esc(r.decl_ref || (code + '/SP/' + r.id))} · Generated from Nexus Payroll on ${esc(dmy(new Date()))}<br>
+     This declaration is kept on the employee’s personal file. Payment of the share begins only after the employee’s e-signature on the employee portal.</div>
+   </div></body></html>`);
+  w.document.close();
 }
 document.addEventListener('click', async e => {
   const add = e.target.closest('#spAddBtn');
@@ -5101,15 +5248,33 @@ document.addEventListener('click', async e => {
     if(!(await nxConfirm('Pay ' + pct + '% of ' + (($('epNameShow')||{}).innerText || code) + '’s salary to:\\n\\n'
         + name + ' · ' + ifsc + ' · ' + acct
         + '\\n\\nNothing is deducted from this share. PF, ESI and LWF stay on the full salary and come out of the employee’s own part.'
-        + '\\n\\nIs the employee’s written authorisation on file?', 'Add salary split'))) return;
+        + '\\n\\nThe declaration letter will open as soon as this is added. Nothing is paid to this account until the employee has signed it and confirmed it with an e-signature on the employee portal.', 'Add salary split'))) return;
     const { error } = await sb.from('salary_payees').insert([{ employee_code: code, payee_name: name,
       relation: String(($('spRel')||{}).value || '').trim() || null,
       bank_name: String(($('spBank')||{}).value || '').trim() || null,
       account_no: acct, ifsc, percent: pct, created_by: ME_EMAIL || '' }]);
     if(error) return notify(error.message, 'error');
     ['spName','spRel','spBank','spAcc','spIfsc','spPct'].forEach(id => { if($(id)) $(id).value = ''; });
-    notify('Salary split added', 'success');
-    return loadSalaryPayees(code);
+    notify('Salary split added — the declaration is opening. Print it, take the employee’s signature, then send it for e-signature.', 'success');
+    await loadSalaryPayees(code);
+    const fresh = SP_ROWS.filter(r => String(r.account_no || '') === acct).sort((a, b) => b.id - a.id)[0];
+    if(fresh) spDeclLetter(fresh.id);
+    return;
+  }
+  const dcl = e.target.closest('[data-act="sp-decl"]');
+  if(dcl) return spDeclLetter(dcl.dataset.id);
+  const ppr = e.target.closest('[data-act="sp-paper"]');
+  if(ppr){
+    const row = SP_ROWS.find(r => String(r.id) === String(ppr.dataset.id)); if(!row) return;
+    if(!(await nxConfirm('Confirm that ' + ((($('epNameShow')||{}).innerText) || row.employee_code)
+        + ' has signed the printed declaration for ' + row.payee_name + ' (' + spFmtPct(row.percent) + ').\n\n'
+        + 'The declaration will then appear on the employee portal for an e-signature. The share will be paid only after the employee confirms it there.',
+        'Signed declaration received'))) return;
+    const { error } = await sb.from('salary_payees')
+      .update({ decl_status: 'AWAITING_ESIGN', decl_paper_by: ME_EMAIL || '' }).eq('id', row.id);
+    if(error) return notify(error.message, 'error');
+    notify('Sent to the employee portal for e-signature', 'success');
+    return loadSalaryPayees(($('epCode')||{}).value);
   }
   const tgl = e.target.closest('[data-act="sp-toggle"]');
   if(tgl){
@@ -9863,15 +10028,18 @@ function nxBankTyp(ifsc){ return /^HDFC/.test(String(ifsc || '').trim().toUpperC
 async function nxLoadPayees(){
   try{
     const { data } = await sb.from('salary_payees').select('*').eq('active', true);
-    const map = {};
+    const map = {}, hold = {};
     (data || []).forEach(p => { const c = String(p.employee_code || '').toUpperCase();
-      (map[c] = map[c] || []).push(p); });
-    window._payPayees = map;
-  }catch(e){ window._payPayees = window._payPayees || {}; }
+      // Sirf wahi hissa jata hai jise employee ne portal par e-sign kar diya hai
+      if(String(p.decl_status || '').toUpperCase() === 'VERIFIED') (map[c] = map[c] || []).push(p);
+      else (hold[c] = hold[c] || []).push(p); });
+    window._payPayees = map; window._payPayeesHeld = hold;
+  }catch(e){ window._payPayees = window._payPayees || {}; window._payPayeesHeld = window._payPayeesHeld || {}; }
 }
 function nxBankAdviceRows(){
-  const out = [], noAcct = [], unver = [], notOnr = [], splitBad = [];
+  const out = [], noAcct = [], unver = [], notOnr = [], splitBad = [], splitHeld = [];
   const PAYEES = window._payPayees || {};
+  const HELD = window._payPayeesHeld || {};
   PAY_ROWS.filter(r => r.hasSalary).forEach(r => {
     const p = PROFILES[r.code] || {};
     // Bank Advice sirf ONR ki — baaki kisi ki nahi
@@ -9899,6 +10067,9 @@ function nxBankAdviceRows(){
     const splits = mine.map(x => ({ payee: x,
       amt: Math.round(earnings * (Number(x.percent) || 0) / 100) }))
       .filter(x => x.amt > 0);
+    // Declaration e-sign nahi hua — us payee ko kuch nahi jayega, puri salary employee ko
+    const held = HELD[String(r.code).toUpperCase()] || [];
+    if(held.length) splitHeld.push({ name: r.name, code: r.code, n: held.length });
     const splitTotal = splits.reduce((a, x) => a + x.amt, 0);
     const own = net - splitTotal;
     if(splits.length && own <= 0){
@@ -9922,12 +10093,12 @@ function nxBankAdviceRows(){
     r.bankName = nxBankFitName(r._base, r.code, dup);
     if(dup) dupNames.push(r.bankName);
   });
-  return { rows: out, noAcct, unver, notOnr, dupNames, splitBad };
+  return { rows: out, noAcct, unver, notOnr, dupNames, splitBad, splitHeld };
 }
 $('payBankBtn').addEventListener('click', async () => {
   if(!PAY_ROWS.length) return notify('Run payroll first', 'error');
   await nxLoadPayees();
-  const { rows, noAcct, unver, notOnr, dupNames, splitBad } = nxBankAdviceRows();
+  const { rows, noAcct, unver, notOnr, dupNames, splitBad, splitHeld } = nxBankAdviceRows();
   if(!rows.length) return notify('No ONR employees found for bank transfer — the Bank Advice would be empty', 'error');
   dlText('Bank_Advice_ONR_' + PAY_MONTH + '.xls',
          nxBankAdviceXml(rows, _bankNarration(PAY_MONTH), _bankPayDate(PAY_MONTH)),
@@ -9939,6 +10110,8 @@ $('payBankBtn').addEventListener('click', async () => {
   if(dupNames.length) bits.push(dupNames.length + ' with a repeated name — the employee code was added: ' + dupNames.slice(0,3).join(', ') + (dupNames.length > 3 ? ' +' + (dupNames.length-3) : ''));
   const _splitCount = rows.filter(r => r.splitOf).length;
   if(_splitCount) bits.push(_splitCount + ' split payment(s) to another account');
+  if(splitHeld.length) bits.push('SPLIT ON HOLD for ' + splitHeld.map(x => x.name + ' (' + x.code + ')').join(', ')
+    + ' — the declaration has not been e-signed by the employee yet, so the whole net was paid into their own account');
   if(splitBad.length) bits.push('SPLIT SKIPPED for ' + splitBad.map(x => x.name + ' (' + x.code + ')').join(', ')
     + ' — after the deductions nothing would be left in their own account; the whole net was sent to them instead');
   notify('Bank Advice: ' + bits.join(' · '), (noAcct.length || unver.length) ? 'info' : 'success');

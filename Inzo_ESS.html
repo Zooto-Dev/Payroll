@@ -257,7 +257,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <img src="nexus-logo.png" alt="Nexus" style="height:44px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
       <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Portal</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B82</b> — 23 Nov</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B83</b> — 24 Nov</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -284,7 +284,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
           <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B82</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B83</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -299,6 +299,10 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <div id="bankVerifyCard" class="card hidden" style="border:1.5px solid #fcd34d;background:linear-gradient(135deg,#fffbeb,#ffffff)">
         <h3 class="display font-bold mt-0 mb-2 text-sm" style="color:#92400e"><i class="fa-solid fa-building-columns"></i> <span data-en="Check your bank details" data-hi="अपने बैंक विवरण जाँचें">Apne bank details check karo</span></h3>
         <div id="bankVerifyBox" class="text-xs"></div>
+      </div>
+      <div id="declCard" class="card hidden" style="border:1.5px solid #fcd34d;background:linear-gradient(135deg,#fffbeb,#ffffff)">
+        <h3 class="display font-bold mt-0 mb-2 text-sm" style="color:#92400e"><i class="fa-solid fa-file-signature"></i> <span data-en="Salary payment declaration" data-hi="सैलरी भुगतान घोषणा">Salary payment declaration</span></h3>
+        <div id="declCardBox" class="text-xs"></div>
       </div>
       <div id="myShiftCard" class="card hidden" style="border:1.5px solid #c7d2fe;background:linear-gradient(135deg,#eef2ff,#ffffff)">
         <h3 class="display font-bold mt-0 mb-2 text-sm"><i class="fa-solid fa-calendar-days" style="color:var(--brand)"></i> Meri Aane Wali Shift</h3>
@@ -897,6 +901,14 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <span id="bankStChip"></span>
         </div>
         <div id="bankBox"><p class="tm-empty">Loading…</p></div>
+      </div>
+
+      <div class="card hidden" id="declMeCard">
+        <div class="tm-ch">
+          <h3><i class="fa-solid fa-file-signature" style="color:var(--brand)"></i> <span data-en="Salary paid to another account" data-hi="सैलरी का हिस्सा दूसरे खाते में">Salary paid to another account</span></h3>
+          <span id="declStChip"></span>
+        </div>
+        <div id="declBox"></div>
       </div>
 
       <div class="card">
@@ -1986,6 +1998,182 @@ async function bankVerifySign(){
     notify(L('✓ Bank details confirmed. Thank you.','✓ बैंक विवरण की पुष्टि हो गई। धन्यवाद।'));
     loadBankDetails();
   }catch(err){ notify('Verify failed: ' + (err.message||err)); btn.disabled = false; btn.innerText = '✓ ' + L('YES, THIS IS MINE','हाँ, यह मेरा है'); }
+}
+/* ===== Salary ka hissa doosre account me — employee ki apni manzoori =====
+   HR paper par declaration sign karwa leta hai, uske baad wahi declaration yahan
+   e-sign ke liye aata hai. Bilkul bank verification jaisa: mobile se pehchaan +
+   naam type karke signature + SHA-256 hash + IP/location. Jab tak employee yahan
+   confirm na kare, us account me ek rupaya nahi jata. Details badlte hi ye
+   declaration khatam ho jata hai aur dobara sign karna padta hai. */
+let DECLS = null;
+function _declDT(t){ try{ return new Date(t).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }); }catch(e){ return ''; } }
+function _declPct(p){ const n = Number(p) || 0; return (n % 1 === 0 ? String(n) : n.toFixed(2).replace(/0$/,'')) + '%'; }
+async function loadPayeeDecls(){
+  const card = $('declMeCard'), box = $('declBox'), chip = $('declStChip');
+  const hCard = $('declCard'), hBox = $('declCardBox');
+  try{
+    const { data, error } = await sb.rpc('ess_payee_declarations', { p_code: String(CODE||'').trim().toUpperCase(), p_phone: PHONE });
+    if(error) throw error;
+    if(!data || data.error || !Array.isArray(data.payees) || !data.payees.length){
+      DECLS = null;
+      if(card) card.classList.add('hidden');
+      if(hCard) hCard.classList.add('hidden');
+      return;
+    }
+    DECLS = data;
+    const list = data.payees;
+    const wait = list.filter(p => p.decl_status === 'AWAITING_ESIGN');
+    if(card) card.classList.remove('hidden');
+    if(chip) chip.innerHTML = wait.length
+      ? '<span class="chip chip-warn" style="font-size:10px">' + L('Confirmation needed','पुष्टि बाकी') + '</span>'
+      : '<span class="chip chip-ok" style="font-size:10px">✓ ' + L('Confirmed','पुष्टि हो गई') + '</span>';
+    if(box) box.innerHTML = list.map(p => {
+      const head = `<div class="row"><span class="k">${L('Paid to','किसे')}</span><b>${esc(p.payee_name)}${p.relation ? ' (' + esc(p.relation) + ')' : ''}</b></div>
+        <div class="row"><span class="k">${L('Bank','बैंक')}</span><b>${esc(p.bank_name || '—')}</b></div>
+        <div class="row"><span class="k">${L('Account No','खाता संख्या')}</span><b style="letter-spacing:.04em">${esc(p.account_no)}</b></div>
+        <div class="row"><span class="k">IFSC</span><b>${esc(p.ifsc)}</b></div>
+        <div class="row"><span class="k">${L('Share of your salary','सैलरी का हिस्सा')}</span><b>${esc(_declPct(p.percent))}</b></div>`;
+      if(p.decl_status === 'VERIFIED') return `<div style="border-bottom:1px solid var(--line);padding-bottom:9px;margin-bottom:9px">${head}
+        <div class="p-2 rounded-lg mt-2" style="background:#dcfce7;border:1px solid #86efac">
+        <b style="color:#166534">✓ ${L('You have confirmed this','आपने इसकी पुष्टि कर दी है')}</b><br>
+        <span style="color:#166534">${L('Signed as','हस्ताक्षर')}: <b>${esc(p.esign_name||'')}</b>${p.esign_at ? ' · ' + esc(_declDT(p.esign_at)) : ''}</span><br>
+        <span style="color:#166534;font-size:11px">${L('PF, ESI and LWF are still taken from your own salary, not from this share.','PF, ESI और LWF आपकी अपनी सैलरी से ही कटते हैं, इस हिस्से से नहीं।')}</span></div></div>`;
+      if(p.decl_status === 'DISPUTED') return `<div style="border-bottom:1px solid var(--line);padding-bottom:9px;margin-bottom:9px">${head}
+        <div class="p-2 rounded-lg mt-2" style="background:#fee2e2;border:1px solid #fca5a5">
+        <b style="color:#b91c1c">${L('You reported this as wrong','आपने इसे गलत बताया है')}</b><br>
+        <span style="color:#7f1d1d">${L('You wrote','आपने लिखा')}: ${esc(p.decl_note||'')}</span><br>
+        <span style="color:#7f1d1d;font-size:11px">${L('Nothing is being paid to this account. HR will correct it and ask you again.','इस खाते में कुछ नहीं जा रहा है। HR ठीक करके दोबारा पूछेगा।')}</span></div></div>`;
+      return `<div style="border-bottom:1px solid var(--line);padding-bottom:9px;margin-bottom:9px">${head}
+        <p class="tm-note mt-2">${L('Nothing will be paid to this account until you confirm it here.','जब तक आप यहाँ पुष्टि नहीं करते, इस खाते में कुछ नहीं जाएगा।')}</p>
+        <button class="btn btn-primary w-full justify-center" onclick="openPayeeDecl(${p.id})" style="padding:12px"><i class="fa-solid fa-file-signature"></i> ${L('Read &amp; confirm','पढ़ें और पुष्टि करें')}</button></div>`;
+    }).join('');
+
+    if(hCard && hBox){
+      if(!wait.length){ hCard.classList.add('hidden'); return; }
+      hCard.classList.remove('hidden');
+      const p = wait[0];
+      hBox.innerHTML = `<p class="m-0 mb-2">${L('Your company has been asked to pay','आपकी कंपनी से कहा गया है कि आपकी सैलरी का')} <b>${esc(_declPct(p.percent))}</b>
+        ${L('of your salary into the account of','हिस्सा इनके खाते में भेजा जाए')} <b>${esc(p.payee_name)}</b>${p.relation ? ' (' + esc(p.relation) + ')' : ''}.
+        ${L('Nothing will be paid there until you read the declaration and confirm it.','जब तक आप घोषणा पढ़कर पुष्टि नहीं करते, वहाँ कुछ नहीं जाएगा।')}</p>
+        <button class="btn btn-primary w-full justify-center" onclick="openPayeeDecl(${p.id})" style="padding:12px"><i class="fa-solid fa-file-signature"></i> ${L('Read &amp; confirm now','अभी पढ़ें और पुष्टि करें')}</button>`;
+    }
+  }catch(e){
+    if(box) box.innerHTML = '<p class="tm-empty">Error: ' + esc(e.message||e) + '</p>';
+  }
+}
+function openPayeeDecl(id){
+  const d = DECLS; if(!d) return notify('Declaration load nahi hua');
+  const p = (d.payees || []).find(x => String(x.id) === String(id));
+  if(!p) return notify('Declaration load nahi hua');
+  const nm = d.name || CODE;
+  window._pdRow = p;
+  window._pdTerms = `SALARY PAYMENT DECLARATION|Zooto Fashion Pvt Ltd|${d.decl_ref || p.decl_ref}|${nm}|${String(CODE).toUpperCase()}|PAYEE:${p.payee_name}|ACCT:${p.account_no}|IFSC:${p.ifsc}|SHARE:${p.percent}`;
+  const ov = document.createElement('div');
+  ov.id = '_pdOv';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.65);overflow-y:auto;padding:14px';
+  ov.innerHTML = `
+   <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden">
+    <div style="background:#0f172a;color:#fff;padding:14px 16px">
+      <b style="font-size:14px">${L('SALARY PAYMENT DECLARATION','सैलरी भुगतान घोषणा')}</b>
+      <div style="font-size:11px;opacity:.8;margin-top:2px">${L('Part of your salary paid into another account','आपकी सैलरी का एक हिस्सा दूसरे खाते में')} · ${esc(p.decl_ref||'')}</div>
+    </div>
+    <div style="padding:14px 16px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px">
+        <tr><td style="padding:7px 0;color:#64748b">${L('Your name','आपका नाम')}</td><td style="padding:7px 0;font-weight:700;text-align:right">${esc(nm)}</td></tr>
+        <tr><td style="padding:7px 0;color:#64748b">${L('Employee Code','कर्मचारी कोड')}</td><td style="padding:7px 0;font-weight:700;text-align:right">${esc(String(CODE).toUpperCase())}</td></tr>
+        <tr><td style="padding:7px 0;color:#64748b">${L('Paid to','किसे')}</td><td style="padding:7px 0;font-weight:700;text-align:right">${esc(p.payee_name)}${p.relation ? ' (' + esc(p.relation) + ')' : ''}</td></tr>
+        <tr><td style="padding:7px 0;color:#64748b">${L('Bank','बैंक')}</td><td style="padding:7px 0;font-weight:700;text-align:right">${esc(p.bank_name||'—')}</td></tr>
+        <tr style="background:#fffbeb"><td style="padding:9px 6px;color:#92400e">${L('Account No','खाता संख्या')}</td><td style="padding:9px 6px;font-weight:800;text-align:right;font-size:15px;letter-spacing:.05em">${esc(p.account_no)}</td></tr>
+        <tr><td style="padding:7px 0;color:#64748b">IFSC</td><td style="padding:7px 0;font-weight:700;text-align:right">${esc(p.ifsc)}</td></tr>
+        <tr style="background:#fffbeb"><td style="padding:9px 6px;color:#92400e">${L('Share of your monthly earnings','महीने की कमाई का हिस्सा')}</td><td style="padding:9px 6px;font-weight:800;text-align:right;font-size:15px">${esc(_declPct(p.percent))}</td></tr>
+      </table>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:11px 13px;margin-bottom:12px;font-size:12px;line-height:1.6;color:#334155">
+        <b style="font-size:12px;color:#0f172a">${L('What you are agreeing to','आप किस बात पर सहमत हो रहे हैं')}</b>
+        <ol style="margin:7px 0 0 17px;padding:0">
+          <li>${L('This share is paid as a clean amount — nothing is cut from it.','यह हिस्सा पूरा जाता है — इसमें से कुछ नहीं कटता।')}</li>
+          <li>${L('PF, ESI, LWF, tax and any advance are still worked out on your full salary and are cut in full from the part that comes into your own account.','PF, ESI, LWF, टैक्स और कोई एडवांस आपकी पूरी सैलरी पर ही बनते हैं और पूरे आपके अपने खाते में आने वाले हिस्से से ही कटते हैं।')}</li>
+          <li>${L('You have checked the account number and IFSC above and they are correct.','आपने ऊपर का खाता नंबर और IFSC जाँच लिया है और वे सही हैं।')}</li>
+          <li>${L('Money paid into that account counts as your salary, paid on your instruction.','उस खाते में गया पैसा आपकी सैलरी ही माना जाएगा, आपके कहने पर भेजा गया।')}</li>
+          <li>${L('You can stop this any time by telling HR in writing.','आप कभी भी HR को लिखकर यह बंद करा सकते हैं।')}</li>
+          <li>${L('If any of these details change, this declaration ends and you will be asked to sign again.','इनमें से कुछ भी बदला तो यह घोषणा खत्म हो जाएगी और दोबारा हस्ताक्षर मांगे जाएंगे।')}</li>
+        </ol>
+      </div>
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:11px 13px;margin-bottom:12px">
+        <label style="display:flex;gap:9px;align-items:flex-start;font-size:12.5px"><input type="checkbox" id="_pdRead" style="margin-top:3px;transform:scale(1.25)">
+        <span>${L('I have read the whole declaration above. I agree to it and I want this share of my salary paid into that account.',
+                  'मैंने ऊपर की पूरी घोषणा पढ़ ली है। मैं इससे सहमत हूँ और चाहता/चाहती हूँ कि मेरी सैलरी का यह हिस्सा उसी खाते में जाए।')}</span></label>
+      </div>
+      <div id="_pdSignBox" class="hidden" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px 13px;margin-bottom:12px">
+        <div style="font-weight:700;font-size:12px;margin-bottom:8px;color:#075985">${L('IDENTITY VERIFICATION &amp; SIGNATURE','पहचान और हस्ताक्षर')}</div>
+        ${d.has_phone ? `<label style="font-size:11px;color:#64748b">${L('Enter your registered mobile number again','अपना रजिस्टर्ड मोबाइल नंबर दोबारा डालें')}${d.phone_last4 ? ' (••••••' + esc(d.phone_last4) + ')' : ''}:</label>
+        <input id="_pdPhone" type="tel" maxlength="10" placeholder="10-digit mobile" style="width:100%;padding:10px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;margin:4px 0 10px">`
+        : `<p style="font-size:11px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;margin:0 0 10px">${L(
+            'Your mobile number is not on your HR profile, so only your name signature is taken. Please ask HR to add your number.',
+            'आपका मोबाइल नंबर HR प्रोफ़ाइल में नहीं है, इसलिए सिर्फ़ नाम का हस्ताक्षर लिया जाएगा। HR से नंबर जुड़वा लें।')}</p>`}
+        <label style="font-size:11px;color:#64748b">${L('Type your full name — this is your digital signature','अपना पूरा नाम लिखें — यही आपका डिजिटल हस्ताक्षर है')}:</label>
+        <input id="_pdName" type="text" placeholder="${esc(nm)}" style="width:100%;padding:10px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;font-style:italic;margin:4px 0">
+      </div>
+      <div style="display:flex;gap:9px">
+        <button id="_pdSignBtn" disabled onclick="payeeDeclSign()" style="flex:2;background:#94a3b8;color:#fff;border:none;border-radius:10px;padding:13px;font-weight:800;font-size:13.5px">✓ ${L('YES, I AGREE','हाँ, मैं सहमत हूँ')}</button>
+        <button onclick="payeeDeclDispute()" style="flex:1;background:#fee2e2;color:#b91c1c;border:none;border-radius:10px;padding:13px;font-weight:700;font-size:12.5px">${L('WRONG','गलत है')}</button>
+      </div>
+      <button onclick="document.getElementById('_pdOv').remove()" style="width:100%;margin-top:9px;background:none;border:none;color:#64748b;font-size:12px;padding:8px">${L('Close','बंद करें')}</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  document.getElementById('_pdRead').addEventListener('change', function(){
+    const b = document.getElementById('_pdSignBtn'), box = document.getElementById('_pdSignBox');
+    box.classList.toggle('hidden', !this.checked);
+    b.disabled = !this.checked;
+    b.style.background = this.checked ? '#16a34a' : '#94a3b8';
+  });
+}
+async function payeeDeclSign(){
+  const d = DECLS, p = window._pdRow; if(!d || !p) return;
+  const phone = String((document.getElementById('_pdPhone')||{}).value || '').replace(/\D/g,'');
+  const nameSig = String((document.getElementById('_pdName')||{}).value || '').trim();
+  if(d.has_phone && phone.length !== 10) return notify(L('Enter a 10-digit mobile number','10 अंकों का मोबाइल नंबर डालें'));
+  if(nameSig.length < 3) return notify(L('Type your full name to sign','हस्ताक्षर के लिए पूरा नाम लिखें'));
+  const btn = document.getElementById('_pdSignBtn'); btn.disabled = true; btn.innerText = 'Signing…';
+  try{
+    let ip = '';
+    try{ const r = await fetch('https://api.ipify.org?format=json'); ip = (await r.json()).ip || ''; }catch(e){}
+    let geo = '';
+    try{
+      const pos = await new Promise((res, rej) => { navigator.geolocation ? navigator.geolocation.getCurrentPosition(res, rej, { timeout: 4000, maximumAge: 300000 }) : rej(); });
+      geo = pos.coords.latitude.toFixed(4) + '° N, ' + pos.coords.longitude.toFixed(4) + '° E';
+    }catch(e){}
+    const enc = new TextEncoder().encode(window._pdTerms + '|SIGNED_BY:' + nameSig + '|PHONE_VERIFIED:' + phone);
+    const buf = await crypto.subtle.digest('SHA-256', enc);
+    const hash = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
+    const { data, error } = await sb.rpc('ess_payee_esign', { p_code: String(CODE||'').trim().toUpperCase(),
+      p_phone: PHONE, p_id: p.id, p_name: nameSig, p_ip: ip, p_hash: hash, p_geo: geo, p_verify: phone, p_acct: p.account_no });
+    if(error) throw error;
+    if(data && data.error){ notify(data.error); btn.disabled = false; btn.innerText = '✓ ' + L('YES, I AGREE','हाँ, मैं सहमत हूँ'); return; }
+    const ov = document.getElementById('_pdOv'); if(ov) ov.remove();
+    notify(L('✓ Declaration confirmed. Thank you.','✓ घोषणा की पुष्टि हो गई। धन्यवाद।'));
+    loadPayeeDecls();
+  }catch(err){ notify('Sign failed: ' + (err.message||err)); btn.disabled = false; btn.innerText = '✓ ' + L('YES, I AGREE','हाँ, मैं सहमत हूँ'); }
+}
+async function payeeDeclDispute(){
+  const d = DECLS || {}, p = window._pdRow; if(!p) return;
+  const phone = String((document.getElementById('_pdPhone')||{}).value || '').replace(/\D/g,'');
+  if(d.has_phone && phone.length !== 10){
+    const box = document.getElementById('_pdSignBox'), rd = document.getElementById('_pdRead');
+    if(box) box.classList.remove('hidden');
+    if(rd) rd.checked = false;
+    return notify(L('First enter your registered mobile number below, then press WRONG','पहले नीचे अपना रजिस्टर्ड मोबाइल नंबर डालें, फिर गलत है दबाएँ'));
+  }
+  const note = prompt(L('What is wrong? (write what should be changed)','क्या गलत है? (लिखें क्या बदलना चाहिए)'));
+  if(note === null || !String(note).trim()) return;
+  try{
+    const { data, error } = await sb.rpc('ess_payee_dispute', { p_code: String(CODE||'').trim().toUpperCase(),
+      p_phone: PHONE, p_id: p.id, p_note: String(note).trim(), p_verify: phone });
+    if(error) throw error;
+    if(data && data.error) return notify(data.error);
+    const ov = document.getElementById('_pdOv'); if(ov) ov.remove();
+    notify(L('Reported to HR. Nothing will be paid to that account.','HR को बता दिया गया। उस खाते में कुछ नहीं जाएगा।'));
+    loadPayeeDecls();
+  }catch(err){ notify('Failed: ' + (err.message||err)); }
 }
 async function bankDisputeStep(){
   const d = BANKV || {};
@@ -3870,6 +4058,7 @@ function render(){
   CAL_CACHE = {}; CAL_YM = new Date().toISOString().slice(0,7);
   renderCalendar();
   try{ loadBankDetails(); }catch(e){}
+  try{ loadPayeeDecls(); }catch(e){}
   // payslips — newest first, month name shown, grouped feel
   const sortedSlips = slips.slice().sort((a,b) => (b.month||'').localeCompare(a.month||''));
   const monthName = ym => { const [y,m] = (ym||'').split('-'); const mn = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(m)] || ym; return mn + ' ' + (y||''); };
