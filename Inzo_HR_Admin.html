@@ -9932,12 +9932,12 @@ $('slipPrintBtn').addEventListener('click', () => printHTML($('slipPaper').inner
 /* ================= BANK ADVICE — bank ke asli upload format me =================
    Bank ki file me koi header nahi hota, 28 column hote hain aur sirf 8 bharte hain:
      A  = N (NEFT) ya I (apne hi bank ke andar)   B = (khali)
-     C  = beneficiary account  (TEXT cell — leading zero bachane ke liye)
+     C  = beneficiary account  (aage apostrophe, cell ka format NUMBER)
      D  = amount (number)                          E = naam jaisa bank ke khate me hai
      N  = narration            W  = payment date    Y = IFSC
-   Account ko TEXT cell banana zaroori hai: warna Excel 0316… ka pehla 0 kha jata hai
-   aur 15-ankon wale number ko 9.22E+14 bana deta hai. Excel me "'" lagane ka wahi asar
-   hota hai jo text cell ka hai.
+   Har account ke aage apostrophe lagta hai — wahi Excel me 0316… ka pehla 0 aur
+   15-ankon wale number ko 9.22E+14 banne se bachata hai. Cell ka number format
+   Text (@) nahi, Number (0) rakha gaya hai — user ne saaf yahi kaha hai.
    Column ki chaudai bank ki asli file se li gayi hai (characters me). */
 const NX_BANK_COL_CHARS = [1.8, 12.3, 16.2, 7.0, 14.5,
   1.2, 1.2, 1.2, 1.2, 1.2, 1.2, 1.2, 1.2,     // F..M
@@ -9955,18 +9955,18 @@ const _xmlEsc = s => String(s == null ? '' : s)
 function nxBankAdviceXml(rows, narration, payDate){
   const cols = NX_BANK_COL_CHARS.map((ch,i) =>
     `<Column ss:Index="${i+1}" ss:AutoFitWidth="0" ss:Width="${_bankColPt(ch)}"/>`).join('');
-  const cellAt = (idx, val, type) => val === '' || val == null ? ''
-    : `<Cell ss:Index="${idx}"${type === 'Number' ? '' : ' ss:StyleID="sTxt"'}><Data ss:Type="${type}">${_xmlEsc(val)}</Data></Cell>`;
-  // Account ke aage apostrophe — user ne saaf kaha. Excel me text ka nishan hai,
-  // aur cell bhi text format me hai, to leading zero dono tarah se bacha rehta hai.
-  const _a = v => "'" + v;
+  const cellAt = (idx, val, type, style) => val === '' || val == null ? ''
+    : `<Cell ss:Index="${idx}"${style ? ` ss:StyleID="${style}"` : (type === 'Number' ? '' : ' ss:StyleID="sTxt"')}><Data ss:Type="${type}">${_xmlEsc(val)}</Data></Cell>`;
+  // Account ke aage apostrophe, aur cell ka format Number (sNum) — Text (@) nahi.
+  // Profile me kisi ka account pehle se apostrophe ke saath pada ho to do na lag jayen.
+  const _a = v => "'" + String(v == null ? '' : v).replace(/^'+/, '');
   const body = rows.map(r => '<Row>'
       + cellAt(1,  r.typ, 'String')
       // Internal (I) transfer par bank ki file me account DONO column me hota hai —
       // B aur C. Jahan B bhara tha wahan wo hamesha C ke barabar tha, aur B sirf
       // HDFC/I rows par hi dikha. Isliye I par B = C bhar dete hain, N par khali.
-      + (r.typ === 'I' ? cellAt(2, _a(r.acct), 'String') : '')
-      + cellAt(3,  _a(r.acct), 'String')    // TEXT + apostrophe
+      + (r.typ === 'I' ? cellAt(2, _a(r.acct), 'String', 'sNum') : '')
+      + cellAt(3,  _a(r.acct), 'String', 'sNum')    // apostrophe + Number format
       + cellAt(4,  Math.round(Number(r.amt)||0), 'Number')
       + cellAt(5,  r.bankName || r.name, 'String')
       + cellAt(14, narration, 'String')
@@ -9981,6 +9981,7 @@ function nxBankAdviceXml(rows, narration, payDate){
  <Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Bottom"/>
   <Font ss:FontName="Calibri" ss:Size="11"/></Style>
  <Style ss:ID="sTxt"><NumberFormat ss:Format="@"/></Style>
+ <Style ss:ID="sNum"><NumberFormat ss:Format="0"/></Style>
 </Styles>
 <Worksheet ss:Name="Sheet1"><Table>${cols}${body}</Table>
 <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><Selected/></WorksheetOptions>
