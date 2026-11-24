@@ -257,7 +257,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <img src="nexus-logo.png" alt="Nexus" style="height:44px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
       <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Portal</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B84</b> — 24 Nov</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B85</b> — 24 Nov</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -284,7 +284,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
           <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B84</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B85</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -878,8 +878,10 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <p id="fdCamTitle" style="color:#fff;font-weight:700;font-size:16px;margin-bottom:4px"></p>
     <p id="fdCamGeo" style="color:#bbf7d0;font-size:11.5px;margin-bottom:8px"></p>
     <video id="fdCamVideo" autoplay playsinline muted style="width:min(92vw,380px);border-radius:16px;transform:scaleX(-1)"></video>
-    <div style="display:flex;gap:10px;margin-top:14px">
-      <button onclick="fdShoot()" class="btn btn-primary" style="padding:13px 26px;font-size:15px"><i class="fa-solid fa-camera"></i> <span data-en="Capture" data-hi="फ़ोटो लें">Capture</span></button>
+    <p id="fdCamStat" style="color:#fde68a;font-size:12px;margin-top:10px;text-align:center;max-width:min(92vw,380px);line-height:1.5"></p>
+    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;justify-content:center">
+      <button id="fdShootBtn" onclick="fdShoot()" class="btn btn-primary" style="padding:13px 26px;font-size:15px"><i class="fa-solid fa-camera"></i> <span data-en="Capture" data-hi="फ़ोटो लें">Capture</span></button>
+      <button id="fdRetryBtn" onclick="fdGeoTry()" class="btn btn-ghost hidden" style="padding:13px 20px"><i class="fa-solid fa-rotate-right"></i> <span data-en="Try location again" data-hi="लोकेशन दोबारा लें">Try location again</span></button>
       <button onclick="fdCamClose()" class="btn btn-ghost" style="padding:13px 20px"><span data-en="Cancel" data-hi="रद्द">Cancel</span></button>
     </div>
   </div>
@@ -1737,9 +1739,79 @@ function _fdBtnBusy(btn, txt){
   btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> ' + txt;
   return () => { btn.disabled = false; btn.style.opacity = ''; btn.innerHTML = old; };
 }
+/* getCurrentPosition ka apna timeout tab tak shuru hi nahi hota jab tak phone
+   permission ka faisla nahi karta. Kuch phone/WebView me wo faisla kabhi aata hi
+   nahi, to call hamesha ke liye latki rehti hai aur screen par kuch nahi hota.
+   Isliye apna ghadi-wala timer bhi lagate hain jo har haal me khatam hota hai,
+   aur watchPosition use karte hain jo aise phone par getCurrentPosition se
+   zyada bharosemand hai. */
 function _fdGetPos(hi, ms){
-  return new Promise((res, rej) =>
-    navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: hi, timeout: ms, maximumAge: 0 }));
+  return new Promise((res, rej) => {
+    let over = false, id = null, timer = null;
+    const end = (fn, v) => {
+      if(over) return; over = true;
+      try{ if(timer) clearTimeout(timer); }catch(e){}
+      try{ if(id != null) navigator.geolocation.clearWatch(id); }catch(e){}
+      fn(v);
+    };
+    timer = setTimeout(() => end(rej, { code: 3, message: 'no fix in time' }), ms);
+    try{
+      id = navigator.geolocation.watchPosition(
+        p => end(res, p), e => end(rej, e),
+        { enableHighAccuracy: hi, timeout: ms, maximumAge: 0 });
+    }catch(e){ end(rej, e); }
+  });
+}
+function _fdStat(txt, bad){
+  const el = $('fdCamStat'); if(!el) return;
+  el.innerHTML = txt || ''; el.style.color = bad ? '#fca5a5' : '#fde68a';
+}
+function _fdShootable(on){
+  const b = $('fdShootBtn'); if(!b) return;
+  b.disabled = !on; b.style.opacity = on ? '' : '.45';
+  const r = $('fdRetryBtn'); if(r) r.classList.toggle('hidden', on);
+}
+/* Camera pehle khulta hai taaki kuch to dikhe, location saath-saath aati rehti hai.
+   Jab tak location na mile, Capture band rehta hai aur niche wajah likhi rehti hai. */
+async function fdGeoTry(){
+  _fdGeo = null; _fdShootable(false);
+  if($('fdCamGeo')) $('fdCamGeo').innerText = '';
+  let denied = false;
+  try{
+    if(navigator.permissions && navigator.permissions.query){
+      const st = await navigator.permissions.query({ name: 'geolocation' });
+      denied = st && st.state === 'denied';
+    }
+  }catch(e){}
+  if(denied){
+    _fdStat(L('Location is blocked for this site. Open the lock icon next to the web address, allow Location, then press "Try location again".',
+              'इस साइट के लिए लोकेशन बंद है। पते के पास वाले ताले पर टैप करके Location की अनुमति दीजिए, फिर "लोकेशन दोबारा लें" दबाइए।'), true);
+    return;
+  }
+  _fdStat(L('Getting your location… keep this screen open.','लोकेशन ली जा रही है… ये स्क्रीन खुली रखिए।'));
+  let pos = null, err = null;
+  try{ pos = await _fdGetPos(true, 10000); }
+  catch(e1){
+    err = e1;
+    if(!e1 || e1.code !== 1){
+      _fdStat(L('GPS is slow — trying once more…','GPS धीमा है — एक बार और कोशिश…'));
+      try{ pos = await _fdGetPos(false, 8000); err = null; }catch(e2){ err = e2; }
+    }
+  }
+  if(!pos){
+    const c = err && err.code;
+    _fdStat(c === 1
+      ? L('Location permission was refused. Allow Location for this site, then press "Try location again".',
+          'लोकेशन की अनुमति नहीं मिली। इस साइट को Location की अनुमति दीजिए, फिर "लोकेशन दोबारा लें" दबाइए।')
+      : L('Location did not come through. Switch on GPS, step outside, then press "Try location again".',
+          'लोकेशन नहीं मिली। GPS चालू कीजिए, थोड़ा बाहर आइए, फिर "लोकेशन दोबारा लें" दबाइए।'), true);
+    return;
+  }
+  _fdGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
+  if($('fdCamGeo')) $('fdCamGeo').innerText =
+    '📍 ' + _fdGeo.lat.toFixed(5) + ', ' + _fdGeo.lng.toFixed(5) + ' (±' + Math.round(_fdGeo.acc) + 'm)';
+  _fdStat(L('Location taken. Now take the selfie.','लोकेशन मिल गई। अब सेल्फ़ी लीजिए।'));
+  _fdShootable(true);
 }
 async function fdStart(stage, btn){
   _fdStage = stage; _fdGeo = null;
@@ -1760,30 +1832,11 @@ async function fdStart(stage, btn){
       return notify(L('This browser has no camera access. Open the portal in Chrome.',
                       'इस ब्राउज़र में कैमरा नहीं चलता। पोर्टल Chrome में खोलिए।'));
     }
-    notify(L('Getting your location…','लोकेशन ली जा रही है…'));
-    let pos = null, err = null;
-    try{ pos = await _fdGetPos(true, 12000); }
-    catch(e1){
-      err = e1;
-      // GPS ne der ki — ek baar tower/wifi wali kam-satik location se koshish
-      if(e1 && e1.code === 3){
-        notify(L('GPS is slow — trying once more…','GPS धीमा है — एक बार और कोशिश…'));
-        try{ pos = await _fdGetPos(false, 10000); err = null; }catch(e2){ err = e2; }
-      }
-    }
-    if(!pos){
-      done();
-      const c = err && err.code;
-      if(c === 1) return notify(L('Location permission is blocked. Allow location for this site in the browser settings, then try again.',
-                                  'लोकेशन की अनुमति बंद है। ब्राउज़र सेटिंग में इस साइट को लोकेशन की अनुमति दीजिए, फिर दोबारा कीजिए।'), 'error');
-      if(c === 3) return notify(L('Location did not come through. Switch on GPS, step outside, and try again.',
-                                  'लोकेशन नहीं मिली। GPS चालू कीजिए, थोड़ा बाहर आइए और दोबारा कीजिए।'), 'error');
-      return notify(L('Location did not come through — switch on GPS and try again.',
-                      'लोकेशन नहीं मिली — GPS चालू करके दोबारा कीजिए।'), 'error');
-    }
-    _fdGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
+    // Pehle camera, phir location — taaki dabate hi kuch dikhe aur screen kabhi
+    // chup na rahe. Capture tab tak band rehta hai jab tak location na aa jaye.
     await fdCamOpen();
     done();
+    await fdGeoTry();
   }catch(e){
     done();
     notify((L('Could not start the punch: ','पंच शुरू नहीं हो पाया: ')) + (e && e.message ? e.message : String(e)), 'error');
@@ -1793,23 +1846,30 @@ async function fdStart(stage, btn){
 async function fdCamOpen(){
   const st = FD_STAGES.find(x => x.k === _fdStage) || {};
   $('fdCamTitle').innerText = L(st.en || '', st.hi || '');
-  $('fdCamGeo').innerText = _fdGeo
-    ? '📍 ' + _fdGeo.lat.toFixed(5) + ', ' + _fdGeo.lng.toFixed(5) + ' (±' + Math.round(_fdGeo.acc) + 'm)' : '';
+  $('fdCamGeo').innerText = '';
+  _fdStat(L('Opening the camera…','कैमरा खुल रहा है…'));
+  _fdShootable(false);
   $('fdCam').style.display = 'flex';
   try{
     _fdStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' }, audio:false });
     $('fdCamVideo').srcObject = _fdStream;
   }catch(e){
     try{ _fdStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:false }); $('fdCamVideo').srcObject = _fdStream; }
-    catch(e2){ fdCamClose(); notify(L('The camera did not open. A selfie is required for field punch.',
-                                      'कैमरा नहीं खुला। फील्ड पंच के लिए सेल्फ़ी ज़रूरी है।')); }
+    catch(e2){
+      fdCamClose();
+      notify(L('The camera did not open. Allow the camera for this site and try again — a selfie is required for a field punch.',
+               'कैमरा नहीं खुला। इस साइट को कैमरे की अनुमति देकर दोबारा कीजिए — फील्ड पंच के लिए सेल्फ़ी ज़रूरी है।'), 'error');
+    }
   }
 }
 function fdCamClose(){
   try{ if(_fdStream) _fdStream.getTracks().forEach(t => t.stop()); }catch(e){}
   _fdStream = null; const el = $('fdCam'); if(el) el.style.display = 'none';
+  _fdStat(''); _fdShootable(true);
 }
 function fdShoot(){
+  if(!_fdGeo) return notify(L('Location has not come through yet — press "Try location again".',
+                              'लोकेशन अभी नहीं मिली — "लोकेशन दोबारा लें" दबाइए।'), 'error');
   const v = $('fdCamVideo'); let img = null;
   try{
     const c = document.createElement('canvas');
