@@ -485,7 +485,7 @@ body.no-confidential .confidential-col{display:none!important}
 
 <div class="main">
   <div class="topbar" style="padding:14px 24px">
-    <h2 id="pageTitle" class="display text-lg font-bold m-0">Dashboard</h2>
+    <h2 id="pageTitle" class="display text-lg font-bold m-0">Dashboard</h2><span id="nxFreshPill" class="chip chip-gray hidden" style="font-size:10px;margin-left:8px" title="The panel re-reads its data when you come back to this tab"></span>
   </div>
 
 <!-- ================= DASHBOARD ================= -->
@@ -3959,34 +3959,69 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('show'));
     $('page-' + page).classList.add('show');
     $('pageTitle').innerText = TITLES[page];
-    if(page === 'dashboard'){ loadDashboard(); loadBlockedPunches(); }
-    if(page === 'misspunch') mpInit();
-    if(page === 'visitors') vrInit();
-    if(page === 'mis') loadMis();
-    if(page === 'advances') loadAdvances();
-    if(page === 'leaves') loadLeaves();
-    if(page === 'approvals') loadApprovals();
-    if(page === 'ceo') loadCeoApprovals();
-    if(page === 'trial') loadTrialPage();
-    if(page === 'faq') renderFaq();
-    if(page === 'voice') loadVoice();
-    if(page === 'attendance') loadDeployment();
-    if(page === 'workhours') whInit();
-    if(page === 'shifts'){ loadRoster(); rgLoad(); }
-    if(page === 'hiring') loadHiring();
-    if(page === 'expenses') loadExpenses();
-    if(page === 'assets') loadAssets();
-    if(page === 'exits') loadExits();
-    if(page === 'blacklist') loadBlacklist();
-    if(page === 'tickets') loadTickets();
-    if(page === 'letters') loadOutbox();
-    if(page === 'reports') loadReports();
-    if(page === 'adminctl'){ NX_AUTH_USERS = null; renderAdminCtl(); }
-    if(page === 'ctccalc'){ renderCtcMaster(); }
-    if(page === 'ctcreport'){ crInit(); }
-    if(page === 'idcards'){ renderIdIssues(); }
-    if(page === 'workhours'){ psRefreshBadge(); }
+    window._nxPage = page;
+    nxLoadPage(page);
   });
+});
+function nxLoadPage(page){
+  if(page === 'dashboard'){ loadDashboard(); loadBlockedPunches(); }
+  if(page === 'misspunch') mpInit();
+  if(page === 'visitors') vrInit();
+  if(page === 'mis') loadMis();
+  if(page === 'advances') loadAdvances();
+  if(page === 'leaves') loadLeaves();
+  if(page === 'approvals') loadApprovals();
+  if(page === 'ceo') loadCeoApprovals();
+  if(page === 'trial') loadTrialPage();
+  if(page === 'faq') renderFaq();
+  if(page === 'voice') loadVoice();
+  if(page === 'attendance') loadDeployment();
+  if(page === 'workhours') whInit();
+  if(page === 'shifts'){ loadRoster(); rgLoad(); }
+  if(page === 'hiring') loadHiring();
+  if(page === 'expenses') loadExpenses();
+  if(page === 'assets') loadAssets();
+  if(page === 'exits') loadExits();
+  if(page === 'blacklist') loadBlacklist();
+  if(page === 'tickets') loadTickets();
+  if(page === 'letters') loadOutbox();
+  if(page === 'reports') loadReports();
+  if(page === 'adminctl'){ NX_AUTH_USERS = null; renderAdminCtl(); }
+  if(page === 'ctccalc'){ renderCtcMaster(); }
+  if(page === 'ctcreport'){ crInit(); }
+  if(page === 'idcards'){ renderIdIssues(); }
+  if(page === 'workhours'){ psRefreshBadge(); }
+}
+
+/* ===== Khud taaza hone wala panel =====
+   Pehle data sirf page khulte waqt padha jaata tha aur JS ki memory me pada rehta tha.
+   Kisi aur screen par — ya kisi aur admin ne — kuch badla ho to yahan dikhta hi nahi tha,
+   jab tak poora page reload na karo. Ab jab aap doosre tab/app se is tab par wapas aate ho
+   (aur 20 second se zyada bahar rahe ho), to core data aur jo page khula hai, dono apne aap
+   dobara padhe jaate hain. Jab tab saamne na ho tab kuch nahi chalta, isliye faltu load nahi. */
+let _nxAwaySince = 0, _nxRefreshing = false;
+async function nxRefreshNow(reason){
+  if(_nxRefreshing || document.hidden) return;
+  _nxRefreshing = true;
+  const pill = document.getElementById('nxFreshPill');
+  if(pill){ pill.textContent = 'Refreshing…'; pill.classList.remove('hidden'); }
+  try{
+    await loadCore();
+    if(window._nxPage) try{ nxLoadPage(window._nxPage); }catch(e){}
+    if(pill){
+      pill.textContent = 'Updated ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true });
+      setTimeout(() => pill.classList.add('hidden'), 2500);
+    }
+  }catch(e){ if(pill) pill.classList.add('hidden'); }
+  finally{ _nxRefreshing = false; }
+}
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden){ _nxAwaySince = Date.now(); return; }
+  if(_nxAwaySince && Date.now() - _nxAwaySince > 20000) nxRefreshNow('tab-return');
+  _nxAwaySince = 0;
+});
+window.addEventListener('focus', () => {
+  if(_nxAwaySince && Date.now() - _nxAwaySince > 20000) nxRefreshNow('window-focus');
 });
 document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => $(b.dataset.close).classList.remove('show')));
 /* Modal stacking: whichever modal is shown LAST always sits on top (fixes popup-behind-popup) */
