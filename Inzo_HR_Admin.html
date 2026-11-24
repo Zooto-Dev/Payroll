@@ -9324,7 +9324,10 @@ $('payFinalizeBtn').addEventListener('click', async () => {
     const slips = _allToSave.map(r => {
       const nt = r.isContract ? Math.round(r.earnedGross||0) : netOf(r);   // contract = amount payable to contractor
       return { employee_code: r.code, month: PAY_MONTH, net_pay: nt,
-        data: Object.assign({}, r, { net: nt, settings: getSettings(), finalizedAt: new Date().toISOString() }) };
+        // settings ko payslip ke andar nahi rakhte: wo kabhi wapas padhi nahi jaati thi,
+        // har payroll load ke saath dhoti thi, aur usme adminPerms (har admin ka email
+        // aur uske rights) payslip ki row ke andar chala jaata tha.
+        data: Object.assign({}, r, { net: nt, finalizedAt: new Date().toISOString() }) };
     });
     const { error } = await sb.from('payslips').upsert(slips, { onConflict: 'employee_code,month' });
     if(error) throw error;
@@ -15758,7 +15761,16 @@ async function loadTrialPage(){
     window._wpPending = conv;   // convertWorkPass() isse details uthata hai
     // har worker ki daily attendance (parallel)
     const attMap = {};
-    await Promise.all(list.concat(past).map(async w => { try{ const { data: att } = await sb.rpc('wp_att', { p_id: w.id }); attMap[w.id] = att||[]; }catch(e){ attMap[w.id] = []; } }));
+    // Pehle har pass ki attendance alag call se aati thi — 252 pass ke liye 252 round trip,
+    // jabki kul 464 row hain. Ab ek hi call sab le aati hai.
+    try{
+      const { data: allAtt } = await sb.rpc('wp_att_all');
+      Object.keys(allAtt || {}).forEach(k => { attMap[Number(k)] = allAtt[k] || []; });
+    }catch(e){
+      // purana raasta, sirf tab jab naya RPC abhi lagा na ho
+      await Promise.all(list.concat(past).map(async w => { try{ const { data: att } = await sb.rpc('wp_att', { p_id: w.id }); attMap[w.id] = att||[]; }catch(e2){ attMap[w.id] = []; } }));
+    }
+    list.concat(past).forEach(w => { if(!attMap[w.id]) attMap[w.id] = []; });
     window._wpAttMap = attMap;
     const attTable = rows => `<table class="reg" style="font-size:11px;min-width:210px"><thead><tr><th>Date</th><th>IN</th><th>OUT</th></tr></thead><tbody>${(rows&&rows.length) ? rows.map(a => `<tr><td>${esc(a.date)}</td><td style="text-align:center">${esc(String(a.in_time||'').slice(0,5)||'—')}${a.in_photo_url?` <a href="${esc(a.in_photo_url)}" target="_blank" title="IN photo">📷</a>`:''}</td><td style="text-align:center">${esc(String(a.out_time||'').slice(0,5)||'—')}</td></tr>`).join('') : '<tr><td colspan="3" style="text-align:center;color:var(--muted)">no punches</td></tr>'}</tbody></table>`;
     const card = (w, isConv) => `<div class="p-4 border-b" style="border-color:var(--line)">
