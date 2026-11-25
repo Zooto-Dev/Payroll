@@ -70,6 +70,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
 .inp:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 .lbl{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:12px;font-weight:600;font-size:14px;cursor:pointer;border:none;width:100%}
+.wp-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.wp-acts .btn{width:auto;flex:1 1 auto;min-width:0;padding:8px 10px;font-size:12.5px;border-radius:9px}
 .btn-primary{background:var(--brand);color:#fff}
 .btn:disabled{opacity:.5}
 .chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600}
@@ -257,7 +259,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <img src="nexus-logo.png" alt="Nexus" style="height:44px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
       <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Portal</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B86</b> — 25 Nov</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B87</b> — 25 Nov</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -284,7 +286,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
           <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B86</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B87</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -837,6 +839,12 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     </div>
     <button class="btn btn-primary w-full" onclick="wpEssCreate()" style="background:#059669;border-color:#059669"><i class="fa-solid fa-id-card-clip"></i> Work Pass Banao</button>
     <div id="wpeList" class="mt-3"></div>
+    <div id="wpePastWrap" class="hidden mt-2">
+      <button id="wpePastBtn" class="btn btn-ghost w-full justify-center" style="font-size:12px;padding:8px" onclick="wpEssTogglePast()">
+        <i class="fa-solid fa-clock-rotate-left"></i> <span id="wpePastLbl"></span>
+      </button>
+      <div id="wpePast" class="hidden mt-2"></div>
+    </div>
   </div>
 
   <div class="card hidden" id="teamLineCard">
@@ -2626,42 +2634,106 @@ async function wpEssCreate(){
     loadMyNotices();
   }catch(e){ notify('Failed: ' + (e.message||e)); }
 }
+/* ===== Mere Work Pass =====
+   Pehle yahan supervisor ke SAARE pass pade rehte the — convert ho chuke aur reject
+   kiye hue bhi, wahi ke wahi button ke saath. Isliye reject karne par kuch hatta
+   nahi dikhta tha aur convert hone ke baad bhi "Employee Banao" dikhta rehta tha.
+   Ab chalu trial upar, aur nipt chuke pass alag se neeche (chhupe hue), har ek par
+   uski asli haalat likhi hui. */
+let WPE_ALL = [], WPE_PAST_OPEN = false;
+function wpeState(w){
+  const st = String(w.status || '').toUpperCase();
+  if(st === 'CONVERTED')         return { k:'CONVERTED', live:false, bg:'#dcfce7', fg:'#166534',
+                                          t:L('Became an employee','कर्मचारी बन गया') };
+  if(st === 'REJECTED')          return { k:'REJECTED',  live:false, bg:'#fee2e2', fg:'#b91c1c',
+                                          t:L('Trial rejected','ट्रायल अस्वीकार') };
+  if(st === 'CONVERT_REQUESTED') return { k:'PENDING',   live:true,  bg:'#dbeafe', fg:'#1e40af',
+                                          t:L('Waiting for HR','HR की मंज़ूरी बाकी') };
+  if(st === 'EXPIRED' || w.expired) return { k:'OVER',   live:false, bg:'#f1f5f9', fg:'#475569',
+                                          t:L('Trial is over','ट्रायल खत्म') };
+  return { k:'ACTIVE', live:true, bg:'#fef3c7', fg:'#92400e', t:L('Trial running','ट्रायल चल रहा है') };
+}
+function wpeCard(w, live){
+  const st = wpeState(w);
+  const day = Math.min(w.day_no || 0, 3);
+  const ready = (w.day_no >= 3) || w.expired;
+  const dots = [1,2,3].map(i => '<span style="width:7px;height:7px;border-radius:50%;background:'
+      + (i <= day ? '#059669' : '#cbd5e1') + ';display:inline-block"></span>').join('');
+  const times = (w.today_in || w.today_out)
+    ? `<span style="font-size:11px;color:#059669">${w.today_in ? 'IN ' + String(w.today_in).slice(0,5) : ''}${w.today_out ? ' · OUT ' + String(w.today_out).slice(0,5) : ''}</span>`
+    : '';
+  let actions = '';
+  if(live && st.k === 'PENDING'){
+    actions = `<span style="font-size:11px;color:#1e40af">${L('Sent to HR — nothing more to do here','HR को भेज दिया — अब यहाँ कुछ नहीं करना')}</span>`;
+  } else if(live){
+    const mark = !w.expired
+      ? (!w.today_in
+          ? `<button class="btn btn-sm btn-ghost" onclick="wpEssMark(${w.id},'IN','${esc(w.name)}')" style="color:#059669;border-color:#6ee7b7">✓ IN</button>`
+          : (!w.today_out
+              ? `<button class="btn btn-sm btn-ghost" onclick="wpEssMark(${w.id},'OUT','${esc(w.name)}')" style="color:#059669;border-color:#6ee7b7">✓ OUT</button>`
+              : `<span class="chip chip-ok" style="font-size:10px">${L("Today done","आज पूरा")}</span>`))
+      : '';
+    actions = mark
+      + `<button class="btn btn-sm ${ready ? 'btn-primary' : 'btn-ghost'}" ${ready ? '' : 'disabled'}
+           onclick="wpEssConvert(${w.id}, '${esc(w.name)}')"
+           style="${ready ? 'background:#059669;border-color:#059669' : 'opacity:.5'}">
+           ${ready ? '👔 ' + L('Make employee','कर्मचारी बनाओ') : L('After day 3','दिन 3 के बाद')}</button>`
+      + `<button class="btn btn-sm btn-ghost" onclick="wpEssReject(${w.id}, '${esc(w.name)}')"
+           style="color:#b91c1c;border-color:#fca5a5">✕ ${L('Reject','अस्वीकार')}</button>`;
+  } else if(st.k === 'CONVERTED' && w.converted_emp_code){
+    actions = `<span style="font-size:11px;color:#166534">${L('Employee code','कर्मचारी कोड')}: <b>${esc(w.converted_emp_code)}</b></span>`;
+  }
+  return `<div class="card m-0 mb-2" style="padding:11px 12px;${live ? '' : 'opacity:.72'}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <div style="min-width:0">
+        <div style="font-weight:700;font-size:13.5px">${esc(w.name)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">
+          ${esc(w.pass_no || '')}${w.department ? ' · ' + esc(w.department) : ''}${w.line ? ' · ' + esc(w.line) : ''}</div>
+        <div style="display:flex;gap:5px;align-items:center;margin-top:5px">${dots}
+          <span style="font-size:11px;color:var(--muted)">${L('Day','दिन')} ${day}/3</span> ${times}</div>
+      </div>
+      <span class="chip" style="background:${st.bg};color:${st.fg};font-size:9.5px;white-space:nowrap">${esc(st.t)}</span>
+    </div>
+    ${actions ? `<div class="wp-acts">${actions}</div>` : ''}
+  </div>`;
+}
+function wpEssTogglePast(){
+  WPE_PAST_OPEN = !WPE_PAST_OPEN;
+  const box = $('wpePast'); if(box) box.classList.toggle('hidden', !WPE_PAST_OPEN);
+  wpEssRender();
+}
+function wpEssRender(){
+  const host = $('wpeList'); if(!host) return;
+  const live = WPE_ALL.filter(w => wpeState(w).live && !(wpeState(w).k === 'ACTIVE' && w.expired));
+  const past = WPE_ALL.filter(w => !live.includes(w));
+  host.innerHTML = live.length
+    ? `<p class="lbl mb-1">${L('MY TRIAL WORKERS','मेरे ट्रायल वर्कर')} (${live.length})</p>` + live.map(w => wpeCard(w, true)).join('')
+    : `<p class="lbl mb-1">${L('MY TRIAL WORKERS','मेरे ट्रायल वर्कर')}</p>
+       <p class="m-0 text-xs" style="color:var(--muted)">${L('No trial worker running right now.','अभी कोई ट्रायल वर्कर नहीं चल रहा।')}</p>`;
+  const wrap = $('wpePastWrap'), lbl = $('wpePastLbl'), box = $('wpePast');
+  if(wrap && lbl && box){
+    wrap.classList.toggle('hidden', past.length === 0);
+    lbl.innerText = (WPE_PAST_OPEN ? L('Hide earlier passes','पुराने पास छुपाएँ') : L('Earlier passes','पुराने पास')) + ' (' + past.length + ')';
+    box.classList.toggle('hidden', !WPE_PAST_OPEN);
+    if(WPE_PAST_OPEN) box.innerHTML = past.slice(0, 40).map(w => wpeCard(w, false)).join('')
+      + (past.length > 40 ? `<p class="m-0 text-[11px]" style="color:var(--muted)">+${past.length - 40} ${L('more','और')}</p>` : '');
+  }
+}
 async function wpEssLoad(){
   const host = $('wpeList'); if(!host) return;
   try{
     const { data, error } = await sb.rpc('wp_list');
     if(error) throw error;
     const mytag = String(CODE||'').toUpperCase();
-    const list = (data||[]).filter(w => String(w.supervisor||'').toUpperCase().includes(mytag));
-    if(!list.length){ host.innerHTML = ''; return; }
-    host.innerHTML = '<p class="lbl mb-1">MERE WORK PASSES</p>' + list.map(w => {
-      const ready = w.day_no >= 3 || w.expired;
-      const pend = w.status === 'CONVERT_REQUESTED';
-      // Aaj ki attendance mark karne ka option (trial valid window ke andar)
-      const markBtn = !w.expired
-        ? (!w.today_in
-            ? `<button class="btn btn-sm btn-ghost" onclick="wpEssMark(${w.id},'IN','${esc(w.name)}')" style="color:#059669;border-color:#6ee7b7" title="Aaj ka IN mark karo">✓ IN</button>`
-            : (!w.today_out
-                ? `<button class="btn btn-sm btn-ghost" onclick="wpEssMark(${w.id},'OUT','${esc(w.name)}')" style="color:#059669;border-color:#6ee7b7" title="Aaj ka OUT mark karo">✓ OUT</button>`
-                : `<span class="text-[10px]" style="color:#059669;font-weight:600" title="Aaj IN & OUT dono ho gaye">✓ Aaj poora</span>`))
-        : '';
-      return `<div class="row" style="display:block">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span><b>${esc(w.name)}</b> <span class="text-[10px]" style="color:var(--muted)">${esc(w.pass_no||'')} · Day ${Math.min(w.day_no,3)}/3${w.today_in ? ' · IN ' + String(w.today_in).slice(0,5) : ''}${w.today_out ? ' · OUT ' + String(w.today_out).slice(0,5) : ''}</span></span>
-          <span style="display:flex;gap:6px;align-items:center">
-            ${markBtn}
-            ${pend ? '<span class="chip chip-blue" style="font-size:10px">⏳ HR approval pending</span>'
-              : `<button class="btn btn-sm ${ready?'btn-primary':'btn-ghost'}" ${ready?'':'disabled'} onclick="wpEssConvert(${w.id}, '${esc(w.name)}')" style="${ready?'background:#059669;border-color:#059669':''}">${ready?'👔 Employee Banao':'Trial ' + Math.min(w.day_no,3) + '/3'}</button>
-                 <button class="btn btn-sm btn-ghost" onclick="wpEssReject(${w.id}, '${esc(w.name)}')" style="color:#b91c1c;border-color:#fca5a5" title="Reject / remove trial">✕ Reject</button>`}
-          </span>
-        </div></div>`;
-    }).join('');
-  }catch(e){ host.innerHTML = '<p class="text-xs m-0" style="color:var(--bad)">' + esc(e.message||e) + ' — V86 SQL chala?</p>'; }
+    WPE_ALL = (data||[]).filter(w => String(w.supervisor||'').toUpperCase().includes(mytag));
+    wpEssRender();
+  }catch(e){ host.innerHTML = '<p class="text-xs m-0" style="color:var(--bad)">' + esc(e.message||e) + '</p>'; }
 }
 async function wpEssMark(id, kind, nm){
   const now = new Date();
   const def = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-  const t = window.prompt(nm + ' — aaj ka ' + kind + ' time (HH:MM):', def);
+  const t = await nxPrompt(nm + L(' — today\'s ' + kind + ' time (HH:MM)', ' — आज का ' + kind + ' समय (HH:MM)'),
+                           kind === 'IN' ? L('Mark IN','IN लगाओ') : L('Mark OUT','OUT लगाओ'), def);
   if(t === null) return;
   try{
     const { data, error } = await sb.rpc('wp_sup_mark', { p_id: id, p_kind: kind, p_time: (t||'').trim() });
@@ -2672,7 +2744,9 @@ async function wpEssMark(id, kind, nm){
   }catch(e){ notify('Failed: ' + (e.message||e)); }
 }
 async function wpEssConvert(id, nm){
-  if(!window.confirm(nm + ' ko Employee banane ki request HR ko bhejein?')) return;
+  if(!(await nxConfirm(L(nm + ' — send a request to HR to make this worker an employee?',
+                         nm + ' — इसे कर्मचारी बनाने की request HR को भेजें?'),
+                       L('Make employee','कर्मचारी बनाओ')))) return;
   try{
     const { data, error } = await sb.rpc('wp_convert', { p_id: id });
     if(error) throw error;
@@ -2682,12 +2756,14 @@ async function wpEssConvert(id, nm){
   }catch(e){ notify('Failed: ' + (e.message||e)); }
 }
 async function wpEssReject(id, nm){
-  if(!window.confirm(nm + L(' — reject this trial? The trial worker will be removed and will not move onto payroll.', ' का ट्रायल अस्वीकार करें? यह ट्रायल कर्मचारी हटा दिया जाएगा और पेरोल में नहीं आएगा।'))) return;
+  if(!(await nxConfirm(L(nm + ' — reject this trial? The pass will be closed and this worker will not move onto payroll.',
+                         nm + ' का ट्रायल अस्वीकार करें? पास बंद हो जाएगा और यह वर्कर पेरोल में नहीं आएगा।'),
+                       L('Reject trial','ट्रायल अस्वीकार')))) return;
   try{
     const { data, error } = await sb.rpc('wp_decide', { p_id: id, p_approve: false });
     if(error) throw error;
     if(data && data.error) return notify(data.error);
-    notify('✓ ' + nm + L(' — trial rejected', ' का ट्रायल अस्वीकार कर दिया'));
+    notify('✓ ' + nm + L(' — trial rejected, moved to earlier passes', ' का ट्रायल अस्वीकार — पुराने पास में चला गया'), 'success');
     wpEssLoad();
   }catch(e){ notify('Failed: ' + (e.message||e)); }
 }
