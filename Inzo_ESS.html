@@ -257,7 +257,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <img src="nexus-logo.png" alt="Nexus" style="height:44px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
       <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Portal</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B85</b> — 24 Nov</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B86</b> — 25 Nov</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -284,7 +284,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
           <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B85</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B86</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -874,17 +874,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
   </div>
 
   <!-- photo capture overlay for present-marking -->
-  <div id="fdCam" style="display:none;position:fixed;inset:0;z-index:201;background:rgba(15,23,42,.94);flex-direction:column;align-items:center;justify-content:center;padding:16px">
-    <p id="fdCamTitle" style="color:#fff;font-weight:700;font-size:16px;margin-bottom:4px"></p>
-    <p id="fdCamGeo" style="color:#bbf7d0;font-size:11.5px;margin-bottom:8px"></p>
-    <video id="fdCamVideo" autoplay playsinline muted style="width:min(92vw,380px);border-radius:16px;transform:scaleX(-1)"></video>
-    <p id="fdCamStat" style="color:#fde68a;font-size:12px;margin-top:10px;text-align:center;max-width:min(92vw,380px);line-height:1.5"></p>
-    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;justify-content:center">
-      <button id="fdShootBtn" onclick="fdShoot()" class="btn btn-primary" style="padding:13px 26px;font-size:15px"><i class="fa-solid fa-camera"></i> <span data-en="Capture" data-hi="फ़ोटो लें">Capture</span></button>
-      <button id="fdRetryBtn" onclick="fdGeoTry()" class="btn btn-ghost hidden" style="padding:13px 20px"><i class="fa-solid fa-rotate-right"></i> <span data-en="Try location again" data-hi="लोकेशन दोबारा लें">Try location again</span></button>
-      <button onclick="fdCamClose()" class="btn btn-ghost" style="padding:13px 20px"><span data-en="Cancel" data-hi="रद्द">Cancel</span></button>
-    </div>
-  </div>
+
   <div id="supCam" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(15,23,42,.92);flex-direction:column;align-items:center;justify-content:center;padding:16px">
     <p id="supCamName" style="color:#fff;font-weight:700;font-size:16px;margin-bottom:8px"></p>
     <video id="supCamVideo" autoplay playsinline muted style="width:min(92vw,380px);border-radius:16px;transform:scaleX(-1)"></video>
@@ -963,6 +953,20 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
     <button class="btn btn-ghost w-full justify-center mt-2" data-close="pwModal">Cancel</button>
   </div>
 </div>
+<!-- Field duty ka camera: ye overlay pehle #p-team ke andar pada tha, aur .page
+     chhupa hota hai to Home/Requests se punch karne par camera to chalta tha par
+     overlay dikhta hi nahi tha. Ab top level par hai, nxAskModal ki tarah. -->
+<div id="fdCam" style="display:none;position:fixed;inset:0;z-index:201;background:rgba(15,23,42,.94);flex-direction:column;align-items:center;justify-content:center;padding:16px">
+    <p id="fdCamTitle" style="color:#fff;font-weight:700;font-size:16px;margin-bottom:4px"></p>
+    <p id="fdCamGeo" style="color:#bbf7d0;font-size:11.5px;margin-bottom:8px"></p>
+    <video id="fdCamVideo" autoplay playsinline muted style="width:min(92vw,380px);border-radius:16px;transform:scaleX(-1)"></video>
+    <p id="fdCamStat" style="color:#fde68a;font-size:12px;margin-top:10px;text-align:center;max-width:min(92vw,380px);line-height:1.5"></p>
+    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;justify-content:center">
+      <button id="fdShootBtn" onclick="fdShoot()" class="btn btn-primary" style="padding:13px 26px;font-size:15px"><i class="fa-solid fa-camera"></i> <span data-en="Capture" data-hi="फ़ोटो लें">Capture</span></button>
+      <button id="fdRetryBtn" onclick="fdGeoTry()" class="btn btn-ghost hidden" style="padding:13px 20px"><i class="fa-solid fa-rotate-right"></i> <span data-en="Try location again" data-hi="लोकेशन दोबारा लें">Try location again</span></button>
+      <button onclick="fdCamClose()" class="btn btn-ghost" style="padding:13px 20px"><span data-en="Cancel" data-hi="रद्द">Cancel</span></button>
+    </div>
+  </div>
 <div class="modal" id="nxAskModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);align-items:center;justify-content:center;z-index:200;padding:16px">
   <div style="background:#fff;border-radius:16px;padding:20px;width:100%;max-width:360px;box-shadow:0 20px 50px rgba(15,23,42,.25)">
     <h3 id="nxAskTitle" style="font-weight:700;margin:0 0 8px;font-size:16px">Confirm</h3>
