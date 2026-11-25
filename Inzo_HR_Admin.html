@@ -4952,13 +4952,14 @@ $('aeSaveBtn').addEventListener('click', async () => {
   const btn = $('aeSaveBtn');
   btn.innerHTML = '<div class="loader-ring"></div> Adding…'; btn.disabled = true;
   try{
-    const { error } = await sb.from('employees').insert([{
+    const empRow = {
       Name: name, 'Employee code': code, Status: 'Active',
-      DEPARTMENT: String($('aeDept').value||'').trim().toUpperCase() || null, DESIGNATION: String($('aeDesig').value||'').trim().toUpperCase() || null, DOJ: $('aeDOJ').value,
+      DEPARTMENT: String($('aeDept').value||'').trim().toUpperCase() || null,
+      DESIGNATION: String($('aeDesig').value||'').trim().toUpperCase() || null,
+      DOJ: $('aeDOJ').value,
       UNIT: ($('aeUnit') && $('aeUnit').value) || null,
       LINE: (String($('aeLine').value||'').trim().toUpperCase() || null)
-    }]);
-    if(error) throw error;
+    };
     // salary from category (worker = min wage level, management = CTC)
     const S2 = getSettings();
     const salaryAllowed = canSeeConfidential();
@@ -4992,24 +4993,26 @@ $('aeSaveBtn').addEventListener('click', async () => {
       ifsc: $('aeIFSC').value.trim().toUpperCase() || null,
       pan: $('aePAN').value.trim().toUpperCase() || null,
       uan: $('aeUAN').value.trim() || null,
-      esi_no: $('aeESI').value.trim() || null,
-      otAllowed: aeOTAllowed };
-    // only write a salary structure if this admin is allowed to see/set salary
+      esi_no: $('aeESI').value.trim() || null };
+    // only write a salary structure if this admin is allowed to see/set salary.
+    // OT ka jawab hamesha salary ke andar jaata hai — hr_profiles par uska apna
+    // column hai hi nahi, aur top level par bhejne se poora profile save fail ho
+    // jaata tha (employee ban jaata tha, uski details kahin nahi jaati thin).
     if(salaryAllowed){
       prof.salary = { earn, ded: {}, wageType: mgmt ? 'custom' : 'category', skill, otAllowed: aeOTAllowed };
       prof.basic = earn.basic || 0; prof.hra = earn.hra || 0; prof.conveyance = earn.conveyance || 0; prof.special_allowance = earn.special_allowance || 0;
+    } else {
+      prof.salary = { otAllowed: aeOTAllowed };
     }
-    // Pehle is upsert ka error dekha hi nahi jaata tha: profile save fail hone par bhi
-    // "added" dikh jaata tha aur baad me employees ki row par sirf naam/department bachta tha.
-    const { error: _profErr } = await sb.from('hr_profiles').upsert(prof, { onConflict: 'employee_code' });
+    // Employee ki row aur uski profile ek hi server call me, ek hi transaction me
+    // banti hain. Pehle ye do alag call thin: pehli chal jaati thi, doosri chup-chaap
+    // fail ho jaati thi, aur employee bina details ke reh jaata tha.
+    const { data: _enr, error: _enrErr } = await sb.rpc('nx_enroll_employee',
+      { p_emp: empRow, p_prof: prof });
+    if(_enrErr) throw _enrErr;
+    if(_enr && _enr.error) throw new Error(_enr.error);
+    const _profErr = null;
     PROFILES[code] = Object.assign(PROFILES[code] || {}, prof);
-    if(_profErr){
-      // Profile ki details DB tak nahi pahunchin. Work pass ko converted mat maano, aur
-      // Profile screen wahi details le kar khulegi taaki ek click me dobara save ho jaye.
-      window._epForceFullSave = code;
-      notify('The employee was created, but the profile details did NOT save: ' + _profErr.message
-           + ' — the Profile screen is opening with everything you entered; click Save Profile to store it.', 'error');
-    }
     // Work Pass conversion: trial attendance sync + pass ko CONVERTED mark karo
     if(!_profErr && window._convertingWorkPass && window._convertingWorkPass.id){
       try{
@@ -5039,7 +5042,11 @@ $('aeSaveBtn').addEventListener('click', async () => {
     }
     PROFILES[code] = Object.assign(PROFILES[code] || {}, prof);   // profile data bhi retain
     openEmpModal(code);
-  }catch(err){ notify(err.message, 'error'); }
+  }catch(err){
+    // Kuch bana hi nahi — isliye form khula aur bhara hua hi rehta hai, taaki sab
+    // dobara type na karna pade. Wajah saaf likhi jaati hai.
+    notify('Nothing was saved: ' + (err.message || err) + ' — the form is still filled, fix what is needed and press Add Employee again.', 'error');
+  }
   finally{ btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Add Employee'; btn.disabled = false; }
 });
 
