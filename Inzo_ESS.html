@@ -259,7 +259,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
       <img src="nexus-logo.png" alt="Nexus" style="height:44px;width:auto;margin:0 auto 4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
       <h1 class="m-0" style="display:none;font-family:'Syncopate',sans-serif;font-weight:700;font-size:22px;letter-spacing:.22em;color:#16225a">N<span style="color:#1f4b9b">E</span>X<span style="color:#1f4b9b">U</span>S</h1>
       <p class="text-xs mt-2 mb-0" style="color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Employee Portal</p>
-      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B87</b> — 25 Nov</p>
+      <p class="text-[10px] mt-1 mb-0" style="color:#cbd5e1">Build <b>B88</b> — 27 Nov</p>
       <button id="pwaInstallBtn" class="chip chip-blue hidden mt-2" style="border:none;cursor:pointer"><i class="fa-solid fa-download"></i> Install App</button>
       <p class="text-[10px] mt-1" style="color:var(--muted)">Attendance • Leaves • Payslips • Profile</p>
     </div>
@@ -286,7 +286,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <h2 class="display font-bold m-0" style="font-size:16px" id="hName">—</h2>
           <p class="text-[11px] m-0" style="color:var(--muted)" id="hMeta">—</p>
           <p class="text-[11px] m-0 mt-1" style="color:var(--brand);font-weight:600" id="hGreet">—</p>
-          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B87</p>
+          <p class="text-[8px] m-0" style="color:#cbd5e1">Build B88</p>
         </div>
       </div>
       <button id="logoutBtn" class="chip chip-gray" style="border:none;cursor:pointer"><i class="fa-solid fa-power-off"></i> Sign out</button>
@@ -452,7 +452,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-ser
           <b>Short Leave</b> — 2 hours (arrive late or leave early) · <b>Half Day</b> — half working day.<br>
           Monthly limit: <b>1 Half Day OR 2 Short Leaves</b>. Requires reporting manager approval. Approved passes are fully paid.<br>
           <b>Official</b> — out on company work: the day is excused and your monthly personal quota is <b>not</b> used up. <b>Personal</b> — uses one from the quota above.</div>
-        <p class="text-[11px] mt-0 mb-2 p-2 rounded font-semibold" id="gpRule" style="background:#fffbeb;color:#92400e;border:1px solid #fde68a;line-height:1.45" data-en="A gate pass can be requested only for a day on which you have already punched. Punch first, then request." data-hi="गेट पास सिर्फ़ उसी दिन का डाल सकते हैं जिस दिन आपका पंच हो चुका हो। पहले पंच करें, फिर रिक्वेस्ट डालें।">A gate pass can be requested only for a day on which you have already punched. Punch first, then request.</p>
+        <p class="text-[11px] mt-0 mb-2 p-2 rounded font-semibold" id="gpRule" style="background:#fffbeb;color:#92400e;border:1px solid #fde68a;line-height:1.45" data-en="You can apply in advance — today or any day up to 30 days ahead. If no attendance is recorded on that day, the system closes the pass itself and your monthly quota is returned." data-hi="आप पहले से भी अप्लाई कर सकते हैं — आज का या आगे 30 दिन तक का। अगर उस दिन आपकी हाज़िरी नहीं लगी, तो सिस्टम ख़ुद पास बंद कर देगा और महीने का कोटा वापस मिल जाएगा।">You can apply in advance — today or any day up to 30 days ahead. If no attendance is recorded on that day, the system closes the pass itself and your monthly quota is returned.</p>
         <p class="text-[11px] mt-0 mb-3 font-semibold" id="gpQuota" style="color:#0d9488">…</p>
         <div class="grid grid-cols-2 gap-2 mb-2">
           <div><label class="lbl">Type</label><select id="gpKind" class="inp">
@@ -1505,7 +1505,7 @@ var ESS_FAQ = [
   { t:'Leave (CL / SL / EL)', b:'Leave tile kholo → leave type + from/to date + reason bharo. Niyam seedha hai: <b>har mahine sirf 1 leave paid</b> hoti hai. Usi mahine ki usse zyada leave, manager approve kar de to bhi, <b>unpaid (LOP)</b> rehti hai. Koi leave balance nahi hai aur bachi hui leave agle mahine nahi jaati — upar chip me dikh jata hai ki is mahine ki paid leave bachi hai ya use ho gayi. Aage ki leave pehle se daalo; emergency me us din bhi reason ke saath daal sakte ho. Bhejte hi request aapke reporting manager ke paas jaati hai (Super Admin ko bhi mail). Jab tak manager APPROVE na kare tab tak leave "Pending" rehti hai aur pay par asar nahi padta. Approve hone ke baad ye paid leave payroll me present ki tarah gini jaati hai. Sandwich policy hamare yahan hai hi nahi \u2014 leave ke aas-paas ka Sunday/holiday nahi kata jaata.' },
   { t:'Attendance Fix (galat ya chhoot gaya punch)', b:'Ye tab use karo jab kiosk ne aapka face punch miss kar diya ho ya galat time chadh gaya ho. Att. Fix tile → date + asli IN time + asli OUT time + reason + proof (gate photo/screenshot) bharo. Request HR ke paas jaati hai; HR us din ki gate CCTV/photo se milaan karke Approve ya Reject karta hai. Approve hone par us din ki attendance sahi ho jaati hai — tabhi wo din present count hota hai. Bina approval ke koi badlaav nahi hota.' },
   { t:'Field Duty (office ke bahar kaam)', b:'Client visit, delivery, site ya bahar ka koi official kaam. Field Duty tile → Duration (single ya multiple din) + date + reason bharo, ho sake to us din se pehle. Request reporting manager ke paas jaati hai (Super Admin ko bhi mail). DHYAAN DO: sirf approve ho jaane se present NAHI lagta. Approve hone ke baad us approved din aapki Home screen par "Punch In / Punch Out" button khul jaata hai. Aapko field par pahunch kar khud Punch In karna hai, aur kaam khatam hone par Punch Out — tabhi us din ki attendance record hoti hai aur present count hota hai. Agar approval ke baad bhi aap punch nahi karte, to wo din absent hi rahega.' },
-  { t:'Gate Pass / Short Leave', b:'Jab shift ke beech me thodi der ke liye bahar jaana ho. Pehle aapka normal IN punch hona chahiye. Gate Pass tile → slot (subah/shaam ka short leave) ya half-day + reason bharo. Manager approve karta hai. Approved gate pass ka matlab: us din aapka jaldi jaana ya der se aana "excused" hai — late/half-day ki katauti nahi lagti aur us din ki poori salary milti hai. Bina approval ke jaldi nikalna late/absent maana ja sakta hai.' },
+  { t:'Gate Pass / Short Leave', b:'Jab shift ke beech me thodi der ke liye bahar jaana ho. <b>Pehle se bhi daal sakte ho</b> — aaj ka ya aage 30 din tak ka, taki manager ko advance me pata rahe. Gate Pass tile → date + slot (subah/shaam ka short leave) ya half-day + reason bharo. Manager approve karta hai. Approved gate pass ka matlab: us din aapka jaldi jaana ya der se aana "excused" hai — late/half-day ki katauti nahi lagti aur us din ki poori salary milti hai. DHYAAN DO: agar us din aap aaye hi nahi (koi punch nahi), to system aapka approved pass khud hi band (reject) kar deta hai aur mahine ka kota wapas aapke khate me aa jaata hai — us din ki absent/leave apni jagah chalegi. Pichhli date ka pass nahi daal sakte. Bina approval ke jaldi nikalna late/absent maana ja sakta hai.' },
   { t:'WFH (Work From Home)', b:'Ghar se kaam ke liye. WFH tile → date + reason, din se pehle daalo. Manager approve karta hai. Approved WFH us din present ki tarah paid hota hai aur iske liye face/kiosk punch ki zaroorat nahi. Jo din pehle se attendance/leave me hai us par WFH dubara mat daalo.' },
   { t:'Expenses / Reimbursement', b:'Company ke kaam me kharch kiya paisa wapas paane ke liye. Expenses tile → category + amount + bill/receipt ki photo bharo. NOTE: 7 din se purana kharch claim nahi hota, isliye bill turant daal do. Claim seedha ACCOUNTS ke paas jaata hai — reporting manager ka koi approval nahi lagta. Accounts bill, date aur amount check karke approve/reject karta hai; approve + paid hone par amount aapko milta hai. Status har step par tile me dikhta hai.' },
   { t:'Advance / Loan', b:'Advance = ek baar ka paisa jo agli hi salary se poora kat jaata hai. Loan = CEO approval → Loan Agreement (yahin ESS me Accept karna hoga) → Accounts se disbursement → har mahine EMI katauti. Advance/Loan tile → type + amount + reason (Loan me months bhi) bharo. Manager/Accounts/CEO approve karte hain; katauti aapke payslip me saaf dikhti hai.' },
@@ -1524,7 +1524,7 @@ var ESS_FAQ_EN = [
   { t:"Leave (CL / SL / EL)", b:"Open the Leave tile, then enter the leave type, from/to dates and a reason. The rule is simple: <b>only one leave per month is paid</b>. Any further leave in the same month stays <b>unpaid (LOP)</b> even if your manager approves it. There is no leave balance and unused leave does not carry forward — the chip at the top shows whether this month's paid leave is still available or already used. Apply for planned leave in advance; in an emergency you may apply on the day itself with a reason. On submission the request goes to your reporting manager (Super Admin is copied). Until the manager approves, the leave stays <b>Pending</b> and does not affect your pay. Once approved, a paid leave is counted as present in payroll. We do not operate a sandwich policy — Sundays and holidays around a leave are not deducted." },
   { t:"Attendance Fix (wrong or missed punch)", b:"Use this when the kiosk missed your face punch or recorded the wrong time. Open the Att. Fix tile and enter the date, the actual IN time, the actual OUT time, a reason and proof (gate photo or screenshot). The request goes to HR, who verifies it against that day's gate CCTV or photo and then approves or rejects it. On approval that day's attendance is corrected — only then is the day counted as present. Nothing changes without approval." },
   { t:"Field Duty (work outside the office)", b:"For client visits, deliveries, site work or any official work outside the premises. Open the Field Duty tile and enter the duration (single or multiple days), the date and a reason — ideally before the day itself. The request goes to your reporting manager (Super Admin is copied). <b>Important:</b> approval alone does not mark you present. Once approved, a <b>Punch In / Punch Out</b> button appears on your Home screen for the approved day. You must punch in yourself after reaching the field and punch out when the work ends — only then is that day's attendance recorded and counted as present. If you do not punch even after approval, the day remains absent." },
-  { t:"Gate Pass / Short Leave", b:"For leaving the premises briefly during your shift. Your normal IN punch must already be recorded. Open the Gate Pass tile and choose a slot (morning or evening short leave) or a half day, and give a reason. Your manager approves it. An approved gate pass means your early departure or late arrival is <b>excused</b> for that day — no late or half-day deduction applies and the full day's salary is paid. Leaving early without approval may be treated as late or absent." },
+  { t:"Gate Pass / Short Leave", b:"For leaving the premises briefly during your shift. You may <b>apply in advance</b> — for today or for any day up to 30 days ahead — so that your manager knows beforehand. Open the Gate Pass tile and enter the date, a slot (morning or evening short leave) or a half day, and a reason. Your manager approves it. An approved gate pass means your early departure or late arrival is <b>excused</b> for that day — no late or half-day deduction applies and the full day's salary is paid. <b>Important:</b> if you do not attend on that day at all (no punch is recorded), the system closes the approved pass itself and returns the unused pass to your monthly quota; the day is then treated as absent or leave as usual. A pass cannot be requested for a past date. Leaving early without approval may be treated as late or absent." },
   { t:"WFH (Work From Home)", b:"For working from home. Open the WFH tile and enter the date and a reason, before the day itself. Your manager approves it. An approved WFH day is paid as present and needs no face or kiosk punch. Do not apply for WFH on a day that already has attendance or leave recorded." },
   { t:"Expenses / Reimbursement", b:"To recover money you spent on company work. Open the Expenses tile and enter the category, amount and a photo of the bill or receipt. <b>Note:</b> expenses older than 7 days cannot be claimed, so submit the bill promptly. The claim goes directly to ACCOUNTS — no reporting manager approval is required. Accounts verify the bill, date and amount and then approve or reject it; once approved and paid, the amount reaches you. The status is shown on the tile at every step." },
   { t:"Advance / Loan", b:"An <b>advance</b> is a one-time amount recovered in full from your next salary. A <b>loan</b> follows CEO approval → Loan Agreement (to be accepted here in ESS) → disbursement by Accounts → monthly EMI deduction. Open the Advance / Loan tile and enter the type, amount and reason (plus the number of months for a loan). Manager, Accounts and the CEO approve it; the deduction is shown clearly on your payslip." },
@@ -2811,10 +2811,14 @@ document.addEventListener('click', async e => {
   }catch(err){ notify(err.message || 'Failed — run the V60 SQL if not done yet'); }
 });
 function _gpToday(){ const t = new Date(); return new Date(t.getTime() - t.getTimezoneOffset()*60000).toISOString().slice(0,10); }
+// advance gate pass ki hadd — 30 din aage tak
+function _gpMaxDate(){ const t = new Date(); t.setDate(t.getDate() + 30); return new Date(t.getTime() - t.getTimezoneOffset()*60000).toISOString().slice(0,10); }
 async function loadGatePass(){
   const host = $('gpList'); if(!host) return;
-  // Gate pass sirf aaj ya pichhle din ka (jis din punch ho) — aage ki date band
-  if($('gpDate')){ $('gpDate').max = _gpToday(); if(!$('gpDate').value || $('gpDate').value > _gpToday()) $('gpDate').value = _gpToday(); }
+  // Gate pass aaj ka ya aage ka — advance me daal sakte ho, pichhli date band hai.
+  // Agar us din banda aaya hi nahi to system khud pass band kar deta hai — wo sweep yahi chalti hai
+  try{ await sb.rpc('nx_gate_autoreject'); }catch(e){}
+  if($('gpDate')){ $('gpDate').min = _gpToday(); $('gpDate').max = _gpMaxDate(); if(!$('gpDate').value || $('gpDate').value < _gpToday()) $('gpDate').value = _gpToday(); }
   const codeU = String(CODE||'').trim().toUpperCase();
   try{
     const ym = new Date().toISOString().slice(0,7);
@@ -2858,7 +2862,8 @@ document.addEventListener('click', async e => {
   const codeU = String(CODE||'').trim().toUpperCase();
   const d = $('gpDate').value;
   if(!d) return notify('Select a date');
-  if(d > _gpToday()) return notify('Aage ki date ka gate pass nahi daal sakte — jis din aao, punch karne ke baad usi din daalo');
+  if(d < _gpToday()) return notify('Pichhli date ka gate pass nahi daal sakte — aaj ka ya aage ka daalo');
+  if(d > _gpMaxDate()) return notify('Gate pass 30 din se zyada aage ka nahi daal sakte');
   // Monthly quota: YA TO 2 Short Leave YA 1 Half Day (dono nahi — mutually exclusive).
   // Official gate pass company ke kaam ka hai, isliye wo quota me ginta hi nahi —
   // na ye check uspe lagta hai, na wo quota kharch karta hai.
@@ -3451,8 +3456,8 @@ var NX_EN = {
  "Us din ki ek request pehle se hai": "A request for that date already exists",
  "Emergency leave ek baar me 2 din se zyada ki nahi lag sakti — zyada din ke liye normal leave lagayein": "An emergency leave cannot be for more than 2 days at a time. For a longer absence, apply for normal leave.",
  "Is mahine ki emergency leave aap pehle hi laga chuke ho — mahine me sirf ek baar milti hai": "You have already applied for an emergency leave this month. Only one is allowed in a month.",
- "Aage ki date ka gate pass nahi daal sakte — jis din aao, punch karne ke baad usi din daalo": "A gate pass cannot be requested for a future date. Request it on the day itself, after you have punched.",
- "Us din ka koi punch nahi hai — gate pass sirf punch karne ke baad hi daal sakte ho": "No punch is recorded for that day. A gate pass can be requested only after you have punched.",
+ "Pichhli date ka gate pass nahi daal sakte — aaj ka ya aage ka daalo": "A gate pass cannot be requested for a past date. Choose today or a later date.",
+ "Gate pass 30 din se zyada aage ka nahi daal sakte": "A gate pass cannot be requested more than 30 days in advance.",
  "Visit date chunein": "Pick the visit date",
  "Visitor Entry Banao": "Create Visitor Entry",
  "Visitor entry cancelled. They will no longer be allowed at the gate.": "Visitor entry cancelled — entry will no longer be allowed at the gate",
@@ -3802,8 +3807,8 @@ var NX_HI = {
  "Us din ki ek request pehle se hai": "उस दिन का एक अनुरोध पहले से है",
  "Emergency leave ek baar me 2 din se zyada ki nahi lag sakti — zyada din ke liye normal leave lagayein": "आपातकालीन छुट्टी एक बार में 2 दिन से ज़्यादा की नहीं लग सकती। ज़्यादा दिन के लिए सामान्य छुट्टी लगाएँ।",
  "Is mahine ki emergency leave aap pehle hi laga chuke ho — mahine me sirf ek baar milti hai": "इस महीने आप आपातकालीन छुट्टी पहले ही लगा चुके हैं। महीने में सिर्फ़ एक बार मिलती है।",
- "Aage ki date ka gate pass nahi daal sakte — jis din aao, punch karne ke baad usi din daalo": "आगे की तारीख़ का गेट पास नहीं डाल सकते। जिस दिन आएँ, पंच करने के बाद उसी दिन डालें।",
- "Us din ka koi punch nahi hai — gate pass sirf punch karne ke baad hi daal sakte ho": "उस दिन का कोई पंच नहीं है। गेट पास सिर्फ़ पंच करने के बाद ही डाल सकते हैं।",
+ "Pichhli date ka gate pass nahi daal sakte — aaj ka ya aage ka daalo": "पिछली तारीख़ का गेट पास नहीं डाल सकते। आज या आगे की तारीख़ चुनें।",
+ "Gate pass 30 din se zyada aage ka nahi daal sakte": "गेट पास 30 दिन से ज़्यादा आगे का नहीं डाल सकते।",
  "View My HR": "मेरा HR देखें",
  "Visit date": "आने की तारीख़",
  "Visit date chunein": "आने की तारीख़ चुनें",

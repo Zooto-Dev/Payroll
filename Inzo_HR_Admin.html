@@ -16683,6 +16683,8 @@ const _apNoBtn = (act, extra) => `<button class="btn btn-danger btn-sm" data-act
 async function loadApInbox(){
   const items = [];
   const push = o => items.push(o);
+  // gate pass jo advance me approve hua tha lekin us din banda aaya hi nahi — system khud band kar deta hai
+  try{ await sb.rpc('nx_gate_autoreject'); }catch(e){}
   // sabhi source ek saath — ek bhi fail ho to baaki phir bhi dikhen
   const safe = p => p.then(r => r, () => ({ data: [] }));
   const [lv, ex, ea, ml, fuel, sup, lateR, wp] = await Promise.all([
@@ -16880,6 +16882,7 @@ async function apSetLateDecision(code, month, decision){
 
 async function loadApprovals(){
   loadSupAttApprovals();
+  try{ await sb.rpc('nx_gate_autoreject'); }catch(e){}
   const [lv, ex, ea] = await Promise.all([
     sb.from('leaves').select('*').eq('status','PENDING').order('created_at'),
     sb.from('expenses').select('*').eq('status','PENDING').order('created_at'),
